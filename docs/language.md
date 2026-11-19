@@ -22,9 +22,10 @@ Blank lines are ignored. Indentation is ignored.
 
 ```
 sys n a b c d e f
+sys n a b c d e f as name
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. The keyword is followed by at least one space or tab, and `n` must be a decimal integer, not a string. Arguments are separated by spaces or tabs and the statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). The keyword is followed by at least one space or tab, and `n` must be a decimal integer, not a string. Arguments are separated by spaces or tabs and the statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -36,7 +37,7 @@ Performs the raw Linux x86-64 syscall number `n` with up to six arguments. The k
 | 5th | `r8` |
 | 6th | `r9` |
 
-Registers for arguments you leave out are not set and keep whatever they held. The syscall's return value is left in `rax` and cannot be used yet.
+Registers for arguments you leave out are not set and keep whatever they held. Without `as`, the syscall's return value is lost.
 
 Syscall numbers are the kernel's own; the common ones are `0` read, `1` write, `60` exit.
 
@@ -70,6 +71,29 @@ Strings are not NUL-terminated; add `\0` if the callee needs it (it then counts 
 
 A backslash before any other character yields that character. A string may span lines; the newline is included as-is.
 
+### Variables
+
+```
+sys 1 1 "abc\n" as n     # n = 4, the number of bytes written
+sys 60 n                 # exit(4)
+```
+
+A variable is a name for a 64-bit value held in a machine register. A name starts with a lowercase letter and continues with lowercase letters, digits and `_`. `as` is reserved.
+
+`as name` at the end of a `sys` statement defines the variable and stores the syscall's raw return value in it: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. There is no other way to set a variable yet.
+
+A variable used as an argument passes its full 64-bit value and counts as one argument. It must be defined by an earlier `as`, and it cannot be the syscall number. Like any argument it is preceded by a space or tab.
+
+A program can define at most 6 variables. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed. Syscalls do not change these registers.
+
+Variables hold values only. A buffer is still an address you obtain explicitly, for example from `mmap`:
+
+```
+sys 9 0 4096 3 34 0 0 as p    # mmap one anonymous read-write page
+sys 0 0 p 4096 as n           # read stdin into it
+sys 1 1 p n                   # write what was read
+```
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string.
@@ -81,6 +105,8 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
+| `ailc: undefined variable` | 1 | a name used as an argument before any `as` defined it |
+| `ailc: too many variables` | 1 | a seventh variable name |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed |
@@ -91,7 +117,9 @@ Causes of a syntax error:
 
 - a line that does not start with `sys`
 - `sys` not followed by a space or tab and then a decimal syscall number
-- an argument that is neither a decimal integer nor a string
+- an argument that is not a decimal integer, a string or a variable name
+- a variable name not preceded by a space or tab
+- `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote
 

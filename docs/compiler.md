@@ -1,6 +1,6 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 300 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 450 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It exists to be replaced. Once AIL can express a compiler, the next version is written in AIL and stage0 is only used to build it the first time.
 
@@ -27,6 +27,7 @@ The whole compiler shares a fixed set of registers instead of passing parameters
 | `rdi` | output cursor |
 | `r14` | start of output buffer |
 | `ebx` | index of the next syscall argument in the current statement |
+| `ebp` | number of variables defined so far |
 
 `rsi` and `rdi` are chosen so that `lodsb`, `stosb` and `rep movsb` work on the cursors directly.
 
@@ -39,9 +40,14 @@ The whole compiler shares a fixed set of registers instead of passing parameters
 | `arg` | dispatch the next argument, or end the statement by emitting `syscall` |
 | `num` | parse a decimal integer |
 | `str` | copy a string literal into the output and pass its address and length |
+| `ident` | a name as an argument: pass a variable, or hand over to `capture` on `as` |
+| `capture` | `as <name>`: define the variable if new, emit `syscall` and store `rax` in it |
+| `blanks`, `name` | skip blanks within the line; read a name |
+| `lookup` | find a name in the variable table |
+| `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `fin` | emit `exit(0)`, patch sizes, write the output |
-| `err`, `err_big` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -70,7 +76,9 @@ mov  <next reg>, length
 
 The address is known as soon as the string is read, so no data section and no back-patching of addresses is needed. The only patch is the jump distance, which is written when the closing quote is found.
 
-**End of statement.** `syscall` (`0F 05`).
+**Variable argument.** `mov r64, r64` from the variable's register into the argument register: `REX.W 89 /r`, 3 bytes. The x86 register numbers come from `argnum` (argument position) and `varnum` (variable index); bit 3 of each goes into the REX prefix and the low bits into the ModRM byte.
+
+**End of statement.** `syscall` (`0F 05`). With `as`, it is followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
 **End of program.** `mov eax, 60` / `xor edi, edi` / `syscall`.
 
@@ -97,7 +105,17 @@ To inspect any compiled program the same way:
 objdump -D -b binary -mi386:x86-64 -Mintel --start-address=120 build/hello
 ```
 
+## Variables
+
+The table `vars` has one 16-byte entry per variable: the address of the name inside the input buffer and its length. Names are not copied. `ebp` counts the entries, and `lookup` searches them linearly.
+
+Variable `i` lives in the register `varnum[i]`: `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15`. These are the registers that neither the `syscall` instruction (which destroys `rax`, `rcx` and `r11`) nor the argument positions use. `rsp` is left alone for a future stack. A register is assigned on the first `as` for a name and kept for the rest of the program, so the generated code never saves or restores anything.
+
+A name is only entered in the table when its `as` is reached, at the end of the statement, so `sys 1 n as n` with a new `n` is an undefined variable.
+
 ## Limits
+
+- 6 variables, the size of the register pool.
 
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to at most about three output bytes.
 - x86-64 Linux only.

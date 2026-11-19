@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code review 2026-11-19, conversation 2026-11-19]
+sources: [commit 787fe7e, code review 2026-11-19, conversation 2026-11-19, stage0/ailc.s]
 status: current
 ---
 # Stage0 design decisions
@@ -22,6 +22,11 @@ records the reasoning.
 - Checked by hand only, because the runner cannot express them: `build/ailc <&-` gives
   `ailc: read error`, output to `/dev/full` gives `ailc: write error` (both exit 2), and after a
   failed example build a second `make` fails again instead of reporting nothing to do.
+- Variables were added on 2026-11-19: `sys ... as name` keeps the return value, and a name can be
+  passed as an argument. Six variables, one register each (`rbx rbp r12 r13 r14 r15`), never freed.
+  Tests cover every pool register, 64-bit values (an `mmap` pointer) and every rejection.
+- A label named `word` broke the compiler: in Intel syntax `jbe word` is read as a size keyword,
+  assembles silently and jumps elsewhere, so every source with a name segfaulted `ailc`.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
   written yet, and `mov r32, imm32` would zero-extend it wrongly anyway.
 
@@ -33,6 +38,16 @@ records the reasoning.
 - **Implicit `exit(0)` and no `main`:** boilerplate that carries no information is left out.
 - **Compiler emits ELF itself:** the output path has no assembler or linker, so a self-hosted
   compiler will not need them either. Only building stage0 needs `as` and `ld`.
+- **Variables are registers, with no spilling:** the generated code needs no stack or writable
+  memory, and passing or capturing a value is one 3-byte `mov`. The pool is the registers that the
+  `syscall` instruction and the argument positions leave alone; `rsp` is kept for a future stack.
+- **`as name` after the arguments:** it reads left to right in execution order and adds two tokens.
+  A name is defined only when its `as` is reached, so it cannot be used earlier on the same line.
+- **Names are stored as pointers into the input buffer:** no copying and no name-length limit.
+- **Separate `undefined variable` and `too many variables` messages:** with no line numbers, the
+  message is all an AI has to repair the program.
+- **A name must follow a blank:** otherwise `12x` would turn from a syntax error into the number 12
+  and a variable `x`.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.
@@ -54,8 +69,10 @@ records the reasoning.
 ## Open items
 - 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
   thumb only.
-- 2026-11-19: self-hosting is not started; the language lacks variables, memory access, arithmetic,
-  control flow and functions.
+- 2026-11-19: self-hosting is not started; the language lacks memory access, arithmetic, control
+  flow and functions. A variable can only be set by `as`; assignment comes with arithmetic.
+- 2026-11-19: six variables will not be enough for a compiler; that needs spilling or scoped reuse
+  of registers once functions exist.
 - 2026-11-19: errors carry no line number.
 - 2026-11-19: I/O error paths and the Makefile failed-build case have no automated test.
 

@@ -6,18 +6,18 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 
 - Stage0 compiler in assembly that emits ELF64 directly.
 - One statement, `sys`, with integer and string arguments.
+- Register-backed variables: `as name` keeps a syscall's return value, and a variable can be passed as an argument.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
 ## Next: make the language able to express a compiler
 
 Stage0 has to grow until a compiler can be written in AIL. In rough order of dependency:
 
-1. **Values that persist**: named registers or variables, and a way to use a syscall's return value.
-2. **Arithmetic and comparison.**
-3. **Memory access**: load and store bytes and words, plus a writable region for buffers. This needs a writable segment in the ELF output.
-4. **Control flow**: labels, conditional and unconditional jumps, loops. This is the first feature that needs forward references, so the compiler needs fixups or a second pass.
-5. **Functions**: call and return with a simple calling convention.
-6. **Wider integers**: 64-bit and negative immediates.
+1. **Arithmetic and comparison**, including setting a variable from a constant or another variable.
+2. **Memory access**: load and store bytes and words, plus a writable region for buffers. This needs a writable segment in the ELF output.
+3. **Control flow**: labels, conditional and unconditional jumps, loops. This is the first feature that needs forward references, so the compiler needs fixups or a second pass.
+4. **Functions**: call and return with a simple calling convention.
+5. **Wider integers**: 64-bit and negative immediates.
 
 ## Then: self-hosting
 

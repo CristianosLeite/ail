@@ -12,7 +12,7 @@ It compiles to a 168-byte static Linux executable.
 
 ## Status
 
-Early proof of concept. The language has a single statement (a raw syscall) and the compiler is a bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
+Early proof of concept. The language has a single statement (a raw syscall) plus variables that keep syscall results, and the compiler is a bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
 
 ## Quick start
 
@@ -38,7 +38,9 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | Form | Meaning |
 |---|---|
 | `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments |
+| `sys ... as x` | Same, keeping the return value in variable `x` (at most 6 variables) |
 | `123` | Unsigned 32-bit decimal argument |
+| `x` | Variable argument, 64-bit |
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
 | `# ...` | Comment to end of line |
 
