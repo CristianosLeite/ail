@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code review 2026-11-19, conversations 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, stage0/ailc.s]
 status: current
 ---
 # Stage0 design decisions
@@ -31,6 +31,14 @@ records the reasoning.
 - Linux (checked on 7.0) loads a `PT_LOAD` whose memory size is zero, so programs without `buf`
   keep the same two-segment header and nothing patches `e_phnum`.
 - A literal above 4294967295 still wraps silently, so `div x 4294967296` divides by zero.
+- A review of the memory access work on 2026-11-19 found two defects, both fixed. `store "A"`,
+  `storeb "A"` and `add "A" as x` compiled, because a string expands to two values and so
+  satisfied the two-operand count; the stores then died with SIGSEGV. `str` now rejects a string
+  unless the statement is `sys`. And the `loadb` test passed 0xff straight to `exit`, which looks
+  the same zero- or sign-extended; it now shifts right by 8 and expects 0.
+- Checked by hand in that review: an unaligned 64-bit store and load across a page boundary work,
+  and the buffer total can reach the exact segment limit (one more byte is rejected after
+  rounding).
 - A label named `word` broke the compiler: in Intel syntax `jbe word` is read as a size keyword,
   assembles silently and jumps elsewhere, so every source with a name segfaulted `ailc`.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
@@ -86,6 +94,12 @@ records the reasoning.
 - Labels, functions or forward jumps need a fixup list or a second pass. Decide that before adding
   control flow.
 - A new statement that maps to "operands in `rax`/`rdi`, result in `rax`" is a row in `optab`.
+- The operand count in `optab` counts values, not tokens, and says nothing about their kind. A
+  restriction on what an operand may be needs its own check where that token is parsed, as `str`
+  does with `IS_SYS`.
+- An exit status shows only the low 8 bits of a value. A test of width or extension must move the
+  interesting bits down first, and is only proven when the wrong instruction, patched into a
+  scratch copy of the compiler, makes it fail.
 - Initialised writable data would need file bytes in the second segment; today it is zero-filled
   only and strings stay read-only.
 - 64-bit or negative immediates need a `mov r64, imm64` (or sign-extended) path in `emit_mov`.
