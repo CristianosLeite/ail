@@ -30,7 +30,7 @@ A test is a pair `tests/<name>.ai` and `tests/<name>.out` (expected stdout); `te
 
 ## Language (stage0)
 
-`README.md` holds the spec; keep it in sync with the compiler. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments). Arguments are unsigned 32-bit decimals or string literals; a string expands to two arguments, address then length. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
+`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments). Arguments are unsigned 32-bit decimals or string literals; a string expands to two arguments, address then length. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
 
 ## Compiler architecture (`stage0/ailc.s`)
 
