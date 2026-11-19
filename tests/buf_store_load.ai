@@ -1,0 +1,8 @@
+buf b 16
+set 4294967295 as m
+mul m m as p          # a value wider than 32 bits
+store b p
+load b as q
+shr q 33 as q         # 0x7FFFFFFF
+sub q 2147483600 as q
+sys 60 q

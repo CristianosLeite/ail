@@ -20,7 +20,7 @@ Blank lines are ignored. Indentation is ignored.
 
 The same rule holds everywhere outside string literals:
 
-- Tokens (the keyword, numbers, strings, variable names, `as`) are separated by one or more spaces or tabs. Two tokens may not touch: `1"x"` and `"a""b"` are errors.
+- Tokens (the keyword, numbers, strings, names, `as`) are separated by one or more spaces or tabs. Two tokens may not touch: `1"x"` and `"a""b"` are errors.
 - A line ends with LF or CRLF. A CR that is not followed by LF is an error.
 - `#` starts a comment and may directly follow a token.
 
@@ -50,6 +50,64 @@ Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With 
 Registers for arguments you leave out are not set and keep whatever they held. Without `as`, the syscall's return value is lost.
 
 Syscall numbers are the kernel's own; the common ones are `0` read, `1` write, `60` exit.
+
+### `set` and arithmetic
+
+```
+set a as name
+add a b as name
+```
+
+`set` copies one value into a variable. The arithmetic statements take two values and keep the result in a variable. All of them need `as name`; an operand is an integer, a variable or a buffer name, never a string.
+
+| Statement | Result |
+|---|---|
+| `set a` | `a` |
+| `add a b` | `a + b` |
+| `sub a b` | `a - b` |
+| `mul a b` | `a * b` |
+| `div a b` | `a / b`, unsigned, rounded down |
+| `mod a b` | remainder of `a / b`, unsigned |
+| `and a b`, `or a b`, `xor a b` | bitwise |
+| `shl a b` | `a` shifted left by `b` bits |
+| `shr a b` | `a` shifted right by `b` bits, zero-filled |
+
+Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones. A shift uses only the low 6 bits of `b`. Dividing by zero kills the program with `SIGFPE`. The result may go into one of the operands: `add i 1 as i`.
+
+### `buf`
+
+```
+buf name size
+```
+
+Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer of at least 1 and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
+
+A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as`. Variables and buffers share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
+
+```
+buf line 4096
+sys 0 0 line 4096 as n     # read stdin into it
+sys 1 1 line n             # write what was read
+```
+
+### `load` and `store`
+
+```
+load addr as name       # 64-bit value at addr
+loadb addr as name      # byte at addr, zero-extended
+store addr value        # write the 64 bits of value at addr
+storeb addr value       # write the low byte of value at addr
+```
+
+`addr` is any value: a buffer name, a variable holding an address, or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. Nothing is checked at run time: an address outside mapped memory, or a store into string data, kills the program with `SIGSEGV`.
+
+```
+buf b 8
+storeb b 104            # "h"
+add b 1 as p
+storeb p 10             # newline
+sys 1 1 b 2
+```
 
 ## Arguments
 
@@ -90,13 +148,15 @@ sys 60 n                 # exit(4)
 
 A variable is a name for a 64-bit value held in a machine register. A name starts with a lowercase letter and continues with lowercase letters, digits and `_`. `as` is reserved.
 
-`as name` at the end of a `sys` statement defines the variable and stores the syscall's raw return value in it: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. There is no other way to set a variable yet.
+`as name` at the end of a statement defines the variable and stores the statement's result in it. For `sys` that is the syscall's raw return value: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. `as` is the only way to set a variable; `set 5 as x` sets one to a constant.
 
 A variable used as an argument passes its full 64-bit value and counts as one argument. It must be defined by an earlier `as`, and it cannot be the syscall number.
 
+Statement keywords are only special at the start of a line, so `add` or `buf` are valid variable names.
+
 A program can define at most 6 variables. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed. Syscalls do not change these registers.
 
-Variables hold values only. A buffer is still an address you obtain explicitly, for example from `mmap`:
+Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), or one obtained at run time, for example from `mmap`:
 
 ```
 sys 9 0 4096 3 34 0 0 as p    # mmap one anonymous read-write page
@@ -115,8 +175,10 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as an argument before any `as` defined it |
+| `ailc: undefined variable` | 1 | a name used as an argument before any `as` or `buf` defined it |
 | `ailc: too many variables` | 1 | a seventh variable name |
+| `ailc: duplicate name` | 1 | `buf` with a name already in use, or `as` with the name of a buffer |
+| `ailc: too many buffers` | 1 | a seventeenth buffer, or buffers that together exceed about 3.7 GiB |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed |
@@ -125,8 +187,12 @@ Status 1 means the source is at fault; status 2 means the environment is.
 
 Causes of a syntax error:
 
-- a line that does not start with `sys`
-- `sys` not followed by a space or tab and then a decimal syscall number
+- a line that does not start with a statement keyword
+- a keyword not followed by a space or tab
+- `sys` not followed by a decimal syscall number
+- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb` and the arithmetic statements take two (a string counts as two)
+- `set`, an arithmetic statement or a load without `as`, or a store with `as`
+- `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF
 - an argument that is not a decimal integer, a string or a variable name
@@ -135,6 +201,17 @@ Causes of a syntax error:
 - a string with no closing quote
 
 ## Examples
+
+Copy up to 4096 bytes of stdin to stdout, in upper case only for the first byte:
+
+```
+buf b 4096
+sys 0 0 b 4096 as n
+loadb b as c
+sub c 32 as c
+storeb b c
+sys 1 1 b n
+```
 
 Print to stdout:
 

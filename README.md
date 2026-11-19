@@ -8,11 +8,11 @@ This is a complete program:
 sys 1 1 "hello world\n"
 ```
 
-It compiles to a 168-byte static Linux executable.
+It compiles to a 224-byte static Linux executable.
 
 ## Status
 
-Early proof of concept. The language has a single statement (a raw syscall) plus variables that keep syscall results, and the compiler is a bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
+Early proof of concept. The language has raw syscalls, six register variables, integer arithmetic and byte or 64-bit memory access, but no control flow yet, and the compiler is a bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
 
 ## Quick start
 
@@ -39,8 +39,13 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 |---|---|
 | `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments |
 | `sys ... as x` | Same, keeping the return value in variable `x` (at most 6 variables) |
+| `set a as x` | `x = a` |
+| `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
+| `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
+| `load p as x`, `loadb p as x` | Read the 64-bit value or the byte at address `p` |
+| `store p a`, `storeb p a` | Write `a` as 64 bits or as one byte at address `p` |
 | `123` | Unsigned 32-bit decimal argument |
-| `x` | Variable argument, 64-bit |
+| `x` | Variable (64-bit) or buffer name (its address) |
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
 | `# ...` | Comment to end of line |
 

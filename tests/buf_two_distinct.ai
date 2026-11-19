@@ -1,0 +1,8 @@
+# sizes round up to 8 bytes, so the second buffer starts 8 after the first
+buf a 3
+buf b 8
+store a 1684234849    # "abcd" and four zero bytes
+store b 10
+sub b a as d
+sys 1 1 a 9           # a..a+7 then the first byte of b
+sys 60 d

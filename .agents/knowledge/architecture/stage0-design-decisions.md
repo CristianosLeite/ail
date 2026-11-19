@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code review 2026-11-19, conversation 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code review 2026-11-19, conversations 2026-11-19, stage0/ailc.s]
 status: current
 ---
 # Stage0 design decisions
@@ -11,7 +11,7 @@ what was verified, and what the choices cost later. `AGENTS.md` describes the st
 records the reasoning.
 
 ## Facts
-- Hello world is `sys 1 1 "hello world\n"` and compiles to a 168-byte static ELF64 (120 bytes of
+- Hello world is `sys 1 1 "hello world\n"` and compiles to a 224-byte static ELF64 (176 bytes of
   headers, 48 of code and string).
 - Covered by tests since 2026-11-19: escapes, comments, several statements, explicit exit status,
   six arguments, every syntax-error cause, and the 65536-byte source limit on both sides.
@@ -25,6 +25,12 @@ records the reasoning.
 - Variables were added on 2026-11-19: `sys ... as name` keeps the return value, and a name can be
   passed as an argument. Six variables, one register each (`rbx rbp r12 r13 r14 r15`), never freed.
   Tests cover every pool register, 64-bit values (an `mmap` pointer) and every rejection.
+- Assignment, arithmetic and memory access were added on 2026-11-19: `set` and ten arithmetic
+  statements, `buf name size`, `load`/`loadb`/`store`/`storeb`. The header grew from 120 to 176
+  bytes for a second, read-write `PT_LOAD` at `0x10000000` with no file bytes.
+- Linux (checked on 7.0) loads a `PT_LOAD` whose memory size is zero, so programs without `buf`
+  keep the same two-segment header and nothing patches `e_phnum`.
+- A literal above 4294967295 still wraps silently, so `div x 4294967296` divides by zero.
 - A label named `word` broke the compiler: in Intel syntax `jbe word` is read as a size keyword,
   assembles silently and jumps elsewhere, so every source with a name segfaulted `ailc`.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
@@ -52,6 +58,19 @@ records the reasoning.
   Every token now ends in `tokend`, which also keeps `12x` a syntax error instead of the number 12
   and a variable `x`. This broke sources relying on the old separators, accepted while the
   language is small. New statements must end their tokens through `tokend` too.
+- **New statements are `keyword operands as name` (chosen by the user, 2026-11-19):** the same
+  shape as `sys`, so operands reuse the argument parser and land in `rax` and `rdi`, and a
+  statement is one row of instruction bytes in `optab`. Rejected: two-address in-place forms
+  (`add x 1`), which give two ways to define a variable, and infix `x = a + b`, which adds
+  punctuation and a second parser path.
+- **Buffers are named compile-time addresses, not variables (chosen by the user):** `buf` costs
+  none of the six registers. The alternative was one fixed region carved up by hand.
+- **Byte and 64-bit accesses only (chosen by the user):** enough to write a compiler; 16- and
+  32-bit accesses wait for a demonstrated need.
+- **Writable segment at a fixed address:** the address of a buffer must be known when it is used,
+  before the code size is known, so it cannot follow the code.
+- **`duplicate name` and `too many buffers` are separate messages:** same reason as for variables.
+- **Comparison was left out of the arithmetic step:** it is better designed with control flow.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.
@@ -66,15 +85,16 @@ records the reasoning.
 - Keep new syntax to short common words separated by spaces; let the compiler derive what it can.
 - Labels, functions or forward jumps need a fixup list or a second pass. Decide that before adding
   control flow.
-- Writable data needs a second `PT_LOAD` segment or an RWX one. The current header has a single R+X
-  segment.
+- A new statement that maps to "operands in `rax`/`rdi`, result in `rax`" is a row in `optab`.
+- Initialised writable data would need file bytes in the second segment; today it is zero-filled
+  only and strings stay read-only.
 - 64-bit or negative immediates need a `mov r64, imm64` (or sign-extended) path in `emit_mov`.
 
 ## Open items
 - 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
   thumb only.
-- 2026-11-19: self-hosting is not started; the language lacks memory access, arithmetic, control
-  flow and functions. A variable can only be set by `as`; assignment comes with arithmetic.
+- 2026-11-19: self-hosting is not started; the language lacks comparison, control flow and
+  functions.
 - 2026-11-19: six variables will not be enough for a compiler; that needs spilling or scoped reuse
   of registers once functions exist.
 - 2026-11-19: errors carry no line number.

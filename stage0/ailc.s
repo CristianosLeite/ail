@@ -6,20 +6,31 @@
 #   rdi = output cursor  r14 = output base
 #   ebx = syscall arg index of the statement being compiled
 #   ebp = number of variables defined so far
+# curop points at the optab entry of the statement being compiled.
 
 .intel_syntax noprefix
 
 .equ BASE,   0x400000
-.equ HDRSZ,  120                # ELF header (64) + one program header (56)
+.equ BSS,    0x10000000         # address of the writable segment (buffers)
+.equ HDRSZ,  176                # ELF header (64) + two program headers (56 each)
 .equ INSZ,   0x10000
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 .equ NVARS,  6                  # size of the variable register pool
+.equ NBUFS,  16                 # size of the buffer table
+.equ AS_REQ,  1                 # optab flags: "as name" is required,
+.equ AS_NONE, 2                 # is not allowed,
+.equ IS_SYS,  4                 # the statement is sys
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
 inend:
 outbuf: .skip OUTSZ
 vars:   .skip NVARS * 16        # per variable: name address in inbuf, name length
+bufs:   .skip NBUFS * 16        # per buffer: the same
+bufaddr: .skip NBUFS * 4        # per buffer: its address
+nbufs:  .skip 4                 # number of buffers defined so far
+bsssz:  .skip 8                 # bytes reserved in the writable segment
+curop:  .skip 8                 # optab entry (at its nargs byte) of this statement
 
 .section .rodata
 hdr:
@@ -31,7 +42,7 @@ hdr:
     .quad 64                    # phoff
     .quad 0                     # shoff
     .long 0                     # flags
-    .word 64, 56, 1, 64, 0, 0   # ehsize phentsize phnum shentsize shnum shstrndx
+    .word 64, 56, 2, 64, 0, 0   # ehsize phentsize phnum shentsize shnum shstrndx
     .long 1                     # PT_LOAD
     .long 5                     # R+X
     .quad 0                     # file offset
@@ -40,6 +51,67 @@ hdr:
     .quad 0                     # filesz (patched)
     .quad 0                     # memsz  (patched)
     .quad 0x1000                # align
+    .long 1                     # PT_LOAD: buffers, no bytes in the file
+    .long 6                     # R+W
+    .quad 0                     # file offset
+    .quad BSS                   # vaddr
+    .quad BSS                   # paddr
+    .quad 0                     # filesz
+    .quad 0                     # memsz  (patched)
+    .quad 0x1000                # align
+
+# statements: name length, name, operand count, flags, code length, code.
+# Operands arrive in rax then rdi; the code leaves its result in rax.
+optab:
+    .byte 3
+    .ascii "sys"
+    .byte 0, IS_SYS, 2,  0x0F,0x05                  # syscall
+    .byte 3
+    .ascii "set"
+    .byte 1, AS_REQ, 0
+    .byte 3
+    .ascii "add"
+    .byte 2, AS_REQ, 3,  0x48,0x01,0xF8             # add rax, rdi
+    .byte 3
+    .ascii "sub"
+    .byte 2, AS_REQ, 3,  0x48,0x29,0xF8             # sub rax, rdi
+    .byte 3
+    .ascii "mul"
+    .byte 2, AS_REQ, 4,  0x48,0x0F,0xAF,0xC7        # imul rax, rdi
+    .byte 3
+    .ascii "div"
+    .byte 2, AS_REQ, 5,  0x31,0xD2, 0x48,0xF7,0xF7  # xor edx, edx ; div rdi
+    .byte 3
+    .ascii "mod"                                    # ... ; mov rax, rdx
+    .byte 2, AS_REQ, 8,  0x31,0xD2, 0x48,0xF7,0xF7, 0x48,0x89,0xD0
+    .byte 3
+    .ascii "and"
+    .byte 2, AS_REQ, 3,  0x48,0x21,0xF8             # and rax, rdi
+    .byte 2
+    .ascii "or"
+    .byte 2, AS_REQ, 3,  0x48,0x09,0xF8             # or rax, rdi
+    .byte 3
+    .ascii "xor"
+    .byte 2, AS_REQ, 3,  0x48,0x31,0xF8             # xor rax, rdi
+    .byte 3
+    .ascii "shl"                                    # mov rcx, rdi ; shl rax, cl
+    .byte 2, AS_REQ, 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE0
+    .byte 3
+    .ascii "shr"                                    # mov rcx, rdi ; shr rax, cl
+    .byte 2, AS_REQ, 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE8
+    .byte 4
+    .ascii "load"
+    .byte 1, AS_REQ, 3,  0x48,0x8B,0x00             # mov rax, [rax]
+    .byte 5
+    .ascii "loadb"
+    .byte 1, AS_REQ, 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
+    .byte 5
+    .ascii "store"
+    .byte 2, AS_NONE, 3, 0x48,0x89,0x38             # mov [rax], rdi
+    .byte 6
+    .ascii "storeb"
+    .byte 2, AS_NONE, 3, 0x40,0x88,0x38             # mov [rax], dil
+    .byte 0
 
 # syscall arg index -> (REX prefix or 0, "mov r32, imm32" opcode)
 regtab:
@@ -68,6 +140,10 @@ m_undef:  .ascii "ailc: undefined variable\n"
 .equ M_UNDEF_SZ, . - m_undef
 m_vars:   .ascii "ailc: too many variables\n"
 .equ M_VARS_SZ, . - m_vars
+m_dup:    .ascii "ailc: duplicate name\n"
+.equ M_DUP_SZ, . - m_dup
+m_bufs:   .ascii "ailc: too many buffers\n"
+.equ M_BUFS_SZ, . - m_bufs
 m_read:   .ascii "ailc: read error\n"
 .equ M_READ_SZ, . - m_read
 m_write:  .ascii "ailc: write error\n"
@@ -117,30 +193,50 @@ next:
     jne 4f
     call crlf
     jmp 1f
-4:  lea rax, [rsi+3]            # only statement so far: sys <number> ...
-    cmp rax, r15
+4:  sub al, 'a'                 # a statement starts with its keyword
+    cmp al, 'z' - 'a'
     ja err
-    cmp word ptr [rsi], 0x7973  # "sy"
-    jne err
-    cmp byte ptr [rsi+2], 's'
-    jne err
-    add rsi, 3
-    xor ebx, ebx
-    cmp rsi, r15                # keyword must be followed by a blank...
+    call name
+    cmp r9, 3
+    jne 5f
+    cmp word ptr [r8], 0x7562   # "bu"
+    jne 5f
+    cmp byte ptr [r8+2], 'f'
+    je bufdef
+5:  lea rdx, [rip+optab]
+6:  movzx ecx, byte ptr [rdx]   # length of this entry's name
+    test ecx, ecx
+    jz err                      # end of table: unknown keyword
+    cmp rcx, r9
+    jne 8f
+    xor eax, eax
+7:  mov r10b, [r8+rax]
+    cmp r10b, [rdx+rax+1]
+    jne 8f
+    inc eax
+    cmp eax, ecx
+    jb 7b
+    lea rdx, [rdx+rcx+1]
+    mov [rip+curop], rdx
+    jmp 9f
+8:  movzx eax, byte ptr [rdx+rcx+3]
+    lea rdx, [rdx+rcx+4]        # skip name, counts and code
+    add rdx, rax
+    jmp 6b
+9:  xor ebx, ebx
+    cmp rsi, r15                # keyword must be followed by a blank
     jae err
     mov al, [rsi]
     cmp al, ' '
     je 3f
     cmp al, 9
     jne err
-3:  inc rsi                     # ...and then the syscall number
-    cmp rsi, r15
+3:  call blanks
+    test byte ptr [rdx+1], IS_SYS
+    jz arg
+    cmp rsi, r15                # sys: the syscall number must be a literal
     jae err
     mov al, [rsi]
-    cmp al, ' '
-    je 3b
-    cmp al, 9
-    je 3b
     sub al, '0'
     cmp al, 9
     ja err
@@ -205,8 +301,10 @@ arg:
     jbe num
     jmp err
 4:  call crlf
-1:  mov word ptr [rdi], 0x050F  # syscall
-    add rdi, 2
+1:  mov rdx, [rip+curop]        # end of statement without "as"
+    test byte ptr [rdx+1], AS_REQ
+    jnz err
+    call emit_op
     jmp next
 2:  inc rsi
     jmp arg
@@ -277,18 +375,30 @@ ident:
     jne 1f
     cmp word ptr [r8], 0x7361   # "as"
     je capture
-1:  call lookup
-    jc err_undef
+1:  call lookup_var
+    jc 2f
     cmp ebx, 7
     jae err
+    lea rcx, [rip+varnum]
+    movzx eax, byte ptr [rcx+rax]
     lea rcx, [rip+argnum]
     movzx ecx, byte ptr [rcx+rbx]
     call emit_mov_rr            # mov <arg reg>, <variable reg>
     inc ebx
     jmp tokend
+2:  call lookup_buf             # not a variable: a buffer name is its address
+    jc err_undef
+    lea rcx, [rip+bufaddr]
+    mov eax, [rcx+rax*4]
+    call emit_mov
+    jmp tokend
 
-# "as <name>" then end of line: emit the syscall and keep rax in the variable
+# "as <name>" then end of line: emit the statement's code and keep rax in
+# the variable
 capture:
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], AS_NONE
+    jnz err
     call blanks
     cmp rsi, r15
     jae err
@@ -301,33 +411,97 @@ capture:
     jne 1f
     cmp word ptr [r8], 0x7361   # "as" is reserved
     je err
-1:  call lookup
+1:  call lookup_buf
+    jnc err_dup
+    call lookup_var
     jnc 2f
     cmp ebp, NVARS              # new name: take the next register of the pool
     jae err_vars
     mov [r10], r8
     mov [r10+8], r9
-    lea rcx, [rip+varnum]
-    movzx eax, byte ptr [rcx+rbp]
+    mov eax, ebp
     inc ebp
-2:  mov r8d, eax
-    call blanks
-    cmp rsi, r15
-    jae 3f
-    mov al, [rsi]
-    cmp al, 10
-    je 3f
-    cmp al, '#'
-    je 3f
-    cmp al, 13
-    jne err
-    call crlf
-3:  mov word ptr [rdi], 0x050F  # syscall
-    add rdi, 2
+2:  lea rcx, [rip+varnum]
+    movzx r8d, byte ptr [rcx+rax]
+    call eol
+    call emit_op
     mov ecx, r8d
     xor eax, eax
     call emit_mov_rr            # mov <variable reg>, rax
     jmp next
+
+# ---- buffers
+# "buf <name> <size>": reserve zero-filled bytes in the writable segment
+bufdef:
+    call blank1
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja err
+    call name
+    cmp r9, 2
+    jne 1f
+    cmp word ptr [r8], 0x7361   # "as" is reserved
+    je err
+1:  call lookup_var
+    jnc err_dup
+    call lookup_buf
+    jnc err_dup
+    cmp dword ptr [rip+nbufs], NBUFS
+    jae err_bufs
+    mov [r10], r8
+    mov [r10+8], r9
+    call blank1
+    cmp rsi, r15
+    jae err
+    movzx eax, byte ptr [rsi]
+    sub eax, '0'
+    cmp eax, 9
+    ja err
+    xor eax, eax
+    mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
+2:  cmp rsi, r15
+    jae 3f
+    movzx ecx, byte ptr [rsi]
+    sub ecx, '0'
+    cmp ecx, 9
+    ja 3f
+    imul rax, rax, 10
+    add rax, rcx
+    cmp rax, rdx
+    ja err_bufs
+    inc rsi
+    jmp 2b
+3:  test rax, rax
+    jz err
+    push rax
+    call eol
+    pop rax
+    add rax, 7                  # keep every buffer 8-byte aligned
+    and rax, -8
+    mov rcx, [rip+bsssz]
+    add rax, rcx                # new total
+    cmp rax, rdx
+    ja err_bufs
+    mov [rip+bsssz], rax
+    add rcx, BSS                # address of this buffer
+    mov eax, [rip+nbufs]
+    lea r10, [rip+bufaddr]
+    mov [r10+rax*4], ecx
+    inc dword ptr [rip+nbufs]
+    jmp next
+
+# require one space or tab at rsi, then skip the rest of them
+blank1:
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    cmp al, ' '
+    je blanks
+    cmp al, 9
+    jne err
 
 # skip spaces and tabs
 blanks:
@@ -340,6 +514,21 @@ blanks:
     jne 1f
 2:  inc rsi
     jmp blanks
+1:  ret
+
+# after the last token of a statement: only blanks, then a comment or line end
+eol:
+    call blanks
+    cmp rsi, r15
+    jae 1f
+    mov al, [rsi]
+    cmp al, 10
+    je 1f
+    cmp al, '#'
+    je 1f
+    cmp al, 13
+    jne err
+    call crlf
 1:  ret
 
 # read a name [a-z0-9_]* at rsi: r8 = start, r9 = length
@@ -364,31 +553,49 @@ name:
     sub r9, r8
     ret
 
-# find the name r8/r9: eax = its x86 register number, or carry set if it is
-# not defined, with r10 = the free table slot
-lookup:
-    xor edx, edx
+# find the name r8/r9 among the variables or the buffers: eax = its index,
+# or carry set if it is not defined, with r10 = the free table slot
+lookup_var:
     lea r10, [rip+vars]
-1:  cmp edx, ebp
+    mov edx, ebp
+    jmp lookup
+lookup_buf:
+    lea r10, [rip+bufs]
+    mov edx, [rip+nbufs]
+lookup:
+    xor eax, eax
+1:  cmp eax, edx
     jae 4f
     cmp r9, [r10+8]
     jne 3f
     mov r11, [r10]
     xor ecx, ecx
-2:  mov al, [r8+rcx]
-    cmp al, [r11+rcx]
+2:  mov r12b, [r8+rcx]
+    cmp r12b, [r11+rcx]
     jne 3f
     inc rcx
     cmp rcx, r9
     jb 2b
-    lea rcx, [rip+varnum]
-    movzx eax, byte ptr [rcx+rdx]
     clc
     ret
 3:  add r10, 16
-    inc edx
+    inc eax
     jmp 1b
 4:  stc
+    ret
+
+# emit the code of the current statement, after checking its operand count
+emit_op:
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_SYS
+    jnz 1f                      # sys takes any number of arguments
+    cmp bl, [rdx]
+    jne err
+1:  movzx ecx, byte ptr [rdx+2]
+    push rsi
+    lea rsi, [rdx+3]
+    rep movsb
+    pop rsi
     ret
 
 # emit the 64-bit "mov <reg ecx>, <reg eax>" (x86 register numbers)
@@ -437,6 +644,8 @@ fin:
     sub r13, r14                # file size
     mov [r14+64+32], r13
     mov [r14+64+40], r13
+    mov rax, [rip+bsssz]
+    mov [r14+64+56+40], rax     # memory size of the writable segment
     mov r12, r14
 1:  mov eax, 1
     mov edi, 1
@@ -471,6 +680,16 @@ err_undef:
 err_vars:
     lea rsi, [rip+m_vars]
     mov edx, M_VARS_SZ
+    mov ebx, 1
+    jmp die
+err_dup:
+    lea rsi, [rip+m_dup]
+    mov edx, M_DUP_SZ
+    mov ebx, 1
+    jmp die
+err_bufs:
+    lea rsi, [rip+m_bufs]
+    mov edx, M_BUFS_SZ
     mov ebx, 1
     jmp die
 err_read:

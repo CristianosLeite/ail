@@ -1,0 +1,4 @@
+# 3 shl 5 = 96; 96 shr 2 = 24
+shl 3 5 as a
+shr a 2 as a
+sys 60 a
