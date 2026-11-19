@@ -43,7 +43,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `tokend` | check that a token is followed by a space, tab, comment or line end, then fall into `arg` |
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
 | `num` | parse a decimal integer |
-| `str` | copy a string literal into the output and pass its address and length |
+| `str` | reject a string outside `sys`; copy the literal into the output and pass its address and length |
 | `ident` | a name as an argument: pass a variable or a buffer address, or hand over to `capture` on `as` |
 | `capture` | `as <name>`: define the variable if new, call `emit_op` and store `rax` in it |
 | `bufdef` | `buf <name> <size>`: enter the buffer in its table and reserve its bytes |

@@ -99,7 +99,7 @@ store addr value        # write the 64 bits of value at addr
 storeb addr value       # write the low byte of value at addr
 ```
 
-`addr` is any value: a buffer name, a variable holding an address, or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. Nothing is checked at run time: an address outside mapped memory, or a store into string data, kills the program with `SIGSEGV`.
+`addr` is any value: a buffer name, a variable holding an address, or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. A string is not accepted as an operand. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
 
 ```
 buf b 8
@@ -190,12 +190,13 @@ Causes of a syntax error:
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
 - `sys` not followed by a decimal syscall number
-- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb` and the arithmetic statements take two (a string counts as two)
+- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb` and the arithmetic statements take two
 - `set`, an arithmetic statement or a load without `as`, or a store with `as`
 - `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF
-- an argument that is not a decimal integer, a string or a variable name
+- a string anywhere but in a `sys` statement
+- an argument that is not a decimal integer, a string, a variable name or a buffer name
 - `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote

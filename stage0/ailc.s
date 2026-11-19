@@ -327,6 +327,9 @@ num:
 # string: bytes are inlined in the code stream behind a jmp, then passed
 # as two args (address, length)
 str:
+    mov rdx, [rip+curop]        # only sys takes an address and length pair
+    test byte ptr [rdx+1], IS_SYS
+    jz err
     inc rsi
     mov byte ptr [rdi], 0xE9    # jmp rel32
     lea r12, [rdi+1]            # rel32 slot
