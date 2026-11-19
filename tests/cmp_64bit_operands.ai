@@ -1,4 +1,4 @@
-# 2^32 differs from 0 only above bit 31: 0110 = 6
+# 2^32 differs from 0 only above bit 31: 011000 = 24
 set 0 as r
 shl 1 32 as h
 eq h 0 as t    # 0
@@ -11,6 +11,12 @@ gt h 4294967295 as t    # 1
 shl r 1 as r
 or r t as r
 lt h 4294967295 as t    # 0
+shl r 1 as r
+or r t as r
+le h 0 as t    # 0
+shl r 1 as r
+or r t as r
+ge 0 h as t    # 0
 shl r 1 as r
 or r t as r
 sys 60 r
