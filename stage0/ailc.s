@@ -105,11 +105,19 @@ next:
     cmp rsi, r15
     jae fin
     mov al, [rsi]
-    cmp al, ' '
-    jbe 1f                      # whitespace / newline
+    cmp al, ' '                 # indentation and blank lines
+    je 1f
+    cmp al, 9
+    je 1f
+    cmp al, 10
+    je 1f
     cmp al, '#'
     je 2f
-    lea rax, [rsi+3]            # only statement so far: sys <number> ...
+    cmp al, 13
+    jne 4f
+    call crlf
+    jmp 1f
+4:  lea rax, [rsi+3]            # only statement so far: sys <number> ...
     cmp rax, r15
     ja err
     cmp word ptr [rsi], 0x7973  # "sy"
@@ -146,7 +154,32 @@ next:
     jne 2b
     jmp next
 
+# a CR at rsi must be the first half of a CRLF line end
+crlf:
+    lea rax, [rsi+1]
+    cmp rax, r15
+    jae err
+    cmp byte ptr [rax], 10
+    jne err
+    ret
+
 # ---- arguments
+# every token must be followed by a space, tab, comment or end of line
+tokend:
+    cmp rsi, r15
+    jae arg
+    mov al, [rsi]
+    cmp al, ' '
+    je arg
+    cmp al, 9
+    je arg
+    cmp al, 10
+    je arg
+    cmp al, 13
+    je arg
+    cmp al, '#'
+    jne err
+
 arg:
     cmp rsi, r15
     jae 1f
@@ -156,7 +189,11 @@ arg:
     cmp al, '#'
     je 1f
     cmp al, ' '
-    jbe 2f
+    je 2f
+    cmp al, 9
+    je 2f
+    cmp al, 13
+    je 4f
     cmp al, '"'
     je str
     cmp al, 'a'
@@ -167,6 +204,7 @@ arg:
     cmp al, 9
     jbe num
     jmp err
+4:  call crlf
 1:  mov word ptr [rdi], 0x050F  # syscall
     add rdi, 2
     jmp next
@@ -186,7 +224,7 @@ num:
     inc rsi
     jmp 1b
 2:  call emit_mov
-    jmp arg
+    jmp tokend
 
 # string: bytes are inlined in the code stream behind a jmp, then passed
 # as two args (address, length)
@@ -229,13 +267,11 @@ str:
     call emit_mov               # address
     pop rax
     call emit_mov               # length
-    jmp arg
+    jmp tokend
 
 # ---- variables
 # a name as an argument: either a variable to pass, or "as" ending the statement
 ident:
-    cmp byte ptr [rsi-1], ' '   # must follow a blank, so "12x" stays an error
-    ja err
     call name
     cmp r9, 2
     jne 1f
@@ -249,7 +285,7 @@ ident:
     movzx ecx, byte ptr [rcx+rbx]
     call emit_mov_rr            # mov <arg reg>, <variable reg>
     inc ebx
-    jmp arg
+    jmp tokend
 
 # "as <name>" then end of line: emit the syscall and keep rax in the variable
 capture:
@@ -282,7 +318,10 @@ capture:
     cmp al, 10
     je 3f
     cmp al, '#'
+    je 3f
+    cmp al, 13
     jne err
+    call crlf
 3:  mov word ptr [rdi], 0x050F  # syscall
     add rdi, 2
     mov ecx, r8d
@@ -290,16 +329,16 @@ capture:
     call emit_mov_rr            # mov <variable reg>, rax
     jmp next
 
-# skip blanks within the line
+# skip spaces and tabs
 blanks:
     cmp rsi, r15
     jae 1f
     mov al, [rsi]
-    cmp al, 10
-    je 1f
     cmp al, ' '
-    ja 1f
-    inc rsi
+    je 2f
+    cmp al, 9
+    jne 1f
+2:  inc rsi
     jmp blanks
 1:  ret
 

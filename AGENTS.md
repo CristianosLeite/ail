@@ -43,7 +43,7 @@ Compiler errors are one line on stderr with no location: `ailc: syntax error`, `
 
 ## Language (stage0)
 
-`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments; `n` must be a decimal number). Arguments are unsigned 32-bit decimals, string literals or variables; a string expands to two arguments, address then length. `as name` at the end of a `sys` keeps the syscall's return value in a variable; that is the only way to set one. Variables are 64-bit, at most 6, and each is bound to one register for the whole program. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
+`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments; `n` must be a decimal number). Arguments are unsigned 32-bit decimals, string literals or variables; a string expands to two arguments, address then length. `as name` at the end of a `sys` keeps the syscall's return value in a variable; that is the only way to set one. Variables are 64-bit, at most 6, and each is bound to one register for the whole program. Tokens are separated by spaces or tabs only and may not touch; lines end with LF or CRLF; any other separator byte is a syntax error. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
 
 ## Compiler architecture (`stage0/ailc.s`)
 

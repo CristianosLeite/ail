@@ -36,13 +36,15 @@ The whole compiler shares a fixed set of registers instead of passing parameters
 | Label | Job |
 |---|---|
 | `_start` | read stdin, copy the header template |
-| `next` | start of a statement: skip whitespace and comments, match `sys` and require its syscall number |
+| `next` | start of a statement: skip indentation, blank lines and comments, match `sys` and require its syscall number |
+| `crlf` | check that a CR is followed by LF |
+| `tokend` | check that a token is followed by a space, tab, comment or line end, then fall into `arg` |
 | `arg` | dispatch the next argument, or end the statement by emitting `syscall` |
 | `num` | parse a decimal integer |
 | `str` | copy a string literal into the output and pass its address and length |
 | `ident` | a name as an argument: pass a variable, or hand over to `capture` on `as` |
 | `capture` | `as <name>`: define the variable if new, emit `syscall` and store `rax` in it |
-| `blanks`, `name` | skip blanks within the line; read a name |
+| `blanks`, `name` | skip spaces and tabs; read a name |
 | `lookup` | find a name in the variable table |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |

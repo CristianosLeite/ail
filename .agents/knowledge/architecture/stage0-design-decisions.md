@@ -46,8 +46,12 @@ records the reasoning.
 - **Names are stored as pointers into the input buffer:** no copying and no name-length limit.
 - **Separate `undefined variable` and `too many variables` messages:** with no line numbers, the
   message is all an AI has to repair the program.
-- **A name must follow a blank:** otherwise `12x` would turn from a syntax error into the number 12
-  and a variable `x`.
+- **One separator rule for every token (2026-11-19):** space or tab between tokens, LF or CRLF at
+  the end of a line, `#` for a comment, nothing else. Before, any byte up to ASCII space separated
+  numbers and strings, so a NUL invisible in an editor compiled, and tokens could touch (`1"x"`).
+  Every token now ends in `tokend`, which also keeps `12x` a syntax error instead of the number 12
+  and a variable `x`. This broke sources relying on the old separators, accepted while the
+  language is small. New statements must end their tokens through `tokend` too.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.

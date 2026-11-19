@@ -16,6 +16,16 @@ A program is a sequence of statements, one per line. Execution starts at the fir
 
 Blank lines are ignored. Indentation is ignored.
 
+## Separators
+
+The same rule holds everywhere outside string literals:
+
+- Tokens (the keyword, numbers, strings, variable names, `as`) are separated by one or more spaces or tabs. Two tokens may not touch: `1"x"` and `"a""b"` are errors.
+- A line ends with LF or CRLF. A CR that is not followed by LF is an error.
+- `#` starts a comment and may directly follow a token.
+
+No other byte separates anything. A NUL or any other control character between tokens is a syntax error.
+
 ## Statements
 
 ### `sys`
@@ -25,7 +35,7 @@ sys n a b c d e f
 sys n a b c d e f as name
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). The keyword is followed by at least one space or tab, and `n` must be a decimal integer, not a string. Arguments are separated by spaces or tabs and the statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be a decimal integer, not a string. The statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -82,7 +92,7 @@ A variable is a name for a 64-bit value held in a machine register. A name start
 
 `as name` at the end of a `sys` statement defines the variable and stores the syscall's raw return value in it: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. There is no other way to set a variable yet.
 
-A variable used as an argument passes its full 64-bit value and counts as one argument. It must be defined by an earlier `as`, and it cannot be the syscall number. Like any argument it is preceded by a space or tab.
+A variable used as an argument passes its full 64-bit value and counts as one argument. It must be defined by an earlier `as`, and it cannot be the syscall number.
 
 A program can define at most 6 variables. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed. Syscalls do not change these registers.
 
@@ -117,8 +127,9 @@ Causes of a syntax error:
 
 - a line that does not start with `sys`
 - `sys` not followed by a space or tab and then a decimal syscall number
+- two tokens with no space or tab between them
+- a byte other than space or tab used as a separator, or a CR not followed by LF
 - an argument that is not a decimal integer, a string or a variable name
-- a variable name not preceded by a space or tab
 - `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote
