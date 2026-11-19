@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [conversation 2026-11-19]
+sources: [commit 787fe7e, conversation 2026-11-19]
 status: current
 ---
 # Stage0 design decisions
@@ -15,7 +15,11 @@ records the reasoning.
   headers, 48 of code and string).
 - Verified by hand on 2026-11-19: escapes `\t \" \\ \n`, trailing and full-line `#` comments, several
   statements in one file, explicit `sys 60 7` giving exit status 7, and exit status 1 for an unknown
-  keyword and for an unterminated string. Only hello world is covered by `make test`.
+  keyword and for an unterminated string. Only hello world is an automated test (`tests/hello.ai`);
+  the rest of this list has no test yet.
+- The test runner (`tests/run.sh`) compares stdout and requires exit status 0. It cannot express a
+  test that expects a compile error or a non-zero exit status, so the two error paths and the
+  `sys 60 7` case above cannot be added as tests until it is extended.
 - `sys1 1 "x"` (no space after the keyword) is accepted, because the keyword check does not require
   a delimiter. This is unintentional.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
@@ -47,6 +51,8 @@ records the reasoning.
 - 2026-11-19: self-hosting is not started; the language lacks variables, memory access, arithmetic,
   control flow and functions.
 - 2026-11-19: errors carry no line number.
+- 2026-11-19: the hand-verified behaviours above are not automated; the runner needs expected exit
+  status and expected compile failure first.
 
 ## Related
 - [Open items](../status/open-items.md)

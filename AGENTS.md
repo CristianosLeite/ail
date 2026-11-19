@@ -14,7 +14,8 @@ Requires GNU `as` and `ld` on x86-64 Linux.
 
 ```
 make            # build build/ailc and build/hello
-make test       # also run build/hello and check its output
+make test       # run every test in tests/
+make test T=hello   # run one test
 make build/foo  # compile examples/foo.ai to build/foo
 make clean
 ```
@@ -25,7 +26,7 @@ The compiler reads source on stdin and writes the executable on stdout:
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-There is no test framework. `make test` only covers hello world; other behaviour is checked by compiling an ad hoc `.ai` file and running it. On any error the compiler prints `ailc: syntax error` to stderr and exits 1, with no location.
+A test is a pair `tests/<name>.ai` and `tests/<name>.out` (expected stdout); `tests/run.sh` compiles and runs each one and passes it when it exits 0 with exactly that output. Add a test by adding the two files. Tests that expect a compile error or a non-zero exit status are not supported yet. On any error the compiler prints `ailc: syntax error` to stderr and exits 1, with no location.
 
 ## Language (stage0)
 

@@ -11,8 +11,8 @@ $(B)/%: examples/%.ai $(B)/ailc
 	$(B)/ailc < $< > $@
 	chmod +x $@
 
-test: $(B)/hello
-	@[ "$$($(B)/hello)" = "hello world" ] && echo ok
+test: $(B)/ailc
+	@tests/run.sh $(T)
 
 clean:
 	rm -rf $(B)

@@ -9,7 +9,8 @@ sys 1 1 "hello world\n"
 ## Build
 
 ```
-make test      # builds build/ailc, compiles examples/hello.ai, runs it
+make            # builds build/ailc and build/hello
+make test       # runs the tests in tests/
 ```
 
 Needs GNU `as` and `ld`, x86-64 Linux. The compiler itself reads source on stdin and writes a static ELF64 on stdout, with no assembler or linker involved:
@@ -35,3 +36,4 @@ The program starts at the first line and an `exit(0)` is appended at the end.
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
 - `examples/hello.ai`: hello world
+- `tests/`: one `.ai` program and one `.out` expected output per test
