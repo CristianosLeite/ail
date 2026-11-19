@@ -1,6 +1,6 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 700 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 800 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It exists to be replaced. Once AIL can express a compiler, the next version is written in AIL and stage0 is only used to build it the first time.
 
@@ -12,9 +12,10 @@ There is one pass and no intermediate representation.
 2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer.
 4. Append the code for `exit(0)`.
-5. Patch the two segment sizes in the header, write the buffer to stdout, exit.
+5. Fill in the displacement of every jump from the label table.
+6. Patch the two segment sizes in the header, write the buffer to stdout, exit.
 
-Because code is emitted as it is read, nothing can refer to something that appears later in the source. That is enough for the current statements; labels and functions will need a fixup list or a second pass.
+Because code is emitted as it is read, a statement cannot use an address that appears later in the source. Jumps are the one exception: each leaves four empty bytes and an entry in a fixup list, and step 5 fills them in once every label is known.
 
 ## Register conventions
 
@@ -44,16 +45,18 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
 | `num` | parse a decimal integer |
 | `str` | reject a string outside `sys`; copy the literal into the output and pass its address and length |
-| `ident` | a name as an argument: pass a variable or a buffer address, or hand over to `capture` on `as` |
+| `ident` | a name as an argument: pass a variable or a buffer address, hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
 | `capture` | `as <name>`: define the variable if new, call `emit_op` and store `rax` in it |
 | `bufdef` | `buf <name> <size>`: enter the buffer in its table and reserve its bytes |
+| `labdef` | `label <name>`: enter the label and the current output position in the label table |
+| `jtarget` | the label name of a jump: call `emit_op`, leave room for the displacement and record a fixup |
 | `blanks`, `blank1`, `eol`, `name` | skip spaces and tabs; require at least one; check that the line ends; read a name |
-| `lookup_var`, `lookup_buf` | find a name in the variable or the buffer table |
+| `lookup_var`, `lookup_buf`, `lookup_label` | find a name in the variable, the buffer or the label table |
 | `emit_op` | check the operand count and emit the statement's instruction bytes |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
-| `fin` | emit `exit(0)`, patch sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_bufs` | source errors: print a message, exit 1 |
+| `fin` | emit `exit(0)`, patch jumps and sizes, write the output |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_bufs`, `err_label` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -95,7 +98,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `buf` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `buf` and `label` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|
@@ -111,12 +114,14 @@ Every statement except `buf` is one row of the table `optab`: keyword, operand c
 | `loadb` | `movzx eax, byte ptr [rax]` |
 | `store` | `mov [rax], rdi` |
 | `storeb` | `mov [rax], dil` |
+| `jmp` | `jmp rel32` |
+| `jz` `jnz` | `test rax, rax` / `jz` or `jnz rel32` |
 
 The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers. So `add x 1 as x` with `x` in `rbx` is `mov rax, rbx` / `mov edi, 1` / `add rax, rdi` / `mov rbx, rax`: 14 bytes, with no attempt to use shorter forms.
 
-A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so comparisons need no labels or jumps.
+A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores) or optional (`sys`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores and the jumps) or optional (`sys`), and whether a label name follows the operands (the jumps). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values.
 
 ## Worked example
 
@@ -173,20 +178,30 @@ The table `bufs` has the same 16-byte entries as `vars`, and `bufaddr` holds one
 
 `ident` looks a name up among the variables first and the buffers second. `buf` refuses a name found in either table and `as` refuses a buffer name, so a name always means one thing.
 
+## Labels and jumps
+
+The table `labels` has the same 16-byte entries as `vars`, and `labaddr` holds for each label the output cursor at the time its `label` line was read. Labels are looked up only in this table, which makes them a separate name space.
+
+A jump is an `optab` row whose instruction bytes stop just before the 32-bit displacement: `E9` for `jmp`, and `test rax, rax` followed by `0F 84` or `0F 85` for `jz` and `jnz`. Its row has the flag `IS_JMP`. When `ident` reads a name and the statement already has all its operands, the name is the label: `jtarget` checks that the line ends, emits the row through `emit_op`, skips four bytes and appends an entry to `fixs` with the label name and the address of those four bytes. A statement with `IS_JMP` that ends without reaching `jtarget` is a syntax error.
+
+No jump is resolved while scanning, not even a backward one. `fin` walks `fixs` after the `exit(0)` code is in place, looks each name up in `labels` and writes the label address minus the address of the byte after the displacement. A name that is not found is the `undefined label` error. One path for both directions keeps the code small; the price is a linear search per jump.
+
+Neither table can overflow: the shortest `label` line is 8 bytes and the shortest jump line is 6, so the tables are sized for a 64 KiB source made only of those.
+
 ## Limits
 
 - 6 variables, the size of the register pool.
 - 16 buffers, the size of the buffer table.
-
+- Jumps always use a 32-bit displacement, 5 bytes for `jmp` and 9 for `jz` and `jnz`.
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to at most about three output bytes.
 - x86-64 Linux only.
 - Strings are read-only; the only writable memory is what `buf` reserves or the program maps itself.
 
 ## Adding a statement
 
-A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row in `optab`. Anything else, like `buf`:
+A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row in `optab`. Anything else, like `buf` and `label`:
 
-1. Add a keyword check in `next`, beside the one for `buf`.
+1. Add a keyword check in `next`, beside the ones for `buf` and `label`.
 2. Write the emitter, using `rdi` as the output cursor and leaving `rsi` after the statement. End its last token through `eol`.
 3. Jump back to `next`.
 

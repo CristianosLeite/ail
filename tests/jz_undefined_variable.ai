@@ -1,0 +1,3 @@
+# the first name is the value, so a lone label is read as a variable
+label a
+jz a

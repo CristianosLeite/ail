@@ -7,8 +7,10 @@
 #   .code   expected exit status of the compiled program (default 0)
 #   .err    expected compiler stderr; the compiler must then exit 1
 # A test has either .err (compiling must fail) or .out (program must run).
+# A program still running after $limit seconds is killed and fails its test.
 cd "$(dirname "$0")/.." || exit 1
 out=build/tests
+limit=10
 mkdir -p $out
 [ $# -eq 0 ] && set -- $(ls tests | sed -n 's/\.ai\(\.sh\)\{0,1\}$//p' | sort -u)
 
@@ -25,7 +27,7 @@ check() {
     fi
     [ $rc -eq 0 ] && [ ! -s $out/$1.err ] || return 1
     chmod +x $out/$1
-    $out/$1 > $out/$1.got
+    timeout $limit $out/$1 > $out/$1.got
     rc=$?
     want=0
     [ -f tests/$1.code ] && want=$(cat tests/$1.code)

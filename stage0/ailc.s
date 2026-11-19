@@ -1,7 +1,7 @@
 # ailc stage0 -- AIL bootstrap compiler, x86-64 Linux, GNU as.
 # usage: ailc < prog.ai > prog      (emits a static ELF64 directly, no linker)
 #
-# Single pass. Register roles:
+# Single pass; jumps are patched at the end. Register roles:
 #   rsi = input cursor   r15 = input end
 #   rdi = output cursor  r14 = output base
 #   ebx = syscall arg index of the statement being compiled
@@ -17,9 +17,12 @@
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 .equ NVARS,  6                  # size of the variable register pool
 .equ NBUFS,  16                 # size of the buffer table
+.equ NLABELS, INSZ / 8 + 1      # "label a\n" is 8 bytes: the source cannot hold more
+.equ NFIX,   INSZ / 6 + 1       # "jmp a\n" is 6 bytes
 .equ AS_REQ,  1                 # optab flags: "as name" is required,
 .equ AS_NONE, 2                 # is not allowed,
 .equ IS_SYS,  4                 # the statement is sys
+.equ IS_JMP,  8                 # a label name follows the operands
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
@@ -31,6 +34,12 @@ bufaddr: .skip NBUFS * 4        # per buffer: its address
 nbufs:  .skip 4                 # number of buffers defined so far
 bsssz:  .skip 8                 # bytes reserved in the writable segment
 curop:  .skip 8                 # optab entry (at its nargs byte) of this statement
+labels: .skip NLABELS * 16      # per label: name address in inbuf, name length
+labaddr: .skip NLABELS * 8      # per label: its address in outbuf
+nlabels: .skip 4                # number of labels defined so far
+nfix:   .skip 4                 # number of jumps emitted so far
+fixs:   .skip NFIX * 24         # per jump: label name address and length,
+                                # address of its rel32 in outbuf
 
 .section .rodata
 hdr:
@@ -130,6 +139,16 @@ optab:
     .byte 6
     .ascii "storeb"
     .byte 2, AS_NONE, 3, 0x40,0x88,0x38             # mov [rax], dil
+    # jumps: the code ends where the rel32 of the label goes
+    .byte 3
+    .ascii "jmp"
+    .byte 0, AS_NONE | IS_JMP, 1,  0xE9             # jmp rel32
+    .byte 2
+    .ascii "jz"                                     # test rax, rax ; jz rel32
+    .byte 1, AS_NONE | IS_JMP, 5,  0x48,0x85,0xC0, 0x0F,0x84
+    .byte 3
+    .ascii "jnz"                                    # test rax, rax ; jnz rel32
+    .byte 1, AS_NONE | IS_JMP, 5,  0x48,0x85,0xC0, 0x0F,0x85
     .byte 0
 
 # syscall arg index -> (REX prefix or 0, "mov r32, imm32" opcode)
@@ -163,6 +182,8 @@ m_dup:    .ascii "ailc: duplicate name\n"
 .equ M_DUP_SZ, . - m_dup
 m_bufs:   .ascii "ailc: too many buffers\n"
 .equ M_BUFS_SZ, . - m_bufs
+m_label:  .ascii "ailc: undefined label\n"
+.equ M_LABEL_SZ, . - m_label
 m_read:   .ascii "ailc: read error\n"
 .equ M_READ_SZ, . - m_read
 m_write:  .ascii "ailc: write error\n"
@@ -222,6 +243,12 @@ next:
     jne 5f
     cmp byte ptr [r8+2], 'f'
     je bufdef
+5:  cmp r9, 5
+    jne 5f
+    cmp dword ptr [r8], 0x6562616c  # "labe"
+    jne 5f
+    cmp byte ptr [r8+4], 'l'
+    je labdef
 5:  lea rdx, [rip+optab]
 6:  movzx ecx, byte ptr [rdx]   # length of this entry's name
     test ecx, ecx
@@ -320,8 +347,8 @@ arg:
     jbe num
     jmp err
 4:  call crlf
-1:  mov rdx, [rip+curop]        # end of statement without "as"
-    test byte ptr [rdx+1], AS_REQ
+1:  mov rdx, [rip+curop]        # end of statement without "as" or a label
+    test byte ptr [rdx+1], AS_REQ | IS_JMP
     jnz err
     call emit_op
     jmp next
@@ -390,10 +417,16 @@ str:
     jmp tokend
 
 # ---- variables
-# a name as an argument: either a variable to pass, or "as" ending the statement
+# a name as an argument: either a variable to pass, or "as" ending the
+# statement, or the label of a jump once its operands are in
 ident:
     call name
-    cmp r9, 2
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_JMP
+    jz 3f
+    cmp bl, [rdx]
+    jae jtarget
+3:  cmp r9, 2
     jne 1f
     cmp word ptr [r8], 0x7361   # "as"
     je capture
@@ -515,6 +548,44 @@ bufdef:
     inc dword ptr [rip+nbufs]
     jmp next
 
+# ---- labels and jumps
+# "label <name>": remember the output position under the name
+labdef:
+    call blank1
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja err
+    call name
+    call eol
+    call lookup_label
+    jnc err_dup
+    mov [r10], r8
+    mov [r10+8], r9
+    mov eax, [rip+nlabels]
+    lea rcx, [rip+labaddr]
+    mov [rcx+rax*8], rdi
+    inc dword ptr [rip+nlabels]
+    jmp next
+
+# the label name r8/r9 ends a jump: emit the statement's code, leave room
+# for the rel32 and record it for fin, since the label may come later
+jtarget:
+    call eol
+    call emit_op
+    mov eax, [rip+nfix]
+    lea rax, [rax+rax*2]
+    lea rcx, [rip+fixs]
+    lea rcx, [rcx+rax*8]
+    mov [rcx], r8
+    mov [rcx+8], r9
+    mov [rcx+16], rdi
+    add rdi, 4
+    inc dword ptr [rip+nfix]
+    jmp next
+
 # require one space or tab at rsi, then skip the rest of them
 blank1:
     cmp rsi, r15
@@ -575,11 +646,16 @@ name:
     sub r9, r8
     ret
 
-# find the name r8/r9 among the variables or the buffers: eax = its index,
-# or carry set if it is not defined, with r10 = the free table slot
+# find the name r8/r9 among the variables, the buffers or the labels:
+# eax = its index, or carry set if it is not defined, with r10 = the free
+# table slot
 lookup_var:
     lea r10, [rip+vars]
     mov edx, ebp
+    jmp lookup
+lookup_label:
+    lea r10, [rip+labels]
+    mov edx, [rip+nlabels]
     jmp lookup
 lookup_buf:
     lea r10, [rip+bufs]
@@ -657,11 +733,29 @@ emit_mov:
     inc ebx
     ret
 
-# ---- implicit exit(0), patch sizes, write ELF to stdout
+# ---- implicit exit(0), patch jumps and sizes, write ELF to stdout
 fin:
     lea rsi, [rip+exit0]
     mov ecx, EXIT0SZ
     rep movsb
+    lea rbx, [rip+fixs]         # every label is known now: fill in the jumps
+    mov ebp, [rip+nfix]
+1:  test ebp, ebp
+    jz 2f
+    mov r8, [rbx]
+    mov r9, [rbx+8]
+    call lookup_label
+    jc err_label
+    lea rcx, [rip+labaddr]
+    mov rax, [rcx+rax*8]
+    mov rcx, [rbx+16]
+    sub rax, rcx
+    sub rax, 4                  # relative to the end of the rel32
+    mov [rcx], eax
+    add rbx, 24
+    dec ebp
+    jmp 1b
+2:
     mov r13, rdi
     sub r13, r14                # file size
     mov [r14+64+32], r13
@@ -712,6 +806,11 @@ err_dup:
 err_bufs:
     lea rsi, [rip+m_bufs]
     mov edx, M_BUFS_SZ
+    mov ebx, 1
+    jmp die
+err_label:
+    lea rsi, [rip+m_label]
+    mov edx, M_LABEL_SZ
     mov ebx, 1
     jmp die
 err_read:

@@ -12,7 +12,7 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 ## Program structure
 
-A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards. After the last statement the compiler appends `exit(0)`.
+A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`.
 
 Blank lines are ignored. Indentation is ignored.
 
@@ -91,12 +91,36 @@ A comparison takes two values like an arithmetic statement and keeps `1` in the 
 | `gt a b` | `a` is above `b` |
 | `ge a b` | `a` is above or equals `b` |
 
-All 64 bits of both values are compared and the result is a full 64-bit `1` or `0`. Ordering is unsigned, like `div` and `mod`: the result of `sub 0 1` is the largest value, not a negative one, so `lt 1 x` is `1` for it. A comparison only produces a value; it does not jump.
+All 64 bits of both values are compared and the result is a full 64-bit `1` or `0`. Ordering is unsigned, like `div` and `mod`: the result of `sub 0 1` is the largest value, not a negative one, so `lt 1 x` is `1` for it. A comparison only produces a value; [`jz` and `jnz`](#control-flow) act on it.
 
 ```
 sub 0 1 as m
 gt m 1 as r             # r = 1
 ```
+
+### Control flow
+
+```
+label name
+jmp name
+jz a name
+jnz a name
+```
+
+`label` names the point in the program where it stands; it emits no code. `jmp` continues execution at a label. `jz` jumps if the value `a` is zero and `jnz` if it is not, otherwise execution goes on with the next line. All 64 bits of the value are tested, so a comparison result can be used directly. The value is an integer, a variable or a buffer name, never a string.
+
+A label may be defined before or after the jumps that use it, and a label after the last statement stands at the appended `exit(0)`. Each label is defined once. Label names follow the rules of variable names but are a separate name space: a label may share its name with a variable or a buffer, and may be called `as`. There is no limit on the number of labels or jumps.
+
+```
+set 0 as i
+label top
+sys 1 1 "x"
+add i 1 as i
+lt i 3 as c
+jnz c top               # prints xxx
+```
+
+A jump does not touch any variable. Whether a variable is defined depends on the order of the lines, not on the path taken: a variable read on a path that jumped over its `as` holds an unspecified value.
 
 ### `buf`
 
@@ -201,7 +225,8 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: syntax error` | 1 | see below |
 | `ailc: undefined variable` | 1 | a name used as an argument before any `as` or `buf` defined it |
 | `ailc: too many variables` | 1 | a seventh variable name |
-| `ailc: duplicate name` | 1 | `buf` with a name already in use, or `as` with the name of a buffer |
+| `ailc: duplicate name` | 1 | `buf` with a name already in use, `as` with the name of a buffer, or a second `label` with the same name |
+| `ailc: undefined label` | 1 | a jump to a label that the program never defines |
 | `ailc: too many buffers` | 1 | a seventeenth buffer, or buffers that together exceed about 3.7 GiB |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
@@ -217,6 +242,8 @@ Causes of a syntax error:
 - the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
 - `set`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
+- `label` without a name, or followed by anything but a comment
+- `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF
 - a string anywhere but in a `sys` statement
@@ -226,6 +253,22 @@ Causes of a syntax error:
 - a string with no closing quote
 
 ## Examples
+
+Print the digits 0 to 9, one per line:
+
+```
+buf out 2
+add out 1 as p
+storeb p 10
+set 0 as i
+label top
+add i 48 as d
+storeb out d
+sys 1 1 out 2
+add i 1 as i
+lt i 10 as c
+jnz c top
+```
 
 Copy up to 4096 bytes of stdin to stdout, in upper case only for the first byte:
 

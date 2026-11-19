@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow item 2026-11-19, stage0/ailc.s]
 status: current
 ---
 # Stage0 design decisions
@@ -43,6 +43,13 @@ records the reasoning.
   assembles silently and jumps elsewhere, so every source with a name segfaulted `ailc`.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
   written yet, and `mov r32, imm32` would zero-extend it wrongly anyway.
+- Control flow was added on 2026-11-19: `label name`, `jmp name`, `jz a name`, `jnz a name`. Jumps
+  are `optab` rows flagged `IS_JMP` whose bytes stop before the `rel32`; `ident` takes the name
+  after the operands as the label. New error `ailc: undefined label`; a second `label` with the
+  same name is `duplicate name`. 31 tests cover both directions, taken and untaken branches, a
+  comparison-driven loop, a value with only bit 32 set, and every rejection.
+- A variable read on a path that jumped over its `as` holds an unspecified value: definition is by
+  line order, and the compiler does no flow analysis.
 
 ## Why
 - **`sys` as the only statement:** it is the smallest thing that is both hardware-oriented and enough
@@ -83,6 +90,17 @@ records the reasoning.
   flow; a conditional jump can later test the variable. Ordering is unsigned to match `div`, `mod`
   and `shr`; there is no signed comparison. This replaces the earlier choice to leave comparison
   out until control flow was designed.
+- **Every jump is resolved in `fin` from the fixup list `fixs` (2026-11-19):** backward jumps could
+  be resolved at once, but one path for both directions is less code. The cost is a linear label
+  search per jump, which the 64 KiB source limit keeps small.
+- **Label and fixup tables are sized from the source limit:** `INSZ/8 + 1` labels (`label a\n` is 8
+  bytes) and `INSZ/6 + 1` jumps (`jmp a\n` is 6), so neither can overflow and there is no
+  "too many labels" error to document or test. Raising `INSZ` grows them with it.
+- **Labels are a separate name space:** a label is never a value, so sharing names with variables
+  and buffers is unambiguous, and `as` is allowed as a label name because the label position
+  cannot hold `as name`.
+- **`jz`/`jnz` test a value, not flags:** they pair with the value-producing comparisons and need
+  no state between statements; the cost is a redundant `test rax, rax` after a comparison.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.
@@ -95,8 +113,10 @@ records the reasoning.
 
 ## How to apply
 - Keep new syntax to short common words separated by spaces; let the compiler derive what it can.
-- Labels, functions or forward jumps need a fixup list or a second pass. Decide that before adding
-  control flow.
+- A forward reference to code goes through `fixs`, resolved in `fin`. Functions can reuse it for
+  `call rel32`; a table sized from the source limit needs the shortest line that fills it.
+- A statement that ends in a name which is not a value (as the jumps do) is an `optab` row with
+  its own flag, checked in `ident` and at the end-of-statement path in `arg`.
 - A new statement that maps to "operands in `rax`/`rdi`, result in `rax`" is a row in `optab`.
 - The operand count in `optab` counts values, not tokens, and says nothing about their kind. A
   restriction on what an operand may be needs its own check where that token is parsed, as `str`
@@ -111,11 +131,12 @@ records the reasoning.
 ## Open items
 - 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
   thumb only.
-- 2026-11-19: self-hosting is not started; the language lacks control flow and functions.
+- 2026-11-19: self-hosting is not started; the language lacks functions.
 - 2026-11-19: six variables will not be enough for a compiler; that needs spilling or scoped reuse
   of registers once functions exist.
 - 2026-11-19: errors carry no line number.
 - 2026-11-19: I/O error paths and the Makefile failed-build case have no automated test.
 
 ## Related
+- [Stage0 test suite](../testing/stage0-test-suite.md)
 - [Open items](../status/open-items.md)
