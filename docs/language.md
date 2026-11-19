@@ -24,7 +24,7 @@ Blank lines are ignored. Indentation is ignored.
 sys n a b c d e f
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. Arguments are separated by spaces or tabs and the statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. The keyword is followed by at least one space or tab, and `n` must be a decimal integer, not a string. Arguments are separated by spaces or tabs and the statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -76,13 +76,24 @@ A backslash before any other character yields that character. A string may span 
 
 ## Errors
 
-Any invalid input makes the compiler print `ailc: syntax error` on stderr and exit with status 1. No line number is reported. Causes:
+The compiler prints one line on stderr and exits with a non-zero status. No line number is reported.
+
+| Message | Status | Cause |
+|---|---|---|
+| `ailc: syntax error` | 1 | see below |
+| `ailc: source too big` | 1 | source larger than 65536 bytes |
+| `ailc: read error` | 2 | reading stdin failed |
+| `ailc: write error` | 2 | writing the executable to stdout failed |
+
+Status 1 means the source is at fault; status 2 means the environment is.
+
+Causes of a syntax error:
 
 - a line that does not start with `sys`
+- `sys` not followed by a space or tab and then a decimal syscall number
 - an argument that is neither a decimal integer nor a string
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote
-- source larger than 64 KiB
 
 ## Examples
 
@@ -98,8 +109,3 @@ Print to stderr and exit with status 3:
 sys 1 2 "failed\n"
 sys 60 3
 ```
-
-## Known quirks
-
-- `sys1 1 "x"` is accepted: no space is required after the keyword. Do not rely on it.
-- A number immediately followed by a letter (`12x`) is a syntax error, but the keyword check is looser, as above.

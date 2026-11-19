@@ -54,6 +54,6 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
 - `examples/`: sample programs
-- `tests/`: one `.ai` program and one `.out` expected output per test, run by `tests/run.sh`
+- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents

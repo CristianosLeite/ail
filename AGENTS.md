@@ -30,11 +30,20 @@ The compiler reads source on stdin and writes the executable on stdout:
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-A test is a pair `tests/<name>.ai` and `tests/<name>.out` (expected stdout); `tests/run.sh` compiles and runs each one and passes it when it exits 0 with exactly that output. Add a test by adding the two files. Tests that expect a compile error or a non-zero exit status are not supported yet. On any error the compiler prints `ailc: syntax error` to stderr and exits 1, with no location.
+A test is a set of files `tests/<name>.*`, run by `tests/run.sh`:
+
+- `.ai`: the program, or `.ai.sh`, a script that prints it (used for generated sources such as the size-limit tests)
+- `.out`: expected stdout of the compiled program
+- `.code`: expected exit status of the compiled program, default 0
+- `.err`: expected compiler stderr; the compiler must then exit 1
+
+A test has either `.err` (compiling must fail) or `.out` (the program must run). Not covered by the runner and checked by hand: the compiler's I/O errors (`build/ailc <&-`, output to `/dev/full`) and the Makefile's behaviour after a failed example build.
+
+Compiler errors are one line on stderr with no location: `ailc: syntax error` or `ailc: source too big` exit 1; `ailc: read error` or `ailc: write error` exit 2.
 
 ## Language (stage0)
 
-`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments). Arguments are unsigned 32-bit decimals or string literals; a string expands to two arguments, address then length. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
+`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. The only statement is `sys n a b ...` (raw Linux syscall, up to 6 arguments; `n` must be a decimal number). Arguments are unsigned 32-bit decimals or string literals; a string expands to two arguments, address then length. `#` comments to end of line. Execution starts at the first line and `exit(0)` is appended.
 
 ## Compiler architecture (`stage0/ailc.s`)
 
@@ -45,4 +54,4 @@ GNU as, Intel syntax (`.intel_syntax noprefix`). Single pass with no AST, symbol
 - **Arguments** are emitted by `emit_mov` as `mov r32, imm32` into the register chosen by `regtab` (rax, rdi, rsi, rdx, r10, r8, r9). This zero-extends, which is why values are limited to unsigned 32 bits.
 - **Strings** are inlined in the code stream behind a `jmp rel32`, so their absolute address is known immediately and no data section or second pass is needed. The segment is not writable, so string data is read-only.
 
-Adding a statement means adding a keyword check in `next` (currently it accepts only `sys`) and an emitter. Anything needing forward references (labels, functions) will require fixups, which the single-pass design does not have yet.
+Adding a statement means adding a keyword check in `next` (currently it accepts only `sys`) and an emitter, plus tests for what it accepts and rejects. Anything needing forward references (labels, functions) will require fixups, which the single-pass design does not have yet.

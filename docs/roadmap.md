@@ -6,7 +6,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 
 - Stage0 compiler in assembly that emits ELF64 directly.
 - One statement, `sys`, with integer and string arguments.
-- Hello world, and a test runner with one test.
+- Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
 ## Next: make the language able to express a compiler
 
@@ -29,5 +29,3 @@ Stage0 has to grow until a compiler can be written in AIL. In rough order of dep
 
 - Measure token cost with a real tokenizer against equivalent C, Rust and assembly, and use the numbers to choose between syntax alternatives. So far the syntax follows a rule of thumb only.
 - Report a line number on compile errors, since the error message is what an AI uses to repair its program.
-- Let tests express an expected exit status and an expected compile failure, then cover the behaviours currently checked by hand.
-- Require a delimiter after the `sys` keyword.

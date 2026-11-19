@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, conversation 2026-11-19]
+sources: [commit 787fe7e, code review 2026-11-19, conversation 2026-11-19]
 status: current
 ---
 # Stage0 design decisions
@@ -13,15 +13,15 @@ records the reasoning.
 ## Facts
 - Hello world is `sys 1 1 "hello world\n"` and compiles to a 168-byte static ELF64 (120 bytes of
   headers, 48 of code and string).
-- Verified by hand on 2026-11-19: escapes `\t \" \\ \n`, trailing and full-line `#` comments, several
-  statements in one file, explicit `sys 60 7` giving exit status 7, and exit status 1 for an unknown
-  keyword and for an unterminated string. Only hello world is an automated test (`tests/hello.ai`);
-  the rest of this list has no test yet.
-- The test runner (`tests/run.sh`) compares stdout and requires exit status 0. It cannot express a
-  test that expects a compile error or a non-zero exit status, so the two error paths and the
-  `sys 60 7` case above cannot be added as tests until it is extended.
-- `sys1 1 "x"` (no space after the keyword) is accepted, because the keyword check does not require
-  a delimiter. This is unintentional.
+- Covered by tests since 2026-11-19: escapes, comments, several statements, explicit exit status,
+  six arguments, every syntax-error cause, and the 65536-byte source limit on both sides.
+- A code review on 2026-11-19 found four defects, all fixed: `sys` with no number or with a string
+  as the number compiled; a source of exactly 64 KiB was rejected; I/O failures were reported as
+  syntax errors; and a failed example build left an empty executable that Make treated as current.
+  `sys1 1 "x"` (no blank after the keyword) was also accepted and is now rejected.
+- Checked by hand only, because the runner cannot express them: `build/ailc <&-` gives
+  `ailc: read error`, output to `/dev/full` gives `ailc: write error` (both exit 2), and after a
+  failed example build a second `make` fails again instead of reporting nothing to do.
 - Negative numbers and hex are not parsed. A value such as -1 (needed for `mmap`'s fd) cannot be
   written yet, and `mov r32, imm32` would zero-extend it wrongly anyway.
 
@@ -36,6 +36,12 @@ records the reasoning.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.
+- **Input buffer is the limit plus one byte:** a full buffer then means "too big" with no extra read,
+  and a source of exactly the limit still reaches EOF normally.
+- **Exit 1 for source errors, 2 for I/O errors:** a caller can tell "fix the program" from "fix the
+  environment" without parsing the message.
+- **Makefile builds examples into `<target>.tmp` and renames:** the shell creates the redirect target
+  before the compiler runs, so writing to the real target leaves a fresh-looking file on failure.
 
 ## How to apply
 - Keep new syntax to short common words separated by spaces; let the compiler derive what it can.
@@ -51,8 +57,7 @@ records the reasoning.
 - 2026-11-19: self-hosting is not started; the language lacks variables, memory access, arithmetic,
   control flow and functions.
 - 2026-11-19: errors carry no line number.
-- 2026-11-19: the hand-verified behaviours above are not automated; the runner needs expected exit
-  status and expected compile failure first.
+- 2026-11-19: I/O error paths and the Makefile failed-build case have no automated test.
 
 ## Related
 - [Open items](../status/open-items.md)

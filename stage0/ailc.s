@@ -14,7 +14,7 @@
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 
 .bss
-inbuf:  .skip INSZ
+inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
 inend:
 outbuf: .skip OUTSZ
 
@@ -52,8 +52,14 @@ exit0:                          # mov eax,60 ; xor edi,edi ; syscall
     .byte 0xB8,60,0,0,0, 0x31,0xFF, 0x0F,0x05
 .equ EXIT0SZ, . - exit0
 
-errmsg: .ascii "ailc: syntax error\n"
-.equ ERRSZ, . - errmsg
+m_syntax: .ascii "ailc: syntax error\n"
+.equ M_SYNTAX_SZ, . - m_syntax
+m_big:    .ascii "ailc: source too big\n"
+.equ M_BIG_SZ, . - m_big
+m_read:   .ascii "ailc: read error\n"
+.equ M_READ_SZ, . - m_read
+m_write:  .ascii "ailc: write error\n"
+.equ M_WRITE_SZ, . - m_write
 
 .text
 .globl _start
@@ -65,10 +71,10 @@ _start:
     mov rsi, r15
     lea rdx, [rip+inend]
     sub rdx, r15
-    jz err                      # source too big
+    jz err_big                  # buffer full: more than INSZ bytes
     syscall
     test rax, rax
-    js err
+    js err_read
     jz 2f
     add r15, rax
     jmp 1b
@@ -90,7 +96,7 @@ next:
     jbe 1f                      # whitespace / newline
     cmp al, '#'
     je 2f
-    lea rax, [rsi+3]            # only statement so far: sys
+    lea rax, [rsi+3]            # only statement so far: sys <number> ...
     cmp rax, r15
     ja err
     cmp word ptr [rsi], 0x7973  # "sy"
@@ -99,7 +105,25 @@ next:
     jne err
     add rsi, 3
     xor ebx, ebx
-    jmp arg
+    cmp rsi, r15                # keyword must be followed by a blank...
+    jae err
+    mov al, [rsi]
+    cmp al, ' '
+    je 3f
+    cmp al, 9
+    jne err
+3:  inc rsi                     # ...and then the syscall number
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    cmp al, ' '
+    je 3b
+    cmp al, 9
+    je 3b
+    sub al, '0'
+    cmp al, 9
+    ja err
+    jmp num
 1:  inc rsi
     jmp next
 2:  inc rsi                     # comment: skip to end of line
@@ -223,7 +247,7 @@ fin:
     mov rdx, r13
     syscall
     test rax, rax
-    jle err
+    jle err_write
     add r12, rax
     sub r13, rax
     jnz 1b
@@ -231,12 +255,30 @@ fin:
     xor edi, edi
     syscall
 
+# ---- errors: source problems exit 1, I/O problems exit 2
 err:
+    lea rsi, [rip+m_syntax]
+    mov edx, M_SYNTAX_SZ
+    mov ebx, 1
+    jmp die
+err_big:
+    lea rsi, [rip+m_big]
+    mov edx, M_BIG_SZ
+    mov ebx, 1
+    jmp die
+err_read:
+    lea rsi, [rip+m_read]
+    mov edx, M_READ_SZ
+    mov ebx, 2
+    jmp die
+err_write:
+    lea rsi, [rip+m_write]
+    mov edx, M_WRITE_SZ
+    mov ebx, 2
+die:
     mov eax, 1
     mov edi, 2
-    lea rsi, [rip+errmsg]
-    mov edx, ERRSZ
     syscall
     mov eax, 60
-    mov edi, 1
+    mov edi, ebx
     syscall

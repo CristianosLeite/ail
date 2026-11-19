@@ -1,6 +1,6 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 250 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 300 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It exists to be replaced. Once AIL can express a compiler, the next version is written in AIL and stage0 is only used to build it the first time.
 
@@ -8,7 +8,7 @@ It exists to be replaced. Once AIL can express a compiler, the next version is w
 
 There is one pass and no intermediate representation.
 
-1. Read all of stdin into a 64 KiB input buffer.
+1. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 120-byte ELF header template to the start of a 1 MiB output buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer.
 4. Append the code for `exit(0)`.
@@ -35,13 +35,14 @@ The whole compiler shares a fixed set of registers instead of passing parameters
 | Label | Job |
 |---|---|
 | `_start` | read stdin, copy the header template |
-| `next` | start of a statement: skip whitespace and comments, match `sys` |
+| `next` | start of a statement: skip whitespace and comments, match `sys` and require its syscall number |
 | `arg` | dispatch the next argument, or end the statement by emitting `syscall` |
 | `num` | parse a decimal integer |
 | `str` | copy a string literal into the output and pass its address and length |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `fin` | emit `exit(0)`, patch sizes, write the output |
-| `err` | print `ailc: syntax error`, exit 1 |
+| `err`, `err_big` | source errors: print a message, exit 1 |
+| `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
 
@@ -98,7 +99,7 @@ objdump -D -b binary -mi386:x86-64 -Mintel --start-address=120 build/hello
 
 ## Limits
 
-- Input 64 KiB, output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to at most about three output bytes.
+- Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to at most about three output bytes.
 - x86-64 Linux only.
 - No writable memory in the generated program.
 
@@ -107,4 +108,4 @@ objdump -D -b binary -mi386:x86-64 -Mintel --start-address=120 build/hello
 1. Add a keyword check in `next`, beside the one for `sys`.
 2. Write the emitter, using `rdi` as the output cursor and leaving `rsi` after the statement.
 3. Jump back to `next`.
-4. Document it in [language.md](language.md) and add a test in `tests/`.
+4. Document it in [language.md](language.md) and add tests in `tests/`, including one for each way it can be rejected.

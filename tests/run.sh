@@ -1,15 +1,40 @@
 #!/bin/sh
-# usage: tests/run.sh [name...]     (no names = every tests/*.ai)
-# A test is tests/<name>.ai plus tests/<name>.out, the expected stdout.
-# It passes when the program compiles, exits 0 and prints exactly that.
+# usage: tests/run.sh [name...]     (no names = every test)
+#
+# A test is a set of files named tests/<name>.*:
+#   .ai     the program (or .ai.sh, a script that prints the program)
+#   .out    expected stdout of the compiled program
+#   .code   expected exit status of the compiled program (default 0)
+#   .err    expected compiler stderr; the compiler must then exit 1
+# A test has either .err (compiling must fail) or .out (program must run).
 cd "$(dirname "$0")/.." || exit 1
 out=build/tests
 mkdir -p $out
-[ $# -eq 0 ] && set -- $(basename -s .ai tests/*.ai)
+[ $# -eq 0 ] && set -- $(ls tests | sed -n 's/\.ai\(\.sh\)\{0,1\}$//p' | sort -u)
+
+check() {
+    if [ -f tests/$1.ai.sh ]
+    then sh tests/$1.ai.sh > $out/$1.ai || return 1
+    else cp tests/$1.ai $out/$1.ai || return 1
+    fi
+    build/ailc < $out/$1.ai > $out/$1 2> $out/$1.err
+    rc=$?
+    if [ -f tests/$1.err ]; then
+        [ $rc -eq 1 ] && cmp -s $out/$1.err tests/$1.err
+        return
+    fi
+    [ $rc -eq 0 ] && [ ! -s $out/$1.err ] || return 1
+    chmod +x $out/$1
+    $out/$1 > $out/$1.got
+    rc=$?
+    want=0
+    [ -f tests/$1.code ] && want=$(cat tests/$1.code)
+    [ $rc -eq "$want" ] && cmp -s $out/$1.got tests/$1.out
+}
+
 fail=0
 for t; do
-    if build/ailc < tests/$t.ai > $out/$t && chmod +x $out/$t &&
-       $out/$t > $out/$t.got && cmp -s $out/$t.got tests/$t.out
+    if check $t
     then echo "ok   $t"
     else echo "FAIL $t"; fail=1
     fi
