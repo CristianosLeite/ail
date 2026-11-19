@@ -8,6 +8,10 @@ AIL is a proof-of-concept programming language whose design goal is low token co
 
 The plan is to bootstrap: stage0 is written in assembly, and later compiler versions are to be written in AIL itself. Self-hosting is not started; the language first needs variables, memory access, arithmetic, control flow and functions.
 
+## Rules
+
+- All repository text is in English: documentation, code comments, commit messages, test names, compiler messages and the knowledge base. This holds even when the conversation is in another language.
+
 ## Commands
 
 Requires GNU `as` and `ld` on x86-64 Linux.
