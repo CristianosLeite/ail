@@ -19,8 +19,10 @@ Early proof of concept. The language has raw syscalls, six register variables, i
 Requires x86-64 Linux with GNU `as` and `ld` (binutils) and `make`.
 
 ```
-make                # builds build/ailc and build/hello
+make                # builds build/ailc and the examples
 build/hello         # prints: hello world
+echo hi | build/echo     # prints: hi
+echo hi | build/count    # prints: 0003
 make test           # runs the tests in tests/
 make test T=hello   # runs one test
 ```
@@ -54,13 +56,13 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 ## Documentation
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
-- [How the compiler works](docs/compiler.md): pipeline, output file layout, code generation, a byte-by-byte walkthrough of hello world
+- [How the compiler works](docs/compiler.md): pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
 - [Roadmap](docs/roadmap.md): the path to a self-hosted compiler
 
 ## Layout
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
-- `examples/`: sample programs
+- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores)
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents

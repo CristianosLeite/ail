@@ -117,7 +117,15 @@ The flags say whether `as` is required (everything that produces a value), forbi
 
 ## Worked example
 
-`sys 1 1 "hello world\n"` compiles to 224 bytes: the 176-byte header followed by
+`examples/hello.ai` writes a line and exits with status 0 only if all 12 bytes went out:
+
+```
+sys 1 1 "hello world\n" as n
+sub n 12 as n
+sys 60 n
+```
+
+It compiles to 251 bytes: the 176-byte header followed by
 
 ```
 b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
@@ -127,10 +135,20 @@ bf:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
 cb:  be bf 00 40 00      mov  esi, 0x4000bf   ; address of the string
 d0:  ba 0c 00 00 00      mov  edx, 12         ; its length
 d5:  0f 05               syscall
-d7:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0)
-dc:  31 ff               xor  edi, edi
-de:  0f 05               syscall
+d7:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
+da:  48 89 d8            mov  rax, rbx        ; sub: first operand n
+dd:  bf 0c 00 00 00      mov  edi, 12         ; second operand
+e2:  48 29 f8            sub  rax, rdi        ; the instruction bytes of sub
+e5:  48 89 c3            mov  rbx, rax        ; as n
+e8:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
+ed:  48 89 df            mov  rdi, rbx        ; status: n
+f0:  0f 05               syscall
+f2:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
+f7:  31 ff               xor  edi, edi
+f9:  0f 05               syscall
 ```
+
+The one-line program `sys 1 1 "hello world\n"` is the first seven lines plus the implicit exit: 224 bytes.
 
 To inspect any compiled program the same way:
 

@@ -17,7 +17,7 @@ The plan is to bootstrap: stage0 is written in assembly, and later compiler vers
 Requires GNU `as` and `ld` on x86-64 Linux.
 
 ```
-make            # build build/ailc and build/hello
+make            # build build/ailc and every example in examples/
 make test       # run every test in tests/
 make test T=hello   # run one test
 make build/foo  # compile examples/foo.ai to build/foo

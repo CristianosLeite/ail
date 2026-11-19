@@ -1,6 +1,6 @@
 B := build
 
-all: $(B)/hello
+all: $(patsubst examples/%.ai,$(B)/%,$(wildcard examples/*.ai))
 
 $(B)/ailc: stage0/ailc.s
 	@mkdir -p $(B)

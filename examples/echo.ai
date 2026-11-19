@@ -1,0 +1,4 @@
+# copy up to 4096 bytes of stdin to stdout
+buf b 4096
+sys 0 0 b 4096 as n     # n = bytes read
+sys 1 1 b n
