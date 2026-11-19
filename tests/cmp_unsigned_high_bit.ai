@@ -1,0 +1,28 @@
+# all ones is the largest value, not -1: 10101010 = 170
+set 0 as r
+sub 0 1 as m
+lt 1 m as t    # 1
+shl r 1 as r
+or r t as r
+lt m 1 as t    # 0
+shl r 1 as r
+or r t as r
+le 1 m as t    # 1
+shl r 1 as r
+or r t as r
+le m 1 as t    # 0
+shl r 1 as r
+or r t as r
+gt m 1 as t    # 1
+shl r 1 as r
+or r t as r
+gt 1 m as t    # 0
+shl r 1 as r
+or r t as r
+ge m 1 as t    # 1
+shl r 1 as r
+or r t as r
+ge 1 m as t    # 0
+shl r 1 as r
+or r t as r
+sys 60 r

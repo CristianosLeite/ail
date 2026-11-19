@@ -47,6 +47,7 @@ Compiler errors are one line on stderr with no location: `ailc: syntax error`, `
 
 - `sys n a b ...`: raw Linux syscall, up to 6 arguments; `n` must be a decimal number.
 - `set a as x`, and `add sub mul div mod and or xor shl shr` as `op a b as x`: 64-bit, wrapping, unsigned division and shift.
+- `eq ne lt le gt ge` as `op a b as x`: 64-bit comparison, unsigned order, result `1` or `0`.
 - `buf name size`: reserves zero-filled writable bytes (rounded up to 8); the name is a constant address, at most 16 buffers.
 - `load p as x`, `loadb p as x`, `store p a`, `storeb p a`: 64-bit and byte access at address `p`.
 

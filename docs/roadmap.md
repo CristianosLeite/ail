@@ -8,6 +8,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - `sys`, a raw syscall with integer and string arguments.
 - Register-backed variables: `as name` keeps a statement's result, and a variable can be passed as an argument.
 - Assignment and arithmetic: `set`, `add`, `sub`, `mul`, `div`, `mod`, `and`, `or`, `xor`, `shl`, `shr`.
+- Comparisons: `eq`, `ne`, `lt`, `le`, `gt`, `ge` keep `1` or `0` in a variable, unsigned.
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
@@ -15,7 +16,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 
 Stage0 has to grow until a compiler can be written in AIL. In rough order of dependency:
 
-1. **Comparison and control flow**: labels, conditional and unconditional jumps, loops. This is the first feature that needs forward references, so the compiler needs fixups or a second pass.
+1. **Control flow**: labels, conditional and unconditional jumps, loops. This is the first feature that needs forward references, so the compiler needs fixups or a second pass.
 2. **Functions**: call and return with a simple calling convention.
 3. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses if writing the compiler shows a need.
 

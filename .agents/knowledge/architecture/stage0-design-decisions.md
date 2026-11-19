@@ -78,7 +78,11 @@ records the reasoning.
 - **Writable segment at a fixed address:** the address of a buffer must be known when it is used,
   before the code size is known, so it cannot follow the code.
 - **`duplicate name` and `too many buffers` are separate messages:** same reason as for variables.
-- **Comparison was left out of the arithmetic step:** it is better designed with control flow.
+- **Comparisons produce a value, not flags (2026-11-19):** `eq ne lt le gt ge` are `optab` rows that
+  emit `cmp` / `setcc al` / `movzx eax, al`, so they needed no fixups and could land before control
+  flow; a conditional jump can later test the variable. Ordering is unsigned to match `div`, `mod`
+  and `shr`; there is no signed comparison. This replaces the earlier choice to leave comparison
+  out until control flow was designed.
 - **Strings inlined behind a `jmp`:** the address is known at the moment the string is read, which
   keeps the compiler single-pass with no fixups. The cost is 5 bytes per string and read-only data.
 - **Fixed load address `0x400000`, non-PIE:** absolute addresses fit in a 32-bit immediate.
@@ -107,8 +111,7 @@ records the reasoning.
 ## Open items
 - 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
   thumb only.
-- 2026-11-19: self-hosting is not started; the language lacks comparison, control flow and
-  functions.
+- 2026-11-19: self-hosting is not started; the language lacks control flow and functions.
 - 2026-11-19: six variables will not be enough for a compiler; that needs spilling or scoped reuse
   of registers once functions exist.
 - 2026-11-19: errors carry no line number.

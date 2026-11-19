@@ -1,0 +1,13 @@
+# the first operand leaves all ones in rax; the result must still be
+# exactly 1 or 0, with no stale bits above bit 0
+sub 0 1 as m
+eq m m as r           # 1
+ne m m as z           # 0
+shr r 1 as h
+shr r 56 as g
+or h g as h
+or h z as h
+shr z 56 as g
+or h g as h           # 0
+add h r as h
+sys 60 h

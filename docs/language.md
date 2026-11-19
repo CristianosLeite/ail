@@ -74,6 +74,30 @@ add a b as name
 
 Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones. A shift uses only the low 6 bits of `b`. Dividing by zero kills the program with `SIGFPE`. The result may go into one of the operands: `add i 1 as i`.
 
+### Comparisons
+
+```
+lt a b as name
+```
+
+A comparison takes two values like an arithmetic statement and keeps `1` in the variable if it holds, `0` if not. It needs `as name`; an operand is an integer, a variable or a buffer name, never a string.
+
+| Statement | `1` when |
+|---|---|
+| `eq a b` | `a` equals `b` |
+| `ne a b` | `a` differs from `b` |
+| `lt a b` | `a` is below `b` |
+| `le a b` | `a` is below or equals `b` |
+| `gt a b` | `a` is above `b` |
+| `ge a b` | `a` is above or equals `b` |
+
+All 64 bits of both values are compared and the result is a full 64-bit `1` or `0`. Ordering is unsigned, like `div` and `mod`: the result of `sub 0 1` is the largest value, not a negative one, so `lt 1 x` is `1` for it. A comparison only produces a value; it does not jump.
+
+```
+sub 0 1 as m
+gt m 1 as r             # r = 1
+```
+
 ### `buf`
 
 ```
@@ -190,8 +214,8 @@ Causes of a syntax error:
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
 - `sys` not followed by a decimal syscall number
-- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb` and the arithmetic statements take two
-- `set`, an arithmetic statement or a load without `as`, or a store with `as`
+- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
+- `set`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF

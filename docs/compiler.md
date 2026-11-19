@@ -106,12 +106,15 @@ Every statement except `buf` is one row of the table `optab`: keyword, operand c
 | `div` | `xor edx, edx` / `div rdi` |
 | `mod` | `xor edx, edx` / `div rdi` / `mov rax, rdx` |
 | `shl` `shr` | `mov rcx, rdi` / `shl` or `shr rax, cl` |
+| `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
 | `load` | `mov rax, [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
 | `store` | `mov [rax], rdi` |
 | `storeb` | `mov [rax], dil` |
 
 The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers. So `add x 1 as x` with `x` in `rbx` is `mov rax, rbx` / `mov edi, 1` / `add rax, rdi` / `mov rbx, rax`: 14 bytes, with no attempt to use shorter forms.
+
+A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so comparisons need no labels or jumps.
 
 The flags say whether `as` is required (everything that produces a value), forbidden (the stores) or optional (`sys`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values.
 

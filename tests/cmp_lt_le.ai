@@ -1,0 +1,21 @@
+# true, false and the boundary for each: 100101 = 37
+set 0 as r
+lt 3 5 as t    # 1
+shl r 1 as r
+or r t as r
+lt 5 3 as t    # 0
+shl r 1 as r
+or r t as r
+lt 5 5 as t    # 0
+shl r 1 as r
+or r t as r
+le 3 5 as t    # 1
+shl r 1 as r
+or r t as r
+le 5 3 as t    # 0
+shl r 1 as r
+or r t as r
+le 5 5 as t    # 1
+shl r 1 as r
+or r t as r
+sys 60 r
