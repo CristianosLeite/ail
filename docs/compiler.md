@@ -59,6 +59,7 @@ The top level uses the six variables `c d r f p q`, which are the ones that get 
 | `jtarget` | the label name of a jump: call `eop`, leave room for the displacement and record a fixup |
 | `fndef`, `fnend` | `fn`: enter the function, emit the jump over it and its entry code, open its scope; `end`: close the innermost open block if there is one, else emit the default return, resolve the jumps and close the scope |
 | `blkend`, `elsedef` | the `end` and the `else` of a block |
+| `earg` | an argument that is an expression: parse it and compute it into the register of its position |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
 
 Everything else is a function:
@@ -87,6 +88,8 @@ Everything else is a function:
 | `atfirst`, `addref`, `blktop` | refuse a number or a string as the first value of `at`; record a fixup in `refs`; fill in the jump of the innermost block |
 | `opdp`, `opda`, `prop`, `clrvk`, `memchk`, `cp4` | the access check: note what is known of a value, carry it to the variable assigned, forget it, check or record a load or store; `cp4` copies an entry |
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
+| `excomp`, `exinit`, `exparse`, `exop`, `exprec`, `exname`, `exred`, `exfold` | [expressions](#expressions): is the token one; parse it into `ex`; read an operator; how tightly it binds; a name as a value; apply an operator to the two values on top; compute it for two numbers |
+| `exnode`, `exvpush`, `exspush`, `exspop`, `exload`, `exarg`, `movi`, `lear` | append a node; push a value; push and pop an operator; load a node into a register; make the expression the next value of the statement; `mov <register>, <number>` and `lea <register>, [rip+rel32]` for any register |
 
 Because `pk` returns 256 at the end of the input, "at the end?" and "which byte?" are one comparison.
 
@@ -273,6 +276,20 @@ A name is only entered in the table when its `as` is reached, at the end of the 
 
 Every way into a label is thus either part of its mask or checked against it, which is what makes one pass enough. The cost is that a jump back may be refused although no later line reads the variable. `fndef` saves `asg`, `dead` and `jmask` in `tasg`, `tdead` and `tjmask` and clears them, and `fnend` restores them: the top level goes on after a function as if it were not there.
 
+## Expressions
+
+An argument is an expression when its token starts with a parenthesis or has, after its first byte, a byte that no name or number has (`excomp`); every other token takes the paths it always took, so a source without expressions compiles to the bytes it compiled to before. `arg` sends an expression to the state `earg`, which refuses it where a name must stand and calls `exinit`, `exparse` and `exarg`.
+
+`exparse` reads the token with two stacks and no recursion, so that neither the depth of parentheses nor the length of an expression has a limit but the source: `exs` holds the operators and open parentheses that wait, a byte each, and `exv` the values they will take. A value read is appended to `ex` as a node and pushed on `exv`; an operator first applies (`exred`) every waiting operator that binds at least as tightly (`exprec`), which makes all of them left-associative, and a closing parenthesis applies those back to its opening. `exop` reads an operator of one or two bytes. A name is resolved by `exname` as `ident` resolves it, with the same check that a variable is assigned and the same note of its last mention.
+
+`ex` is therefore the expression in the order a stack machine runs it: both operands of an operator stand before it, the right one directly before. A node is 32 bytes, a kind and three cells: a number; the address of a global name plus a number, with the name; a variable; the cell of a `var`; or an operator with the node of its left operand.
+
+`exred` computes at once what needs no instruction. Two numbers under an operator become one number (`exfold`), with the arithmetic of the instructions, except a division by zero, which is left to fail when the program runs. A global name and a number under `+` or `-` become the name with another number, when that fits the displacement of an instruction. Both replace the last two nodes, so they only apply to operands that stand next to each other, which constants always do once what is inside them is computed.
+
+An entry of `exv` also carries what is [known](#known-addresses) of the value, four cells as in `opd`: a number, or a global name and a number. A variable brings its entry of `vk`, and `exred` carries the knowledge through `+` and `-` as `prop` does for `add` and `sub`. `exarg` copies it to `opd`, so a load or store through `b+8` is checked like one through a variable that was computed with `add`.
+
+`exarg` loads the one node that is left into the register of the argument position (`exload`: `movi`, `vmov`, `emem`, or `lear` and a fixup, plus `lea reg, [reg+number]` for a name with a number).
+
 ## Known addresses
 
 To reject accesses that are provably wrong, the compiler notes what it knows of values. `opd` describes the first two values of the statement and `vk` each variable of the current scope, in 32 bytes: a kind, then a number (kind 1), a global name and a number (kind 2), or the length of a string (kind 3). `num`, `str` and `ident` fill `opd` as they parse; reading a variable copies its entry. `capture` calls `prop`, which keeps knowledge through three statements only: `set` copies it, `add` and `sub` adjust the number. It recognises them by their row: no code and exactly the flag `AS_REQ` for `set`, the three instruction bytes for the other two. Anything else leaves the variable unknown, and `clrvk` forgets all variables at a label and at the end of a function.
@@ -392,7 +409,7 @@ The output carries no debugging information, by decision: sections and a symbol 
 
 ## Capacity
 
-Nothing in the compiler grows: every buffer has the size that the largest source needs, and the kernel only gives memory to the pages that are touched. The compiler therefore has about 700 MiB of zero-filled address space and uses a few hundred kilobytes for a small program; it does not start under a limit on address space below that (`ulimit -v`).
+Nothing in the compiler grows: every buffer has the size that the largest source needs, and the kernel only gives memory to the pages that are touched. The compiler therefore has about 1.6 GiB of zero-filled address space and uses a few hundred kilobytes for a small program; it does not start under a limit on address space below that (`ulimit -v`).
 
 - **Source.** The limit is 8 MiB; `inmax` is one byte more, the size of the input buffer. The read loops of stdin and of `use` stop with `source too big` when the buffer is full.
 - **Tables.** Each is sized for a source of 8 MiB made only of the shortest line that adds an entry, as the comment beside each `buf` says, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `call a` 7, a name used as a value 2. The hash has room for every global name, label, function and jump at once.

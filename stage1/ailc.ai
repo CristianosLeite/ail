@@ -46,6 +46,9 @@ var nblk blkbase topblk
 var nhn hbkt scope nscope snh
 # rwstart = where the writable segment starts in the image, known in fin
 var rwstart
+# expressions: the nodes, values and operators of the one being parsed, and
+# whether it divides or shifts
+var nex nexv nexs exdm exsh
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -99,6 +102,9 @@ buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 add
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
 buf calls 38347936    # 1198373 calls of 32 bytes: name, length, rel32 address, then two
                     # 4-byte counts: values (all ones for ref) and names after "as"
+buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
+buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
+buf exs 8388609      # and as many operators or open parentheses, a byte each
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
 buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
                     # imm32 address, 0 for its address or 1 for its length
@@ -920,6 +926,620 @@ fn areg i
 add i argnum as i
 loadb i as i
 ret i
+end
+
+# ---- expressions
+# An argument written with operators or parentheses, and no space in it, is
+# an expression. expr parses it into ex, a list of nodes in the order a
+# stack machine runs them: both operands of an operator stand before it,
+# the right one directly. A node is 32 bytes, a kind and three cells:
+#   1 a number: its value
+#   2 the address of a global name plus a number: name, length, number
+#   4 a variable: its index
+#   5 a var: its cell
+#   6 an operator: its number, and the node of its left operand
+# The operators, by number, with how tightly each binds:
+#   0 *  1 /  2 %   (6)     3 +  4 -   (5)     5 <<  6 >>   (4)
+#   7 &  (3)     8 ^  (2)     9 |  (1)     10 ==  11 !=  12 <  13 <=  14 >
+#   15 >=   (0)
+# exv is the stack of values while parsing, 40 bytes each: the node, then
+# what is known of the value, four cells as in opd. exs is the stack of
+# operators, a byte each, 255 for an open parenthesis.
+fn exnode k a b c
+mul nex 32 as p
+add p ex as p
+store p k
+add p 8 as q
+store q a
+add p 16 as q
+store q b
+add p 24 as q
+store q c
+set nex as i
+add nex 1 as nex
+ret i
+end
+fn exvpush i a b c d
+mul nexv 40 as p
+add p exv as p
+store p i
+add p 8 as p
+store p a
+add p 8 as p
+store p b
+add p 8 as p
+store p c
+add p 8 as p
+store p d
+add nexv 1 as nexv
+end
+fn exspush o
+add exs nexs as p
+storeb p o
+add nexs 1 as nexs
+end
+fn exspop
+sub nexs 1 as nexs
+add exs nexs as p
+loadb p as o
+ret o
+end
+# the name read last, as a value: a variable, a var, a const, or the
+# address of a buffer or of data, which may be declared later
+fn exname
+call lvar as r
+ifne r -1
+mul r 8 as d
+add d vlast as d
+store d ip
+shr asg r as d
+and d 1 as d
+ifz d
+call eunasg
+end
+call exnode 4 r 0 0 as i
+mul r 32 as f
+add f vk as f
+load f as a
+add f 8 as q
+load q as b
+add f 16 as q
+load q as c
+add f 24 as q
+load q as d
+call exvpush i a b c d
+ret 0
+end
+call lbuf as r
+ifne r -1
+call gent r as p
+add p 32 as d
+load d as d
+ifeq d 1
+add p 16 as q
+load q as q
+call exnode 5 q 0 0 as i
+call exvpush i 0 0 0 0
+ret 0
+end
+ifeq d 2
+add p 24 as q
+load q as q
+call exnode 1 q 0 0 as i
+call exvpush i 1 q 0 0
+ret 0
+end
+end
+call exnode 2 ns nl 0 as i
+call exvpush i 2 ns nl 0
+end
+# the value of a o b for two numbers, as the instructions compute it
+fn exfold o a b
+ifeq o 0
+mul a b as a
+end
+ifeq o 1
+div a b as a
+end
+ifeq o 2
+mod a b as a
+end
+ifeq o 3
+add a b as a
+end
+ifeq o 4
+sub a b as a
+end
+ifeq o 5
+and b 63 as b
+shl a b as a
+end
+ifeq o 6
+and b 63 as b
+shr a b as a
+end
+ifeq o 7
+and a b as a
+end
+ifeq o 8
+xor a b as a
+end
+ifeq o 9
+or a b as a
+end
+ifeq o 10
+eq a b as a
+end
+ifeq o 11
+ne a b as a
+end
+ifeq o 12
+lt a b as a
+end
+ifeq o 13
+le a b as a
+end
+ifeq o 14
+gt a b as a
+end
+ifeq o 15
+ge a b as a
+end
+ret a
+end
+# apply operator o to the two values on top of exv. Two numbers become one
+# number, except a division by zero, which is left to fail when it runs; a
+# name and a number become the name with another number, if that fits the
+# displacement of an instruction; anything else is an operator node. What
+# is known of the result follows the operands through + and -.
+fn exred o
+iflt nexv 2
+call err
+end
+sub nexv 1 as nexv
+mul nexv 40 as r
+add r exv as r
+sub r 40 as l
+load r as ri
+load l as li
+add l 8 as p
+load p as lk
+add l 16 as p
+load p as la
+add l 24 as p
+load p as lb
+add l 32 as p
+load p as lc
+add r 8 as p
+load p as rk
+add r 16 as p
+load p as ra
+add r 24 as p
+load p as rb
+add r 32 as p
+load p as rc
+# the kinds of the two nodes, when they are the last two of the list
+set 0 as ln
+set 0 as rn
+add li 2 as p
+ifeq p nex
+add ri 1 as p
+ifeq p nex
+mul li 32 as p
+add p ex as p
+load p as ln
+mul ri 32 as p
+add p ex as p
+load p as rn
+end
+end
+ifeq ln 1
+ifeq rn 1
+ifle o 2
+ifz o
+jmp f
+end
+jz ra n
+end
+label f
+call exfold o la ra as v
+sub nex 2 as nex
+call exnode 1 v 0 0 as i
+sub nexv 1 as nexv
+call exvpush i 1 v 0 0
+ret 0
+end
+end
+# name + number, number + name, name - number
+set 0 as t
+set 0 as v
+ifeq o 3
+ifeq ln 2
+ifeq rn 1
+add lc ra as v
+set 1 as t
+end
+end
+ifeq ln 1
+ifeq rn 2
+add rc la as v
+set ra as la
+set rb as lb
+set 1 as t
+end
+end
+end
+ifeq o 4
+ifeq ln 2
+ifeq rn 1
+sub lc ra as v
+set 1 as t
+end
+end
+end
+if t
+add v 0x80000000 as p
+shr p 32 as p
+ifz p
+sub nex 2 as nex
+call exnode 2 la lb v as i
+sub nexv 1 as nexv
+call exvpush i 2 la lb v
+ret 0
+end
+end
+label n
+call exnode 6 o li 0 as i
+# what is known: a name or a number, plus or minus a number
+set 0 as k
+set 0 as a
+set 0 as b
+set 0 as c
+ifeq rk 1
+ifeq o 3
+ifeq lk 1
+set 1 as k
+add la ra as a
+end
+ifeq lk 2
+set 2 as k
+set la as a
+set lb as b
+add lc ra as c
+end
+end
+ifeq o 4
+ifeq lk 1
+set 1 as k
+sub la ra as a
+end
+ifeq lk 2
+set 2 as k
+set la as a
+set lb as b
+sub lc ra as c
+end
+end
+end
+ifeq rk 2
+ifeq o 3
+ifeq lk 1
+set 2 as k
+set ra as a
+set rb as b
+add rc la as c
+end
+end
+end
+ifle o 2
+if o
+set 1 as exdm
+end
+end
+ifeq o 5
+set 1 as exsh
+end
+ifeq o 6
+set 1 as exsh
+end
+sub nexv 1 as nexv
+call exvpush i k a b c
+end
+# the operator at the cursor, whose first byte is c
+fn exop c
+call adv
+ifeq c 42
+ret 0
+end
+ifeq c 47
+ret 1
+end
+ifeq c 37
+ret 2
+end
+ifeq c 43
+ret 3
+end
+ifeq c 45
+ret 4
+end
+ifeq c 38
+ret 7
+end
+ifeq c 94
+ret 8
+end
+ifeq c 124
+ret 9
+end
+call pk as d
+ifeq c 60
+ifeq d 60
+call adv
+ret 5
+end
+ifeq d 61
+call adv
+ret 13
+end
+ret 12
+end
+ifeq c 62
+ifeq d 62
+call adv
+ret 6
+end
+ifeq d 61
+call adv
+ret 15
+end
+ret 14
+end
+ifne d 61
+call err
+end
+call adv
+ifeq c 61
+ret 10
+end
+ifeq c 33
+ret 11
+end
+call err
+end
+# how tightly operator o binds
+fn exprec o
+iflt o 3
+ret 6
+end
+iflt o 5
+ret 5
+end
+iflt o 7
+ret 4
+end
+ifge o 10
+ret 0
+end
+sub 10 o as o
+ret o
+end
+fn exinit
+set 0 as nex
+set 0 as nexv
+set 0 as nexs
+set 0 as exdm
+set 0 as exsh
+end
+# parse the expression at the cursor, up to the end of its token, on top of
+# the m values that exv has; it leaves one more
+fn exparse m
+set nexs as base
+label atom
+call pk as c
+ifeq c 40
+call exspush 255
+call adv
+jmp atom
+end
+call low c as d
+if d
+call name
+call exname
+jmp oper
+end
+ifeq c 45
+add ip 1 as p
+jge p ie bad
+loadb p as d
+call dig d as d
+jnz d num
+jmp bad
+end
+call dig c as d
+ifz d
+label bad
+call err
+end
+label num
+call rdnum as v
+call exnode 1 v 0 0 as i
+call exvpush i 1 v 0 0
+label oper
+call pk as c
+ifeq c 41
+label cl
+jle nexs base bad
+call exspop as o
+ifne o 255
+call exred o
+jmp cl
+end
+call adv
+jmp oper
+end
+jeq c 256 dn
+call blank c as d
+jnz d dn
+jeq c 10 dn
+jeq c 13 dn
+jeq c 35 dn
+call exop c as o
+call exprec o as p
+label rd
+ifgt nexs base
+sub nexs 1 as q
+add q exs as q
+loadb q as t
+ifne t 255
+call exprec t as q
+ifge q p
+call exspop as t
+call exred t
+jmp rd
+end
+end
+end
+call exspush o
+jmp atom
+label dn
+ifgt nexs base
+call exspop as o
+jeq o 255 bad
+call exred o
+jmp dn
+end
+add m 1 as m
+jne nexv m bad
+end
+# 1 if the token at the cursor is an expression: it starts with a
+# parenthesis, or has a byte after its first that no name or number has
+# and is not the word as
+fn excomp
+set ip as p
+loadb p as c
+jeq c 40 y
+label a
+add p 1 as p
+jge p ie n
+loadb p as c
+call blank c as d
+jnz d n
+jeq c 10 n
+jeq c 13 n
+jeq c 35 n
+jeq c 95 a
+call dig c as d
+jnz d a
+call low c as d
+jnz d a
+# "as" before a byte that separates nothing is still as, and its error
+sub p ip as d
+ifeq d 2
+load2 ip as d
+jeq d 0x7361 n
+end
+label y
+ret 1
+label n
+ret 0
+end
+# mov <register g>, v, in its shortest form
+fn movi g v
+shr g 3 as b
+and g 7 as l
+shr v 32 as c
+ifz c
+if b
+call eb 65
+end
+or l 184 as c
+call eb c
+set op as immpos
+call e4 v
+ret 0
+end
+or b 72 as c
+call eb c
+ifge v 0xffffffff80000000
+call eb 199
+or l 192 as c
+call eb c
+call e4 v
+ret 0
+end
+or l 184 as c
+call eb c
+store op v
+add op 8 as op
+end
+# lea <register g>, [rip+rel32], with the rel32 zero and its address in
+# immpos
+fn lear g
+shr g 3 as c
+shl c 2 as c
+or c 72 as c
+call eb c
+call eb 141
+and g 7 as g
+shl g 3 as g
+or g 5 as g
+call eb g
+set op as immpos
+call e4 0
+end
+# load the node at p, which is not an operator, into register g
+fn exload p g
+load p as k
+add p 8 as q
+load q as a
+ifeq k 1
+call movi g a
+ret 0
+end
+ifeq k 4
+call vmov a g 139
+ret 0
+end
+ifeq k 5
+call emem g 1 a 139
+ret 0
+end
+add p 16 as q
+load q as b
+add p 24 as q
+load q as c
+set a as ns
+set b as nl
+call lear g
+call addref 0
+if c
+# lea g, [g + c]
+shr g 3 as d
+mul d 5 as d
+or d 72 as d
+call eb d
+call eb 141
+and g 7 as d
+mul d 9 as d
+or d 128 as d
+call eb d
+call e4 c
+end
+end
+# the expression parsed last is the next value of the statement: compute it
+# into the register of its position, note what is known of it, count it
+fn exarg
+call aidx as t
+call areg t as g
+ifne nex 1
+call err
+end
+call exload ex g
+call opdp as p
+add exv 8 as q
+call cp4 q p
+call anext
 end
 
 # ---- output
@@ -1918,6 +2538,8 @@ call blank c as d
 jnz d a2
 ifne c 13
 jeq c 34 str
+call excomp as d
+jnz d earg
 call low c as d
 jnz d ident
 jeq c 45 num
@@ -1956,6 +2578,27 @@ jmp next
 label a2
 call adv
 jmp arg
+
+# an expression: not where a name must stand (the first value of at, the
+# operand of len, the label of a jump)
+label earg
+call atfirst as d
+call no d
+add cur 1 as r
+loadb r as r
+and r 64 as d
+call no d
+and r 8 as d
+if d
+loadb cur as d
+ifge ai d
+call err
+end
+end
+call exinit
+call exparse 0
+call exarg
+jmp tokend
 
 label num
 call atfirst as d

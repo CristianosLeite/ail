@@ -113,7 +113,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Check the one compiler without comparing it to stage0.
 - [x] Remove stage0.
 - [x] Fix the expression syntax from token counts on the corpus.
-- [ ] Parse infix expressions as arguments.
+- [x] Parse infix expressions as arguments.
 - [ ] Compile compound expressions and `name = expression`.
 - [ ] Accept an expression as the condition of `if`.
 - [ ] Add the `while` block.

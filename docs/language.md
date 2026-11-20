@@ -679,6 +679,34 @@ What the language offers against mistakes is therefore local and explicit:
 
 There is no ownership or borrow checking. A function receives addresses as plain values and may keep them; a syscall receives them the same way.
 
+### Expressions
+
+```
+sys exit 2+3*4
+storeb out+1 10
+store b+8*(n-1) 0x10<<4
+```
+
+An argument may be an expression: values joined by operators, written **without a space**. Spaces separate the arguments of a statement, so `5-1` is one value and `5 -1` is two, the second a negative number. An expression stands wherever a statement takes a value; it does not stand where a name is required (the first value of `at`, the operand of `len`, a label, a name after `as`) or for the number of `sys`.
+
+| Operators | Meaning | Binds |
+|---|---|---|
+| `*` `/` `%` | product, unsigned quotient and remainder | tightest |
+| `+` `-` | sum and difference | |
+| `<<` `>>` | shifts, the right one zero-filled | |
+| `&` | bitwise and | |
+| `^` | bitwise exclusive or | |
+| `\|` | bitwise or | |
+| `==` `!=` `<` `<=` `>` `>=` | comparison, unsigned, giving 1 or 0 | loosest |
+
+Operators of one row are taken from left to right: `7-2-1` is 4. Parentheses group and may nest: `(2+3)*4`. This is the order of Rust, not of C: a shift binds tighter than `&`, and every bitwise operator tighter than a comparison, so `x&1==0` tests the low bit. The operators do what the statements of the same meaning do (`add`, `shr`, `lt`, ...): 64 bits, wrapping, a shift by the low 6 bits of its count.
+
+A value in an expression is a number, a `const`, a variable, a `var`, or the name of a buffer or of data, which is its address. A `-` before a digit where a value is expected belongs to the number: `2+-1` is 1; there is no other unary operator, so write `0-x`. A string is not a value in an expression.
+
+The compiler computes what it can: an expression of numbers and consts is the number, and a buffer or data name plus or minus a number is one address, checked like any [address](#addresses) the compiler knows: with `buf b 8`, `storeb b+8 0` is `invalid access`. A division by a constant zero is not computed; it fails when it runs.
+
+For now an expression must come down to such a number or address; one that needs an instruction, like `n+1` with a variable `n`, is still a syntax error.
+
 ## The io library
 
 `lib/io.ai` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/io.ai"`; put that line first, since it also records the program's arguments where it stands.
@@ -769,7 +797,9 @@ What remains a plain `syntax error`:
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it
-- an argument that is not an integer, a string, a variable name or a global name
+- an argument that is not an integer, a string, a variable name, a global name or an [expression](#expressions)
+- an expression with a parenthesis that is not closed or not opened, an operator without a value on each side, two values without an operator between them, a byte that is no operator, or a string in it
+- an expression where a name is required, or for the number of `sys`
 - `-` or `0x` without a digit after it
 
 The output has no debugging information: a fault at run time is reported by the kernel as a signal, with no line. The exit status says which: 139 for an invalid memory access, 136 for a division by zero, 132 for the trap of [`at`](#at).
