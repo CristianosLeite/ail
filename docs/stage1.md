@@ -35,7 +35,7 @@ What stage0 reaches with `call` is a function:
 | `areg`, `aidx`, `anext` | x86 register number of an argument position; `argidx` and `argnext` of stage0 |
 | `vplace`, `vmov`, `emem`, `frame`, `popskip`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame`, `popskip` and `alloc` of stage0; `vplace` returns two results, the kind and the value, as `varplace` does in `edx` and `ecx` |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
-| `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
+| `mrr`, `mov`, `elea`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_lea`, `emit_op` and `resolve` of stage0 |
 | `atfirst`, `addref` | as in stage0; the state `atname` is at top level |
 | `opdp`, `opda`, `prop`, `clrvk`, `memchk`, `cp4` | `opdptr`, `opdaddr`, `propagate`, `clrvk` and `memchk` of stage0; `cp4` copies an entry |
 | `godead`, `labasg` | as in stage0; a bit of `asg` is tested with a shift and set with `or`, where stage0 uses `bt` and `bts` |

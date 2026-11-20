@@ -1,0 +1,23 @@
+# the program has no fixed addresses: the kernel loads it high in the
+# address space, far above the 4 GiB that an absolute 32-bit address reaches.
+# A buffer, a var cell (through a function), data, a string and a function
+buf b 8
+data d 1
+fn f
+end
+set b as t
+set d as u
+set "s" as v
+ref f as w
+shr t 32 as t
+shr u 32 as u
+shr v 32 as v
+shr w 32 as w
+ne t 0 as t
+ne u 0 as u
+ne v 0 as v
+ne w 0 as w
+add t u as t
+add t v as t
+add t w as t
+sys exit t

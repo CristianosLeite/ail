@@ -79,7 +79,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   capacity where bytes and entries are appended.
 - [x] Improve symbol lookup at scale. Linear scans for duplicate definitions and
   fixups can make symbol-heavy programs take quadratic time to compile.
-- [ ] Remove fixed layout constraints. The ELF code and writable segments start
+- [x] Remove fixed layout constraints. The ELF code and writable segments start
   at `0x400000` and `0x10000000`, and buffer addresses are encoded as 32-bit
   immediates. That caps the total rounded buffer size at 3,840 MiB. Evaluate
   relocatable addressing and position-independent executables, and handle

@@ -8,7 +8,7 @@ This is a complete program:
 sys write 1 "hello world\n"
 ```
 
-It compiles to a 224-byte static Linux executable.
+It compiles to a 226-byte static, position-independent Linux executable.
 
 ## Status
 

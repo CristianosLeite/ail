@@ -1,16 +1,17 @@
 # ailc stage1 -- the read-only tables of stage1/ailc.ai, which compiles this
 # file in place with use. The same tables as in the .rodata of stage0/ailc.s.
-# the ELF header and the two program headers, as in stage0
+# the ELF header (type 3: loaded anywhere) and the two program headers, as
+# in stage0
 data hdr 127 69 76 70 2 1 1 0 0 0 0 0 0 0 0 0
-data 2 0 62 0 1 0 0 0 176 0 64 0 0 0 0 0
+data 3 0 62 0 1 0 0 0 176 0 0 0 0 0 0 0
 data 64 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 64 0 56 0 2 0 64 0 0 0 0 0
 data 1 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0
-data 0 0 64 0 0 0 0 0 0 0 64 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 16 0 0 0 0 0 0 1 0 0 0 6 0 0 0
-data 0 0 0 0 0 0 0 0 0 0 0 16 0 0 0 0
-data 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
 # statements: name length, name, operand count, flags (two bytes), code
 # length, code;
@@ -91,7 +92,7 @@ data 5 "ifsle" 2 2 8 5 72 57 248 15 143
 data 5 "ifsgt" 2 2 8 5 72 57 248 15 142
 data 5 "ifsge" 2 2 8 5 72 57 248 15 140
 data 4 "call" 0 16 0 1 232
-data 3 "ref" 0 17 2 1 184
+data 3 "ref" 0 17 2 3 72 141 5
 data 5 "callp" 0 0 4 2 255 209
 data 3 "ret" 1 34 0 11 65 95 65 94 65 93 65 92 93 91 195
 data 4 "tail" 0 50 0 11 65 95 65 94 65 93 65 92 93 91 233

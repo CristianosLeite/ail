@@ -12,8 +12,8 @@ There is one pass over the top level and two over each function, and no intermed
 2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
 4. Append the code for `exit(0)`.
-5. Fill in the displacement of every top-level jump from the label table, of every call from the function table, and the value of every name used before its declaration from the table of global names.
-6. Patch the two segment sizes in the header, write the buffer to stdout, exit.
+5. Fill in the displacement of every top-level jump from the label table and of every call from the function table. Place the writable segment on the page after the code and fill in the distance to every buffer, data name and var cell, and the lengths of names used before their declaration.
+6. Patch the segment sizes and the address of the second segment in the header, write the buffer to stdout, exit.
 
 Because code is emitted as it is read, an address that appears later in the source is not known yet. Jumps, calls and the names of buffers and data declared later each leave four empty bytes and an entry in a fixup list. The jumps of a function are filled in at its `end`, once all its labels are known, and the rest in step 5.
 
@@ -80,6 +80,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
+| `emit_lea` | emit `lea <argument register>, [rip+rel32]` with the distance left open, and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
 | `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_res`, `err_prog`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
@@ -88,37 +89,39 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 ## Output file layout
 
 ```
-offset 0     ELF header            64 bytes
+offset 0     ELF header            64 bytes   type ET_DYN
 offset 64    program header        56 bytes   PT_LOAD, flags R+X: the whole file
-offset 120   program header        56 bytes   PT_LOAD, flags R+W: buffers, no file bytes
-offset 176   code and strings      entry point
+offset 120   program header        56 bytes   PT_LOAD, flags R+W: cells and buffers, no file bytes
+offset 176   code, strings, data   entry point
 ```
 
-The whole file is one segment loaded at the fixed address `0x400000`, so the byte at file offset `n` lives at `0x400000 + n` and the entry point is `0x4000b0`. There are no sections, no symbol table and no dynamic linking. This segment is readable and executable but not writable.
+The output is a position-independent executable. Its addresses are distances from the start of an image that the kernel loads wherever it chooses, at a different place on each run unless address randomisation is off. There are no sections, no symbol table, no dynamic section and no relocations: no instruction contains an address, only distances to other parts of the image.
 
-The second segment has a file size of zero and a memory size equal to the total of all `buf` statements, so the kernel maps that many zero-filled writable bytes at the fixed address `0x10000000`. A program without buffers keeps the header with a memory size of zero, which the kernel accepts. The cells of `var` lie below that address, the first one at `0x0ffffff8` and each next one 8 bytes lower; `fin` moves the start of the segment down by as many whole pages as they need and adds them to the memory size. Both addresses are fixed so that every address is known while the source is still being read.
+The whole file is the first segment, readable and executable but not writable: the byte at file offset `n` is at `n` in the image and the entry point is at 176. The second segment has a file size of zero and starts on the page after the code. It holds the 8-byte cells of the `var`s and of the top-level variables beyond the sixth, in the order they were made, and behind them the buffers in the order of their declaration; its memory size is the sum of both, which may be zero.
+
+Where the second segment starts is only known when the code is complete. So everything that refers to it, and every global name that may still be declared later, is a fixup in `refs`: `fin` computes the start (`rwstart`) and writes the distances. The image must stay within `IMGMAX`, 2 GiB less one byte, so that every such distance fits a `rel32`; `fin` reports `buffers too big` otherwise.
 
 ## Code generation
 
 **Integer argument.** `emit_mov` picks the shortest of three forms. A value below 2^32 is `mov r32, imm32` into the register for the current argument position, taken from `regtab`: 5 bytes, or 6 with a REX prefix for `r8`–`r10`; writing a 32-bit register clears the upper half. A value whose upper 33 bits are all ones is `mov r64, imm32` (`REX.W C7 /0`), which sign-extends: 7 bytes. Anything else is `mov r64, imm64` (`REX.W B8+r`): 10 bytes. `rdnum` reads the literal: decimal with a 64-bit overflow check on every digit, or up to sixteen hexadecimal digits after `0x`, negated after a `-`.
 
-**String argument.** The bytes are placed in the code stream and jumped over. `sys` and `call` get both `mov`s, `len` only the second and every other statement only the first:
+**String argument.** The bytes are placed in the code stream and jumped over. `sys` and `call` get both instructions that follow, `len` only the second and every other statement only the first:
 
 ```
 jmp  over          ; E9 + 32-bit length
 <string bytes>
 over:
-mov  <reg>, address
+lea  <reg>, [rip - distance]
 mov  <next reg>, length
 ```
 
-The address is known as soon as the string is read, so no data section and no back-patching of addresses is needed. The only patch is the jump distance, which is written when the closing quote is found.
+The bytes lie just behind the `lea`, at a distance that is known as soon as the string is read, so no data section and no fixup is needed. The only patch is the jump distance, which is written when the closing quote is found. `emit_lea` emits the instruction, 7 bytes, and leaves the address of its `rel32` in `immpos`.
 
 **Variable argument.** `mov r64, r64` from the variable's register into the argument register: `REX.W 89 /r`, 3 bytes. The x86 register numbers come from `argnum` (argument position) and `varnum` (variable index); bit 3 of each goes into the REX prefix and the low bits into the ModRM byte.
 
-**Buffer or data argument.** The address is a constant, so it is passed like an integer: `mov r32, imm32`. So is the length that `len` passes.
+**Buffer or data argument.** `lea r64, [rip+rel32]` through `emit_lea`, with a fixup of kind 0 in `refs` whether the name is declared yet or not: a buffer is in the segment whose start is not known yet, and data is treated the same for simplicity. The length that `len` passes is an integer, `mov r32, imm32`.
 
-**Var argument.** `mov r64, [abs32]` from the cell into the argument register: `REX.W 8B /r` with a SIB byte for the absolute address, 8 bytes. The address is below `0x10000000`, so the sign extension of the 32-bit displacement does not matter. `as` on a `var` stores with `mov [abs32], rax`, also 8 bytes.
+**Var argument.** `mov r64, [rip+rel32]` from the cell into the argument register: `REX.W 8B /r`, 7 bytes, with a fixup of kind 3 that holds the number of the cell. `as` on a `var` stores with `mov [rip+rel32], rax` in the same way. Both are `emit_mem`.
 
 **Const argument.** Passed like an integer.
 
@@ -169,7 +172,7 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `if` `ifz` | `test rax, rax` / the opposite jump, past the block |
 | `ifeq` ... `ifsge` | `cmp rax, rdi` / the opposite jump, past the block |
 | `call` | `call rel32` |
-| `ref` | `mov eax, imm32`, the address of the function |
+| `ref` | `lea rax, [rip+rel32]`, the address of the function |
 | `callp` | `call rcx` |
 | `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret`, without the pops of registers the function does not use |
 | `tail` | the same pops, then `jmp rel32` |
@@ -185,35 +188,35 @@ The flags say whether `as` is required (everything that produces a value), forbi
 `examples/hello.ai` writes a line and exits with status 0 only if all 12 bytes went out:
 
 ```
-sys 1 1 "hello world\n" as n
+sys write 1 "hello world\n" as n
 sub n 12 as n
-sys 60 n
+sys exit n
 ```
 
-It compiles to 251 bytes: the 176-byte header followed by
+It compiles to 253 bytes: the 176-byte header followed by
 
 ```
 b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
 b5:  bf 01 00 00 00      mov  edi, 1          ; fd: stdout
 ba:  e9 0c 00 00 00      jmp  0xcb            ; skip the 12 string bytes
 bf:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
-cb:  be bf 00 40 00      mov  esi, 0x4000bf   ; address of the string
-d0:  ba 0c 00 00 00      mov  edx, 12         ; its length
-d5:  0f 05               syscall
-d7:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
-da:  48 89 d8            mov  rax, rbx        ; sub: first operand n
-dd:  bf 0c 00 00 00      mov  edi, 12         ; second operand
-e2:  48 29 f8            sub  rax, rdi        ; the instruction bytes of sub
-e5:  48 89 c3            mov  rbx, rax        ; as n
-e8:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
-ed:  48 89 df            mov  rdi, rbx        ; status: n
-f0:  0f 05               syscall
-f2:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
-f7:  31 ff               xor  edi, edi
-f9:  0f 05               syscall
+cb:  48 8d 35 ed ff ff ff   lea  rsi, [rip-19]   ; address of the string: 0xbf
+d2:  ba 0c 00 00 00      mov  edx, 12         ; its length
+d7:  0f 05               syscall
+d9:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
+dc:  48 89 d8            mov  rax, rbx        ; sub: first operand n
+df:  bf 0c 00 00 00      mov  edi, 12         ; second operand
+e4:  48 29 f8            sub  rax, rdi        ; the instruction bytes of sub
+e7:  48 89 c3            mov  rbx, rax        ; as n
+ea:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
+ef:  48 89 df            mov  rdi, rbx        ; status: n
+f2:  0f 05               syscall
+f4:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
+f9:  31 ff               xor  edi, edi
+fb:  0f 05               syscall
 ```
 
-The one-line program `sys 1 1 "hello world\n"` is the first seven lines plus the implicit exit: 224 bytes.
+The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit exit: 226 bytes.
 
 To inspect any compiled program the same way:
 
@@ -227,7 +230,7 @@ The table `vars` has one 16-byte entry per variable: the address of the name ins
 
 Six registers hold variables: `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15` (`varnum`). These are the registers that neither the `syscall` instruction (which destroys `rax`, `rcx` and `r11`) nor the argument positions use. `varplace` says where a variable lives, and `emit_varmov` emits the `mov` between it and a register: `emit_mov_rr` for a register, `emit_mem` for memory (`REX.W 8B` or `89` with a SIB byte, 8 bytes).
 
-**Top level.** The first six variables get the registers in order of definition. Each later one gets a cell below the buffers, allocated like the cell of a `var` and recorded in `topcell`. Nothing is reused: the top level is interleaved with functions and is compiled in one pass.
+**Top level.** The first six variables get the registers in order of definition. Each later one gets a cell in the writable segment, numbered like the cell of a `var` and recorded in `topcell`. Nothing is reused: the top level is interleaved with functions and is compiled in one pass.
 
 **Functions** are compiled twice. On `fn`, `fndef` saves the cursors and every table counter in `snap` and sets `pass` to 1. The first pass compiles the function as usual, with every variable in `rbx`; its code is thrown away, but it finds every error and records for each variable where the source defines it (`vfirst`) and mentions it last (`vlast`), and for each jump to a label that is already defined, a loop: the source positions of the label and of the jump (`labpos`, `loops`). At `end`, `alloc` places the variables, `fnend` restores the snapshot, sets `pass` to 2 and jumps back to `fndef`, and the second pass emits the real code.
 
@@ -259,7 +262,7 @@ The rows of the loads and stores carry the flag `IS_MEM`, and `emit_op` calls `m
 
 ## Buffers
 
-The table `bufs` has the same 16-byte entries as `vars` and holds every global name: buffers, data, vars and consts. `bufkind` says which (`G_ADDR`, `G_VAR`, `G_CONST`), `bufaddr` holds one 32-bit address per entry and `bufsize` its length for `len`, or the value of a const. The table is sized from the source limit, since `var a b c` declares a name every two bytes; `nvars` counts the vars. `buf` rounds the size up to 8 bytes, gives the buffer the address `0x10000000` plus the bytes reserved so far, and adds the size to the running total `bsssz`, which `fin` writes into the second program header. The total is kept below 4 GiB minus the base so that every address fits the `imm32` that `emit_mov` writes.
+The table `bufs` has the same 16-byte entries as `vars` and holds every global name: buffers, data, vars and consts. `bufkind` says which (`G_ADDR`, `G_VAR`, `G_CONST`), `bufaddr` holds 32 bits per entry and `bufsize` its length for `len`, or the value of a const. The table is sized from the source limit, since `var a b c` declares a name every two bytes; `nvars` counts the vars. `bufaddr` is not an address in memory: for a buffer it is the distance from the first buffer, for data the offset of its bytes in the file, and for a var the number of its cell, from 1. `buf` rounds the size up to 8 bytes, places the buffer behind those declared so far and adds the size to the running total `bsssz`. `fin` turns each use into a distance once it knows where the writable segment starts.
 
 `ident` looks a name up among the variables first and the global names second. A name in neither is taken for a buffer or data declared later: `ident` passes `mov r32, 0` and appends the name, the address of that `imm32` (which `emit_mov` leaves in `immpos`) and whether the address or the length is wanted to `refs`. `fin` looks every entry up, reports `undefined variable` for a name that is still unknown or is a var or a const, and writes the value. Inside a function `defvar` accepts the name of a global other than a var, so that a variable hides it for the rest of the function; at top level it refuses. Every declaration of a global name refuses a name found in either table (`newglob`), and `as` refuses a global name unless it is a `var`, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
 
@@ -301,7 +304,7 @@ mov  <variable i>, <argument i>            ; one per parameter
 
 **Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. Every value after those is loaded into `r11`, row 7 of `regtab` and `argnum`, and pushed (`argidx`, `argnext`); `pushed` counts the bytes, `varplace` adds it to the distance of a stack slot, and `emit_op` emits `add rsp, pushed` after the `call`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores the results: it collects the names after `as` in `caps` (a variable or the cell of a var each, at most six, more than one only for `call` and `callp`), calls `emit_op`, and stores the register of value position `k` into name `k`. The number of names goes into the `calls` entry beside the number of values.
 
-`fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, more names than `funres` is `wrong result count`, and otherwise the displacement is written like a jump's. An entry whose value count is all ones comes from `ref`: its four bytes are the operand of `mov eax, imm32` and get the address the function is loaded at.
+`fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, more names than `funres` is `wrong result count`, and otherwise the displacement is written like a jump's. An entry whose value count is all ones comes from `ref`: its four bytes are the `rel32` of a `lea` and get the same distance, without the checks.
 
 **Indirect call.** `callp` is a row flagged `IS_PTR` with the bytes of `call rcx`. `argidx` sends its first value to `rcx`, row 8 of `regtab` and `argnum`, and treats the values after it as those of a call, one position lower; `argnext` and the removal of pushed values follow. Nothing is recorded, so nothing is checked. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
@@ -311,7 +314,7 @@ Because the callee saves every variable register it uses, the caller emits nothi
 
 **Large frames.** A frame of 4096 bytes or more is not reserved with one `sub`: `emit_frame` copies the template `probe`, which goes down a page at a time and touches each page with `test [rsp], rsp`, using `r11` as the counter. A stack that is too small is then found at its guard page. `funcs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
 
-`examples/fact.ai` shows all of it; its function starts at `0x4000b5`, right after the 5-byte jump at the entry point. It has three variables in two registers, so it saves two:
+`examples/fact.ai` shows all of it; its function starts at offset `0xb5`, right after the 5-byte jump at the entry point. It has three variables in two registers, so it saves two:
 
 ```
 b0:  e9 4a 00 00 00      jmp  0xff            ; fn: skip the body
@@ -364,9 +367,9 @@ Nothing in the compiler grows: every buffer has the size that the largest source
 - **Source.** `INSZ` is 8 MiB. The read loops of stdin and of `use` stop with `source too big` when the buffer is full.
 - **Tables.** Each is sized for a source of `INSZ` bytes made only of the shortest line that adds an entry, as the comments beside the `.equ` lines say, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `call a` 7, a name used as a value 2. The hash has room for every global name, label, function and jump at once.
 - **Output.** `OUTSZ` is 16 times `INSZ`. No line produces 16 bytes of code for each of its own: the worst are `fn a` with a frame of a page (51 bytes for 5) and the `end` of a function with six results (32 for 4). Because that is an argument and not a structure, the buffer is also checked: `outchk` reports `program too big` when fewer than `OUTGAP` (4096) bytes are left, and it runs at every statement, every value, every item of `data` and every byte of a string, between which no more than a few hundred bytes are emitted.
-- **Layout.** `fin` checks that the code ends below the cells of the vars, where the writable segment begins, before it writes the header.
+- **Layout.** `fin` checks that the image, from the header to the last buffer, stays within 2 GiB (`buffers too big`), since every distance in it must fit 32 bits.
 
-The two `program too big` checks cannot fail while the 16-to-1 argument holds, so no test reaches them.
+The `program too big` check cannot fail while the 16-to-1 argument holds, so no test reaches it.
 
 ## Adding a statement
 

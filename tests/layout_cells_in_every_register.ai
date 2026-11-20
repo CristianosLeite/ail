@@ -1,0 +1,18 @@
+var a b c d e g
+fn sum p q r s t u
+add p q as p
+add p r as p
+add p s as p
+add p t as p
+add p u as p
+ret p
+end
+set 1 as a
+set 2 as b
+set 4 as c
+set 8 as d
+set 16 as e
+set 32 as g
+call sum a b c d e g as x
+sys getpid 0 0 0 a g as y
+sys exit x

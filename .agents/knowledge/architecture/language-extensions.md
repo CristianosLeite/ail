@@ -226,7 +226,30 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   entries, so it returns -1 now (`globals_above_100000`).
 - The suite went from 722 to 726 tests.
 
+### Position-independent output (2026-11-20)
+- The output is `ET_DYN` with two `PT_LOAD`s and nothing else: no dynamic section, no
+  relocations. Linux 7.0 runs it and places it differently on every run. Every address in the
+  code is a `rip`-relative distance: `lea` for buffers, data, strings and `ref`, `mov` with
+  `rip + rel32` for var cells.
+- The writable segment starts on the page after the code, cells first, then buffers. Its start
+  is known in `fin`, so every use of a buffer, data name or cell is a `refs` fixup.
+- The two fixed addresses are gone, and with them the 256 MiB between them. The image must fit
+  2 GiB; the static buffer cap went from 3840 MiB down to just under 2 GiB, as planned and
+  accepted: larger storage is `alloc`.
+- `hello` is 253 bytes (was 251), the one-line program 226: a `lea` is two bytes longer than
+  the `mov` it replaces.
+- The suite went from 726 to 735 tests.
+
 ## Why
+- **`rip`-relative instead of 64-bit absolute addresses:** relative code needs no relocation
+  and no knowledge of where it runs, which is what lets the kernel randomise the place.
+  Absolute 64-bit addresses would lift the buffer cap but keep the fixed layout the item is
+  about.
+- **Segment after the code, fixups for everything:** a fixed gap between code and buffers would
+  avoid the fixups but keep a limit on the code. The fixup list was already sized for every use
+  of a name.
+- **One `lea` form for declared and undeclared names:** two paths were only worth it while the
+  declared one was shorter.
 - **Chains with a fixed bucket array, not open addressing:** the nodes fill an arena in order,
   so memory use follows the number of names, and the bucket array is 4 MiB whatever the source.
   A table that is probed must be sized from the largest source and touches a page per name.

@@ -400,7 +400,7 @@ buf name size
 
 Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is an [integer](#integers) or the name of a [`const`](#const) and is rounded up to a multiple of 8, so every buffer is 8-byte aligned. A size of 0 is allowed: the name is then an address with no bytes of its own, for instance a mark between two buffers.
 
-A buffer name is a constant, not a variable: it uses none of the variables of a scope, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the variables of a scope, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers, and together they may take almost 2 GiB; the memory is reserved when the program is loaded, costs nothing until it is touched, and is never freed. Larger storage comes from [`alloc`](#alloc-and-free).
 
 ```
 buf line 4096
@@ -669,7 +669,7 @@ buf t 8
 
 ### Addresses
 
-An address is a 64-bit integer like any other value. It can be computed, compared, stored in memory, passed to a function and handed to the kernel, and nothing in the language records where it came from or how long it stays valid. That is deliberate: the language describes what the machine does, and the machine has no pointers, only numbers.
+An address is a 64-bit integer like any other value. Its number is not fixed: the kernel loads a program at a different place on each run, so the address of a buffer, of data or of a function is only the same within one run. Distances between two addresses of the same program do not change. It can be computed, compared, stored in memory, passed to a function and handed to the kernel, and nothing in the language records where it came from or how long it stays valid. That is deliberate: the language describes what the machine does, and the machine has no pointers, only numbers.
 
 What the language offers against mistakes is therefore local and explicit:
 
@@ -728,7 +728,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: wrong result count` | 1 | two `ret` statements of one function with different numbers of values, or a `call` with more names after `as` than the function has results |
 | `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
-| `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that; the locals of a function exceeding about 2 GiB |
+| `ailc: buffers too big` | 1 | a buffer larger than 2 GiB, buffers that together with the code exceed that, or the locals of a function exceeding it |
 | `ailc: source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes) |
 | `ailc: program too big` | 1 | the compiled code does not fit; with the source limit this cannot happen, and the message exists so that a mistake in that reckoning is an error and not a damaged program |
 | `ailc: cannot read file` | 1 | the path of a `use` cannot be opened or read |

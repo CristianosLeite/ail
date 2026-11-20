@@ -10,8 +10,8 @@
 
 .intel_syntax noprefix
 
-.equ BASE,   0x400000
-.equ BSS,    0x10000000         # address of the writable segment (buffers)
+.equ IMGMAX, 0x7fffffff         # the image, code to last buffer, must stay within
+                                # reach of a rel32 from any instruction
 .equ HDRSZ,  176                # ELF header (64) + two program headers (56 each)
 .equ INSZ,   0x800000           # most source bytes, all units together: 8 MiB
 .equ OUTSZ,  INSZ * 16          # no line gives 16 bytes of code for each of its
@@ -89,6 +89,7 @@ loccur: .skip 4                 # bytes of locals declared so far in this pass
 fnlocal: .skip 4                # bytes of locals of the function, after pass 1
 pushed: .skip 4                 # bytes of call values pushed so far in this statement
 fnnpar: .skip 4                 # parameters of the function, known after pass 1
+rwstart: .skip 8                # where the writable segment starts in the image
 immpos: .skip 8                 # where emit_mov wrote its last imm32
 pass:   .skip 4                 # 1 while a function is compiled to measure its
                                 # variables, 2 when it is compiled again for good
@@ -174,10 +175,10 @@ nrefs:  .skip 4                 # number of such uses so far
 ignore: .quad 1, 0, 0, 0        # struct sigaction: SIG_IGN, no flags, restorer or mask
 hdr:
     .byte 0x7f,'E','L','F',2,1,1,0, 0,0,0,0,0,0,0,0
-    .word 2                     # ET_EXEC
+    .word 3                     # ET_DYN: loaded wherever the kernel chooses
     .word 62                    # EM_X86_64
     .long 1
-    .quad BASE + HDRSZ          # entry
+    .quad HDRSZ                 # entry, from the start of the image
     .quad 64                    # phoff
     .quad 0                     # shoff
     .long 0                     # flags
@@ -185,16 +186,16 @@ hdr:
     .long 1                     # PT_LOAD
     .long 5                     # R+X
     .quad 0                     # file offset
-    .quad BASE                  # vaddr
-    .quad BASE                  # paddr
+    .quad 0                     # vaddr: the image starts with the file
+    .quad 0                     # paddr
     .quad 0                     # filesz (patched)
     .quad 0                     # memsz  (patched)
     .quad 0x1000                # align
     .long 1                     # PT_LOAD: buffers, no bytes in the file
     .long 6                     # R+W
     .quad 0                     # file offset
-    .quad BSS                   # vaddr
-    .quad BSS                   # paddr
+    .quad 0                     # vaddr: the page after the code (patched)
+    .quad 0                     # paddr
     .quad 0                     # filesz
     .quad 0                     # memsz  (patched)
     .quad 0x1000                # align
@@ -709,10 +710,10 @@ free_end:
     .word IS_CALL
     .byte 1,  0xE8                      # call rel32
     .byte 3
-    .ascii "ref"                                    # mov eax, <address of the function>
+    .ascii "ref"                                    # lea rax, [rip+rel32]
     .byte 0
     .word AS_REQ | IS_CALL | IS_REF
-    .byte 1,  0xB8
+    .byte 3,  0x48,0x8D,0x05
     .byte 5
     .ascii "callp"                                  # call rcx
     .byte 0
@@ -1314,10 +1315,12 @@ str:
     test byte ptr [rdx+1], IS_LEN
     jnz 1f
     push rax
+    call emit_lea               # address: the bytes are behind us, at a known
+    mov rcx, [rip+immpos]       # distance
     mov rax, r13
-    sub rax, r14
-    add rax, BASE
-    call emit_mov               # address
+    sub rax, rcx
+    sub rax, 4
+    mov [rcx], eax
     pop rax
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], IS_SYS | IS_CALL
@@ -1603,10 +1606,11 @@ ident:
     mov [rdx+8], rax
     call emit_mov
     jmp tokend
-5:  lea rcx, [rip+bufaddr]      # a buffer or data name is its address
-    mov eax, [rcx+rax*4]
-    call opdaddr
-    call emit_mov
+5:
+7:  call opdaddr                # a buffer or data name, declared or yet to come,
+    call emit_lea               # is its address: fin fills in the distance
+    xor eax, eax
+8:  call addref
     jmp tokend
 6:  lea rcx, [rip+bufaddr]      # a var is read from its cell
     mov r8d, [rcx+rax*4]
@@ -1619,13 +1623,7 @@ ident:
     call emit_mem               # mov <arg reg>, [cell]
     call argnext
     jmp tokend
-7:  call opdaddr
-    xor eax, eax                # not declared yet: a buffer or data name that
-    call emit_mov               # comes later; fin fills in the value
-    xor eax, eax
-8:  call addref
-    jmp tokend
-9:  xor eax, eax                # the same for len
+9:  xor eax, eax                # len of a name that comes later
     call emit_mov
     mov eax, 1
     jmp 8b
@@ -1656,15 +1654,10 @@ atname:
     lea rcx, [rip+bufkind]
     cmp byte ptr [rcx+rax], G_ADDR
     jne err
-    lea rcx, [rip+bufaddr]
-    mov eax, [rcx+rax*4]
-    call emit_mov
-    jmp 4f
-3:  xor eax, eax
-    call emit_mov
+3:  call emit_lea
     xor eax, eax
     call addref
-4:  xor eax, eax
+    xor eax, eax
     call emit_mov
     mov eax, 2
     call addref
@@ -1917,7 +1910,7 @@ emit_varmov:
     xchg eax, ecx               # load: from the variable's register
     jmp emit_mov_rr
 
-# emit a 64-bit mov between the register eax and memory: the address ecx
+# emit a 64-bit mov between the register eax and memory: the cell number ecx
 # (edx = 1) or rsp + ecx (edx = 2); r9d = 0x8B to load, 0x89 to store
 emit_mem:
     mov r10d, eax
@@ -1930,15 +1923,48 @@ emit_mem:
     shl eax, 3
     cmp edx, 1
     jne 1f
-    or al, 0x04                 # ModRM: no base, SIB follows; SIB: disp32 alone
-    mov ah, 0x25
-    jmp 2f
+    or al, 0x05                 # ModRM: rip + rel32, which fin fills in from
+    mov [rdi+2], al             # the number of the cell
+    mov dword ptr [rdi+3], 0
+    mov r10d, [rip+nrefs]
+    shl r10, 5
+    lea r11, [rip+refs]
+    add r10, r11
+    mov [r10], rcx
+    mov qword ptr [r10+8], 0
+    lea r11, [rdi+3]
+    mov [r10+16], r11
+    mov dword ptr [r10+24], 3
+    inc dword ptr [rip+nrefs]
+    add rdi, 7
+    ret
 1:  or al, 0x84                 # ModRM: base + disp32, SIB follows; SIB: rsp
     mov ah, 0x24
-2:  mov [rdi+2], ax
+    mov [rdi+2], ax
     mov [rdi+4], ecx
     add rdi, 8
     ret
+
+# emit "lea <arg reg ebx>, [rip+rel32]" with the rel32 zero and its address
+# in immpos, and advance ebx. Keeps r8 and r9.
+emit_lea:
+    call argidx
+    lea r10, [rip+argnum]
+    movzx ecx, byte ptr [r10+rcx]
+    mov edx, ecx
+    shr edx, 3
+    shl edx, 2                  # REX.R: the register is r8-r15
+    or edx, 0x48
+    mov [rdi], dl
+    mov byte ptr [rdi+1], 0x8D
+    and ecx, 7
+    lea ecx, [rcx*8+5]          # ModRM: rip + rel32
+    mov [rdi+2], cl
+    mov dword ptr [rdi+3], 0
+    lea rdx, [rdi+3]
+    mov [rip+immpos], rdx
+    add rdi, 7
+    jmp argnext
 
 # where the variable eax of the current scope lives: edx = 0 and ecx = its
 # x86 register, edx = 1 and ecx = the address of its cell, edx = 2 and
@@ -2003,12 +2029,9 @@ defvar:
     jne 4f
     cmp eax, NREGS              # top level: after the registers, a cell below
     jb 5f                       # the buffers, like a var
-    mov ecx, [rip+nvars]
+    mov ecx, [rip+nvars]        # cells are numbered from 1
     inc ecx
     mov [rip+nvars], ecx
-    shl ecx, 3
-    neg ecx
-    add ecx, BSS
     lea rdx, [rip+topcell]
     mov [rdx+rax*4], ecx
 5:  ret
@@ -2034,13 +2057,13 @@ bufdef:
     call constname              # the size is a const
     jmp 3f
 1:  call rdnum                  # or a number
-3:  mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
+3:  mov edx, IMGMAX
     cmp rax, rdx
     ja err_bufs
     push rax
     call eol
     pop rax
-    mov rdx, 0x100000000 - BSS
+    mov edx, IMGMAX
     mov ecx, [rip+nbufs]
     lea r10, [rip+bufkind]
     mov byte ptr [r10+rcx], G_ADDR
@@ -2054,8 +2077,7 @@ bufdef:
     add rax, rcx                # new total
     cmp rax, rdx
     ja err_bufs
-    mov [rip+bsssz], rax
-    add rcx, BSS                # address of this buffer
+    mov [rip+bsssz], rax        # rcx = where this buffer starts among the buffers
     mov eax, [rip+nbufs]
     lea r10, [rip+bufaddr]
     mov [r10+rax*4], ecx
@@ -2133,12 +2155,9 @@ vardef:
     call newglob
     lea rcx, [rip+bufkind]
     mov byte ptr [rcx+rax], G_VAR
-    mov ecx, [rip+nvars]
+    mov ecx, [rip+nvars]        # its cell, numbered from 1
     inc ecx
     mov [rip+nvars], ecx
-    shl ecx, 3
-    neg ecx
-    add ecx, BSS                # BSS - 8 * (its number, from 1)
     lea rdx, [rip+bufaddr]
     mov [rdx+rax*4], ecx
     call globdone
@@ -2238,8 +2257,7 @@ datadef:
     sub rdx, rax
     lea r10, [rip+bufsize]
     mov [r10+rcx*8], rdx
-    sub rax, r14
-    add rax, BASE
+    sub rax, r14                # where the bytes are in the file
     lea r10, [rip+bufaddr]
     mov [r10+rcx*4], eax
     call globdone
@@ -2251,7 +2269,6 @@ datadef:
     mov [rip+dataend], rdi
     mov rax, rdi                # the run ends here, so far
     sub rax, r14
-    add rax, BASE
     mov ecx, [rip+nruns]
     lea rdx, [rip+runend]
     mov [rdx+rcx*4-4], eax
@@ -3326,6 +3343,11 @@ fin:
     lea rsi, [rip+exit0]
     mov ecx, EXIT0SZ
     rep movsb
+    mov r13, rdi                # the code is complete: the writable segment
+    sub r13, r14                # starts on the page after it, with the cells
+    lea rax, [r13+4095]         # of the vars first and then the buffers
+    and rax, -4096
+    mov [rip+rwstart], rax
     call resolve                # the top-level jumps
     lea rbx, [rip+calls]        # every function is known now: fill in the calls
     mov ebp, [rip+ncalls]
@@ -3352,20 +3374,26 @@ fin:
     sub rax, 4                  # relative to the end of the rel32
     mov [rcx], eax
     jmp 4f
-3:  lea rcx, [rip+funaddr]      # ref: the address the function is loaded at
+3:  lea rcx, [rip+funaddr]      # ref: the same distance, for a lea
     mov rax, [rcx+rax*8]
-    sub rax, r14
-    add rax, BASE
     mov rcx, [rbx+16]
+    sub rax, rcx
+    sub rax, 4
     mov [rcx], eax
 4:  add rbx, 32
     dec ebp
     jmp 1b
-2:  lea rbx, [rip+refs]         # every global name is known now: fill in the
-    mov ebp, [rip+nrefs]        # uses that came before their declaration
-1:  test ebp, ebp
+2:  lea rbx, [rip+refs]         # every global name and the place of the
+    mov ebp, [rip+nrefs]        # writable segment are known now: fill in the
+1:  test ebp, ebp               # addresses and the lengths left open
     jz 2f
-    mov r8, [rbx]
+    cmp dword ptr [rbx+24], 3
+    jne 6f
+    mov rcx, [rbx]              # a cell: the nth 8 bytes of the segment
+    lea rcx, [rcx*8-8]
+    add rcx, [rip+rwstart]
+    jmp 7f
+6:  mov r8, [rbx]
     mov r9, [rbx+8]
     call lookup_buf
     jc err_undef
@@ -3374,11 +3402,23 @@ fin:
     jne err_undef
     lea rcx, [rip+bufaddr]
     mov ecx, [rcx+rax*4]
-    cmp dword ptr [rbx+24], 0
-    je 3f
     lea rdx, [rip+bufrun]
     mov edx, [rdx+rax*4]
-    cmp dword ptr [rbx+24], 2   # for at, data reaches to the end of its run
+    cmp dword ptr [rbx+24], 0
+    jne 5f
+    test edx, edx               # an address: data is where it is in the file,
+    jnz 7f                      # a buffer behind the cells
+    mov eax, [rip+nvars]
+    lea rcx, [rcx+rax*8]
+    add rcx, [rip+rwstart]
+7:  mov rax, [rbx+16]           # as a distance from the end of the rel32
+    mov rdx, rax
+    sub rdx, r14
+    add rdx, 4
+    sub rcx, rdx
+    mov [rax], ecx
+    jmp 8f
+5:  cmp dword ptr [rbx+24], 2   # for at, data reaches to the end of its run
     jne 4f
     test edx, edx
     jz 4f
@@ -3391,7 +3431,7 @@ fin:
     mov ecx, [rcx+rax*8]
 3:  mov rax, [rbx+16]
     mov [rax], ecx
-    add rbx, 32
+8:  add rbx, 32
     dec ebp
     jmp 1b
 2:  lea rbx, [rip+chks]         # every size is known now: check the loads and
@@ -3429,24 +3469,18 @@ fin:
 4:  add rbx, 32
     dec ebp
     jmp 1b
-2:
-    mov r13, rdi
-    sub r13, r14                # file size
-    mov [r14+64+32], r13
+2:  mov [r14+64+32], r13        # file size
     mov [r14+64+40], r13
-    mov eax, [rip+nvars]        # the writable segment starts a whole number of
-    shl rax, 3                  # pages below the buffers, to hold the vars
-    add rax, 4095
-    and rax, -4096
-    mov ecx, BSS
-    sub rcx, rax
-    mov [r14+64+56+16], rcx     # its address
+    mov rcx, [rip+rwstart]
+    mov [r14+64+56+16], rcx     # the address of the writable segment
     mov [r14+64+56+24], rcx
-    lea rdx, [r13+BASE]         # the code must end below the writable segment
-    cmp rdx, rcx
-    ja err_prog
+    mov eax, [rip+nvars]
+    shl rax, 3
     add rax, [rip+bsssz]
     mov [r14+64+56+40], rax     # its memory size
+    add rax, rcx                # the whole image must be within reach
+    cmp rax, IMGMAX
+    ja err_bufs
     mov r12, r14
 1:  mov eax, 1
     mov edi, 1

@@ -1,0 +1,15 @@
+# the writable segment follows the code: cells first, then the buffers in
+# the order of their declaration; all of it within a page or two of the data
+var c1 c2
+buf b1 16
+buf b2 8
+data d 1
+sub b2 b1 as x
+sub b1 d as y
+lt y 8192 as y
+gt b1 d as z
+shl y 5 as y
+shl z 6 as z
+or x y as x
+or x z as x
+sys exit x

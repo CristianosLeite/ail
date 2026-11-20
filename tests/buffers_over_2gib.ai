@@ -1,0 +1,3 @@
+buf a 0x40000000
+buf b 0x3fe00000
+buf c 0x400000

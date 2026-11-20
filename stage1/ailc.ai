@@ -44,6 +44,8 @@ var nblk blkbase topblk
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
 var nhn hbkt scope nscope snh
+# rwstart = where the writable segment starts in the image, known in fin
+var rwstart
 # the source limit of 8 MiB is in the sizes below: in holds one byte more,
 # out 16 times as much (see OUTSZ in stage0), and each table one entry for
 # every shortest line that makes one
@@ -706,11 +708,9 @@ add i 1 as nv
 ifz infn
 ifge i 6
 add ngv 1 as ngv
-mul ngv 8 as c
-sub 0x10000000 c as c
 mul i 8 as p
 add p topcell as p
-store p c
+store p ngv
 end
 ret i
 end
@@ -973,8 +973,27 @@ add op 8 as op
 label x
 call anext
 end
-# a 64-bit mov between the register g and memory: the address p (k = 1) or
-# rsp + p (k = 2); o = 139 to load the register, 137 to store it
+# lea <register of the next argument>, [rip+rel32], with the rel32 zero and
+# its address in immpos
+fn elea
+call aidx as i
+call areg i as r
+shr r 3 as c
+shl c 2 as c
+or c 72 as c
+call eb c
+call eb 141
+and r 7 as r
+shl r 3 as r
+or r 5 as r
+call eb r
+set op as immpos
+call e4 0
+call anext
+end
+# a 64-bit mov between the register g and memory: the cell number p (k = 1,
+# rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
+# register, 137 to store it
 fn emem g k p o
 shr g 3 as c
 shl c 2 as c
@@ -984,10 +1003,19 @@ call eb o
 and g 7 as g
 shl g 3 as g
 ifeq k 1
-or g 4 as g
+or g 5 as g
 call eb g
-call eb 37
-call e4 p
+mul nrefs 32 as c
+add c refs as c
+store c p
+add c 8 as d
+store d 0
+add c 16 as d
+store d op
+add c 24 as d
+store d 3
+add nrefs 1 as nrefs
+call e4 0
 ret 0
 end
 or g 132 as g
@@ -1779,9 +1807,10 @@ add cur 1 as r
 loadb r as r
 and r 64 as d
 jnz d s1
-sub p out as p
-add p 0x400000 as p
-call mov p
+call elea
+sub p immpos as c
+sub c 4 as c
+store4 immpos c
 and r 20 as d
 jnz d s1
 add cur 2 as d
@@ -1848,8 +1877,9 @@ jmp tokend
 label i2
 call lbuf as r
 jne r -1 i4
+label i8
 call opda
-call mov 0
+call elea
 set 0 as r
 label i9
 call addref r
@@ -1880,14 +1910,9 @@ call gent r as p
 add p 32 as d
 load d as d
 call no d
-add p 16 as d
-load d as d
-call mov d
-jmp at4
 end
-call mov 0
+call elea
 call addref 0
-label at4
 call mov 0
 call addref 2
 jmp tokend
@@ -1906,11 +1931,7 @@ store d r
 call mov r
 jmp tokend
 end
-add p 16 as r
-load r as r
-call opda
-call mov r
-jmp tokend
+jmp i8
 end
 add p 16 as r
 load r as r
@@ -2010,7 +2031,7 @@ jmp b2
 end
 call rdnum as r
 label b2
-ifgt r 0xf0000000
+ifgt r 0x7fffffff
 call ebuf
 end
 call eol
@@ -2025,11 +2046,10 @@ shr r 3 as r
 shl r 3 as r
 set bsssz as q
 add r q as r
-ifgt r 0xf0000000
+ifgt r 0x7fffffff
 call ebuf
 end
 set r as bsssz
-add q 0x10000000 as q
 add p 16 as p
 store p q
 call globdone
@@ -2090,8 +2110,6 @@ add p 32 as q
 store q 1
 add ngv 1 as r
 set r as ngv
-mul r 8 as r
-sub 0x10000000 r as r
 add p 16 as q
 store q r
 call globdone
@@ -2179,7 +2197,6 @@ sub op q as c
 add p 24 as d
 store d c
 sub q out as c
-add c 0x400000 as c
 add p 16 as d
 store d c
 call globdone
@@ -2191,7 +2208,6 @@ sub c 4 as c
 store4 p c
 set q as dataend
 sub q out as c
-add c 0x400000 as c
 mul nruns 8 as d
 add d runend as d
 sub d 8 as d
@@ -2515,6 +2531,10 @@ set infn as d
 call no d
 call no nblk
 call cp exit0 9
+sub op out as c
+add c 4095 as c
+shr c 12 as c
+shl c 12 as rwstart
 call resolve
 set calls as p
 set ncalls as r
@@ -2555,10 +2575,10 @@ jmp c7
 label c5
 add c 16 as c
 load c as c
-sub c out as c
-add c 0x400000 as c
 add p 16 as q
 load q as q
+sub c q as c
+sub c 4 as c
 store4 q c
 label c7
 add p 32 as p
@@ -2569,6 +2589,15 @@ set refs as p
 set nrefs as r
 label r1
 jz r r2
+add p 24 as d
+load d as f
+ifeq f 3
+load p as q
+mul q 8 as q
+sub q 8 as q
+add q rwstart as q
+jmp r7
+end
 call getn p
 call lbuf as c
 ifeq c -1
@@ -2580,21 +2609,32 @@ load d as d
 if d
 call eund
 end
-add p 24 as d
-load d as d
 add c 16 as q
 load q as q
-jz d r5
-add c 40 as f
-load f as f
-ne d 2 as d
-jnz d r6
-jz f r6
-mul f 8 as f
-add f runend as f
-sub f 8 as f
-load f as f
-sub f q as q
+add c 40 as d
+load d as d
+ifz f
+jnz d r7
+mul ngv 8 as d
+add q d as q
+add q rwstart as q
+label r7
+add p 16 as d
+load d as d
+sub d out as f
+add f 4 as f
+sub q f as q
+store4 d q
+jmp r8
+end
+ne f 2 as f
+jnz f r6
+jz d r6
+mul d 8 as d
+add d runend as d
+sub d 8 as d
+load d as d
+sub d q as q
 jmp r5
 label r6
 add c 24 as q
@@ -2603,6 +2643,7 @@ label r5
 add p 16 as d
 load d as d
 store4 d q
+label r8
 add p 32 as p
 sub r 1 as r
 jmp r1
@@ -2659,23 +2700,18 @@ add out 96 as p
 store p q
 add out 104 as p
 store p q
-mul ngv 8 as c
-add c 4095 as c
-shr c 12 as c
-shl c 12 as c
-sub 0x10000000 c as d
-add q 0x400000 as f
-ifgt f d
-call eprog
-end
 add out 136 as p
-store p d
+store p rwstart
 add out 144 as p
-store p d
-set bsssz as d
-add c d as c
+store p rwstart
+mul ngv 8 as c
+add c bsssz as c
 add out 160 as p
 store p c
+add c rwstart as c
+ifgt c 0x7fffffff
+call ebuf
+end
 set out as p
 label w1
 sys write 1 p q as c
