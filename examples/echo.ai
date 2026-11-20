@@ -1,4 +1,11 @@
-# copy up to 4096 bytes of stdin to stdout
+# copy up to 4096 bytes of stdin to stdout; exit status 1 if either fails
 buf b 4096
-sys 0 0 b 4096 as n     # n = bytes read
-sys 1 1 b n
+sys 0 0 b 4096 as n     # n = bytes read, or a negative error
+gt n 4096 as e          # unsigned: a negative n is far above 4096
+jnz e fail
+sys 1 1 b n as w        # w = bytes written, or a negative error
+ne w n as e             # a short write counts as a failure
+jnz e fail
+sys 60 0
+label fail
+sys 60 1
