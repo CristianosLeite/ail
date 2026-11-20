@@ -143,7 +143,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Compile loads and stores with the address as base, index and number
   (added when the measurements showed where `isort` and `sieve` lost).
 - [x] Record the measurements after instruction selection.
-- [ ] Write the examples and the library with expressions.
+- [x] Write the examples and the library with expressions.
 - [ ] Add a tool that rewrites statements as expressions.
 - [ ] Release and pin the second seed.
 - [ ] Write the compiler with expressions.

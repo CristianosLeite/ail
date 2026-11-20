@@ -25,7 +25,7 @@ echo hi | build/echo     # prints: hi
 echo hi | build/count    # prints: 0003
 build/loop          # prints the digits 0 to 9, one per line
 build/fact; echo $? # prints: 120
-make test           # runs the tests in tests/ with both compilers and compares them
+make test           # runs the tests in tests/ and the checks of the compiler against itself
 make test T=hello   # runs one test
 ```
 
@@ -47,9 +47,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments; `n` is a number or a name such as `write` |
 | `args as p` | Address of the argument count, arguments and environment the kernel passed |
 | `sys ... as x` | Same, keeping the return value in variable `x` (at most 64 variables per function) |
-| `set a as x` | `x = a` |
-| `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
-| `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |
+| `x=a+b*c` | An expression kept in `x`: `* / %`, `+ -`, `<< >>`, `&`, `^`, `\|` and the comparisons `== != < <= > >=`, with parentheses, written without spaces; `x+=e` changes `x` in place. An expression may stand wherever a value does: `storeb out+1 48+n%10` |
+| `set a as x`, `add a b as x`, `lt a b as x` | The same as statements: `x=a`, `x=a+b`, `x=a<b`; also `sub mul div mod and or xor shl shr` and `eq ne le gt ge` |
 | `sdiv smod sar`, `slt sle sgt sge` | Division, remainder, right shift and ordering of signed values |
 | `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq` | Arithmetic, conversion and comparison of doubles, kept as their 64 bits |
 | `xadd p v as x`, `cas p old new as x` | Atomic add and compare-and-swap on the 64 bits at `p` |
@@ -66,7 +65,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `label l` | Name this point of the program |
 | `jmp l`, `jz a l`, `jnz a l` | Jump to label `l`: always, if `a` is zero, if `a` is not zero |
 | `jlt a b l` | Jump if `a < b`; also `jeq jne jle jgt jge` and signed `jslt jsle jsgt jsge` |
-| `if a` ... `else` ... `end` | Run the lines if `a` is not zero; also `ifz` and `ifeq iflt ...` with two values |
+| `if a` ... `else` ... `end` | Run the lines if `a` is not zero, where `a` may be a comparison, `if n<10`; also `ifz` and `ifeq iflt ...` with two values |
+| `while a` ... `end` | Run the lines as long as `a` is not zero, tested before each round |
 | `use "lib/io.ai"` | Compile another file here, once per path |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a b` | Return one to six values from the function; reaching `end` returns 0 |

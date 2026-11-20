@@ -13,22 +13,22 @@ python3 tools/perf.py       # time the same programs, see performance.md
 
 | program | AIL | C | Rust | asm |
 |---|---:|---:|---:|---:|
-| collatz | 158 | 119 | 165 |  |
-| compute | 114 | 106 | 120 | 229 |
-| count | 189 | 141 | 102 | 232 |
+| collatz | 115 | 119 | 165 |  |
+| compute | 91 | 106 | 120 | 229 |
+| count | 118 | 141 | 102 | 232 |
 | echo | 56 | 58 | 86 | 150 |
-| fact | 52 | 44 | 55 | 101 |
-| fnv | 189 | 167 | 126 |  |
-| hello | 23 | 29 | 45 | 78 |
-| isort | 297 | 239 | 250 |  |
-| loop | 62 | 70 | 56 | 135 |
-| sieve | 173 | 145 | 186 |  |
-| total | 1313 | 1118 | 1191 | 925 |
-| relative to AIL | 1.00 | 0.85 | 0.91 | 1.86 |
+| fact | 40 | 44 | 55 | 101 |
+| fnv | 141 | 167 | 126 |  |
+| hello | 18 | 29 | 45 | 78 |
+| isort | 215 | 239 | 250 |  |
+| loop | 44 | 70 | 56 | 135 |
+| sieve | 132 | 145 | 186 |  |
+| total | 970 | 1118 | 1191 | 925 |
+| relative to AIL | 1.00 | 1.15 | 1.23 | 2.52 |
 
 This is the fixed corpus that a change of syntax is judged on: five short programs that are mostly system calls, and five that compute (`compute`, `sieve`, `collatz`, `fnv` and `isort`, described in [performance.md](performance.md)). The last four have no assembly equivalent; a language is compared with the AIL total of the programs it has, so the assembly figure is over six programs.
 
-AIL costs 46% fewer tokens than assembly that does the same, 17% more than C and 10% more than Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes: every operation is a line with a name for its result, where C writes one expression (`count`, `isort`). Against Rust it also wins where Rust needs ceremony to read a number or to wrap its arithmetic (`sieve`, `collatz`, `compute`). The five short programs alone total 382 for AIL against 342 for C and 344 for Rust.
+The examples are written with expressions, `x=e`, `x+=e`, `while` and `if` on a value since 2026-11-20. AIL costs 13% fewer tokens than C that does the same, 19% fewer than Rust and 60% fewer than assembly. It is cheaper than C in every program, and dearer than Rust only in `count` and `fnv`, where Rust formats a number or reads a file with one call. Written with one operation a line, as the language first was, the same ten programs were 1313 tokens, 17% more than C; the [count](#expressions-measured-on-2026-11-20) below chose the spelling that made the difference.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 
@@ -111,4 +111,4 @@ What the counts show:
 - `if` takes an expression like any statement takes one, and `while expression` ... `end` is a loop. The `ifeq` and `jlt` families, labels and jumps stay.
 - A string stays a whole argument. Signed and float operations, the atomic ones, loads, stores and calls stay statements; a load in an expression is left out until programs show it paying.
 
-With these the corpus is 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust; only `count` and `fnv` remain dearer than Rust, where Rust formats a number or reads a file in one call.
+With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust. The examples as they were then written came to 970: `isort` lost five more by leaving its loop through a jump instead of a second label.

@@ -7,12 +7,16 @@ status: current
 # Token cost measurement
 
 **Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the ten examples
-and their C, Rust and assembly equivalents in `bench/`. AIL is 46% cheaper than assembly, 17%
-dearer than C and 10% dearer than Rust. Lines and numbers are what cost; keywords do not.
+and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
+13% cheaper than C and 19% cheaper than Rust (it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
 `tools/perf.py` times the same programs.
 
 ## Facts
-- Totals without comments on 2026-11-20, ten programs: AIL 1313, C 1118, Rust 1191. The first
+- With the examples rewritten in expressions and `while` (2026-11-20, later the same day): AIL
+  970, C 1118, Rust 1191; AIL is cheaper than C in every program and dearer than Rust only in
+  `count` and `fnv`. Time against `gcc -O3`: geometric mean 1.041 (`collatz` 1.13, `isort` 1.06,
+  `sieve` 1.03, the other two 1.00), from 1.742.
+- Totals without comments on 2026-11-20 before that, ten programs written as statements: AIL 1313, C 1118, Rust 1191. The first
   six, which have assembly equivalents: AIL 496, C 448, Rust 464, assembly 925.
   The five short ones alone: AIL 382, C 342, Rust 344, assembly 696 (AIL was 411 at the first
   measurement, before compare-and-jump statements and syscall names). AIL wins on `hello` and

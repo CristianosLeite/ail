@@ -7,43 +7,33 @@ buf a 240000
 sys read 0 b 8 as n
 jne n 8 fail
 load b as x
-set 0 as i
-label fill
-mul x 0x5851f42d4c957f2d as x
-add x 0x14057b7ef767814f as x
-shr x 33 as v
-mul i 8 as p
-add a p as p
-store p v
-add i 1 as i
-jlt i count fill
-set 1 as i
-label outer
-mul i 8 as p
-add a p as p
+i=0
+while i<count
+x=x*0x5851f42d4c957f2d+0x14057b7ef767814f
+store a+i*8 x>>33
+i+=1
+end
+i=1
+while i<count
+p=a+i*8
 load p as x             # the number to place
-label inner
-jeq p a place
-sub p 8 as q
-load q as v
+while p!=a
+load p-8 as v
 jle v x place
 store p v               # a larger one moves up
-set q as p
-jmp inner
+p-=8
+end
 label place
 store p x
-add i 1 as i
-jlt i count outer
-set 0 as n
-set 0 as i
-label sum
-mul i 8 as p
-add a p as p
-load p as v
-mul n 31 as n
-add n v as n
-add i 1 as i
-jlt i count sum
+i+=1
+end
+n=0
+i=0
+while i<count
+load a+i*8 as v
+n=n*31+v
+i+=1
+end
 store b n
 sys write 1 b 8 as n
 jne n 8 fail

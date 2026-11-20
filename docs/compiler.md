@@ -222,11 +222,10 @@ The two flag bytes are numbers in the table; this page gives the bits names. In 
 
 ```
 sys write 1 "hello world\n" as n
-sub n 12 as n
-sys exit n
+sys exit n-12
 ```
 
-It compiles to 253 bytes: the 176-byte header followed by
+It compiles to 243 bytes: the 176-byte header followed by
 
 ```
 b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
@@ -237,16 +236,13 @@ cb:  48 8d 35 ed ff ff ff   lea  rsi, [rip-19]   ; address of the string: 0xbf
 d2:  ba 0c 00 00 00      mov  edx, 12         ; its length
 d7:  0f 05               syscall
 d9:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
-dc:  48 89 d8            mov  rax, rbx        ; sub: first operand n
-df:  bf 0c 00 00 00      mov  edi, 12         ; second operand
-e4:  48 29 f8            sub  rax, rdi        ; the instruction bytes of sub
-e7:  48 89 c3            mov  rbx, rax        ; as n
-ea:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
-ef:  48 89 df            mov  rdi, rbx        ; status: n
-f2:  0f 05               syscall
-f4:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
-f9:  31 ff               xor  edi, edi
-fb:  0f 05               syscall
+dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
+e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
+e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
+e8:  0f 05               syscall
+ea:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
+ef:  31 ff               xor  edi, edi
+f1:  0f 05               syscall
 ```
 
 The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit exit: 226 bytes.
@@ -425,24 +421,27 @@ Because the callee saves every variable register it uses, the caller emits nothi
 
 **Large frames.** A frame of 4096 bytes or more is not reserved with one `sub`: `frame` copies the template `probe`, which goes down a page at a time and touches each page with `test [rsp], rsp`, using `r11` as the counter. A stack that is too small is then found at its guard page. `funs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
 
-`examples/fact.ai` shows all of it; its function starts at offset `0xb5`, right after the 5-byte jump at the entry point. It has three variables in two registers, so it saves two:
+`examples/fact.ai` shows all of it; its function starts at offset `0xb5`, right after the 5-byte jump at the entry point. It has two variables, the parameter `n` and the result `r` of the call, and saves a register for each:
 
 ```
-b0:  e9 4a 00 00 00      jmp  0xff            ; fn: skip the body
+b0:  e9 34 00 00 00      jmp  0xe9            ; fn: skip the body
 b5:  53 55               push rbx ; push rbp  ; the registers it uses
 b7:  48 89 c3            mov  rbx, rax        ; parameter n
-...
-d4:  48 89 e8            mov  rax, rbp        ; call fact m: the value m
-d7:  e8 d9 ff ff ff      call 0xb5
-dc:  48 89 c5            mov  rbp, rax        ; as r: m is done, r takes its register
-...
-ec:  48 89 e8            mov  rax, rbp        ; ret r: the value
-ef:  5d 5b c3            pop  rbp ; pop rbx ; ret
-...
-fa:  31 c0               xor  eax, eax        ; end: return 0
-fc:  5d 5b c3
-ff:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
-104: e8 ac ff ff ff      call 0xb5
+ba:  48 85 db            test rbx, rbx        ; ifz n
+bd:  0f 85 08 00 00 00   jne  0xcb
+c3:  b8 01 00 00 00      mov  eax, 1          ; ret 1
+c8:  5d 5b c3            pop  rbp ; pop rbx ; ret
+cb:  48 89 d8            mov  rax, rbx        ; call fact n-1: the value, in the
+ce:  48 83 e8 01         sub  rax, 1          ; register of its position
+d2:  e8 de ff ff ff      call 0xb5
+d7:  48 89 c5            mov  rbp, rax        ; as r
+da:  48 89 d8            mov  rax, rbx        ; ret n*r
+dd:  48 0f af c5         imul rax, rbp
+e1:  5d 5b c3            pop  rbp ; pop rbx ; ret
+e4:  31 c0               xor  eax, eax        ; end: return 0
+e6:  5d 5b c3
+e9:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
+ee:  e8 c2 ff ff ff      call 0xb5
 ```
 
 ## Limits

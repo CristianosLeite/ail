@@ -4,29 +4,23 @@
 const size 1048576
 buf d size
 buf b 8
-set 0 as n
+n=0
 label more
-add d n as p
-sub size n as r
-sys read 0 p r as r     # 0 at the end of the input or of the buffer
-jgt r size fail         # unsigned: a negative r is far above size
-add n r as n
+sys read 0 d+n size-n as r  # 0 at the end of the input or of the buffer
+jgt r size fail             # unsigned: a negative r is far above size
+n+=r
 jnz r more
-set 0xcbf29ce484222325 as h
-set 100 as k
-label pass
-set 0 as i
-label byte
-jge i n last
-add d i as p
-loadb p as r
-xor h r as h
-mul h 0x100000001b3 as h
-add i 1 as i
-jmp byte
-label last
-sub k 1 as k
-jnz k pass
+h=0xcbf29ce484222325
+k=100
+while k
+i=0
+while i<n
+loadb d+i as r
+h=(h^r)*0x100000001b3
+i+=1
+end
+k-=1
+end
 store b h
 sys write 1 b 8 as r
 jne r 8 fail

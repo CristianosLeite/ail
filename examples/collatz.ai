@@ -6,25 +6,19 @@ sys read 0 b 8 as n
 jne n 8 fail
 load b as n
 jgt n 10000000 fail
-set 0 as c
-label start
-jz n done
-set n as x
-label step
-jeq x 1 next
-add c 1 as c
-mod x 2 as r
-if r
-mul x 3 as x
-add x 1 as x
+c=0
+while n
+x=n
+while x!=1
+c+=1
+if x%2
+x=x*3+1
 else
-div x 2 as x
+x/=2
 end
-jmp step
-label next
-sub n 1 as n
-jmp start
-label done
+end
+n-=1
+end
 store b c
 sys write 1 b 8 as n
 jne n 8 fail

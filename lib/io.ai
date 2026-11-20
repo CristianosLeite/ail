@@ -14,8 +14,8 @@ ret 1
 end
 sys write fd p n as w
 jsle w 0 bad
-add p w as p
-sub n w as n
+p+=w
+n-=w
 jmp more
 label bad
 ret 0
@@ -37,31 +37,26 @@ end
 
 # the length of the NUL-terminated string at p
 fn strlen p
-set p as q
+q=p
 label next
 loadb q as c
 ifz c
-sub q p as n
-ret n
+ret q-p
 end
-add q 1 as q
+q+=1
 jmp next
 end
 
 # print the unsigned number n in decimal: 1 if it went out, 0 after an error
 fn putn n
 local digits 24
-add digits 24 as p
+p=digits+24
 label next
-sub p 1 as p
-mod n 10 as c
-add c 48 as c
-storeb p c
-div n 10 as n
+p-=1
+storeb p n%10+48
+n/=10
 jnz n next
-add digits 24 as e
-sub e p as e
-call print p e as r
+call print p digits+24-p as r  # not tail: the digits are in this frame
 ret r
 end
 
@@ -78,10 +73,7 @@ load argp as n
 ifge i n
 ret 0 0
 end
-mul i 8 as o
-add argp 8 as p
-add p o as p
-load p as s
+load argp+8+i*8 as s
 call strlen s as l
 ret s l
 end
