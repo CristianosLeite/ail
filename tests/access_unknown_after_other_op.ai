@@ -1,0 +1,6 @@
+buf b 8
+add b 8 as p
+mul p 1 as p
+sub p 1 as p
+loadb p as x
+sys 60 x

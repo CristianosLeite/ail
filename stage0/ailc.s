@@ -33,6 +33,12 @@
 .equ IS_CALL, 16                # a function name precedes the operands
 .equ IS_RET,  32                # the statement is ret: only inside a function
 .equ IS_LEN,  64                # the operand is a buffer, data or string: its length
+.equ IS_MEM,  128               # a load or a store: the first operand is an address
+.equ K_CONST, 1                 # what is known of a value: a number,
+.equ K_ADDR,  2                 # a global name plus a number,
+.equ K_LIT,   3                 # or the bytes of a string
+.equ NCHKS,  INSZ / 8 + 1       # "load a as b\n" is longer than 8 bytes
+.equ NRUNS,  INSZ / 9 + 1       # "data a 1\n" is 9 bytes
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
@@ -54,7 +60,17 @@ pass:   .skip 4                 # 1 while a function is compiled to measure its
 loops:  .skip NFIX * 16         # per backward jump of the function: where the
 nloops: .skip 4                 # source has its label, and the jump
 labpos: .skip NLABELS * 8       # per label: where the source defines it
-snap:   .skip 10 * 8            # the state to return to after the first pass
+snap:   .skip 12 * 8            # the state to return to after the first pass
+opd:    .skip 3 * 32            # what is known of the first two values of the
+                                # statement: kind, then a number, or a name
+                                # (address, length) and a number; third: scratch
+vk:     .skip NVARS * 32        # the same per variable of the current scope
+chks:   .skip NCHKS * 32        # per load or store through a known name: name
+                                # address and length, offset, width + 256 for a store
+nchks:  .skip 4
+bufrun: .skip NGLOB * 4         # per data name: 1 + its run of data statements
+runend: .skip NRUNS * 4         # per run: the address after its last byte
+nruns:  .skip 4
 bufs:   .skip NGLOB * 16        # per global name (buf, data, var, const): the same
 bufaddr: .skip NGLOB * 4        # per global name: its address
 bufsize: .skip NGLOB * 8        # its length in bytes, or the value of a const
@@ -188,28 +204,28 @@ optab:
     .byte 1, AS_REQ | IS_LEN, 0
     .byte 4
     .ascii "load"
-    .byte 1, AS_REQ, 3,  0x48,0x8B,0x00             # mov rax, [rax]
+    .byte 1, AS_REQ | IS_MEM, 3,  0x48,0x8B,0x00             # mov rax, [rax]
     .byte 5
     .ascii "loadb"
-    .byte 1, AS_REQ, 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
+    .byte 1, AS_REQ | IS_MEM, 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
     .byte 5
     .ascii "load2"
-    .byte 1, AS_REQ, 3,  0x0F,0xB7,0x00             # movzx eax, word ptr [rax]
+    .byte 1, AS_REQ | IS_MEM, 3,  0x0F,0xB7,0x00             # movzx eax, word ptr [rax]
     .byte 5
     .ascii "load4"
-    .byte 1, AS_REQ, 2,  0x8B,0x00                  # mov eax, [rax]
+    .byte 1, AS_REQ | IS_MEM, 2,  0x8B,0x00                  # mov eax, [rax]
     .byte 5
     .ascii "store"
-    .byte 2, AS_NONE, 3, 0x48,0x89,0x38             # mov [rax], rdi
+    .byte 2, AS_NONE | IS_MEM, 3, 0x48,0x89,0x38             # mov [rax], rdi
     .byte 6
     .ascii "storeb"
-    .byte 2, AS_NONE, 3, 0x40,0x88,0x38             # mov [rax], dil
+    .byte 2, AS_NONE | IS_MEM, 3, 0x40,0x88,0x38             # mov [rax], dil
     .byte 6
     .ascii "store2"
-    .byte 2, AS_NONE, 3, 0x66,0x89,0x38             # mov [rax], di
+    .byte 2, AS_NONE | IS_MEM, 3, 0x66,0x89,0x38             # mov [rax], di
     .byte 6
     .ascii "store4"
-    .byte 2, AS_NONE, 2, 0x89,0x38                  # mov [rax], edi
+    .byte 2, AS_NONE | IS_MEM, 2, 0x89,0x38                  # mov [rax], edi
     # jumps: the code ends where the rel32 of the label goes
     .byte 3
     .ascii "jmp"
@@ -271,6 +287,8 @@ m_bufs:   .ascii "ailc: buffers too big\n"
 .equ M_BUFS_SZ, . - m_bufs
 m_unasg:  .ascii "ailc: unassigned variable\n"
 .equ M_UNASG_SZ, . - m_unasg
+m_acc:    .ascii "ailc: invalid access\n"
+.equ M_ACC_SZ, . - m_acc
 m_num:    .ascii "ailc: number too big\n"
 .equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
@@ -392,6 +410,8 @@ next:
     add rdx, rax
     jmp 6b
 9:  xor ebx, ebx
+    mov qword ptr [rip+opd], 0  # nothing known of the values yet
+    mov qword ptr [rip+opd+32], 0
     cmp rsi, r15                # keyword must be followed by a blank
     jae err
     mov al, [rsi]
@@ -494,8 +514,22 @@ num:
     mov rdx, [rip+curop]        # len takes a name or a string
     test byte ptr [rdx+1], IS_LEN
     jnz err
+    call opdptr
+    mov qword ptr [rdx], K_CONST
+    mov [rdx+8], rax
     call emit_mov
     jmp tokend
+
+# rdx = where to note what is known of the next value. Keeps all but rcx.
+opdptr:
+    mov edx, ebx
+    cmp edx, 2
+    jb 1f
+    mov edx, 2
+1:  shl edx, 5
+    lea rcx, [rip+opd]
+    add rdx, rcx
+    ret
 
 # string: bytes are inlined in the code stream behind a jmp. sys and call
 # get two values (address, length), len the length, the rest the address
@@ -509,6 +543,9 @@ str:
     mov rax, rdi
     sub rax, r13                # length
     mov [r12], eax
+    call opdptr
+    mov qword ptr [rdx], K_LIT
+    mov [rdx+8], rax
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], IS_LEN
     jnz 1f
@@ -723,6 +760,19 @@ ident:
     mov [rcx+rax*8], rsi
     bt [rip+asg], rax           # a way here that skipped its as?
     jnc err_unasg
+    call opdptr                 # what is known of the variable is known of the value
+    mov ecx, eax
+    shl ecx, 5
+    lea r10, [rip+vk]
+    add r10, rcx
+    mov rcx, [r10]
+    mov [rdx], rcx
+    mov rcx, [r10+8]
+    mov [rdx+8], rcx
+    mov rcx, [r10+16]
+    mov [rdx+16], rcx
+    mov rcx, [r10+24]
+    mov [rdx+24], rcx
     call argidx
     lea rdx, [rip+argnum]
     movzx ecx, byte ptr [rdx+rcx]
@@ -740,10 +790,14 @@ ident:
     jne 5f
     lea rcx, [rip+bufsize]      # a const is its value
     mov rax, [rcx+rax*8]
+    call opdptr
+    mov qword ptr [rdx], K_CONST
+    mov [rdx+8], rax
     call emit_mov
     jmp tokend
 5:  lea rcx, [rip+bufaddr]      # a buffer or data name is its address
     mov eax, [rcx+rax*4]
+    call opdaddr
     call emit_mov
     jmp tokend
 6:  lea rcx, [rip+bufaddr]      # a var is read from its cell
@@ -757,7 +811,8 @@ ident:
     call emit_mem               # mov <arg reg>, [cell]
     call argnext
     jmp tokend
-7:  xor eax, eax                # not declared yet: a buffer or data name that
+7:  call opdaddr
+    xor eax, eax                # not declared yet: a buffer or data name that
     call emit_mov               # comes later; fin fills in the value
     xor eax, eax
 8:  mov ecx, [rip+nrefs]
@@ -809,10 +864,147 @@ capture:
     call emit_op
     pop rax
     bts [rip+asg], rax          # assigned from here on
+    call propagate
     xor ecx, ecx
     mov r9d, 0x89
     call emit_varmov            # mov <variable>, rax
     jmp next
+
+# note that the next value is the address of the global name r8/r9. Keeps rax.
+opdaddr:
+    call opdptr
+    mov qword ptr [rdx], K_ADDR
+    mov [rdx+8], r8
+    mov [rdx+16], r9
+    mov qword ptr [rdx+24], 0
+    ret
+
+# the statement assigns variable eax: note what is known of the new value.
+# Only set, add and sub carry knowledge: a number, or a global name plus a
+# number. Keeps rax.
+propagate:
+    push rax
+    shl eax, 5
+    lea r10, [rip+vk]
+    add r10, rax
+    mov qword ptr [r10], 0
+    mov rdx, [rip+curop]
+    lea rcx, [rip+opd]
+    cmp byte ptr [rdx+1], AS_REQ
+    jne 9f
+    cmp byte ptr [rdx+2], 0
+    jne 1f
+    cmp qword ptr [rcx], K_LIT  # set: the value itself
+    je 9f
+    xor r11d, r11d
+    jmp 3f
+1:  cmp byte ptr [rdx+2], 3
+    jne 9f
+    mov eax, [rdx+3]
+    and eax, 0xFFFFFF
+    cmp eax, 0xF80148           # add rax, rdi
+    je 2f
+    cmp eax, 0xF82948           # sub rax, rdi
+    jne 9f
+    cmp qword ptr [rcx+32], K_CONST
+    jne 9f
+    mov r11, [rcx+40]
+    neg r11
+    jmp 3f
+2:  cmp qword ptr [rcx+32], K_CONST
+    jne 4f
+    mov r11, [rcx+40]
+3:  mov rax, [rcx]              # the first value plus the number r11
+    cmp rax, K_CONST
+    je 5f
+    cmp rax, K_ADDR
+    jne 9f
+    mov [r10], rax
+    mov rax, [rcx+8]
+    mov [r10+8], rax
+    mov rax, [rcx+16]
+    mov [r10+16], rax
+    mov rax, [rcx+24]
+    add rax, r11
+    mov [r10+24], rax
+    jmp 9f
+5:  mov [r10], rax
+    mov rax, [rcx+8]
+    add rax, r11
+    mov [r10+8], rax
+    jmp 9f
+4:  cmp qword ptr [rcx], K_CONST    # add number, name
+    jne 9f
+    cmp qword ptr [rcx+32], K_ADDR
+    jne 9f
+    mov r11, [rcx+8]
+    mov qword ptr [r10], K_ADDR
+    mov rax, [rcx+40]
+    mov [r10+8], rax
+    mov rax, [rcx+48]
+    mov [r10+16], rax
+    mov rax, [rcx+56]
+    add rax, r11
+    mov [r10+24], rax
+9:  pop rax
+    ret
+
+# forget what is known of the variables: at a label, where another way may
+# arrive, and at the end of a function. That also covers its start: the
+# first pass may still see what the top level knew, but its checks are
+# dropped with it, and the second pass starts after this
+clrvk:
+    lea rcx, [rip+vk]
+    xor eax, eax
+1:  mov qword ptr [rcx], 0
+    add rcx, 32
+    inc eax
+    cmp eax, NVARS
+    jb 1b
+    ret
+
+# a load or store (rdx = its row): if the address is a string, check the
+# access now; if it is a global name plus a number, note it for fin, when the
+# sizes of all names are known. Keeps rdx, r8 and r9.
+memchk:
+    movzx eax, byte ptr [rdx-1] # the last letter of the keyword gives the width
+    mov ecx, 8
+    cmp al, 'b'
+    jne 1f
+    mov ecx, 1
+1:  cmp al, '2'
+    jne 1f
+    mov ecx, 2
+1:  cmp al, '4'
+    jne 1f
+    mov ecx, 4
+1:  test byte ptr [rdx+1], AS_NONE
+    jz 1f
+    or ecx, 0x100               # a store
+1:  lea rax, [rip+opd]
+    cmp qword ptr [rax], K_LIT
+    jne 2f
+    test ecx, 0x100             # a string is read-only
+    jnz err_acc
+    movzx ecx, cl
+    cmp rcx, [rax+8]
+    ja err_acc
+    ret
+2:  cmp qword ptr [rax], K_ADDR
+    jne 3f
+    mov r10d, [rip+nchks]
+    shl r10d, 5
+    lea r11, [rip+chks]
+    add r10, r11
+    mov r11, [rax+8]
+    mov [r10], r11
+    mov r11, [rax+16]
+    mov [r10+8], r11
+    mov r11, [rax+24]
+    mov [r10+16], r11
+    mov [r10+24], ecx
+    inc dword ptr [rip+nchks]
+3:  ret
 
 # emit a 64-bit mov between the variable eax of the current scope and the
 # register ecx: r9d = 0x8B to load the register, 0x89 to store it
@@ -945,6 +1137,8 @@ bufdef:
     mov ecx, [rip+nbufs]
     lea r10, [rip+bufkind]
     mov byte ptr [r10+rcx], G_ADDR
+    lea r10, [rip+bufrun]
+    mov dword ptr [r10+rcx*4], 0
     lea r10, [rip+bufsize]
     mov [r10+rcx*8], rax        # len gives the size as declared
     add rax, 7                  # keep every buffer 8-byte aligned
@@ -1046,6 +1240,7 @@ datadef:
     inc rdi
     mov [rip+datarel], rdi
     add rdi, 4
+    inc dword ptr [rip+nruns]   # a new run of data statements
 2:  push rdi                    # the first byte of this statement
     xor ebx, ebx                # number of items
 3:  call blanks
@@ -1079,6 +1274,9 @@ datadef:
     mov ecx, [rip+nbufs]
     lea r10, [rip+bufkind]
     mov byte ptr [r10+rcx], G_ADDR
+    mov edx, [rip+nruns]
+    lea r10, [rip+bufrun]
+    mov [r10+rcx*4], edx
     mov rdx, rdi
     sub rdx, rax
     lea r10, [rip+bufsize]
@@ -1094,6 +1292,12 @@ datadef:
     sub rax, 4
     mov [rcx], eax
     mov [rip+dataend], rdi
+    mov rax, rdi                # the run ends here, so far
+    sub rax, r14
+    add rax, BASE
+    mov ecx, [rip+nruns]
+    lea rdx, [rip+runend]
+    mov [rdx+rcx*4-4], eax
     jmp next
 
 # ---- labels and jumps
@@ -1118,6 +1322,7 @@ labdef:
     lea rcx, [rip+labpos]
     mov [rcx+rax*8], rsi
     call labasg
+    call clrvk
     mov eax, [rip+nlabels]
     lea rcx, [rip+labmask]
     mov rdx, [rip+asg]
@@ -1244,6 +1449,10 @@ fndef:
     mov [rax+64], rcx
     mov rcx, [rip+datarel]
     mov [rax+72], rcx
+    mov ecx, [rip+nchks]
+    mov [rax+80], rcx
+    mov ecx, [rip+nruns]
+    mov [rax+88], rcx
     mov dword ptr [rip+pass], 1
     mov dword ptr [rip+fnslots], 0
     mov dword ptr [rip+nloops], 0
@@ -1363,6 +1572,7 @@ fnend:
     mov [rip+dead], eax
     mov rax, [rip+topasg+16]
     mov [rip+jmask], rax
+    call clrvk
     mov rcx, [rip+fnskip]       # top-level code continues here
     mov rax, rdi
     sub rax, rcx
@@ -1390,6 +1600,10 @@ fnend:
     mov [rip+dataend], rcx
     mov rcx, [rax+72]
     mov [rip+datarel], rcx
+    mov rcx, [rax+80]
+    mov [rip+nchks], ecx
+    mov rcx, [rax+88]
+    mov [rip+nruns], ecx
     mov ebp, [rip+topvars]
     mov dword ptr [rip+pass], 2
     jmp fndef
@@ -1628,6 +1842,9 @@ emit_op:
     jnz 1f                      # sys and call take any number of arguments
     cmp bl, [rdx]
     jne err
+    test byte ptr [rdx+1], IS_MEM
+    jz 1f
+    call memchk
 1:  test byte ptr [rdx+1], IS_RET
     jz 3f
     mov al, 0xC4                # ret: release the stack slots first
@@ -1804,6 +2021,41 @@ fin:
     add rbx, 32
     dec ebp
     jmp 1b
+2:  lea rbx, [rip+chks]         # every size is known now: check the loads and
+    mov ebp, [rip+nchks]        # stores whose address is a name plus a number
+1:  test ebp, ebp
+    jz 2f
+    mov r8, [rbx]
+    mov r9, [rbx+8]
+    call lookup_buf
+    jc 4f
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_ADDR
+    jne 4f
+    lea rcx, [rip+bufrun]
+    mov ecx, [rcx+rax*4]
+    test ecx, ecx
+    jz 3f
+    test dword ptr [rbx+24], 0x100  # data is read-only
+    jnz err_acc
+    lea rdx, [rip+runend]       # and reaches to the end of its run
+    mov edx, [rdx+rcx*4-4]
+    lea rcx, [rip+bufaddr]
+    mov ecx, [rcx+rax*4]
+    sub rdx, rcx
+    jmp 5f
+3:  lea rcx, [rip+bufsize]      # a buffer has its declared size
+    mov rdx, [rcx+rax*8]
+5:  mov rax, [rbx+16]
+    movzx ecx, byte ptr [rbx+24]
+    cmp rax, rdx                # the offset, then the width, must fit
+    jae err_acc
+    sub rdx, rax
+    cmp rcx, rdx
+    ja err_acc
+4:  add rbx, 32
+    dec ebp
+    jmp 1b
 2:
     mov r13, rdi
     sub r13, r14                # file size
@@ -1868,6 +2120,11 @@ err_num:
 err_unasg:
     lea rsi, [rip+m_unasg]
     mov edx, M_UNASG_SZ
+    mov ebx, 1
+    jmp die
+err_acc:
+    lea rsi, [rip+m_acc]
+    mov edx, M_ACC_SZ
     mov ebx, 1
     jmp die
 err_bufs:

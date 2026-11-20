@@ -1,3 +1,6 @@
-# data lives in the code segment: a store faults
+# data lives in the code segment: a store the compiler cannot see faults
 data d 1
-storeb d 2
+fn w p
+storeb p 2
+end
+call w d

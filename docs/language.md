@@ -260,7 +260,7 @@ add days 7 as p
 loadb p as n            # n = 31, the eighth byte
 ```
 
-The bytes stand in the code where the statement is, and execution passes around them, so `data` may be written anywhere, also inside a function. They are read-only: a store to them kills the program with `SIGSEGV`.
+The bytes stand in the code where the statement is, and execution passes around them, so `data` may be written anywhere, also inside a function. They are read-only: a store to them is rejected when the compiler can see it, and otherwise kills the program with `SIGSEGV`.
 
 ### `len`
 
@@ -285,6 +285,20 @@ storeb addr value       # write the low byte of value at addr
 ```
 
 `addr` is any value: a buffer or data name, a variable holding an address, a string or an integer. Loads need `as name`; stores do not take it. Values are little-endian in memory and need no alignment. A narrow store writes only its own bytes and leaves the ones after them. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
+
+The compiler rejects an access that it can prove wrong, with the error `invalid access`. It knows an address when it is a buffer or data name, a string, or a variable that `set`, `add` and `sub` computed from one of those and from numbers on the lines before, with no label in between:
+
+- a load or store that does not lie inside the buffer, counting the size as declared, not as rounded: `buf b 4` followed by `store b 1` writes 8 bytes into 4;
+- a load that does not lie inside the data, which for a data name reaches to the end of its run of consecutive `data` lines, or inside the string;
+- any store into data or into a string.
+
+```
+buf b 16
+add b 12 as p
+store p 0               # error: bytes 12 to 19 of a 16-byte buffer
+```
+
+After a label, after any other statement that assigns the variable, and for a parameter or a `var`, the compiler knows nothing and checks nothing. It is a help against slips, not a guarantee.
 
 ```
 buf b 8
@@ -405,6 +419,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
+| `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |

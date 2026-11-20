@@ -23,6 +23,9 @@ var pushed fnnpar immpos
 # this point, all ones where no way leads; dead = 1 after jmp or ret, until
 # the next label; jmask = asg when dead was set; t* = those of the top level
 var asg dead jmask tasg tdead tjmask
+# nchks = loads and stores to check at the end; nruns = runs of data
+# statements; snk, snu = both before the first pass over a function
+var nchks nruns snk snu
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -34,8 +37,15 @@ buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
 buf locfree 560     # per place: the last mention of its variable
 buf loops 174768    # 10923 backward jumps of the function: where the source has
                     # the label, and the jump
-buf globs 1310760   # 32769 global names of 40 bytes: name, length, address,
-                    # size or value, kind (0 buffer or data, 1 var, 2 const)
+buf globs 1572912   # 32769 global names of 48 bytes: name, length, address, size or
+                    # value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
+buf opd 96          # what is known of the first two values of the statement, 32 bytes
+                    # each: kind (1 number, 2 name plus number, 3 string), then the
+                    # number, or name, length and number; a third entry is scratch
+buf vk 2048         # the same per variable of the current scope
+buf chks 262176     # 8193 loads and stores through a known name, 32 bytes: name,
+                    # length, offset, width + 256 for a store
+buf runend 58256    # per run of data statements: the address after its last byte
 buf labs 327720     # 8193 labels of 40 bytes: name, length, address in out, place in the
                     # source, variables assigned on every way to it
 buf fixs 349536     # 10923 jumps of 32 bytes: label name, length, rel32 address,
@@ -72,6 +82,10 @@ sys 60 1
 end
 fn eunasg
 sys 1 2 "ailc: unassigned variable\n"
+sys 60 1
+end
+fn eacc
+sys 1 2 "ailc: invalid access\n"
 sys 60 1
 end
 fn ebuf
@@ -402,12 +416,12 @@ ret i
 end
 fn lbuf
 set nbufs as n
-call look globs n 40 as i
+call look globs n 48 as i
 ret i
 end
 # the entry of global name i
 fn gent i
-mul i 40 as i
+mul i 48 as i
 add i globs as i
 ret i
 end
@@ -794,6 +808,200 @@ call areg i as r
 call emem r a 139
 call anext
 end
+# where to note what is known of the next value of the statement
+fn opdp
+set ai as i
+lt i 2 as c
+jnz c k
+set 2 as i
+label k
+mul i 32 as i
+add i opd as i
+ret i
+end
+# note that the next value is the address of the global name read last
+fn opda
+call opdp as p
+store p 2
+add p 8 as p
+store p ns
+add p 8 as p
+store p nl
+add p 8 as p
+store p 0
+end
+# copy the four cells at a to b
+fn cp4 a b
+set 4 as n
+label l
+load a as c
+store b c
+add a 8 as a
+add b 8 as b
+sub n 1 as n
+jnz n l
+end
+# forget what is known of the variables: at a label and at the end of a
+# function (the first pass over the next one may see stale knowledge, but
+# its checks are dropped)
+fn clrvk
+set vk as p
+set 64 as n
+label a
+store p 0
+add p 32 as p
+sub n 1 as n
+jnz n a
+end
+# the statement assigns variable i: note what is known of the new value.
+# Only set, add and sub carry knowledge
+fn prop i
+mul i 32 as k
+add k vk as k
+store k 0
+add cur 1 as c
+loadb c as c
+ne c 1 as c
+jnz c x
+add cur 2 as n
+loadb n as n
+jnz n a
+load opd as c
+eq c 3 as c
+jnz c x
+set 0 as d
+jmp e
+label a
+ne n 3 as c
+jnz c x
+add cur 3 as c
+load4 c as c
+and c 0xffffff as c
+add opd 32 as q
+load q as t
+add q 8 as q
+load q as u
+eq c 0xf80148 as n
+jnz n b
+ne c 0xf82948 as n
+jnz n x
+ne t 1 as n
+jnz n x
+sub 0 u as d
+jmp e
+label b
+ne t 1 as n
+jnz n f
+set u as d
+label e
+load opd as c
+eq c 1 as n
+jnz n g
+ne c 2 as n
+jnz n x
+store k 2
+add opd 8 as q
+load q as c
+add k 8 as n
+store n c
+add opd 16 as q
+load q as c
+add k 16 as n
+store n c
+add opd 24 as q
+load q as c
+add c d as c
+add k 24 as n
+store n c
+ret 0
+label g
+store k 1
+add opd 8 as q
+load q as c
+add c d as c
+add k 8 as n
+store n c
+ret 0
+label f
+load opd as c
+ne c 1 as c
+jnz c x
+ne t 2 as c
+jnz c x
+add opd 8 as q
+load q as d
+store k 2
+add k 8 as n
+store n u
+add opd 48 as q
+load q as c
+add k 16 as n
+store n c
+add opd 56 as q
+load q as c
+add c d as c
+add k 24 as n
+store n c
+label x
+end
+# a load or store, r = its row: check an access through a string now, and
+# note one through a global name plus a number for the end
+fn memchk r
+sub r 1 as c
+loadb c as c
+set 8 as w
+eq c 98 as d
+jz d a
+set 1 as w
+label a
+eq c 50 as d
+jz d b
+set 2 as w
+label b
+eq c 52 as d
+jz d e
+set 4 as w
+label e
+add r 1 as c
+loadb c as c
+and c 2 as c
+jz c f
+or w 256 as w
+label f
+load opd as c
+ne c 3 as d
+jnz d g
+and w 256 as d
+jz d h
+call eacc
+label h
+and w 255 as d
+add opd 8 as c
+load c as c
+gt d c as d
+jz d x
+call eacc
+label g
+ne c 2 as d
+jnz d x
+mul nchks 32 as p
+add p chks as p
+add opd 8 as c
+load c as c
+store p c
+add opd 16 as c
+load c as c
+add p 8 as p
+store p c
+add opd 24 as c
+load c as c
+add p 8 as p
+store p c
+add p 8 as p
+store p w
+add nchks 1 as nchks
+label x
+end
 # no way leads to the code that follows, until a label: remember what was
 # assigned and take everything as assigned
 fn godead
@@ -938,6 +1146,10 @@ set ai as i
 eq c i as c
 call ok c
 label k
+and f 128 as c
+jz c y
+call memchk r
+label y
 and f 32 as c
 jz c m
 call frame 196
@@ -1062,7 +1274,7 @@ call kw as r
 call ok r
 add r 1 as f
 loadb f as f
-and f 128 as d
+eq f 255 as d
 jz d n6
 loadb r as d
 eq d 1 as c
@@ -1081,6 +1293,9 @@ jmp constdef
 label n6
 set r as cur
 set 0 as ai
+store opd 0
+add opd 32 as d
+store d 0
 call pk as c
 call blank c as d
 call ok d
@@ -1153,6 +1368,10 @@ add cur 1 as d
 loadb d as d
 and d 64 as d
 call no d
+call opdp as p
+store p 1
+add p 8 as p
+store p r
 call mov r
 jmp tokend
 
@@ -1167,6 +1386,10 @@ set op as p
 call sbytes
 sub op p as q
 store4 r q
+call opdp as d
+store d 3
+add d 8 as d
+store d q
 add cur 1 as r
 loadb r as r
 and r 64 as d
@@ -1225,6 +1448,10 @@ and d 1 as d
 jnz d i7a
 call eunasg
 label i7a
+call opdp as d
+mul r 32 as f
+add f vk as f
+call cp4 f d
 call aidx as d
 call areg d as f
 call vmov r f 139
@@ -1234,6 +1461,7 @@ label i2
 call lbuf as r
 ne r 99999 as d
 jnz d i4
+call opda
 call mov 0
 set 0 as r
 label i9
@@ -1252,12 +1480,20 @@ add p 32 as d
 load d as d
 eq d 1 as f
 jnz f i7
-add p 16 as r
 eq d 2 as f
 jz f i8
 add p 24 as r
-label i8
 load r as r
+call opdp as d
+store d 1
+add d 8 as d
+store d r
+call mov r
+jmp tokend
+label i8
+add p 16 as r
+load r as r
+call opda
 call mov r
 jmp tokend
 label i7
@@ -1296,6 +1532,7 @@ call eol
 call eop
 shl 1 r as d
 or asg d as asg
+call prop r
 call vmov r 0 137
 jmp next
 
@@ -1320,6 +1557,8 @@ label b3
 call ok r
 call eol
 add p 32 as q
+store q 0
+add p 40 as q
 store q 0
 add p 24 as q
 store q r
@@ -1409,6 +1648,7 @@ call eb 233
 set op as q
 set q as datarel
 call z 4
+add nruns 1 as nruns
 label d2
 set op as q
 set 0 as r
@@ -1443,6 +1683,8 @@ call eol
 jz f d7
 add p 32 as d
 store d 0
+add p 40 as d
+store d nruns
 sub op q as c
 add p 24 as d
 store d c
@@ -1459,6 +1701,12 @@ sub q p as c
 sub c 4 as c
 store4 p c
 set q as dataend
+sub q out as c
+add c 0x400000 as c
+mul nruns 8 as d
+add d runend as d
+sub d 8 as d
+store d c
 jmp next
 
 # "label <name>"
@@ -1477,6 +1725,7 @@ store p op
 add p 8 as p
 store p ip
 call labasg
+call clrvk
 add p 8 as p
 store p asg
 add r 1 as r
@@ -1543,6 +1792,8 @@ set nfuncs as snf
 set nrefs as snr
 set dataend as sde
 set datarel as sdr
+set nchks as snk
+set nruns as snu
 set 1 as pass
 set 0 as fnslots
 set 0 as nloops
@@ -1639,6 +1890,7 @@ set 0 as infn
 set tasg as asg
 set tdead as dead
 set tjmask as jmask
+call clrvk
 set fnskip as p
 sub op p as q
 sub q 4 as q
@@ -1656,6 +1908,8 @@ set snf as nfuncs
 set snr as nrefs
 set sde as dataend
 set sdr as datarel
+set snk as nchks
+set snu as nruns
 set topvars as nv
 set 2 as pass
 jmp fndef
@@ -1732,6 +1986,56 @@ add p 32 as p
 sub r 1 as r
 jmp r1
 label r2
+set chks as p
+set nchks as r
+label k1
+jz r k2
+call getn p
+call lbuf as c
+eq c 99999 as d
+jnz d k4
+call gent c as c
+add c 32 as d
+load d as d
+jnz d k4
+add c 40 as d
+load d as d
+jz d k3
+add p 24 as q
+load q as q
+and q 256 as q
+jz q k5
+call eacc
+label k5
+mul d 8 as d
+add d runend as d
+sub d 8 as d
+load d as d
+add c 16 as q
+load q as q
+sub d q as d
+jmp k6
+label k3
+add c 24 as d
+load d as d
+label k6
+add p 16 as q
+load q as q
+lt q d as f
+jnz f k7
+call eacc
+label k7
+sub d q as d
+add p 24 as q
+loadb q as q
+gt q d as f
+jz f k4
+call eacc
+label k4
+add p 32 as p
+sub r 1 as r
+jmp k1
+label k2
 sub op out as q
 add out 96 as p
 store p q
@@ -1776,7 +2080,7 @@ data 0 0 0 0 0 0 0 0 0 0 0 16 0 0 0 0
 data 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
 # statements: name length, name, operand count, flags, code length, code;
-# flag 128 is a statement parsed on its own, numbered by its operand count
+# flags 255 mark a statement parsed on its own, numbered by its operand count
 data optab 3 "sys" 0 4 2 15 5
 data 3 "set" 1 1 0
 data 3 "add" 2 1 3 72 1 248
@@ -1796,26 +2100,26 @@ data 2 "le" 2 1 9 72 57 248 15 150 192 15 182 192
 data 2 "gt" 2 1 9 72 57 248 15 151 192 15 182 192
 data 2 "ge" 2 1 9 72 57 248 15 147 192 15 182 192
 data 3 "len" 1 65 0
-data 4 "load" 1 1 3 72 139 0
-data 5 "loadb" 1 1 3 15 182 0
-data 5 "load2" 1 1 3 15 183 0
-data 5 "load4" 1 1 2 139 0
-data 5 "store" 2 2 3 72 137 56
-data 6 "storeb" 2 2 3 64 136 56
-data 6 "store2" 2 2 3 102 137 56
-data 6 "store4" 2 2 2 137 56
+data 4 "load" 1 129 3 72 139 0
+data 5 "loadb" 1 129 3 15 182 0
+data 5 "load2" 1 129 3 15 183 0
+data 5 "load4" 1 129 2 139 0
+data 5 "store" 2 130 3 72 137 56
+data 6 "storeb" 2 130 3 64 136 56
+data 6 "store2" 2 130 3 102 137 56
+data 6 "store4" 2 130 2 137 56
 data 3 "jmp" 0 10 1 233
 data 2 "jz" 1 10 5 72 133 192 15 132
 data 3 "jnz" 1 10 5 72 133 192 15 133
 data 4 "call" 0 16 1 232
 data 3 "ret" 1 34 11 65 95 65 94 65 93 65 92 93 91 195
-data 2 "fn" 1 128 0
-data 3 "buf" 2 128 0
-data 3 "end" 3 128 0
-data 5 "label" 4 128 0
-data 4 "data" 5 128 0
-data 3 "var" 6 128 0
-data 5 "const" 7 128 0
+data 2 "fn" 1 255 0
+data 3 "buf" 2 255 0
+data 3 "end" 3 255 0
+data 5 "label" 4 255 0
+data 4 "data" 5 255 0
+data 3 "var" 6 255 0
+data 5 "const" 7 255 0
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87

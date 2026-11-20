@@ -94,7 +94,27 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - No existing test, example or line of stage1 tripped the check.
 - The suite went from 407 to 434 tests.
 
+### Accesses proven invalid at compile time (2026-11-19)
+- `invalid access`: a load or store through a buffer or data name, a string, or a variable
+  computed from one by `set`, `add` and `sub` with numbers, is checked against the object: the
+  declared size of a buffer, the run of a data name, the length of a string; data and strings
+  take no store. Knowledge is dropped at labels and at the end of a function.
+- Checks through names are recorded and done in `fin`, since a name may be declared later and a
+  run may grow. Strings are checked at once.
+- `buf_two_distinct` stored 8 bytes into `buf a 3` and was the one existing program rejected; it
+  now writes three bytes. `data_is_read_only` stores through a parameter to stay a run-time test.
+- Stage1 marked its self-parsed statements with flag 128, which is now `IS_MEM`; they use 255.
+- The suite went from 434 to 467 tests.
+
 ## Why
+- **Declared size, not rounded size:** the rounding is an implementation detail, and the bytes
+  between the two belong to nothing the program named.
+- **A data name reaches to the end of its run:** tables are written a row a line and indexed
+  from the first name, so the single row would reject the intended use.
+- **Only straight-line knowledge:** anything across a label needs the same fixed point the
+  assignment check avoids. The check is a net for slips; `docs/language.md` says so.
+- **No clear at function start:** the mutation check showed it changes nothing, because the first
+  pass's checks are rolled back and the end of the previous function already cleared.
 - **Refuse at the backward jump instead of iterating:** a fixed point over back edges needs the
   code between label and jump to be checked again, and the top level is compiled once. Checking
   every way into a label against the mask the label used is sound in one pass; it refuses a few

@@ -1,6 +1,6 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 1700 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 2200 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It is the seed of the bootstrap: [stage1](stage1.md) is the same compiler written in AIL, stage0 builds it the first time, and what this page says about the output holds for both.
 
@@ -61,6 +61,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `fndef` | `fn <name> <parameter>...`: enter the function, emit the jump over it and its entry code, open its scope |
 | `fnend` | `end`: emit the default return, resolve the function's jumps and close its scope |
 | `resolve` | fill in the jumps of the current scope from its labels |
+| `opdptr`, `opdaddr`, `propagate`, `clrvk`, `memchk` | the access check: note what is known of a value, carry it to the variable assigned, forget it, and check or record a load or store |
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
 | `blanks`, `blank1`, `eol`, `name` | skip spaces and tabs; require at least one; check that the line ends; read a name |
 | `lookup_var`, `lookup_buf`, `lookup_label`, `lookup_fn` | find a name among the variables or the labels of the current scope, the buffers or the functions |
@@ -69,7 +70,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -147,7 +148,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`) and whether its operand is taken as a length (`len`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 
@@ -217,6 +218,12 @@ A name is only entered in the table when its `as` is reached, at the end of the 
 - A jump to a label that is already defined must have every bit of its `labmask`; otherwise the code after the label was checked with a variable that this way does not assign.
 
 Every way into a label is thus either part of its mask or checked against it, which is what makes one pass enough. The cost is that a jump back may be refused although no later line reads the variable. `fndef` saves `asg`, `dead` and `jmask` in `topasg` and clears them, and `fnend` restores them: the top level goes on after a function as if it were not there.
+
+## Known addresses
+
+To reject accesses that are provably wrong, the compiler notes what it knows of values. `opd` describes the first two values of the statement and `vk` each variable of the current scope, in 32 bytes: a kind, then a number (`K_CONST`), a global name and a number (`K_ADDR`), or the length of a string (`K_LIT`). `num`, `str` and `ident` fill `opd` as they parse; reading a variable copies its entry. `capture` calls `propagate`, which keeps knowledge through three statements only: `set` copies it, `add` and `sub` adjust the number. It recognises them by their row: no code and exactly the flag `AS_REQ` for `set`, the three instruction bytes for the other two. Anything else leaves the variable unknown, and `clrvk` forgets all variables at a label and at the end of a function.
+
+The rows of the loads and stores carry the flag `IS_MEM`, and `emit_op` calls `memchk` for them. The last letter of the keyword gives the width (`b`, `2`, `4`, otherwise 8) and `AS_NONE` says it is a store. An access through a string is checked at once. One through a name is appended to `chks` (name, offset, width, store or load), because the name may be declared later and the run of a data name may still grow; `fin` checks them after the forward names: the offset and the width must fit the declared size of a buffer, or the bytes from a data name to the end of its run (`bufrun`, `runend`), and data takes no store.
 
 ## Buffers
 

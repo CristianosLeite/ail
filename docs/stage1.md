@@ -1,6 +1,6 @@
 # How the stage1 compiler works
 
-`stage1/ailc.ai` is the AIL compiler written in AIL: about 1570 lines, 24 KiB. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
+`stage1/ailc.ai` is the AIL compiler written in AIL: about 2150 lines, 33 KiB. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
 
 ```
 build/ailc  < stage1/ailc.ai > build/ailc1     # stage1 built by stage0
@@ -18,7 +18,7 @@ What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `low`, `dig`, `blank` | character classes |
@@ -34,6 +34,7 @@ What stage0 reaches with `call` is a function:
 | `vplace`, `vmov`, `emem`, `frame`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
+| `opdp`, `opda`, `prop`, `clrvk`, `memchk`, `cp4` | `opdptr`, `opdaddr`, `propagate`, `clrvk` and `memchk` of stage0; `cp4` copies an entry |
 | `godead`, `labasg` | as in stage0; a bit of `asg` is tested with a shift and set with `or`, where stage0 uses `bt` and `bts` |
 
 Because `pk` returns 256 at the end of the input, the pairs "at the end?" and "which byte?" of stage0 are one comparison each.
@@ -51,13 +52,13 @@ A function sees no top-level variable, so the fixed registers of stage0 are glob
 | `cur` | `curop` | statement row, at its operand count |
 | `ns`, `nl` | `r8`, `r9` | start and length of the name read last |
 
-The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs`, `calls` and `refs`, and the tables of the variable allocation (`topcell`, `vfirst`, `vlast`, `fnloc`, `locfree`, `loops`). The state saved before the first pass over a function is in the vars `sip` to `sdr`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
+The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs`, `calls`, `refs` and `chks`, the knowledge tables `opd` and `vk`, `runend`, and the tables of the variable allocation (`topcell`, `vfirst`, `vlast`, `fnloc`, `locfree`, `loops`). The state saved before the first pass over a function is in the vars `sip` to `sdr`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
 
 ## Read-only tables
 
 The tables that stage0 keeps in `.rodata` are `data` statements at the end of the source, after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
-The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the flags, the code length and the code. It has seven more rows with the flag 128 for the statements parsed on their own: the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`), so `next` finds every keyword with the one search `kw`.
+The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the flags, the code length and the code. It has seven more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`), so `next` finds every keyword with the one search `kw`.
 
 ## What the translation had to match
 

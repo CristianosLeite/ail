@@ -1,0 +1,8 @@
+buf b 16
+add b 4 as p
+add p 4 as q
+sub q 2 as r
+add 6 r as s
+store4 s 3
+load4 s as x
+sys 60 x

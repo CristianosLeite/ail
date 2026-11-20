@@ -35,7 +35,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Detect variable reads on paths that skipped their assignment. The compiler
   checks textual definition order, so a jump over an `as` can leave a variable
   with an unspecified value. Account for branches, joins and loop back edges.
-- [ ] Diagnose invalid accesses proven at compile time. Track known buffer
+- [x] Diagnose invalid accesses proven at compile time. Track known buffer
   addresses and constant offsets, and account for access width and write
   permissions. Raw `load` and `store` currently have no bounds checks, so an
   access can reach a neighboring buffer or fault.
