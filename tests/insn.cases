@@ -243,3 +243,4 @@ args as p ; store p "s" | 4889e04889c34889d8e90100000073488d3df8ffffff488938 | m
 args as p ; storeb p "s" | 4889e04889c34889d8e90100000073488d3df8ffffff408838 | mov rax, rsp ; mov rbx, rax ; mov rax, rbx ; {disp32} jmp 9f ; s: .ascii "s" ; 9: lea rdi, [rip + s] ; mov [rax], dil
 args as p ; store2 p "s" | 4889e04889c34889d8e90100000073488d3df8ffffff668938 | mov rax, rsp ; mov rbx, rax ; mov rax, rbx ; {disp32} jmp 9f ; s: .ascii "s" ; 9: lea rdi, [rip + s] ; mov [rax], di
 args as p ; store4 p "s" | 4889e04889c34889d8e90100000073488d3df8ffffff8938 | mov rax, rsp ; mov rbx, rax ; mov rax, rbx ; {disp32} jmp 9f ; s: .ascii "s" ; 9: lea rdi, [rip + s] ; mov [rax], edi
+buf b 16 ; n=9 ; d=2 ; store b+8 n/d | bb09000000bd02000000488d3d3f0f00004889d831d248f7f548894708 | mov ebx, 9 ; mov ebp, 2 ; lea rdi, [rip + 3903] ; mov rax, rbx ; xor edx, edx ; div rbp ; mov [rdi + 8], rax

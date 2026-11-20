@@ -2597,7 +2597,14 @@ load exv as e
 add e 1 as e
 call xwidth as w
 call xinit 0x0fc1 16
+# a value that divides needs rax: the address is then kept out of it
+if exdm
+set 0x0fc0 as xfree
+end
 call xaddr e
+if exdm
+or xfree 1 as xfree
+end
 call xgen e nex
 load exv as k
 add exv 8 as q
