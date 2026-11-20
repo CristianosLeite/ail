@@ -94,7 +94,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Generate common compiler tables from a single definition. Stage0 declares
   the ELF template, opcode rows and register data in assembly. Stage1 recreates
   them with decimal words and manually maintained offsets.
-- [ ] Add differential fuzzing and independent checks of emitted bytes, including
+- [x] Add differential fuzzing and independent checks of emitted bytes, including
   every displacement at fixup-table capacity. The existing parity suite checks
   both compilers against one another and checks the bootstrap fixed point.
 - [ ] Automate the check that a failed example build leaves no up-to-date target.

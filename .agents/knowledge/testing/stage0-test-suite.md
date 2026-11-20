@@ -11,6 +11,21 @@ control-flow review about tests that pass for the wrong reason. `AGENTS.md` desc
 layout of a test; this page records why some fixtures look the way they do.
 
 ## Facts
+- `tests/fuzz.sh [count [seed]]` (since 2026-11-20) compares the two compilers on sources made
+  by one to four random edits of a test, example or library source: a token from a dictionary
+  put in, a span cut out, a byte replaced, the end cut off, a span repeated, a piece of another
+  source added, a line end or a space moved. Exit status, output bytes and message must agree.
+  It is seeded, so a run can be repeated, and `make test` runs 300 sources of seed 1 in about
+  two seconds. It never executes a compiled program. Against a stage1 that accepts any byte
+  after CR in `data`, 2000 sources of one seed gave two differences; a stage1 that accepts 17
+  hexadecimal digits was not found in 3000, after which such literals went into the dictionary.
+- `tests/bytes.sh` (since 2026-11-20) checks output bytes without trusting a compiler: six
+  programs of one line repeated to fill 8 MiB (jumps forward, back, conditional; calls; buffer
+  addresses; var cells), whose expected files, header included, awk writes from a formula. With
+  the jump, call or name fixup table of stage0 made smaller, the ordinary suite still passes
+  and this check fails. It takes five seconds for both compilers.
+- The `od` of uutils breaks lines of a width that does not divide its buffer, so the check
+  compares raw bytes written by awk (`printf "%c"` under `LC_ALL=C`), not dumps.
 - `tests/run.sh` runs each compiled program under `timeout` with `limit=10` seconds; a timeout is
   a failed test. Before 2026-11-19 a program that never exited hung the whole suite.
 - Until the functions review of 2026-11-19 the runner compared the status of `timeout` itself, so a
