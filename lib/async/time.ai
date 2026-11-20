@@ -261,6 +261,13 @@ end
 # what asynccancel calls for a limit: its timer and what it limits are
 # cancelled with it. 1 if the limit cannot end yet.
 fn asynclimitoff asynct
+# what it limits is done: the limit is about to have that result, which
+# is not thrown away, so it is not cancelled any more
+load asynct+64 as asynch
+load asynch+24 as asyncs
+if asyncs&4
+ret 1
+end
 load asynct+72 as asynce
 if asynce
 store asynce+40 0

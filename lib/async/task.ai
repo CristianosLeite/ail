@@ -323,7 +323,18 @@ fn await asynch asyncs
 if asyncs
 load asyncs+24 as asyncf
 load asyncq+136 as asyncc
-if asyncf&8|asyncc
+asyncx=0
+if asynch
+load asynch+24 as asyncx
+end
+asyncc|=asyncf&8
+if asyncx&4
+# what it asks for is done: it has the result as always, which may be
+# something only it can give back, a descriptor for one. A cancelled
+# task is told at an await that would wait.
+asyncc=0
+end
+if asyncc
 # the task that asks is cancelled. Nobody will have the result of h,
 # which is cancelled too. The task is told once, with -125 in the place
 # of the result: its chance to give back what it holds. A task that was
