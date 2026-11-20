@@ -69,7 +69,7 @@ call join asynct
 load asyncj+64 as asynch
 if asynch
 load asyncj+40 as asyncv
-store asynch+56 0
+call asyncdisarm asynch
 load asyncq+112 as asyncx
 store asyncq+112 asyncx-1
 call asyncfinish asynch asyncv
@@ -112,6 +112,16 @@ load asyncq+112 as asyncx
 store asyncq+112 asyncx-1
 end
 
+# what asyncstop calls: give back the eventfd, then what the file of the
+# descriptors holds. Work that still runs ends in the list, which the
+# next asyncblock looks at.
+fn asyncplend
+load asyncpl+16 as asyncfd
+sys close asyncfd-1
+store asyncpl+16 0
+tail asyncioend
+end
+
 # "call asyncblock p a b c d as h": an event that is done when a worker
 # of the pool has called the function at the address p with the four
 # values, with the first result of the function as its result. For work
@@ -142,6 +152,8 @@ sys asyncepollctl asyncep-1 1 asyncfd asynce
 store asyncpl+16 asyncfd+1
 ref asyncpsleep as asyncf
 store asyncq+104 asyncf
+ref asyncplend as asyncf
+store asyncq+144 asyncf
 end
 call asyncget 128 as asyncj
 ifz asyncj
@@ -165,7 +177,7 @@ end
 store asyncj+56 asynct
 store asynch+64 asyncj
 ref asyncjoboff as asyncf
-store asynch+56 asyncf
+call asyncarm asynch asyncf
 load asyncq+112 as asyncx
 store asyncq+112 asyncx+1
 ret asynch

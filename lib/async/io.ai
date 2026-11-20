@@ -32,7 +32,7 @@
 #   80  address and 88 length of the bytes
 #   96  next event of the list
 #  104  bytes written so far (kind 4); 1 once connect was called (kind 5)
-#  112  the socket address to connect to (kind 5)
+# For a connect 80 and 88 are the address and the port.
 buf asyncio 32
 buf asyncev 768
 const asyncfcntl 72
@@ -114,7 +114,7 @@ end
 ifz asyncn
 store asyncr+asynco+8 asyncp
 end
-store asynch+56 0
+call asyncdisarm asynch
 load asyncq+112 as asyncx
 store asyncq+112 asyncx-1
 end
@@ -177,7 +177,9 @@ asyncx=0-asyncx
 end
 else
 store asynch+104 1
-sys connect asyncfd asyncp asyncn as asyncx
+local asynca 16
+call asyncaddr asynca asyncp asyncn
+sys connect asyncfd asynca 16 as asyncx
 if asyncx==-115
 ret 0
 end
@@ -219,8 +221,35 @@ ref asyncpoll as asyncf
 store asyncq+104 asyncf
 ref asynctick as asyncf
 store asyncq+24 asyncf
+ref asyncioend as asyncf
+store asyncq+144 asyncf
 end
 ret asyncep
+end
+
+# what asyncstop calls: forget every descriptor, which the program still
+# holds and closes, and give back the table and the epoll object. The
+# next operation finds everything zero again.
+fn asyncioend
+load asyncio+8 as asynct
+load asyncio+16 as asyncc
+asynci=0
+while asynci<asyncc
+load asynct+asynci*8 as asyncr
+if asyncr
+call asyncfree asyncr
+end
+asynci+=1
+end
+if asynct
+free asynct
+end
+load asyncio as asyncep
+sys close asyncep-1
+store asyncio 0
+store asyncio+8 0
+store asyncio+16 0
+store asyncq+104 0
 end
 
 # the record of the descriptor, made and registered if the library sees
@@ -306,11 +335,6 @@ call async 128 0 as asynch
 ifz asynch
 ret 0
 end
-if asynck==5
-call asyncaddr asynch+112 asyncp asyncn
-asyncp=asynch+112
-asyncn=16
-end
 call asyncfile asyncfd as asyncr
 if asyncr>-4096
 if asynck==5
@@ -349,7 +373,7 @@ store asyncr+asynco asynch
 end
 store asyncr+asynco+8 asynch
 ref asyncopoff as asyncf
-store asynch+56 asyncf
+call asyncarm asynch asyncf
 load asyncq+112 as asyncx
 store asyncq+112 asyncx+1
 ret asynch

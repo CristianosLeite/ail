@@ -22,11 +22,15 @@
 #   16  result
 #   24  state: 1 in the queue, 2 being polled, 4 done, 8 cancelled, 16
 #       delivered while in the queue, so freed when it leaves it, 32
-#       nobody wants the result; from bit 8 on the class of its size
+#       nobody wants the result, 64 it was told that it is cancelled;
+#       from bit 8 on the class of its size
 #   32  next task of the queue, or next free record
 #   40  the task that awaits this one
 #   48  the task this one awaits
-#   56  the function to call when the task is cancelled
+#   56  the function to call when the task is cancelled: an event that
+#       waits somewhere, which that function takes it out of. Such a
+#       record is in the list of asyncarm with its cells 112 and 120,
+#       the next and the one before
 #   64  the values
 #
 # The state of the library is the buffer asyncq:
@@ -41,7 +45,11 @@
 #       waited for: 0 while only timers are
 #  112  how many things are expected of the outside world besides timers
 #  120  polls since the outside world was last looked at
-buf asyncq 128
+#  128  the first record that has a function to call when cancelled
+#  136  1 while asyncstop runs: every task counts as cancelled
+#  144  the function that gives back what the files of timers and
+#       descriptors hold, for asyncstop
+buf asyncq 152
 
 # a record of at least asyncz bytes, with the class of its size as its
 # state; 0 if there is no memory. Records up to 4096 bytes are cut from
@@ -175,10 +183,41 @@ load asynct+40 as asyncw
 if asyncw
 call asyncwake asyncw
 end
-if asyncs&32
+# a task that ends inside its own poll is dropped when that returns
+if asyncs&34==32
 call asyncdrop asynct
 end
 ret 1
+end
+
+# "call asyncarm h f": the record h, of at least 128 bytes, waits
+# somewhere, and the function f takes it out of there when it is
+# cancelled. asyncdisarm when it waits no longer.
+fn asyncarm asynct asyncf
+store asynct+56 asyncf
+load asyncq+128 as asyncn
+store asynct+112 asyncn
+store asynct+120 0
+if asyncn
+store asyncn+120 asynct
+end
+store asyncq+128 asynct
+end
+fn asyncdisarm asynct
+load asynct+56 as asyncf
+if asyncf
+store asynct+56 0
+load asynct+112 as asyncn
+load asynct+120 as asyncp
+if asyncp
+store asyncp+112 asyncn
+else
+store asyncq+128 asyncn
+end
+if asyncn
+store asyncn+120 asyncp
+end
+end
 end
 
 # the record of a task that is done is free, now or, if the task is in
@@ -256,7 +295,15 @@ load asynct as asyncp
 callp asyncp asynct as asyncr
 store asyncq+16 asyncc
 load asynct+24 as asyncs
-store asynct+24 asyncs^2
+asyncs^=2
+store asynct+24 asyncs
+if asyncs&4
+# ended inside its poll: a cancelled task that awaited again
+if asyncs&32
+call asyncdrop asynct
+end
+ret 1
+end
 if asyncr
 load asynct+16 as asyncv
 call asyncfinish asynct asyncv
@@ -272,6 +319,28 @@ end
 # a task asks so, which would poll tasks inside a poll, the result is
 # -35 and h stays. The result of no task is 0.
 fn await asynch asyncs
+if asyncs
+load asyncs+24 as asyncf
+load asyncq+136 as asyncc
+if asyncf&8|asyncc
+# the task that asks is cancelled. Nobody will have the result of h,
+# which is cancelled too. The task is told once, with -125 in the place
+# of the result: its chance to give back what it holds. A task that was
+# told and awaits again is ended here, and not polled any more.
+store asyncs+48 0
+if asynch
+store asynch+40 0
+call asynccancel asynch
+call asyncdetach asynch
+end
+if asyncf&64
+call asyncfinish asyncs -125
+ret 0 0
+end
+store asyncs+24 asyncf|72
+ret -125 1
+end
+end
 ifz asynch
 ret 0 1
 end
@@ -298,26 +367,57 @@ end
 ret -35 1
 end
 
-# "call asynccancel h": end what is waited for with the result -125:
-# an event, which is first taken from where it waits (the function at
-# 56 of its record does that), or a task, which is not polled again and
-# no longer awaits what it awaited. 1, or 0 if it was done.
+# "call asynccancel h": 1, or 0 if h was done. An event ends with the
+# result -125, after the function at 56 of its record has taken it from
+# where it waits. A task is not ended: it is marked, and woken, and the
+# await it is in, or its next one, gives it -125 (see await).
 fn asynccancel asynct
 load asynct+24 as asyncs
 if asyncs&4
 ret 0
 end
 load asynct+56 as asynch
+load asynct as asyncp
 if asynch
-store asynct+56 0
+call asyncdisarm asynct
 callp asynch asynct
+asyncp=0
 end
-load asynct+48 as asyncw
-if asyncw
-store asyncw+40 0
-store asynct+48 0
-end
+ifz asyncp
 tail asyncfinish asynct -125
+end
+store asynct+24 asyncs|8
+call asyncwake asynct
+ret 1
+end
+
+# "call asyncstop": cancel everything that waits for time, for a
+# descriptor or for work, and from then on every task at its await;
+# poll until nothing can happen; give back the descriptors and the
+# memory that the files of timers and descriptors hold. The result is
+# the number of tasks that are not done even so: those that wait for
+# something that only the program ends. Not for a task to call.
+fn asyncstop
+store asyncq+136 1
+asyncn=1
+while asyncn
+label asyncall
+load asyncq+128 as asynct
+if asynct
+call asynccancel asynct
+jmp asyncall
+end
+call asyncrun
+load asyncq+128 as asyncn
+end
+load asyncq+144 as asyncf
+if asyncf
+store asyncq+144 0
+callp asyncf
+end
+store asyncq+136 0
+load asyncq+96 as asyncn
+ret asyncn
 end
 
 # poll tasks until nothing can happen any more; the result is the number

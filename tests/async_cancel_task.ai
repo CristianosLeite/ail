@@ -1,0 +1,55 @@
+# a task that is cancelled gets -125 from the await it is in and can
+# give back what it holds; what it awaited is cancelled with it, down a
+# chain of tasks. A task cancelled before it ran gets it at its first
+# await; cancelling a task that is done does nothing.
+use "lib/io.ai"
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+var freed
+async fn inner
+await asyncsleep 5000 as r
+if r==-125
+call print "i"
+freed+=1
+end
+ret 1
+end
+async fn outer
+await inner as r
+if r==-125
+call print "o"
+freed+=10
+end
+ret 7
+end
+async fn quick
+ret 3
+end
+call asyncclock as t0
+call outer as h
+await asyncsleep 5
+call asynccancel h as c
+await h as x
+call asyncrun as n
+call putn c
+call putn x
+call putn n
+call print " "
+call outer as h
+call asynccancel h as c
+await h as x
+call asyncrun as n
+call putn c
+call putn x
+call putn n
+call print " "
+call quick as h
+call asyncrun
+call asynccancel h as c
+await h as x
+call putn c
+call putn x
+call putn freed
+call print "\n"
+call asyncclock as t1
+sys exit_group t1-t0>1000000000

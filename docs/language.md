@@ -973,7 +973,8 @@ call procwait p 10000 as r
 | `asyncwake h` | puts the task in the queue, to be polled again |
 | `asyncfinish h v` | ends the task or event `h` with the result `v` and wakes the task that awaits it; returns 1, or 0 if it was done already |
 | `asyncdetach h` | says that nobody will await `h`: its record is released when it is done |
-| `asynccancel h` | ends the event `h` with the result -125; returns 1, or 0 if it was done |
+| `asynccancel h` | cancels the event or task `h`; returns 1, or 0 if it was done |
+| `asyncstop` | cancels everything, polls until nothing can happen and gives back what the library holds; returns the number of tasks not done |
 | `asyncrun` | polls tasks until nothing can happen any more; returns the number of tasks that are not done |
 | `asyncstep` | polls one task; returns 1, or 0 if nothing can happen |
 | `asyncyield` | makes a task that is done at its first poll, with the result 0; a task that awaits it lets the tasks in the queue run first |
@@ -1005,7 +1006,11 @@ call await h 0 as x     # 42
 - **Errors**: a task has no failure of its own; what it reports, it reports in its result, by convention a negative number as the kernel's are.
 - **Order**: tasks are polled in the order in which they were made or woken. Nothing runs at the same time as anything else, so tasks share memory without `xadd` and `cas`; the functions of this library are for one thread, the one that polls.
 - **The costs**: a record is the next power of two from 128 bytes that holds the task. Records up to 4096 bytes are cut from blocks of 64 KiB that are never given back, and all up to 16384 bytes are used again by the next task of their size; larger ones are an `alloc` and a `free` each.
-- **Cancelling**: `asynccancel h` ends an event with the result -125 (`ECANCELED`) after taking it from where it waits, and returns 1, or 0 if it was done. The result is still awaited, which releases the handle.
+- **Cancelling**: `asynccancel h` returns 1, or 0 if `h` was done. Its handle is still awaited or detached, as before.
+  - An **event** ends at once with the result -125 (`ECANCELED`), taken from where it waited: the timer is no longer due, the read no longer waits.
+  - A **task** is not ended; it is told. The `await` it waits in, or the next one it reaches, gives it -125 in the place of a result, at once, and what it awaited there is cancelled and belongs to nobody. That is its chance to give back what it holds, close its descriptors and return a result, which whoever awaits it gets. A task that was told and awaits again is ended there with the result -125: the lines behind that `await` never run. So a task that ignores results is still stopped, and a task that awaits nothing more runs to its `ret`.
+  - Only what a task waits for is cancelled with it. Work it started and has not awaited goes on.
+- **Stopping**: `asyncstop` cancels every event that waits for time, for a descriptor or for work of the pool; from then on tells every task at its `await`, as if it were cancelled; polls until nothing can happen; and gives back the `epoll` object, the table of the descriptors and the `eventfd`. The descriptors of the program stay open, and are the program's to close. It returns the number of tasks that are not done even so, which wait for an event that only the program ends. Afterwards the library is as it was before its first use. It is called by code that is no task.
 - **Names**: the library owns `async`, `await` and every name that starts with `async`, in all its files; a program has no `var` of such a name.
 
 ### Timers
@@ -1026,7 +1031,7 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 
 - When no task can be polled, the thread sleeps until the earliest timer is due; with no timer and nothing else to wait for, nothing can happen and `asyncrun` returns. A timer is never early; it is late by what the tasks polled before it take.
 - Tasks that always have something to do do not keep timers and files from being seen: every 61st poll looks at both without sleeping.
-- After `asynctimeout` the handle `h` belongs to the limit: it is not awaited or cancelled any more, and cancelling the limit cancels it. Whether the result or the time came first is decided when the limit is polled; if both have come by then, the result counts.
+- After `asynctimeout` the handle `h` belongs to the limit: it is not awaited or cancelled any more, and cancelling the limit cancels it. A task that runs out of time is told, like any cancelled task, while the limit already has the result -62. Whether the result or the time came first is decided when the limit is polled; if both have come by then, the result counts.
 - The timers that run are 16 bytes each in a heap, besides their events.
 
 ### Files and sockets

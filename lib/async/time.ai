@@ -96,7 +96,7 @@ load asynch as asyncd
 if asyncd<=asyncnow
 load asynch+8 as asynce
 call asyncunheap 0
-store asynce+56 0
+call asyncdisarm asynce
 call asyncfinish asynce 0
 jmp asyncnext
 end
@@ -169,12 +169,12 @@ end
 store asynctm asynch
 store asynctm+16 asyncc
 end
-call async 72 0 as asynce
+call async 128 0 as asynce
 ifz asynce
 ret 0
 end
 ref asynctimeroff as asyncf
-store asynce+56 asyncf
+call asyncarm asynce asyncf
 ref asynctick as asyncf
 store asyncq+24 asyncf
 call asyncclock as asyncd
@@ -190,7 +190,7 @@ load asynct+64 as asynch
 load asynct+72 as asynce
 load asynch+24 as asyncs
 if asyncs&4
-store asynct+56 0
+call asyncdisarm asynct
 call asynccancel asynce
 call await asynce 0
 call await asynch 0 as asyncv
@@ -199,11 +199,11 @@ ret 1
 end
 load asynce+24 as asyncs
 if asyncs&4
-store asynct+56 0
+call asyncdisarm asynct
 call await asynce 0
 store asynch+40 0
 call asynccancel asynch
-call await asynch 0
+call asyncdetach asynch
 store asynct+16 -62
 ret 1
 end
@@ -220,9 +220,9 @@ load asynct+72 as asynce
 store asynch+40 0
 store asynce+40 0
 call asynccancel asynce
-call await asynce 0
+call asyncdetach asynce
 call asynccancel asynch
-call await asynch 0
+call asyncdetach asynch
 end
 
 # "call asynctimeout h ms as g": a task whose result is that of h if h
@@ -235,7 +235,7 @@ ifz asynce
 ret 0
 end
 ref asynclimit as asyncp
-call async 80 asyncp as asynct
+call async 128 asyncp as asynct
 ifz asynct
 call asynccancel asynce
 call await asynce 0
@@ -244,6 +244,6 @@ end
 store asynct+64 asynch
 store asynct+72 asynce
 ref asynclimitoff as asyncp
-store asynct+56 asyncp
+call asyncarm asynct asyncp
 ret asynct
 end
