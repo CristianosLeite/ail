@@ -134,7 +134,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Check expressions against computed results in random programs.
 - [x] Use immediate forms of instructions, and shifts and masks for division
   and remainder by a power of two.
-- [ ] Use variables in place as operands.
+- [x] Use variables in place as operands.
 - [ ] Compute an assignment in the register of its target.
 - [ ] Lower the arithmetic statements like expressions, so both spellings
   give the same bytes.
