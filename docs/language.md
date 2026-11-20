@@ -23,7 +23,7 @@ Blank lines are ignored. Indentation is ignored.
 The same rule holds everywhere outside string literals:
 
 - Tokens (the keyword, numbers, strings, names, `as`) are separated by one or more spaces or tabs. Two tokens may not touch: `1"x"` and `"a""b"` are errors.
-- A line ends with LF or CRLF. A CR that is not followed by LF is an error.
+- A line ends with LF or CRLF. A CR that is not followed by LF is an error, also inside a comment; only a string may contain one.
 - `#` starts a comment and may directly follow a token.
 
 No other byte separates anything. A NUL or any other control character between tokens is a syntax error.
@@ -261,7 +261,7 @@ sys 1 1 p n                   # write what was read
 
 ## Comments
 
-`#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string.
+`#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
 
 ## Errors
 
@@ -298,7 +298,7 @@ Causes of a syntax error:
 - `ret` outside a function, without exactly one value, or with `as`
 - `call` without a function name, or with more than six values
 - two tokens with no space or tab between them
-- a byte other than space or tab used as a separator, or a CR not followed by LF
+- a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - a string anywhere but in a `sys` statement
 - an argument that is not a decimal integer, a string, a variable name or a buffer name
 - `as` without a name, with the name `as`, or followed by anything but a comment

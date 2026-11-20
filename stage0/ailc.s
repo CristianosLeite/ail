@@ -361,9 +361,13 @@ next:
 2:  inc rsi                     # comment: skip to end of line
     cmp rsi, r15
     jae fin
-    cmp byte ptr [rsi], 10
+    mov al, [rsi]
+    cmp al, 10
+    je next
+    cmp al, 13
     jne 2b
-    jmp next
+    call crlf                   # even here a CR needs its LF
+    jmp 2b
 
 # a CR at rsi must be the first half of a CRLF line end
 crlf:

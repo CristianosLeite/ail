@@ -23,6 +23,10 @@ records the reasoning.
   `/dev/full` gives `ailc: write error` (both exit 2), and after a failed example build a second
   `make` fails again instead of reporting nothing to do. The first two are checked by
   `tests/io.sh` since 2026-11-19, the last by hand only.
+- A review on 2026-11-19 found that the comment scanner looked only for LF, so
+  `# note<CR>sys 60 7` compiled and the comment swallowed the statement, although a bare CR is
+  an error everywhere else outside a string. The scanner now calls `crlf` on every CR. Six tests
+  cover it (220 in all); the three rejections fail against the previous compiler.
 - A review on 2026-11-19 found that output to a pipe whose reader had gone killed the compiler
   with `SIGPIPE`: no message, status 141. `_start` now sets `SIGPIPE` to `SIG_IGN`, so `write`
   returns `-EPIPE` and takes the ordinary `write error` path. `tests/io.sh` covers it.

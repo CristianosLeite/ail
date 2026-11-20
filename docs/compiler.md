@@ -40,7 +40,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 |---|---|
 | `_start` | ignore `SIGPIPE`, read stdin, copy the header template |
 | `next` | start of a statement: skip indentation, blank lines and comments, find the keyword in `optab`, and for `sys` require its syscall number, for `call` read the function name, for `ret` require an open function |
-| `crlf` | check that a CR is followed by LF |
+| `crlf` | check that a CR is followed by LF; called wherever a line may end, and for every CR in a comment |
 | `tokend` | check that a token is followed by a space, tab, comment or line end, then fall into `arg` |
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
 | `num` | parse a decimal integer |
