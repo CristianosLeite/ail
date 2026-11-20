@@ -1,0 +1,35 @@
+# hash stdin (at most 1048576 bytes) a hundred times over with FNV-1a,
+# one pass continuing the hash of the one before, and write the 64-bit
+# hash as 8 bytes; exit status 1 on failure
+const size 1048576
+buf d size
+buf b 8
+set 0 as n
+label more
+add d n as p
+sub size n as r
+sys read 0 p r as r     # 0 at the end of the input or of the buffer
+jgt r size fail         # unsigned: a negative r is far above size
+add n r as n
+jnz r more
+set 0xcbf29ce484222325 as h
+set 100 as k
+label pass
+set 0 as i
+label byte
+jge i n last
+add d i as p
+loadb p as r
+xor h r as h
+mul h 0x100000001b3 as h
+add i 1 as i
+jmp byte
+label last
+sub k 1 as k
+jnz k pass
+store b h
+sys write 1 b 8 as r
+jne r 8 fail
+sys exit 0
+label fail
+sys exit 1

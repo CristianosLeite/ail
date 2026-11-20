@@ -21,7 +21,17 @@ python3 tools/perf.py --cpu 4      # another CPU than 2
 The programs are of two kinds, reported apart:
 
 - **Startup**: `hello`, `echo`, `count`, `fact` and `loop` do almost nothing, so their time is the cost of starting a process. 25 warm-up rounds and 500 timed ones, in microseconds.
-- **CPU-bound**: `compute` runs a hundred million dependent steps of `x = (x ^ (x >> 13)) * 1664525 + 1013904223` on a 64-bit value read from stdin and writes the result. 2 warm-up rounds and 15 timed ones, in milliseconds. For these the table gives the ratio of AIL to C and, below it, the geometric mean of the ratios; a ratio above 1.10 is marked `slow`.
+- **CPU-bound**: five programs that read their input, compute and write a 64-bit result. 2 warm-up rounds and 15 timed ones, in milliseconds. For these the table gives the ratio of AIL to C and, below it, the geometric mean of the ratios; a ratio above 1.10 is marked `slow`.
+
+| program | what it does | what it exercises |
+|---|---|---|
+| `compute` | a hundred million steps of `x = (x ^ (x >> 13)) * 1664525 + 1013904223` | arithmetic in one dependent chain |
+| `sieve` | counts the primes below 16000000 in a table of bytes | byte stores at a stride, a nested loop |
+| `collatz` | adds up the lengths of the Collatz sequences from 1 to 500000 | a branch that cannot be predicted, `% 2`, `/ 2`, `* 3` |
+| `fnv` | hashes a megabyte a hundred times with FNV-1a | byte loads, a multiplication per byte |
+| `isort` | sorts 30000 numbers by insertion | 64-bit loads and stores, a comparison per step |
+
+The last four have no assembly equivalent. They are written as the language is written today, one operation a line with labels and jumps, and at top level with at most six variables, since a seventh would live in memory there.
 
 ## Baseline, 2026-11-20
 
@@ -43,6 +53,19 @@ CPU-bound, milliseconds:
 
 | program | AIL | C | Rust | asm | AIL / C |
 |---|---:|---:|---:|---:|---:|
-| compute | 134.54 (133.83, 135.15) | 132.05 (131.67, 132.64) | 131.89 (131.71, 132.96) | 131.91 (131.48, 132.19) | 1.019 |
+| compute | 134.38 (133.89, 134.75) | 131.70 (131.59, 131.81) | 131.90 (131.78, 132.73) | 131.42 (131.32, 131.94) | 1.020 |
+| sieve | 60.77 (60.46, 61.51) | 50.82 (50.62, 51.40) | 52.41 (51.95, 52.97) |  | 1.196 slow |
+| collatz | 325.56 (325.21, 325.86) | 77.92 (77.80, 78.49) | 57.66 (57.54, 57.76) |  | 4.178 slow |
+| fnv | 92.76 (92.43, 93.21) | 92.73 (92.60, 93.20) | 93.01 (92.84, 93.51) |  | 1.000 |
+| isort | 158.28 (158.11, 158.94) | 50.36 (50.25, 50.59) | 70.79 (70.63, 71.08) |  | 3.143 slow |
 
-The loop of `compute` is 22 instructions in AIL against 7 in the assembly program: every operand is copied to `rax` or `rdi`, `13` and the two constants are loaded on every step, and `jnz` tests its value again. It still runs within 2% of C because the steps depend on each other: the time is the latency of the shift, the multiplication and the additions in a row, and the extra moves run beside them. One program of that shape says little about loops that are not one chain, so the corpus needs more CPU-bound programs before the ratio means much.
+Geometric mean of AIL / C: 1.742.
+
+What the figures say about the code the compiler writes today:
+
+- `compute` and `fnv` are within 2% of C although AIL runs three times the instructions: the loop of `compute` is 22 against 7, every operand copied to `rax` or `rdi`, `13` and the two constants loaded on every step, and `jnz` testing its value again. The steps depend on each other, so the time is the latency of the shift, the multiplication and the additions in a row, and the extra moves run beside them. One program of that shape had made the compiler look finished.
+- `collatz` is four times slower. `mod x 2` and `div x 2` are a 64-bit `div` each, where C tests a bit and shifts; and C computes `3x + 1` with one `lea` and folds the halving that must follow an odd step into it.
+- `isort` is three times slower: its inner loop has nothing but moves, a load, a store, a comparison and two jumps, so the copies through `rax` and `rdi` and the jump to the test at the top are the whole cost.
+- `sieve` is 20% slower for the same reason, less so because its inner loop waits for memory.
+
+So the work is in three places: a constant operand used as an immediate, with division and remainder by a power of two as a shift and a mask; operands used where they are instead of copied; and a loop with its test at the end.

@@ -6,13 +6,14 @@ status: current
 ---
 # Token cost measurement
 
-**Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the six examples
-and their C, Rust and assembly equivalents in `bench/`. AIL is 46% cheaper than assembly, 10%
-dearer than C and 6% dearer than Rust. Lines and numbers are what cost; keywords do not.
+**Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the ten examples
+and their C, Rust and assembly equivalents in `bench/`. AIL is 46% cheaper than assembly, 17%
+dearer than C and 10% dearer than Rust. Lines and numbers are what cost; keywords do not.
 `tools/perf.py` times the same programs.
 
 ## Facts
-- Totals without comments on 2026-11-20, six programs: AIL 496, C 448, Rust 464, assembly 925.
+- Totals without comments on 2026-11-20, ten programs: AIL 1313, C 1118, Rust 1191. The first
+  six, which have assembly equivalents: AIL 496, C 448, Rust 464, assembly 925.
   The five short ones alone: AIL 382, C 342, Rust 344, assembly 696 (AIL was 411 at the first
   measurement, before compare-and-jump statements and syscall names). AIL wins on `hello` and
   `echo`.
@@ -23,14 +24,21 @@ dearer than C and 6% dearer than Rust. Lines and numbers are what cost; keywords
 - Timing on an i7-12700H: an AIL program starts in about 75 microseconds, C in 230, Rust in 320.
   `compute` takes 134.5 ms in AIL against 132.1 in C at `-O3`, although its loop is 22
   instructions against 7: the steps are one dependency chain, so the extra moves cost little.
+- **One benchmark of one shape misleads.** `compute` alone suggested parity with C. Four more
+  CPU-bound programs (`sieve`, `collatz`, `fnv`, `isort`) gave a geometric mean of 1.742:
+  `fnv` 1.00 (another dependency chain), `sieve` 1.20, `isort` 3.14 (a loop of moves, loads and a
+  comparison), `collatz` 4.18 (`div` for `% 2` and `/ 2`). Measure a loop that is not one chain
+  before concluding anything about generated code.
+- The CPU-bound examples are written at top level with at most six variables, because the
+  seventh top-level variable lives in a memory cell.
 - `stage1/ailc.ai` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
 - A number after a space is two tokens or more, a name one. `4294967295` is four tokens,
   `0xffffffff` two. `jz` and `jnz` are two tokens each; `load4` and `loadb` are two, `load` one.
 - A comparison plus its conditional jump is twelve tokens; one compare-and-branch line would be
   seven. Stage1 has 55 such pairs.
 - `tools/bench.sh` builds `bench/` with `gcc`, `rustc`, `as` and `ld` and checks output and exit
-  status against the examples for empty input, for `hi` and for eight bytes; all 54 comparisons
-  pass.
+  status against the examples for empty input, for `hi` and for eight bytes; all 78 comparisons
+  pass. A program may lack the assembly equivalent.
 
 ## Why
 - **tiktoken in a virtual environment (chosen by the user):** no tokenizer was installed, and this

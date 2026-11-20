@@ -26,8 +26,8 @@ The language is now developed in stage1; stage0 stays in the repository as the b
 
 ## Supporting work
 
-- Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 46% fewer tokens than assembly, 10% more than C and 6% more than Rust. Use `tools/tokens.sh` to choose between syntax alternatives.
-- Elapsed time is measured against the same programs built with `gcc -O3` and `rustc -O` ([results](performance.md)): an AIL program starts in a third of the time of the C one, and the one CPU-bound program runs within 2% of C.
+- Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 46% fewer tokens than assembly, 17% more than C and 10% more than Rust on ten programs. Use `tools/tokens.sh` to choose between syntax alternatives.
+- Elapsed time is measured against the same programs built with `gcc -O3` and `rustc -O` ([results](performance.md)): an AIL program starts in a third of the time of the C one; of five CPU-bound programs two run as fast as C and two take three and four times as long, a geometric mean of 1.74.
 - Compile errors name the line, the file, the name at fault and a specific cause, since the error message is what an AI uses to repair its program.
 
 ## Not planned

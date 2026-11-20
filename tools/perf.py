@@ -40,6 +40,10 @@ PROGRAMS = {
     "fact": ("startup", b"", b"", 120),
     "loop": ("startup", b"", b"0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n", 0),
     "compute": ("cpu", struct.pack("<Q", 0x123456789ABCDEF0), None, 0),
+    "sieve": ("cpu", struct.pack("<Q", 16000000), None, 0),
+    "collatz": ("cpu", struct.pack("<Q", 500000), None, 0),
+    "fnv": ("cpu", BYTES * 256, None, 0),
+    "isort": ("cpu", struct.pack("<Q", 0x123456789ABCDEF0), None, 0),
 }
 
 

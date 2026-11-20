@@ -13,16 +13,22 @@ python3 tools/perf.py       # time the same programs, see performance.md
 
 | program | AIL | C | Rust | asm |
 |---|---:|---:|---:|---:|
+| collatz | 158 | 119 | 165 |  |
 | compute | 114 | 106 | 120 | 229 |
 | count | 189 | 141 | 102 | 232 |
 | echo | 56 | 58 | 86 | 150 |
 | fact | 52 | 44 | 55 | 101 |
+| fnv | 189 | 167 | 126 |  |
 | hello | 23 | 29 | 45 | 78 |
+| isort | 297 | 239 | 250 |  |
 | loop | 62 | 70 | 56 | 135 |
-| total | 496 | 448 | 464 | 925 |
-| relative to AIL | 1.00 | 0.90 | 0.94 | 1.86 |
+| sieve | 173 | 145 | 186 |  |
+| total | 1313 | 1118 | 1191 | 925 |
+| relative to AIL | 1.00 | 0.85 | 0.91 | 1.86 |
 
-AIL costs 46% fewer tokens than assembly that does the same, 10% more than C and 6% more than Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes (`count`, where C writes one expression per digit and Rust one `format!`). `compute` is the arithmetic benchmark, a hundred million steps of a 64-bit recurrence; without it the five short programs total 382 for AIL against 342 for C and 344 for Rust.
+This is the fixed corpus that a change of syntax is judged on: five short programs that are mostly system calls, and five that compute (`compute`, `sieve`, `collatz`, `fnv` and `isort`, described in [performance.md](performance.md)). The last four have no assembly equivalent; a language is compared with the AIL total of the programs it has, so the assembly figure is over six programs.
+
+AIL costs 46% fewer tokens than assembly that does the same, 17% more than C and 10% more than Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes: every operation is a line with a name for its result, where C writes one expression (`count`, `isort`). Against Rust it also wins where Rust needs ceremony to read a number or to wrap its arithmetic (`sieve`, `collatz`, `compute`). The five short programs alone total 382 for AIL against 342 for C and 344 for Rust.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 
