@@ -8,7 +8,7 @@ It exists to be replaced. Once AIL can express a compiler, the next version is w
 
 There is one pass and no intermediate representation.
 
-1. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
+1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer.
 4. Append the code for `exit(0)`.
@@ -38,7 +38,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 
 | Label | Job |
 |---|---|
-| `_start` | read stdin, copy the header template |
+| `_start` | ignore `SIGPIPE`, read stdin, copy the header template |
 | `next` | start of a statement: skip indentation, blank lines and comments, find the keyword in `optab`, and for `sys` require its syscall number, for `call` read the function name, for `ret` require an open function |
 | `crlf` | check that a CR is followed by LF |
 | `tokend` | check that a token is followed by a space, tab, comment or line end, then fall into `arg` |

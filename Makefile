@@ -15,7 +15,11 @@ $(B)/%: examples/%.ai $(B)/ailc
 	mv $@.tmp $@
 
 test: $(B)/ailc
+ifeq ($(T),)
+	@tests/run.sh; a=$$?; tests/io.sh; b=$$?; [ $$a -eq 0 ] && [ $$b -eq 0 ]
+else
 	@tests/run.sh $(T)
+endif
 
 clean:
 	rm -rf $(B)

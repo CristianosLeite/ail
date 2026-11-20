@@ -60,6 +60,7 @@ calls:  .skip NCALLS * 32       # per call: function name address and length,
 ncalls: .skip 4                 # number of calls emitted so far
 
 .section .rodata
+ignore: .quad 1, 0, 0, 0        # struct sigaction: SIG_IGN, no flags, restorer or mask
 hdr:
     .byte 0x7f,'E','L','F',2,1,1,0, 0,0,0,0,0,0,0,0
     .word 2                     # ET_EXEC
@@ -229,6 +230,13 @@ m_write:  .ascii "ailc: write error\n"
 .text
 .globl _start
 _start:
+    # ---- a closed output pipe must be a write error, not a silent death
+    mov eax, 13                 # rt_sigaction(SIGPIPE, &ignore, 0, 8)
+    mov edi, 13
+    lea rsi, [rip+ignore]
+    xor edx, edx
+    mov r10d, 8
+    syscall
     # ---- read all of stdin
     lea r15, [rip+inbuf]
 1:  xor eax, eax

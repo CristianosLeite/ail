@@ -279,7 +279,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: too many buffers` | 1 | a seventeenth buffer, or buffers that together exceed about 3.7 GiB |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
-| `ailc: write error` | 2 | writing the executable to stdout failed |
+| `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |
 
 Status 1 means the source is at fault; status 2 means the environment is.
 

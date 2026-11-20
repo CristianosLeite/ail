@@ -18,7 +18,7 @@ Requires GNU `as` and `ld` on x86-64 Linux.
 
 ```
 make            # build build/ailc and every example in examples/
-make test       # run every test in tests/
+make test       # run every test in tests/, then the I/O checks of tests/io.sh
 make test T=hello   # run one test
 make build/foo  # compile examples/foo.ai to build/foo
 make clean
@@ -37,7 +37,7 @@ A test is a set of files `tests/<name>.*`, run by `tests/run.sh`:
 - `.code`: expected exit status of the compiled program, default 0
 - `.err`: expected compiler stderr; the compiler must then exit 1
 
-A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a program after 10 seconds and fails the test, so a loop that never ends cannot hang the suite. Not covered by the runner and checked by hand: the compiler's I/O errors (`build/ailc <&-`, output to `/dev/full`) and the Makefile's behaviour after a failed example build.
+A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a program after 10 seconds and fails the test, so a loop that never ends cannot hang the suite. The compiler's I/O errors do not fit that form and are checked by `tests/io.sh`, which `make test` runs after the suite when no `T` is given: closed stdin, output to `/dev/full` and output to a pipe whose reader is gone. Not covered and checked by hand: the Makefile's behaviour after a failed example build.
 
 Compiler errors are one line on stderr with no location: `ailc: syntax error`, `ailc: undefined variable`, `ailc: too many variables`, `ailc: duplicate name`, `ailc: too many buffers`, `ailc: undefined label`, `ailc: undefined function`, `ailc: wrong argument count` or `ailc: source too big` exit 1; `ailc: read error` or `ailc: write error` exit 2.
 

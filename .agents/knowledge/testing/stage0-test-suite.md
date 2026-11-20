@@ -17,6 +17,11 @@ layout of a test; this page records why some fixtures look the way they do.
   program that hung passed a test expecting status 124. The program now runs under `sh -c`, which
   writes its status to `build/tests/<name>.rc`; no file means the deadline expired and the test
   fails. `exit_status_124` keeps a normal exit with 124 passing.
+- `tests/io.sh` holds the checks that are not "compile, run, compare": the compiler's exit
+  status and message with stdin closed, with output to `/dev/full` and with output to a closed
+  pipe. `make test` runs it after the suite when no `T` is given. The closed pipe is a fifo whose
+  reader has already exited before the compiler starts; `ailc | true` would race with the exit of
+  `true`. Without the `SIGPIPE` handling in the compiler the pipe case fails.
 - `jump_fills_source` (10921 `jmp a` lines and one final `label a`) only proves that the fixup
   table holds that many entries: its first jump skips all the others, so it still passes when a
   later displacement is wrong.

@@ -19,9 +19,13 @@ records the reasoning.
   as the number compiled; a source of exactly 64 KiB was rejected; I/O failures were reported as
   syntax errors; and a failed example build left an empty executable that Make treated as current.
   `sys1 1 "x"` (no blank after the keyword) was also accepted and is now rejected.
-- Checked by hand only, because the runner cannot express them: `build/ailc <&-` gives
-  `ailc: read error`, output to `/dev/full` gives `ailc: write error` (both exit 2), and after a
-  failed example build a second `make` fails again instead of reporting nothing to do.
+- The runner cannot express these: `build/ailc <&-` gives `ailc: read error`, output to
+  `/dev/full` gives `ailc: write error` (both exit 2), and after a failed example build a second
+  `make` fails again instead of reporting nothing to do. The first two are checked by
+  `tests/io.sh` since 2026-11-19, the last by hand only.
+- A review on 2026-11-19 found that output to a pipe whose reader had gone killed the compiler
+  with `SIGPIPE`: no message, status 141. `_start` now sets `SIGPIPE` to `SIG_IGN`, so `write`
+  returns `-EPIPE` and takes the ordinary `write error` path. `tests/io.sh` covers it.
 - Variables were added on 2026-11-19: `sys ... as name` keeps the return value, and a name can be
   passed as an argument. Six variables, one register each (`rbx rbp r12 r13 r14 r15`), never freed.
   Tests cover every pool register, 64-bit values (an `mmap` pointer) and every rejection.
@@ -135,7 +139,7 @@ records the reasoning.
 - 2026-11-19: self-hosting is not started; functions exist since 2026-11-19.
 - 2026-11-19: six variables per function may not be enough for a compiler; more needs spilling.
 - 2026-11-19: errors carry no line number.
-- 2026-11-19: I/O error paths and the Makefile failed-build case have no automated test.
+- 2026-11-19: the Makefile failed-build case has no automated test.
 
 ## Related
 - [Stage0 functions](stage0-functions.md)
