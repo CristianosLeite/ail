@@ -1,0 +1,7 @@
+# the size as declared, not as rounded up to 8
+buf b 13
+sys 39 as i
+or i 13 as i
+and i 13 as i
+at b i 1 as p
+sys 60 3

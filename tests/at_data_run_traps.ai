@@ -1,0 +1,7 @@
+data t 1 2 3
+data 4 5 6
+sys 39 as i
+or i 6 as i
+and i 6 as i
+at t i 1 as p
+sys 60 3

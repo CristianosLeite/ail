@@ -38,6 +38,7 @@ buf vfirst 512      # per variable of the function: where the source defines it,
 buf vlast 512       # and mentions it last
 buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
 buf vlocal 512      # per variable of the function that is a local: 1 + its offset
+buf vlocsz 512      # per local: its size as declared
 buf locfree 560     # per place: the last mention of its variable
 buf loops 174768    # 10923 backward jumps of the function: where the source has
                     # the label, and the jump
@@ -595,9 +596,9 @@ add r l as r
 ret r
 label t
 add r l as r
-add r 2 as c
+add r 3 as c
 loadb c as c
-add r 3 as r
+add r 4 as r
 add r c as r
 jmp a
 label x
@@ -829,6 +830,27 @@ call areg i as r
 call emem r a 139
 call anext
 end
+# 1 if the statement is at and this is its first value, which must be a name
+fn atfirst
+jnz ai x
+add cur 2 as c
+loadb c as c
+and c 1 as c
+ret c
+label x
+end
+# record that the imm32 just written stands for the name read last: k = 0
+# its address, 1 its length, 2 the bytes from it to the end of its object
+fn addref k
+mul nrefs 32 as p
+add p refs as p
+call putn p
+add p 16 as q
+store q immpos
+add p 24 as q
+store q k
+add nrefs 1 as nrefs
+end
 # where to note what is known of the next value of the statement
 fn opdp
 set ai as i
@@ -881,10 +903,10 @@ mul i 32 as k
 add k vk as k
 store k 0
 add cur 1 as c
-loadb c as c
+load2 c as c
 ne c 1 as c
 jnz c x
-add cur 2 as n
+add cur 3 as n
 loadb n as n
 jnz n a
 load opd as c
@@ -895,7 +917,7 @@ jmp e
 label a
 ne n 3 as c
 jnz c x
-add cur 3 as c
+add cur 4 as c
 load4 c as c
 and c 0xffffff as c
 add opd 32 as q
@@ -1190,9 +1212,9 @@ jz c m
 call frame 196
 call godead
 label m
-add r 2 as c
+add r 3 as c
 loadb c as c
-add r 3 as r
+add r 4 as r
 call cp r c
 and f 16 as f
 jz f x
@@ -1400,6 +1422,8 @@ call adv
 jmp arg
 
 label num
+call atfirst as d
+call no d
 call rdnum as r
 add cur 1 as d
 loadb d as d
@@ -1415,6 +1439,8 @@ jmp tokend
 # string: the bytes go into the code behind a jmp. sys and call get two
 # values (address, length), len the length, the rest the address
 label str
+call atfirst as d
+call no d
 call adv
 call eb 233
 set op as r
@@ -1454,6 +1480,8 @@ jnz d jtarget
 label i3
 call isas as d
 jnz d capture
+call atfirst as d
+jnz d atname
 add cur 1 as r
 loadb r as r
 and r 64 as d
@@ -1502,14 +1530,46 @@ call opda
 call mov 0
 set 0 as r
 label i9
-mul nrefs 32 as p
-add p refs as p
-call putn p
-add p 16 as q
-store q immpos
-add p 24 as q
-store q r
-add nrefs 1 as nrefs
+call addref r
+jmp tokend
+
+# the first value of at: a name, passed as its address and its size
+label atname
+call lvar as r
+eq r 99999 as d
+jnz d at2
+mul r 8 as d
+add d vlocal as d
+load d as d
+call ok d
+mul r 8 as d
+add d vlast as d
+store d ip
+call vmov r 0 139
+set 1 as ai
+mul r 8 as d
+add d vlocsz as d
+load d as d
+call mov d
+jmp tokend
+label at2
+call lbuf as r
+eq r 99999 as d
+jnz d at3
+call gent r as p
+add p 32 as d
+load d as d
+call no d
+add p 16 as d
+load d as d
+call mov d
+jmp at4
+label at3
+call mov 0
+call addref 0
+label at4
+call mov 0
+call addref 2
 jmp tokend
 label i4
 call gent r as p
@@ -1646,6 +1706,9 @@ jz d l4
 call ebuf
 label l4
 call eol
+mul r 8 as d
+add d vlocsz as d
+store d p
 add p 7 as p
 shr p 3 as p
 shl p 3 as p
@@ -2069,10 +2132,23 @@ label r4
 add p 24 as d
 load d as d
 add c 16 as q
-jz d r5
-add c 24 as q
-label r5
 load q as q
+jz d r5
+add c 40 as f
+load f as f
+ne d 2 as d
+jnz d r6
+jz f r6
+mul f 8 as f
+add f runend as f
+sub f 8 as f
+load f as f
+sub f q as q
+jmp r5
+label r6
+add c 24 as q
+load q as q
+label r5
 add p 16 as d
 load d as d
 store4 d q
@@ -2173,50 +2249,52 @@ data 0 16 0 0 0 0 0 0 1 0 0 0 6 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 16 0 0 0 0
 data 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
-# statements: name length, name, operand count, flags, code length, code;
+# statements: name length, name, operand count, flags (two bytes), code
+# length, code;
 # flags 255 mark a statement parsed on its own, numbered by its operand count
-data optab 3 "sys" 0 4 2 15 5
-data 3 "set" 1 1 0
-data 3 "add" 2 1 3 72 1 248
-data 3 "sub" 2 1 3 72 41 248
-data 3 "mul" 2 1 4 72 15 175 199
-data 3 "div" 2 1 5 49 210 72 247 247
-data 3 "mod" 2 1 8 49 210 72 247 247 72 137 208
-data 3 "and" 2 1 3 72 33 248
-data 2 "or" 2 1 3 72 9 248
-data 3 "xor" 2 1 3 72 49 248
-data 3 "shl" 2 1 6 72 137 249 72 211 224
-data 3 "shr" 2 1 6 72 137 249 72 211 232
-data 2 "eq" 2 1 9 72 57 248 15 148 192 15 182 192
-data 2 "ne" 2 1 9 72 57 248 15 149 192 15 182 192
-data 2 "lt" 2 1 9 72 57 248 15 146 192 15 182 192
-data 2 "le" 2 1 9 72 57 248 15 150 192 15 182 192
-data 2 "gt" 2 1 9 72 57 248 15 151 192 15 182 192
-data 2 "ge" 2 1 9 72 57 248 15 147 192 15 182 192
-data 3 "len" 1 65 0
-data 4 "load" 1 129 3 72 139 0
-data 5 "loadb" 1 129 3 15 182 0
-data 5 "load2" 1 129 3 15 183 0
-data 5 "load4" 1 129 2 139 0
-data 5 "store" 2 130 3 72 137 56
-data 6 "storeb" 2 130 3 64 136 56
-data 6 "store2" 2 130 3 102 137 56
-data 6 "store4" 2 130 2 137 56
-data 5 "alloc" 1 1 58 72 61 0 240 255 255 115 48 72 141 112 16 49 255 186 3 0 0 0 65 186 34 0 0 0 73 131 200 255 69 49 201 184 9 0 0 0 15 5 72 61 0 240 255 255 119 9 72 137 48 72 131 192 16 235 2 49 192
-data 4 "free" 1 2 19 72 133 192 116 14 72 141 120 240 72 139 55 184 11 0 0 0 15 5
-data 3 "jmp" 0 10 1 233
-data 2 "jz" 1 10 5 72 133 192 15 132
-data 3 "jnz" 1 10 5 72 133 192 15 133
-data 4 "call" 0 16 1 232
-data 3 "ret" 1 34 11 65 95 65 94 65 93 65 92 93 91 195
-data 2 "fn" 1 255 0
-data 3 "buf" 2 255 0
-data 3 "end" 3 255 0
-data 5 "label" 4 255 0
-data 4 "data" 5 255 0
-data 3 "var" 6 255 0
-data 5 "const" 7 255 0
-data 5 "local" 8 255 0
+data optab 3 "sys" 0 4 0 2 15 5
+data 3 "set" 1 1 0 0
+data 3 "add" 2 1 0 3 72 1 248
+data 3 "sub" 2 1 0 3 72 41 248
+data 3 "mul" 2 1 0 4 72 15 175 199
+data 3 "div" 2 1 0 5 49 210 72 247 247
+data 3 "mod" 2 1 0 8 49 210 72 247 247 72 137 208
+data 3 "and" 2 1 0 3 72 33 248
+data 2 "or" 2 1 0 3 72 9 248
+data 3 "xor" 2 1 0 3 72 49 248
+data 3 "shl" 2 1 0 6 72 137 249 72 211 224
+data 3 "shr" 2 1 0 6 72 137 249 72 211 232
+data 2 "eq" 2 1 0 9 72 57 248 15 148 192 15 182 192
+data 2 "ne" 2 1 0 9 72 57 248 15 149 192 15 182 192
+data 2 "lt" 2 1 0 9 72 57 248 15 146 192 15 182 192
+data 2 "le" 2 1 0 9 72 57 248 15 150 192 15 182 192
+data 2 "gt" 2 1 0 9 72 57 248 15 151 192 15 182 192
+data 2 "ge" 2 1 0 9 72 57 248 15 147 192 15 182 192
+data 3 "len" 1 65 0 0
+data 4 "load" 1 129 0 3 72 139 0
+data 5 "loadb" 1 129 0 3 15 182 0
+data 5 "load2" 1 129 0 3 15 183 0
+data 5 "load4" 1 129 0 2 139 0
+data 5 "store" 2 130 0 3 72 137 56
+data 6 "storeb" 2 130 0 3 64 136 56
+data 6 "store2" 2 130 0 3 102 137 56
+data 6 "store4" 2 130 0 2 137 56
+data 2 "at" 4 1 1 17 72 1 242 114 10 72 57 250 119 5 72 1 240 235 2 15 11
+data 5 "alloc" 1 1 0 58 72 61 0 240 255 255 115 48 72 141 112 16 49 255 186 3 0 0 0 65 186 34 0 0 0 73 131 200 255 69 49 201 184 9 0 0 0 15 5 72 61 0 240 255 255 119 9 72 137 48 72 131 192 16 235 2 49 192
+data 4 "free" 1 2 0 19 72 133 192 116 14 72 141 120 240 72 139 55 184 11 0 0 0 15 5
+data 3 "jmp" 0 10 0 1 233
+data 2 "jz" 1 10 0 5 72 133 192 15 132
+data 3 "jnz" 1 10 0 5 72 133 192 15 133
+data 4 "call" 0 16 0 1 232
+data 3 "ret" 1 34 0 11 65 95 65 94 65 93 65 92 93 91 195
+data 2 "fn" 1 255 0 0
+data 3 "buf" 2 255 0 0
+data 3 "end" 3 255 0 0
+data 5 "label" 4 255 0 0
+data 4 "data" 5 255 0 0
+data 3 "var" 6 255 0 0
+data 5 "const" 7 255 0 0
+data 5 "local" 8 255 0 0
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87

@@ -1,0 +1,11 @@
+# the address of count bytes at an offset, checked at run time
+buf b 16
+at b 8 8 as p
+store p 7
+at b 15 1 as q
+storeb q 2
+load p as x
+shr x 56 as y
+and x 255 as x
+add x y as x
+sys 60 x

@@ -34,6 +34,8 @@
 .equ IS_RET,  32                # the statement is ret: only inside a function
 .equ IS_LEN,  64                # the operand is a buffer, data or string: its length
 .equ IS_MEM,  128               # a load or a store: the first operand is an address
+.equ IS_AT,   256               # at: the first operand is a name, passed as address
+                                # and size; in the second flag byte, as 1
 .equ K_CONST, 1                 # what is known of a value: a number,
 .equ K_ADDR,  2                 # a global name plus a number,
 .equ K_LIT,   3                 # or the bytes of a string
@@ -54,6 +56,7 @@ locfree: .skip (NREGS + NVARS) * 8  # per place: the last mention of its variabl
 fnslots: .skip 4                # stack slots of the function
 vlocal: .skip NVARS * 4         # per variable of the function that is a local:
                                 # 1 + its offset among the locals
+vlocsz: .skip NVARS * 4         # per local: its size as declared
 loccur: .skip 4                 # bytes of locals declared so far in this pass
 fnlocal: .skip 4                # bytes of locals of the function, after pass 1
 pushed: .skip 4                 # bytes of call values pushed so far in this statement
@@ -145,96 +148,170 @@ hdr:
     .quad 0                     # memsz  (patched)
     .quad 0x1000                # align
 
-# statements: name length, name, operand count, flags, code length, code.
+# statements: name length, name, operand count, flags (two bytes), code
+# length, code.
 # Operands arrive in rax then rdi; the code leaves its result in rax.
 optab:
     .byte 3
     .ascii "sys"
-    .byte 0, IS_SYS, 2,  0x0F,0x05                  # syscall
+    .byte 0
+    .word IS_SYS
+    .byte 2,  0x0F,0x05                  # syscall
     .byte 3
     .ascii "set"
-    .byte 1, AS_REQ, 0
+    .byte 1
+    .word AS_REQ
+    .byte 0
     .byte 3
     .ascii "add"
-    .byte 2, AS_REQ, 3,  0x48,0x01,0xF8             # add rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 3,  0x48,0x01,0xF8             # add rax, rdi
     .byte 3
     .ascii "sub"
-    .byte 2, AS_REQ, 3,  0x48,0x29,0xF8             # sub rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 3,  0x48,0x29,0xF8             # sub rax, rdi
     .byte 3
     .ascii "mul"
-    .byte 2, AS_REQ, 4,  0x48,0x0F,0xAF,0xC7        # imul rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 4,  0x48,0x0F,0xAF,0xC7        # imul rax, rdi
     .byte 3
     .ascii "div"
-    .byte 2, AS_REQ, 5,  0x31,0xD2, 0x48,0xF7,0xF7  # xor edx, edx ; div rdi
+    .byte 2
+    .word AS_REQ
+    .byte 5,  0x31,0xD2, 0x48,0xF7,0xF7  # xor edx, edx ; div rdi
     .byte 3
     .ascii "mod"                                    # ... ; mov rax, rdx
-    .byte 2, AS_REQ, 8,  0x31,0xD2, 0x48,0xF7,0xF7, 0x48,0x89,0xD0
+    .byte 2
+    .word AS_REQ
+    .byte 8,  0x31,0xD2, 0x48,0xF7,0xF7, 0x48,0x89,0xD0
     .byte 3
     .ascii "and"
-    .byte 2, AS_REQ, 3,  0x48,0x21,0xF8             # and rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 3,  0x48,0x21,0xF8             # and rax, rdi
     .byte 2
     .ascii "or"
-    .byte 2, AS_REQ, 3,  0x48,0x09,0xF8             # or rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 3,  0x48,0x09,0xF8             # or rax, rdi
     .byte 3
     .ascii "xor"
-    .byte 2, AS_REQ, 3,  0x48,0x31,0xF8             # xor rax, rdi
+    .byte 2
+    .word AS_REQ
+    .byte 3,  0x48,0x31,0xF8             # xor rax, rdi
     .byte 3
     .ascii "shl"                                    # mov rcx, rdi ; shl rax, cl
-    .byte 2, AS_REQ, 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE0
+    .byte 2
+    .word AS_REQ
+    .byte 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE0
     .byte 3
     .ascii "shr"                                    # mov rcx, rdi ; shr rax, cl
-    .byte 2, AS_REQ, 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE8
+    .byte 2
+    .word AS_REQ
+    .byte 6,  0x48,0x89,0xF9, 0x48,0xD3,0xE8
     # comparisons: cmp rax, rdi ; setcc al ; movzx eax, al (unsigned order)
     .byte 2
     .ascii "eq"                                     # sete
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x94,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x94,0xC0, 0x0F,0xB6,0xC0
     .byte 2
     .ascii "ne"                                     # setne
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x95,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x95,0xC0, 0x0F,0xB6,0xC0
     .byte 2
     .ascii "lt"                                     # setb
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x92,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x92,0xC0, 0x0F,0xB6,0xC0
     .byte 2
     .ascii "le"                                     # setbe
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x96,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x96,0xC0, 0x0F,0xB6,0xC0
     .byte 2
     .ascii "gt"                                     # seta
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x97,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x97,0xC0, 0x0F,0xB6,0xC0
     .byte 2
     .ascii "ge"                                     # setae
-    .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x93,0xC0, 0x0F,0xB6,0xC0
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x93,0xC0, 0x0F,0xB6,0xC0
     .byte 3
     .ascii "len"                                    # mov eax, <length>
-    .byte 1, AS_REQ | IS_LEN, 0
+    .byte 1
+    .word AS_REQ | IS_LEN
+    .byte 0
     .byte 4
     .ascii "load"
-    .byte 1, AS_REQ | IS_MEM, 3,  0x48,0x8B,0x00             # mov rax, [rax]
+    .byte 1
+    .word AS_REQ | IS_MEM
+    .byte 3,  0x48,0x8B,0x00             # mov rax, [rax]
     .byte 5
     .ascii "loadb"
-    .byte 1, AS_REQ | IS_MEM, 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
+    .byte 1
+    .word AS_REQ | IS_MEM
+    .byte 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
     .byte 5
     .ascii "load2"
-    .byte 1, AS_REQ | IS_MEM, 3,  0x0F,0xB7,0x00             # movzx eax, word ptr [rax]
+    .byte 1
+    .word AS_REQ | IS_MEM
+    .byte 3,  0x0F,0xB7,0x00             # movzx eax, word ptr [rax]
     .byte 5
     .ascii "load4"
-    .byte 1, AS_REQ | IS_MEM, 2,  0x8B,0x00                  # mov eax, [rax]
+    .byte 1
+    .word AS_REQ | IS_MEM
+    .byte 2,  0x8B,0x00                  # mov eax, [rax]
     .byte 5
     .ascii "store"
-    .byte 2, AS_NONE | IS_MEM, 3, 0x48,0x89,0x38             # mov [rax], rdi
+    .byte 2
+    .word AS_NONE | IS_MEM
+    .byte 3, 0x48,0x89,0x38             # mov [rax], rdi
     .byte 6
     .ascii "storeb"
-    .byte 2, AS_NONE | IS_MEM, 3, 0x40,0x88,0x38             # mov [rax], dil
+    .byte 2
+    .word AS_NONE | IS_MEM
+    .byte 3, 0x40,0x88,0x38             # mov [rax], dil
     .byte 6
     .ascii "store2"
-    .byte 2, AS_NONE | IS_MEM, 3, 0x66,0x89,0x38             # mov [rax], di
+    .byte 2
+    .word AS_NONE | IS_MEM
+    .byte 3, 0x66,0x89,0x38             # mov [rax], di
     .byte 6
     .ascii "store4"
-    .byte 2, AS_NONE | IS_MEM, 2, 0x89,0x38                  # mov [rax], edi
+    .byte 2
+    .word AS_NONE | IS_MEM
+    .byte 2, 0x89,0x38                  # mov [rax], edi
+    # at: rax = address and rdi = size of the name, rsi = offset, rdx = count.
+    # The address of the offset, or a trap if offset + count leaves the size
+    .byte 2
+    .ascii "at"
+    .byte 4
+    .word AS_REQ | IS_AT
+    .byte at_end - at_code
+at_code:
+    add rdx, rsi
+    jc 1f
+    cmp rdx, rdi
+    ja 1f
+    add rax, rsi
+    jmp 2f
+1:  ud2
+2:
+at_end:
     # run-time storage: alloc maps the size plus a 16-byte header that keeps
     # the length for free, and gives 0 if the kernel refuses
     .byte 5
     .ascii "alloc"
-    .byte 1, AS_REQ, alloc_end - alloc_code
+    .byte 1
+    .word AS_REQ
+    .byte alloc_end - alloc_code
 alloc_code:
     cmp rax, -4096              # a size that would wrap with the header
     jae 1f
@@ -256,7 +333,9 @@ alloc_code:
 alloc_end:
     .byte 4
     .ascii "free"
-    .byte 1, AS_NONE, free_end - free_code
+    .byte 1
+    .word AS_NONE
+    .byte free_end - free_code
 free_code:
     test rax, rax               # free 0 does nothing
     jz 1f
@@ -269,20 +348,30 @@ free_end:
     # jumps: the code ends where the rel32 of the label goes
     .byte 3
     .ascii "jmp"
-    .byte 0, AS_NONE | IS_JMP, 1,  0xE9             # jmp rel32
+    .byte 0
+    .word AS_NONE | IS_JMP
+    .byte 1,  0xE9             # jmp rel32
     .byte 2
     .ascii "jz"                                     # test rax, rax ; jz rel32
-    .byte 1, AS_NONE | IS_JMP, 5,  0x48,0x85,0xC0, 0x0F,0x84
+    .byte 1
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x85,0xC0, 0x0F,0x84
     .byte 3
     .ascii "jnz"                                    # test rax, rax ; jnz rel32
-    .byte 1, AS_NONE | IS_JMP, 5,  0x48,0x85,0xC0, 0x0F,0x85
+    .byte 1
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x85,0xC0, 0x0F,0x85
     # functions: the code of call ends where the rel32 of the function goes
     .byte 4
     .ascii "call"
-    .byte 0, IS_CALL, 1,  0xE8                      # call rel32
+    .byte 0
+    .word IS_CALL
+    .byte 1,  0xE8                      # call rel32
     .byte 3
     .ascii "ret"
-    .byte 1, AS_NONE | IS_RET, 11
+    .byte 1
+    .word AS_NONE | IS_RET
+    .byte 11
 retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
     .byte 0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xC3
 .equ RETSZ, . - retcode         # pop rbp ; pop rbx ; ret
@@ -449,8 +538,8 @@ next:
     lea rdx, [rdx+rcx+1]
     mov [rip+curop], rdx
     jmp 9f
-8:  movzx eax, byte ptr [rdx+rcx+3]
-    lea rdx, [rdx+rcx+4]        # skip name, counts and code
+8:  movzx eax, byte ptr [rdx+rcx+4]
+    lea rdx, [rdx+rcx+5]        # skip name, counts and code
     add rdx, rax
     jmp 6b
 9:  xor ebx, ebx
@@ -554,6 +643,7 @@ arg:
     jmp arg
 
 num:
+    call atfirst
     call rdnum
     mov rdx, [rip+curop]        # len takes a name or a string
     test byte ptr [rdx+1], IS_LEN
@@ -563,6 +653,15 @@ num:
     mov [rdx+8], rax
     call emit_mov
     jmp tokend
+
+# the first value of at must be a name
+atfirst:
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+2], IS_AT >> 8
+    jz 1f
+    test ebx, ebx
+    jz err
+1:  ret
 
 # rdx = where to note what is known of the next value. Keeps all but rcx.
 opdptr:
@@ -578,6 +677,7 @@ opdptr:
 # string: bytes are inlined in the code stream behind a jmp. sys and call
 # get two values (address, length), len the length, the rest the address
 str:
+    call atfirst
     inc rsi
     mov byte ptr [rdi], 0xE9    # jmp rel32
     lea r12, [rdi+1]            # rel32 slot
@@ -787,7 +887,11 @@ ident:
     cmp word ptr [r8], 0x7361   # "as"
     je capture
 1:  mov rdx, [rip+curop]
-    test byte ptr [rdx+1], IS_LEN
+    test byte ptr [rdx+2], IS_AT >> 8
+    jz 10f
+    test ebx, ebx
+    jz atname
+10: test byte ptr [rdx+1], IS_LEN
     jz 4f
     call lookup_buf             # len: the length of a buffer or data name
     jc 9f
@@ -859,7 +963,57 @@ ident:
     xor eax, eax                # not declared yet: a buffer or data name that
     call emit_mov               # comes later; fin fills in the value
     xor eax, eax
-8:  mov ecx, [rip+nrefs]
+8:  call addref
+    jmp tokend
+9:  xor eax, eax                # the same for len
+    call emit_mov
+    mov eax, 1
+    jmp 8b
+
+# the name r8/r9 is the first value of at: pass its address and its size. A
+# local has both now; for a buffer or data name fin fills in the size, since
+# data reaches to the end of its run, and the address too if it comes later
+atname:
+    call lookup_var
+    jc 2f
+    lea rcx, [rip+vlocal]
+    cmp dword ptr [rcx+rax*4], 0
+    je err                      # a variable holds a value, not an object
+    lea rcx, [rip+vlast]
+    mov [rcx+rax*8], rsi
+    push rax
+    xor ecx, ecx
+    mov r9d, 0x8B
+    call emit_varmov            # lea rax, <local>
+    inc ebx
+    pop rax
+    lea rcx, [rip+vlocsz]
+    mov eax, [rcx+rax*4]
+    call emit_mov
+    jmp tokend
+2:  call lookup_buf
+    jc 3f
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_ADDR
+    jne err
+    lea rcx, [rip+bufaddr]
+    mov eax, [rcx+rax*4]
+    call emit_mov
+    jmp 4f
+3:  xor eax, eax
+    call emit_mov
+    xor eax, eax
+    call addref
+4:  xor eax, eax
+    call emit_mov
+    mov eax, 2
+    call addref
+    jmp tokend
+
+# record that the imm32 just written stands for the name r8/r9: eax = 0 its
+# address, 1 its length, 2 the bytes from it to the end of its object
+addref:
+    mov ecx, [rip+nrefs]
     shl ecx, 5
     lea rdx, [rip+refs]
     add rdx, rcx
@@ -869,11 +1023,7 @@ ident:
     mov [rdx+16], rcx
     mov [rdx+24], eax
     inc dword ptr [rip+nrefs]
-    jmp tokend
-9:  xor eax, eax                # the same for len
-    call emit_mov
-    mov eax, 1
-    jmp 8b
+    ret
 
 # "as <name>" then end of line: emit the statement's code and keep rax in
 # the variable
@@ -937,17 +1087,17 @@ propagate:
     mov qword ptr [r10], 0
     mov rdx, [rip+curop]
     lea rcx, [rip+opd]
-    cmp byte ptr [rdx+1], AS_REQ
+    cmp word ptr [rdx+1], AS_REQ
     jne 9f
-    cmp byte ptr [rdx+2], 0
+    cmp byte ptr [rdx+3], 0
     jne 1f
     cmp qword ptr [rcx], K_LIT  # set: the value itself
     je 9f
     xor r11d, r11d
     jmp 3f
-1:  cmp byte ptr [rdx+2], 3
+1:  cmp byte ptr [rdx+3], 3
     jne 9f
-    mov eax, [rdx+3]
+    mov eax, [rdx+4]
     and eax, 0xFFFFFF
     cmp eax, 0xF80148           # add rax, rdi
     je 2f
@@ -1244,6 +1394,9 @@ localdef:
     push rax
     call eol
     pop rax
+    mov rcx, [rsp]
+    lea r10, [rip+vlocsz]
+    mov [r10+rcx*4], eax        # at checks against the size as declared
     add rax, 7
     and rax, -8
     pop rcx                     # the variable
@@ -1980,9 +2133,9 @@ emit_op:
     call emit_frame
     call godead                 # and nothing falls through to the next line
     mov rdx, [rip+curop]
-3:  movzx ecx, byte ptr [rdx+2]
+3:  movzx ecx, byte ptr [rdx+3]
     push rsi
-    lea rsi, [rdx+3]
+    lea rsi, [rdx+4]
     rep movsb
     pop rsi
     test byte ptr [rdx+1], IS_CALL
@@ -2143,7 +2296,18 @@ fin:
     mov ecx, [rcx+rax*4]
     cmp dword ptr [rbx+24], 0
     je 3f
-    lea rcx, [rip+bufsize]
+    lea rdx, [rip+bufrun]
+    mov edx, [rdx+rax*4]
+    cmp dword ptr [rbx+24], 2   # for at, data reaches to the end of its run
+    jne 4f
+    test edx, edx
+    jz 4f
+    lea r10, [rip+runend]
+    mov edx, [r10+rdx*4-4]
+    sub edx, ecx
+    mov ecx, edx
+    jmp 3f
+4:  lea rcx, [rip+bufsize]
     mov ecx, [rcx+rax*8]
 3:  mov rax, [rbx+16]
     mov [rax], ecx

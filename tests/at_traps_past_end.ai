@@ -1,0 +1,7 @@
+# the offset is only known at run time: 16 is one past the end
+buf b 16
+sys 39 as i
+or i 16 as i
+and i 16 as i
+at b i 1 as p
+sys 60 3

@@ -43,7 +43,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   positive decimal size, rounds it up to 8 bytes and reserves global zero-filled
   storage for the process lifetime. Runtime-sized storage currently uses raw
   syscalls. Consider configurable alignment and explicit zero-length objects.
-- [ ] Evaluate checked memory operations for dynamic bounds and lifetime or
+- [x] Evaluate checked memory operations for dynamic bounds and lifetime or
   alias tracking for managed allocations. Define how pointers cross function and
   syscall boundaries before deciding whether borrow checking fits AIL.
 - [ ] Add signed division, remainder, ordering and arithmetic right shift.

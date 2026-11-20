@@ -34,6 +34,7 @@ What stage0 reaches with `call` is a function:
 | `vplace`, `vmov`, `emem`, `frame`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell, else for a local 0x40000001 plus a distance from `rsp` |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
+| `atfirst`, `addref` | as in stage0; the state `atname` is at top level |
 | `opdp`, `opda`, `prop`, `clrvk`, `memchk`, `cp4` | `opdptr`, `opdaddr`, `propagate`, `clrvk` and `memchk` of stage0; `cp4` copies an entry |
 | `godead`, `labasg` | as in stage0; a bit of `asg` is tested with a shift and set with `or`, where stage0 uses `bt` and `bts` |
 
@@ -58,7 +59,7 @@ The counters and the saved scope of stage0 are `var`s too, under its names (`nbu
 
 The tables that stage0 keeps in `.rodata` are `data` statements at the end of the source, after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
-The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the flags, the code length and the code. It has eight more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`), so `next` finds every keyword with the one search `kw`.
+The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has eight more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`), so `next` finds every keyword with the one search `kw`.
 
 ## What the translation had to match
 

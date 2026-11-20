@@ -46,6 +46,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `num` | an integer as an argument |
 | `str` | copy the literal into the output and pass its address and length (`sys`, `call`), its length (`len`) or its address |
 | `strbytes`, `hexdig` | copy the bytes of a string up to its closing quote, decoding the escapes; read one hexadecimal digit |
+| `atname`, `atfirst`, `addref` | the first value of `at`; refuse a number or a string there; record a fixup in `refs` |
 | `ident` | a name as an argument: pass a variable, the address of a buffer or of data, the cell of a `var`, the value of a `const`, or for `len` a size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
 | `capture` | `as <name>`: call `emit_op` and store `rax` in the cell of the `var` with that name, or else in the variable, defined if new |
 | `varplace`, `emit_varmov`, `emit_mem` | where a variable lives; a `mov` between a variable and a register; a `mov` between a register and memory |
@@ -119,7 +120,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags (two bytes) and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|
@@ -136,6 +137,7 @@ Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and
 | `load4` | `mov eax, [rax]` |
 | `load2` | `movzx eax, word ptr [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
+| `at` | `add rdx, rsi` / `jc trap` / `cmp rdx, rdi` / `ja trap` / `add rax, rsi` / `jmp over` / `ud2` |
 | `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
 | `free` | `munmap` of the mapping whose length lies 16 bytes before the address, unless it is 0: 19 bytes |
 | `store` | `mov [rax], rdi` |
@@ -151,7 +153,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 

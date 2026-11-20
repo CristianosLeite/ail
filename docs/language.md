@@ -310,6 +310,24 @@ len "text" as n
 
 Keeps the length in bytes of a buffer, a data name or a string in a variable: for a buffer the size as declared, before rounding; for a data name the bytes of its own statement, not of the rows after it. The operand cannot be a number, a variable, a `var` or a `const`.
 
+### `at`
+
+```
+at name offset count as p
+```
+
+Keeps in a variable the address of the byte at `offset` in the object `name`, after checking **at run time** that `count` bytes from there lie inside it. If they do not, the program stops with an illegal instruction (`SIGILL`, exit status 132 in a shell) instead of touching memory it was not given.
+
+```
+buf table 800
+at table i 8 as p       # traps unless i + 8 <= 800
+load p as x
+```
+
+`name` is a buffer, a data name or a [local](#local): an object whose size the compiler knows. It may be declared later. The size is the one declared, and for a data name the bytes to the end of its run, as for the [compile-time check](#load-and-store). `offset` and `count` are any values; an offset that is negative when read as signed, or a sum that wraps, traps like one that is too large. A count of 0 at the very end is allowed.
+
+`at` is the checked form of `add name offset as p`. It costs a comparison and two more tokens, and it only covers the bytes it was asked about: a later `load` of 8 bytes after an `at` with count 1 is not checked.
+
 ### `load` and `store`
 
 ```
@@ -440,6 +458,18 @@ storeb t x              # t is declared below
 buf t 8
 ```
 
+### Addresses
+
+An address is a 64-bit integer like any other value. It can be computed, compared, stored in memory, passed to a function and handed to the kernel, and nothing in the language records where it came from or how long it stays valid. That is deliberate: the language describes what the machine does, and the machine has no pointers, only numbers.
+
+What the language offers against mistakes is therefore local and explicit:
+
+- the compiler rejects an access it can prove wrong ([`load` and `store`](#load-and-store)) and a read of a variable that may be unassigned ([control flow](#control-flow));
+- [`at`](#at) checks an offset at run time where the program asks for it;
+- the lifetime of storage follows from how it was obtained: a `buf` and `data` live as long as the program, a [`local`](#local) until its function returns, and an [`alloc`](#alloc-and-free) until its `free`, after which the memory is unmapped and a use of it faults instead of reading stale bytes, unless a later `alloc` was given the same pages.
+
+There is no ownership or borrow checking. A function receives addresses as plain values and may keep them; a syscall receives them the same way.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
@@ -476,6 +506,7 @@ Causes of a syntax error:
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
 - `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment
+- `at` without a name of a buffer, data or local first, then exactly two values and `as`
 - `alloc` without exactly one value and `as`, `free` without exactly one value or with `as`
 - `var` without a name, or with something that is not a name or is `as`
 - `const` without a name and an integer, with the name `as`, or followed by anything but a comment

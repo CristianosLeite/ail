@@ -1,0 +1,6 @@
+sys 39 as i
+or i 8 as i
+and i 8 as i
+at b i 1 as p
+sys 60 3
+buf b 8

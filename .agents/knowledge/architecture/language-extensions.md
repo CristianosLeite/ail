@@ -119,7 +119,31 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   distance between the locals of two nested calls.
 - The suite went from 467 to 504 tests.
 
+### Checked addresses; no borrow checking (2026-11-19)
+- Evaluated: run-time bounds checks, lifetime and alias tracking for allocations, and borrow
+  checking. Decided: add `at name offset count as p`, a run-time checked form of `add`, and
+  nothing else.
+- `at` traps with `ud2` (`SIGILL`) unless `offset + count` fits the object, which must be a
+  buffer, a data name (to the end of its run) or a local: the objects whose size the compiler
+  knows. It is one table row; its first value is passed as address and size.
+- The row format gained a second flag byte, since all eight flags were in use; stage1's rows
+  have one more number each.
+- The suite went from 504 to 534 tests.
+
 ## Why
+- **No borrow or ownership checking:** an address is an integer that can be stored in memory,
+  computed and handed to a syscall. Tracking it needs types for values and for memory, which is
+  the opposite of a language whose statements are machine operations. It would also cost tokens
+  in every signature.
+- **No lifetime tracking for `alloc`:** the same reason, and the failure mode is already
+  defined: `free` unmaps, so a later use faults.
+- **No checked `load` and `store`:** they would need the bounds as extra values at every access.
+  `at` puts the check where the address is made and keeps the access statements as they are.
+- **Only names as the object of `at`:** an address in a variable has no size. A checked form for
+  `alloc` blocks could read the length header, but cannot tell such a block from any other
+  address.
+- **`ud2`, not a message:** two bytes, no runtime, and a status (132) that differs from the
+  `SIGSEGV` of an unchecked fault.
 - **One mapping per `alloc`:** no allocator state, no free list to corrupt, and both statements
   stay table rows. It is slow and page-sized; the reference says when to use `buf` or `local`.
 - **A header instead of `free p n`:** the size is one more value to get wrong at every release.
