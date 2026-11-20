@@ -1097,6 +1097,65 @@ end
 - **Cancelling** the event (`asynccancel`, a limit of `asynctimeout`) gives -125 at once. Work that no worker has begun is then not run; work that runs cannot be stopped: it returns later, and its result is dropped.
 - **The costs**: two records of 128 bytes and one task of the pool; in the kernel, what `spawn` costs, and a write and a wake when the polling thread sleeps.
 
+### Channels and the first of several
+
+`lib/async/chan.ai`, used after `lib/async/task.ai`, carries values between tasks and waits for several things at once.
+
+| Function | Does |
+|---|---|
+| `asyncchan n` | a channel that holds up to `n` values, at least one; 0 without memory |
+| `asyncsend c v` | an event that is done, with the result 0, when the channel has taken the value `v`: at once if there is room or a receive waits, else when there is room |
+| `asyncrecv c` | an event whose result is the oldest value of the channel: at once if it holds one, else when one is sent |
+| `asyncshut c` | no more values: sends and waiting receives end with -32 (`EPIPE`); what the channel holds is still received |
+| `asyncchanfree c` | shuts the channel and releases it |
+| `asyncfirst a b` | a task that is done when the first of the two handles is: its result is 0 for `a`, 1 for `b` |
+| `asyncany p n` | the same for the `n` handles at `p`, 8 bytes each: the index of the first that is done |
+
+```
+async fn produce c
+i=0
+while i<100
+await asyncsend c i      # waits while the channel is full
+i+=1
+end
+call asyncshut c
+end
+async fn consume c
+while 1
+await asyncrecv c as v
+if v==-32
+ret 0
+end
+...
+end
+end
+call asyncchan 8 as c
+call produce c as p
+await consume c
+await p
+call asyncchanfree c
+```
+
+- **A channel is bounded**: a task that sends faster than another receives waits, which is what keeps a fast producer from filling memory. Values are received in the order of their sends, and sends and receives that wait are served in the order they were made.
+- A channel carries any 64-bit value. -32 is also what a shut channel gives, so a program whose values may be that number tells the end another way.
+- A send or receive that waits is cancelled like any event, by `asynccancel`, a limit or `asyncstop`; a value is never lost by that: it stays with the sender or in the channel.
+- **The first of several** does not take a result. It says which handle is done; the program awaits that one, which gives the result at once, and keeps the others, to await later or to cancel:
+
+```
+call asyncrecv c as r
+call asyncsleep 1000 as s
+await asyncfirst r s as i
+if i
+call asynccancel r       # a second without a value
+end
+await r as v             # the value, or -125
+call asynccancel s
+await s
+```
+
+- While the first of several is awaited no other task awaits one of its handles. A handle of 0 counts as done. If several are done, the lowest index is the result. Cancelling it leaves the handles as they are.
+- **The costs**: a channel is 72 bytes and 8 for each value it can hold; a send or receive is an event of 128 bytes, also when it is done at once.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
