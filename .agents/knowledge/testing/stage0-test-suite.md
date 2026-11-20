@@ -1,6 +1,6 @@
 ---
 title: Stage0 test suite
-last-verified: 2026-11-19
+last-verified: 2026-11-20
 sources: [stage1 review 2026-11-19 (REVIEW.md), control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
 status: current
 ---
@@ -11,6 +11,20 @@ control-flow review about tests that pass for the wrong reason. `AGENTS.md` desc
 layout of a test; this page records why some fixtures look the way they do.
 
 ## Facts
+- Since 2026-11-20 the suite runs on one compiler, `build/ailc` (stage1), and no longer builds
+  stage0. What replaced the comparison of the two compilers: `tests/self.sh` and `tests/fuzz.sh`
+  compare `build/ailc1` (the source compiled by the seed) with `build/ailc` (compiled by that),
+  one program in two translations; the fuzz also requires a proper end (status 0 with output
+  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` runs
+  in `make test` (200 programs in a function, 200 at top level) against results computed in
+  Python; `tests/insn.sh` checks instruction bytes against an assembler's. `make test` went
+  from 2485 checks to 1635, since every test ran twice before.
+- The comparison of the two translations is trivial while the seed is the current compiler
+  (the files are identical); it becomes the check of self-compilation when code generation
+  changes. A stage1 with one constant of `rdnum` changed, given as the second compiler, was
+  found by the fuzz at source 1303 of 3000; wrappers that print two error lines or die of a
+  signal fail at once.
+- The older facts below that speak of two compilers describe the suite before that date.
 - `tests/make.sh` (since 2026-11-20) checks the recipe for examples in a scratch copy with the
   compiler already built: a good example builds and runs; after its source is broken the build
   fails twice, the old executable is byte for byte what it was and no temporary file remains;

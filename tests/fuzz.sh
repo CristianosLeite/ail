@@ -1,16 +1,22 @@
 #!/bin/sh
-# Differential fuzzing: give sources made by random edits of the tests, the
-# examples and the library to both compilers and require the same exit
-# status, the same output bytes and the same message.
+# Fuzzing: give the compiler sources made by random edits of the tests, the
+# examples and the library. Whatever the source, a compiler ends in one of
+# two ways: exit status 0, nothing on stderr and an executable on stdout,
+# or exit status 1, nothing on stdout and one line "ailc: ..." on stderr.
+# A signal, a deadline, another status or anything else written fails.
+# The same source also goes to a second translation of the compiler,
+# build/ailc1, which the seed compiled from the same stage1/ailc.ai: the
+# two must give the same status, output bytes and message, or the compiler
+# has compiled itself wrongly.
 # Usage: tests/fuzz.sh [count [seed]]     (default 300 sources, seed 1)
 # The compiled programs are never run: an edited program may do anything.
-# A source on which the compilers differ is kept in build/fuzz/. FUZZ_A and
-# FUZZ_B name other compilers to compare.
+# A source that fails is kept in build/fuzz/. FUZZ_A and FUZZ_B name other
+# compilers: FUZZ_B is the one whose behaviour is checked.
 set -u
 cd "$(dirname "$0")/.."
 count=${1:-300}
 seed=${2:-1}
-a=${FUZZ_A:-build/stage0}
+a=${FUZZ_A:-build/ailc1}
 b=${FUZZ_B:-build/ailc}
 limit=10
 mkdir -p build/fuzz
@@ -74,13 +80,23 @@ mutate() {
     }'
 }
 
+# proper <status>: the second compiler ended in one of the two ways
+proper() {
+    case $1 in
+    0) [ ! -s "$out/b.err" ] && [ -s "$out/b.out" ];;
+    1) [ ! -s "$out/b.out" ] && [ "$(wc -l < "$out/b.err")" -eq 1 ] &&
+        grep -q '^ailc: .' "$out/b.err";;
+    *) false;;
+    esac
+}
+
 fail=0
 i=1
 while [ "$i" -le "$count" ]; do
     mutate "$i" > "$out/src"
     timeout --signal=KILL $limit $a < "$out/src" > "$out/a.out" 2> "$out/a.err"; ra=$?
     timeout --signal=KILL $limit $b < "$out/src" > "$out/b.out" 2> "$out/b.err"; rb=$?
-    if [ $ra -ne $rb ] || [ $ra -gt 2 ] ||
+    if [ $ra -ne $rb ] || ! proper $rb ||
         ! cmp -s "$out/a.out" "$out/b.out" || ! cmp -s "$out/a.err" "$out/b.err"; then
         cp "$out/src" "build/fuzz/seed$seed-$i.ai"
         echo "FAIL fuzz $i (kept as build/fuzz/seed$seed-$i.ai)"

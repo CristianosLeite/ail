@@ -10,13 +10,6 @@ $(B)/ailc0: seed/MANIFEST tools/seed.sh
 	@mkdir -p $(B)
 	tools/seed.sh $@
 
-# The compiler in assembly, kept as the reference that the compiler in
-# AIL is compared with.
-$(B)/stage0: stage0/ailc.s
-	@mkdir -p $(B)
-	as -o $(B)/stage0.o $<
-	ld -o $@ $(B)/stage0.o
-
 # $(call compile,<compiler>): compile $< to $@.
 # Build into a temporary file so a failed compile never leaves a target
 # that looks up to date. The file is unique to this recipe, so two makes
@@ -37,7 +30,8 @@ $(B)/%: examples/%.ai $(B)/ailc
 # (ailc2). The seed may be an older compiler that writes other code for
 # the same source, so ailc1 need not be the same file as ailc; ailc and
 # ailc2 are both written by the current compiler and must be, which
-# tests/stage1.sh checks.
+# tests/self.sh checks. ailc1 and ailc are one program in two
+# translations and must behave alike, which it and tests/fuzz.sh check.
 # stage1/ailc.ai names its tables with use "stage1/tables.ai", a path that
 # the compiler opens from the directory make runs in.
 $(B)/ailc1: $(SRC) $(B)/ailc0
@@ -49,22 +43,21 @@ $(B)/ailc: $(SRC) $(B)/ailc1
 $(B)/ailc2: $(SRC) $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-# Each run names its compiler, so an AILC in the environment of make cannot
-# turn the stage0 runs into stage1 runs.
-test: $(B)/stage0 $(B)/ailc $(B)/ailc2
+# Each run names its compiler, so an AILC in the environment of make
+# changes nothing.
+test: $(B)/ailc $(B)/ailc2
 ifeq ($(T),)
-	@f=0; AILC=$(B)/stage0 tests/run.sh || f=1; AILC=$(B)/stage0 tests/io.sh || f=1; \
-	tests/make.sh || f=1; tests/tables.sh || f=1; tests/stage1.sh || f=1; \
-	AILC=$(B)/stage0 tests/insn.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
-	AILC=$(B)/stage0 AILC2=$(B)/ailc tests/bytes.sh || f=1; tests/fuzz.sh 300 1 || f=1; \
-	AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; exit $$f
+	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
+	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
+	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
+	tests/fuzz.sh 300 1 || f=1; python3 tools/randvars.py $(B)/ailc 200 1 || f=1; \
+	python3 tools/randvars.py $(B)/ailc 200 2 top || f=1; exit $$f
 else
-	@f=0; AILC=$(B)/stage0 tests/run.sh $(T) || f=1; tests/stage1.sh $(T) || f=1; \
-	AILC=$(B)/ailc tests/run.sh $(T) || f=1; exit $$f
+	@f=0; AILC=$(B)/ailc tests/run.sh $(T) || f=1; tests/self.sh $(T) || f=1; exit $$f
 endif
 
-# A longer differential fuzz than the one in make test: N sources from SEED.
-fuzz: $(B)/stage0 $(B)/ailc
+# A longer fuzz than the one in make test: N sources from SEED.
+fuzz: $(B)/ailc
 	tests/fuzz.sh $(or $(N),20000) $(or $(SEED),1)
 
 clean:

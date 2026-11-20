@@ -90,7 +90,7 @@ The states of the top level are labels, as in stage0, and jump to each other. In
 
 ## Tests
 
-`tests/fuzz.sh` and `tests/bytes.sh` extend the comparison to random sources and to bytes computed without a compiler. `tests/stage1.sh` gives every test source and every example to both compilers and requires the same stdout, stderr and exit status, then compares `build/ailc1` with `build/ailc2`. `tests/run.sh` and `tests/io.sh` take the compiler from the environment variable `AILC`, and `make test` runs them once with each compiler, naming it in both runs so that an `AILC` in the environment of `make` cannot replace stage0. All three scripts kill a compiler that runs for more than 10 seconds and fail the test.
+Stage1 was first checked by comparing it with stage0 on every test, on random sources and at the fixed point. Without stage0 the suite stands on four things. The tests say what a program must print and how every faulty source must be refused. `tests/insn.sh` and `tests/bytes.sh` compare emitted bytes with bytes that no compiler wrote. `tools/randvars.py` runs random programs whose result Python computed. And the compiler is compared with itself: `build/ailc1` and `build/ailc` are one source in two translations, by the seed and by the compiler the seed built, so `tests/self.sh` requires the same output, message and status from both for every test source and example, and `tests/fuzz.sh` for random edits of them, which must also end properly (status 0 with an executable, or status 1 with one message line). A compiler that miscompiles itself shows there as a difference between the two, and at the fixed point `build/ailc` = `build/ailc2`.
 
 ## Friction found
 

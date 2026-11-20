@@ -16,7 +16,7 @@ Early proof of concept. The language has raw syscalls, up to 64 variables per fu
 
 ## Quick start
 
-Requires x86-64 Linux with GNU `as` and `ld` (binutils) and `make`. The build starts from a released executable of the compiler, the seed that `seed/MANIFEST` pins: put it at `seed/ailc-<version>`, or let `make` fetch it with `curl` or `gh`; a file with another checksum is refused.
+Requires x86-64 Linux and `make`; `make test` also needs `python3`. The build starts from a released executable of the compiler, the seed that `seed/MANIFEST` pins: put it at `seed/ailc-<version>`, or let `make` fetch it with `curl` or `gh`; a file with another checksum is refused.
 
 ```
 make                # builds build/ailc (the compiler in AIL, from the seed) and the examples
@@ -37,7 +37,6 @@ To compile your own program, give the compiler source on stdin and take the exec
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-`build/stage0`, the compiler in assembly that `make test` builds, is used the same way and writes the same file.
 
 Or put it in `examples/foo.ai` and run `make build/foo`.
 
@@ -96,6 +95,6 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements
-- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/stage1.sh` compares the two compilers
+- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents

@@ -4,8 +4,10 @@ Usage: randvars.py <compiler> <count> <seed> [top]
 
 Generates programs with up to 40 variables in use at once, nested loops and
 skipped blocks, in a function or (with "top") at top level, computes the
-exit status each must give, and runs them. A program that fails is kept as
-bad<n>.ai in the current directory. Not part of `make test`.
+exit status each must give, and runs them. The expected status comes from
+running the same program in Python, not from a compiler. A program that
+fails is kept as build/randvars/seed<seed>[-top]-<n>.ai. `make test` runs
+it with a fixed seed in both forms.
 """
 import os
 import random
@@ -77,18 +79,24 @@ def gen(rng, top):
     nv=len(defined)+lab[0]+2
     return '\n'.join(lines)+'\n', h%251, nv
 tmp=tempfile.mkdtemp(); exe=os.path.join(tmp,'prog')
-cc=sys.argv[1]; n=int(sys.argv[2]); rng=random.Random(int(sys.argv[3])); top=len(sys.argv)>4
+cc=sys.argv[1]; n=int(sys.argv[2]); seed=int(sys.argv[3]); rng=random.Random(seed); top=len(sys.argv)>4
 bad=0; done=0
+what='randvars %d programs, seed %d%s'%(n,seed,', top level' if top else '')
+def keep(i,src):
+    os.makedirs('build/randvars',exist_ok=True)
+    path='build/randvars/seed%d%s-%d.ai'%(seed,'-top' if top else '',i)
+    open(path,'w').write(src); return path
 for i in range(n):
     src,want,nv=gen(rng,top)
     if nv>60: continue
     done+=1
     p=subprocess.run([cc],input=src.encode(),capture_output=True)
-    if p.returncode!=0: print('COMPILE FAIL',i,p.stderr); open('bad%d.ai'%i,'w').write(src); bad+=1; continue
+    if p.returncode!=0: print('FAIL randvars %d: does not compile (kept as %s)'%(i,keep(i,src))); bad+=1; continue
     open(exe,'wb').write(p.stdout); os.chmod(exe,0o755)
-    got=subprocess.run([exe]).returncode
-    if got!=want: print('MISMATCH',i,got,want); open('bad%d.ai'%i,'w').write(src); bad+=1
-print('ran',done,'bad',bad)
+    try: got=subprocess.run([exe],timeout=10).returncode
+    except subprocess.TimeoutExpired: got='deadline'
+    if got!=want: print('FAIL randvars %d: status %s, expected %d (kept as %s)'%(i,got,want,keep(i,src))); bad+=1
+if not bad: print('ok   %s (%d run)'%(what,done))
 if os.path.exists(exe): os.remove(exe)
 os.rmdir(tmp)
 sys.exit(1 if bad else 0)
