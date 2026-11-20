@@ -439,7 +439,7 @@ call workers 4
 - A worker has a stack of 8 MiB with a closed page below it: a task that needs more is a fault (`SIGSEGV`), which ends the program. A task run by `join` uses the stack of the joining thread.
 - If the kernel refuses a thread or its stack, the task stays in the queue for another worker or its `join`.
 - The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
-- The library owns the names `spawn`, `join`, `workers`, the functions and the buffer whose names start with `task`. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
+- The library owns the names `spawn`, `join`, `workers` and every name that starts with `task`: its other functions, its buffer and all its variables. A program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, the library's included. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
 #### Recursion and the stack
 
