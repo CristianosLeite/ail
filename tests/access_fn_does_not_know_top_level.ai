@@ -1,0 +1,9 @@
+# the function has its own variables: its p is not the top-level p
+buf b 8
+add b 8 as p
+fn f p
+loadb p as x
+ret x
+end
+call f b as x
+sys 60 x

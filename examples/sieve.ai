@@ -1,0 +1,29 @@
+# count the primes below n, an 8-byte number read from stdin (at most
+# 16000000), and write the count as 8 bytes; exit status 1 on failure
+const size 16000000
+buf b 8
+buf s size
+sys read 0 b 8 as n
+jne n 8 fail
+load b as n
+jgt n size fail
+c=0
+i=2
+while i<n
+loadb s+i as f          # 1 if i is a multiple of a smaller prime
+ifz f
+c+=1
+j=i*i
+while j<n
+storeb s+j 1
+j+=i
+end
+end
+i+=1
+end
+store b c
+sys write 1 b 8 as n
+jne n 8 fail
+sys exit 0
+label fail
+sys exit 1

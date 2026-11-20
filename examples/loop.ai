@@ -1,12 +1,9 @@
 # print the digits 0 to 9, one per line
 buf out 2
-add out 1 as p
-storeb p 10             # newline
-set 0 as i
-label top
-add i 48 as d           # 48 is "0"
-storeb out d
+storeb out+1 10         # newline
+i=0
+while i<10
+storeb out i+48         # 48 is "0"
 sys 1 1 out 2
-add i 1 as i
-lt i 10 as c
-jnz c top
+i+=1
+end

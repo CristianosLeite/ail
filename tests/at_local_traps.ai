@@ -1,0 +1,7 @@
+fn f i
+local m 12
+at m i 1 as p
+ret 3
+end
+call f 12 as r
+sys 60 r

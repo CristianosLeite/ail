@@ -1,0 +1,19 @@
+fn even n
+jz n y
+sub n 1 as n
+tail odd n
+label y
+ret 1
+end
+fn odd n
+jz n z
+sub n 1 as n
+tail even n
+label z
+ret 0
+end
+call even 1000001 as a
+call even 1000000 as b
+shl b 1 as b
+or a b as a
+sys 60 a

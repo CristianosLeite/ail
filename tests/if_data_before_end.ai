@@ -1,0 +1,9 @@
+# data as the last line of a block: the jump past the block must not land
+# in data that follows the end
+sys 39 as p
+ifz p
+data a 1
+end
+data b 7
+loadb b as x
+sys 60 x

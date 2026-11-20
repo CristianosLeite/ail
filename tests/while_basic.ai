@@ -1,0 +1,8 @@
+# a loop that runs while its value is not zero
+i=5
+s=0
+while i
+s+=i
+i-=1
+end
+sys exit s

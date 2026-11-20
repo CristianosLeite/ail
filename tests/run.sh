@@ -40,7 +40,8 @@ check() {
     # timeout leads a process group of its own, whose id the wrapper sees
     # as $PPID. Not every timeout signals the group, so do it here as well.
     if ! timeout --signal=KILL $limit sh -c \
-        'echo $PPID > "$1.pg"; "$1" > "$1.got"; echo $? > "$1.rc"' sh $out/$1
+        'echo $PPID > "$1.pg"; "$1" > "$1.got"; echo $? > "$1.rc"' sh $out/$1 \
+        2> /dev/null            # a program killed by a signal makes sh report it
     then
         kill -s KILL -- -$(cat $out/$1.pg) 2> /dev/null
         return 1

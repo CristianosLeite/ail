@@ -1,0 +1,6 @@
+# mmap ignores the offset of an anonymous mapping: the call succeeds with a
+# sign-extended fd in r8 and a 64-bit offset in r9
+sys 9 0 4096 3 34 -1 0x100000000 as p
+gt p -4096 as x
+storeb p 1
+sys 60 x

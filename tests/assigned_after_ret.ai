@@ -1,0 +1,9 @@
+fn f a
+jz a z
+ret 1
+label z
+set 2 as x
+ret x
+end
+call f 0 as r
+sys 60 r

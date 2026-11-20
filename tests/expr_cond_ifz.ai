@@ -1,0 +1,159 @@
+# ifz with a comparison as its value, for a smaller, an equal and a larger left side,
+# also where the order is only right unsigned; exit status = the first wrong one
+a=3
+b=5
+ifz a==b
+else
+sys exit 1
+end
+ifz a!=b
+sys exit 2
+else
+end
+ifz a<b
+sys exit 3
+else
+end
+ifz a<=b
+sys exit 4
+else
+end
+ifz a>b
+else
+sys exit 5
+end
+ifz a>=b
+else
+sys exit 6
+end
+a=5
+b=5
+ifz a==b
+sys exit 7
+else
+end
+ifz a!=b
+else
+sys exit 8
+end
+ifz a<b
+else
+sys exit 9
+end
+ifz a<=b
+sys exit 10
+else
+end
+ifz a>b
+else
+sys exit 11
+end
+ifz a>=b
+sys exit 12
+else
+end
+a=7
+b=5
+ifz a==b
+else
+sys exit 13
+end
+ifz a!=b
+sys exit 14
+else
+end
+ifz a<b
+else
+sys exit 15
+end
+ifz a<=b
+else
+sys exit 16
+end
+ifz a>b
+sys exit 17
+else
+end
+ifz a>=b
+sys exit 18
+else
+end
+a=0
+b=0xffffffffffffffff
+ifz a==b
+else
+sys exit 19
+end
+ifz a!=b
+sys exit 20
+else
+end
+ifz a<b
+sys exit 21
+else
+end
+ifz a<=b
+sys exit 22
+else
+end
+ifz a>b
+else
+sys exit 23
+end
+ifz a>=b
+else
+sys exit 24
+end
+a=0xffffffffffffffff
+b=0
+ifz a==b
+else
+sys exit 25
+end
+ifz a!=b
+sys exit 26
+else
+end
+ifz a<b
+else
+sys exit 27
+end
+ifz a<=b
+else
+sys exit 28
+end
+ifz a>b
+sys exit 29
+else
+end
+ifz a>=b
+sys exit 30
+else
+end
+a=0xffffffffffffffff
+b=0xffffffffffffffff
+ifz a==b
+sys exit 31
+else
+end
+ifz a!=b
+else
+sys exit 32
+end
+ifz a<b
+else
+sys exit 33
+end
+ifz a<=b
+sys exit 34
+else
+end
+ifz a>b
+else
+sys exit 35
+end
+ifz a>=b
+sys exit 36
+else
+end
+sys exit 0

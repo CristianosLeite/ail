@@ -1,0 +1,19 @@
+# a value that is not a comparison is tested for zero
+a=6
+c=0
+if a%2
+c+=1
+end
+if a&2
+c+=2
+end
+ifz a-6
+c+=4
+end
+jnz a>>3 l
+c+=8
+label l
+jz a^6 m
+c+=16
+label m
+sys exit c

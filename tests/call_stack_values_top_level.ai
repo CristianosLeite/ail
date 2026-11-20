@@ -1,0 +1,15 @@
+fn f a b c d e g h i
+sub i h as r
+ret r
+end
+set 1 as p
+set 1 as q
+set 1 as r
+set 1 as s
+set 1 as t
+set 1 as u
+set 30 as v
+set 72 as w
+call f p q r s t u v w as x
+call f 0 0 0 0 0 0 w x as y
+sys 60 y

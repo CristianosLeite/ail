@@ -1,0 +1,6 @@
+# offset + count wraps around zero
+buf b 16
+sys 39 as i
+or i -1 as i
+at b i 2 as p
+sys 60 3

@@ -1,0 +1,11 @@
+# a function without variables saves nothing: 20 bytes between the two
+# data bytes, 3 of them the returned value
+data a 1
+fn f
+ret 3
+end
+data b 1
+call f as r
+sub b a as n
+add n r as n
+sys 60 n

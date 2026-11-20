@@ -1,0 +1,7 @@
+# equal values are not below each other, and are below or equal
+itof 7 as a
+flt a a as x
+fle a a as y
+shl y 1 as y
+or x y as x
+sys exit x

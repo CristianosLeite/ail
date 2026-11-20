@@ -1,0 +1,9 @@
+# every name after as is assigned by the call
+fn f
+ret 1 2
+end
+sys 39 as p
+jz p s
+call f as a b
+label s
+sys 60 b

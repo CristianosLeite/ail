@@ -3,35 +3,14 @@
 buf in 4096
 buf out 8
 sys 0 0 in 4096 as n    # n = bytes read, or a negative error
-gt n 4096 as e          # unsigned: a negative n is far above 4096
-jnz e fail
-
-div n 1000 as d         # thousands
-add d 48 as d           # 48 is "0"
-storeb out d
-
-mod n 1000 as r         # hundreds
-div r 100 as d
-add d 48 as d
-add out 1 as p
-storeb p d
-
-mod r 100 as r          # tens
-div r 10 as d
-add d 48 as d
-add p 1 as p
-storeb p d
-
-mod r 10 as d           # units
-add d 48 as d
-add p 1 as p
-storeb p d
-
-add p 1 as p
-storeb p 10             # newline
+jgt n 4096 fail         # unsigned: a negative n is far above 4096
+storeb out 48+n/1000    # 48 is "0"
+storeb out+1 48+n/100%10
+storeb out+2 48+n/10%10
+storeb out+3 48+n%10
+storeb out+4 10         # newline
 sys 1 1 out 5 as w      # w = bytes written, or a negative error
-ne w 5 as e             # a short write counts as a failure
-jnz e fail
+jne w 5 fail            # a short write counts as a failure
 sys 60 0
 label fail
 sys 60 1

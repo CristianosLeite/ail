@@ -1,0 +1,11 @@
+fn f a b c d e g
+add a b as a
+add a c as a
+add a d as a
+add a e as a
+add a g as a
+sub 0 a as a
+ret a
+end
+call f -1 -2 -3 -4 -5 -6 as r
+sys 60 r

@@ -1,0 +1,4 @@
+fn f
+local a 0x40000000
+local b 0x40000000
+end

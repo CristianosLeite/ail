@@ -1,0 +1,13 @@
+# reported once although the function is compiled twice
+buf b 8
+fn f a c d e g h
+add a c as i
+add i d as j
+add b 8 as p
+storeb p 1
+add j e as j
+add j g as j
+add j h as j
+add j i as j
+ret j
+end

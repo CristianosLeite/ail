@@ -1,0 +1,22 @@
+# itof reads a signed integer; ftoi rounds toward zero
+itof -3 as a
+eq a 0xc008000000000000 as r1
+itof 27 as b
+itof -10 as c
+fdiv b c as d
+ftoi d as i
+eq i -2 as r2
+itof 39 as e
+itof 10 as f
+fdiv e f as g
+ftoi g as j
+eq j 3 as r3
+itof 0 as z
+eq z 0 as r4
+shl r2 1 as r2
+shl r3 2 as r3
+shl r4 3 as r4
+or r1 r2 as r1
+or r1 r3 as r1
+or r1 r4 as r1
+sys exit r1

@@ -1,0 +1,8 @@
+# data inside a function is still a global name
+fn f
+data d "in\n"
+ret d
+end
+call f as p
+sys 1 1 p 3
+sys 1 1 d 3

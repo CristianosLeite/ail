@@ -4,6 +4,10 @@ last-verified: 2026-11-19
 sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
 status: current
 ---
+
+> **2026-11-20:** the decision recorded below against infix expressions was reversed the same day: see [Expression syntax](expression-syntax.md). The statement forms stay beside the expressions.
+>
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 design decisions
 
 **Summary.** Why the bootstrap compiler (`stage0/ailc.s`) and the first syntax look the way they do,
@@ -141,14 +145,12 @@ records the reasoning.
 - 64-bit or negative immediates need a `mov r64, imm64` (or sign-extended) path in `emit_mov`.
 
 ## Open items
-- 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
-  thumb only.
 - 2026-11-19: self-hosting is done, see [Stage1 self-hosting](stage1-self-hosting.md); six variables per function were enough for it.
 - 2026-11-19: errors carry no line number.
-- 2026-11-19: the Makefile failed-build case has no automated test.
 
 ## Related
 - [Stage1 self-hosting](stage1-self-hosting.md)
+- [Token cost measurement](token-cost-measurement.md)
 - [Stage0 functions](stage0-functions.md)
 - [Stage0 test suite](../testing/stage0-test-suite.md)
 - [Open items](../status/open-items.md)

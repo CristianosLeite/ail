@@ -1,0 +1,13 @@
+fn f a
+ret a
+end
+set 1 as a
+set 1 as b
+set 1 as c
+set 1 as d
+set 1 as e
+set 1 as g
+ref f as p
+callp p 7 as r
+add r a as r
+sys 60 r

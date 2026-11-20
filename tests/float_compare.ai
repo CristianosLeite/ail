@@ -1,0 +1,29 @@
+# ordered comparisons, also of negative values, which compare the other
+# way round as integers
+itof 1 as one
+itof 2 as two
+itof -1 as m1
+itof -2 as m2
+flt one two as a
+flt two one as b
+flt m2 m1 as c
+flt m1 m2 as d
+fle one one as e
+fle two one as f
+feq one one as g
+feq one two as h
+shl b 1 as b
+shl c 2 as c
+shl d 3 as d
+shl e 4 as e
+shl f 5 as f
+shl g 6 as g
+shl h 7 as h
+or a b as a
+or a c as a
+or a d as a
+or a e as a
+or a f as a
+or a g as a
+or a h as a
+sys exit a

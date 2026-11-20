@@ -1,0 +1,3 @@
+use	"tests/lib/twice.ai"
+call twice 2 as r
+sys 60 r

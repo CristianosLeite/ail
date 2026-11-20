@@ -1,0 +1,11 @@
+# in a function, also a variable that lives in a stack slot
+fn f a b c d e g
+h=a+b
+i=h*c
+j=i-d
+k=j+e*g
+k+=a+b+c+d+e+g+h+i+j
+ret k
+end
+call f 1 2 3 4 5 6 as r
+sys exit r

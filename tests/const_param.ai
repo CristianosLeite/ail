@@ -1,0 +1,8 @@
+# inside a function a parameter hides a const of the same name
+const k 1
+fn f k
+ret k
+end
+call f 5 as x
+add x k as x
+sys 60 x

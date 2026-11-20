@@ -1,0 +1,4 @@
+# the end closes the block, and the function has none
+fn f
+if 1
+end

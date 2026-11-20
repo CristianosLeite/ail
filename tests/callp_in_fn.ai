@@ -1,0 +1,11 @@
+fn sq x
+mul x x as x
+ret x
+end
+fn apply p v
+callp p v as r
+ret r
+end
+ref sq as p
+call apply p 7 as r
+sys 60 r

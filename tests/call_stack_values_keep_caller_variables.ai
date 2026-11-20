@@ -1,0 +1,17 @@
+fn f a b c d e g h i
+ret i
+end
+set 1 as p
+set 2 as q
+set 3 as r
+set 4 as s
+set 5 as t
+set 6 as u
+call f 9 9 9 9 9 9 9 7 as v
+add v p as v
+add v q as v
+add v r as v
+add v s as v
+add v t as v
+add v u as v
+sys 60 v

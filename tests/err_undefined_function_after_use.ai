@@ -1,0 +1,4 @@
+# the call is in this file, after a used one
+use "tests/lib/twice.ai"
+
+call missing 1

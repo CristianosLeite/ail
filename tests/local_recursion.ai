@@ -1,0 +1,15 @@
+# every call has its own
+fn f n
+local b 8
+store b n
+jz n z
+sub n 1 as m
+call f m as r
+load b as k
+add r k as r
+ret r
+label z
+ret 0
+end
+call f 5 as r
+sys 60 r

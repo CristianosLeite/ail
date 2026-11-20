@@ -1,0 +1,7 @@
+fn f
+ret 2 3
+end
+ref f as p
+callp p as a b
+add a b as a
+sys 60 a

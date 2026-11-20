@@ -1,0 +1,15 @@
+# jumps and labels work inside and across blocks
+set 0 as r
+set 3 as n
+label top
+if n
+add r n as r
+sub n 1 as n
+jmp top
+end
+if r
+jmp out
+end
+add r 100 as r
+label out
+sys 60 r

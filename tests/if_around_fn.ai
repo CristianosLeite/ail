@@ -1,0 +1,12 @@
+# a function defined inside a block of the top level has its own blocks
+set 0 as r
+if 1
+fn f a
+if a
+ret 5
+end
+ret 6
+end
+call f 1 as r
+end
+sys 60 r

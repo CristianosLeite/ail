@@ -1,9 +1,11 @@
 ---
 title: Stage0 test suite
-last-verified: 2026-11-19
+last-verified: 2026-11-20
 sources: [stage1 review 2026-11-19 (REVIEW.md), control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
 status: current
 ---
+
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](../architecture/seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 test suite
 
 **Summary.** What the runner in `tests/run.sh` can and cannot prove, and the lessons from the
@@ -11,6 +13,47 @@ control-flow review about tests that pass for the wrong reason. `AGENTS.md` desc
 layout of a test; this page records why some fixtures look the way they do.
 
 ## Facts
+- Since 2026-11-20 the suite runs on one compiler, `build/ailc` (stage1), and no longer builds
+  stage0. What replaced the comparison of the two compilers: `tests/self.sh` and `tests/fuzz.sh`
+  compare `build/ailc1` (the source compiled by the seed) with `build/ailc` (compiled by that),
+  one program in two translations; the fuzz also requires a proper end (status 0 with output
+  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` runs
+  in `make test` (200 programs in a function, 200 at top level) against results computed in
+  Python; `tests/insn.sh` checks instruction bytes against an assembler's. `make test` went
+  from 2485 checks to 1635, since every test ran twice before.
+- The comparison of the two translations is trivial while the seed is the current compiler
+  (the files are identical); it becomes the check of self-compilation when code generation
+  changes. A stage1 with one constant of `rdnum` changed, given as the second compiler, was
+  found by the fuzz at source 1303 of 3000; wrappers that print two error lines or die of a
+  signal fail at once.
+- `tools/randvars.py` (rewritten 2026-11-20) renders each random tree twice, as statements
+  with labels and jumps and as expressions with `x+=e`, `while` and `if` on a comparison, with
+  all sixteen operators, redundant parentheses now and then, divisors forced non-zero by `|1`,
+  and variables first assigned inside a loop or block kept to it (a `while` may run no round, so
+  the compiler does not count them as assigned after it). Python runs the tree for the expected
+  status. See the page on [expression code](../architecture/expression-syntax.md).
+- The older facts below that speak of two compilers describe the suite before that date.
+- `tests/make.sh` (since 2026-11-20) checks the recipe for examples in a scratch copy with the
+  compiler already built: a good example builds and runs; after its source is broken the build
+  fails twice, the old executable is byte for byte what it was and no temporary file remains;
+  a faulty example that was never built leaves no target; a repaired one builds. With the
+  recipe changed to write the target directly, two of its four checks fail. The target is made
+  older with `touch -d` instead of waiting for the clock.
+- `tests/fuzz.sh [count [seed]]` (since 2026-11-20) compares the two compilers on sources made
+  by one to four random edits of a test, example or library source: a token from a dictionary
+  put in, a span cut out, a byte replaced, the end cut off, a span repeated, a piece of another
+  source added, a line end or a space moved. Exit status, output bytes and message must agree.
+  It is seeded, so a run can be repeated, and `make test` runs 300 sources of seed 1 in about
+  two seconds. It never executes a compiled program. Against a stage1 that accepts any byte
+  after CR in `data`, 2000 sources of one seed gave two differences; a stage1 that accepts 17
+  hexadecimal digits was not found in 3000, after which such literals went into the dictionary.
+- `tests/bytes.sh` (since 2026-11-20) checks output bytes without trusting a compiler: six
+  programs of one line repeated to fill 8 MiB (jumps forward, back, conditional; calls; buffer
+  addresses; var cells), whose expected files, header included, awk writes from a formula. With
+  the jump, call or name fixup table of stage0 made smaller, the ordinary suite still passes
+  and this check fails. It takes five seconds for both compilers.
+- The `od` of uutils breaks lines of a width that does not divide its buffer, so the check
+  compares raw bytes written by awk (`printf "%c"` under `LC_ALL=C`), not dumps.
 - `tests/run.sh` runs each compiled program under `timeout` with `limit=10` seconds; a timeout is
   a failed test. Before 2026-11-19 a program that never exited hung the whole suite.
 - Until the functions review of 2026-11-19 the runner compared the status of `timeout` itself, so a

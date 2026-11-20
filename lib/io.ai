@@ -1,0 +1,79 @@
+# lib/io.ai -- output, decimal numbers and the arguments of the process.
+# Put  use "lib/io.ai"  at the top of a program compiled from the top of the
+# repository. The line below runs where the use stands, so use it before
+# the first call of argc or argv.
+var argp
+args as argp
+
+# write the n bytes at p to the file fd, in as many writes as it takes:
+# 1 if all went out, 0 after an error
+fn fdwrite fd p n
+label more
+ifz n
+ret 1
+end
+sys write fd p n as w
+jsle w 0 bad
+p+=w
+n-=w
+jmp more
+label bad
+ret 0
+end
+
+# the same to stdout and to stderr
+fn print p n
+tail fdwrite 1 p n
+end
+fn eprint p n
+tail fdwrite 2 p n
+end
+
+# write the n bytes at p to stderr and end the program with status 1
+fn die p n
+call fdwrite 2 p n
+sys exit 1
+end
+
+# the length of the NUL-terminated string at p
+fn strlen p
+q=p
+label next
+loadb q as c
+ifz c
+ret q-p
+end
+q+=1
+jmp next
+end
+
+# print the unsigned number n in decimal: 1 if it went out, 0 after an error
+fn putn n
+local digits 24
+p=digits+24
+label next
+p-=1
+storeb p n%10+48
+n/=10
+jnz n next
+call print p digits+24-p as r  # not tail: the digits are in this frame
+ret r
+end
+
+# the number of arguments of the process, its own name included
+fn argc
+load argp as n
+ret n
+end
+
+# argument i as two results, its address and its length, or 0 and 0 if the
+# process has no such argument; argument 0 is the name of the program
+fn argv i
+load argp as n
+ifge i n
+ret 0 0
+end
+load argp+8+i*8 as s
+call strlen s as l
+ret s l
+end

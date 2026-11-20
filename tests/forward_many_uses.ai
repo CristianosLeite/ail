@@ -1,0 +1,9 @@
+storeb b 1
+add b 1 as p
+storeb p 2
+loadb b as x
+add b 1 as p
+loadb p as y
+add x y as x
+sys 60 x
+buf b 8

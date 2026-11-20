@@ -1,0 +1,2 @@
+use "tests/lib/bad_access.ai"
+set 1 as a

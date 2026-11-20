@@ -1,166 +1,375 @@
 # ailc stage1 -- the AIL compiler in AIL, a translation of stage0/ailc.s.
 # usage: ailc < prog.ai > prog      (same output, byte for byte, as stage0)
 #
-# The fixed registers of stage0 are 8-byte buffers here, since a function
+# The fixed registers of stage0 are global vars here, since a function
 # sees no top-level variable:
 #   ip = input cursor    ie = input end     op = output cursor
 #   ai = argument index of the statement    nv = variables of the scope
 #   cur = optab row of the statement (at its operand count)
 #   ns, nl = start and length of the name read last
 # Top level uses the variables c d r f p q only.
-buf in 65537
-buf out 1048576
-buf ro 592          # read-only tables, filled in at start (see "tables")
-buf st 720          # cold state, read with g and written with s:
-#   0 nbufs    8 bsssz   16 nlabels  24 nfix     32 infn   40 topvars
-#   48 fnskip  56 labbase  64 fixbase  72 80 name of this call
-#   88 nfuncs  96 ncalls  104 sigaction
-#   144 variables: 6 top level then 6 of the function, 16 bytes each: name, length
-#   336 buffers, 24 bytes each: name, length, address
-buf labs 196632     # 8193 labels of 24 bytes: name, length, address in out
-buf fixs 262152     # 10923 jumps of 24 bytes: label name, length, rel32 address
-buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
-buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, values
-buf ip 8
-buf ie 8
-buf op 8
-buf ai 8
-buf nv 8
-buf cur 8
-buf ns 8
-buf nl 8
+var ip ie op ai nv cur ns nl
+# the counters and the saved scope of stage0, under its names: nbufs counts
+# the global names and ngv those that are vars; cn, cl = name of this call
+var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
+var nfuncs ncalls ngv dataend datarel nrefs
+# pass is 1 while a function is compiled to measure its variables and 2 when
+# it is compiled again for good; the s* vars are the state to return to
+var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
+# pushed = bytes of call values pushed so far in this statement; fnnpar =
+# parameters of the function; immpos = where mov wrote its last imm32
+var pushed fnnpar immpos
+# asg: bit i is set when variable i of the scope is assigned on every way to
+# this point, all ones where no way leads; dead = 1 after jmp or ret, until
+# the next label; jmask = asg when dead was set; t* = those of the top level
+var asg dead jmask tasg tdead tjmask
+# nchks = loads and stores to check at the end; nruns = runs of data
+# statements; snk, snu = both before the first pass over a function
+var nchks nruns snk snu
+# loccur = bytes of locals declared so far in this pass; fnlocal = those of
+# the function, after its first pass
+var loccur fnlocal
+# fnregs = how many of the six registers the function uses
+var fnregs
+# srcend = end of all source read so far; nuses = files compiled through
+# use; nustk = uses being compiled
+var srcend nuses nustk
+# fnres = results of the open function, 0 until its first ret; fntail = 1
+# once it has a tail; ncap = names after "as" in this statement
+var fnres fntail ncap
+# nblk = open blocks; blkbase = those opened outside the open function;
+# topblk = blkbase of the top level, in a function
+var nblk blkbase topblk whead wsrc
+# while the value of a while is read again at the end of its loop: that
+# it is, where the source goes on, the first line of the loop in the
+# output, and what was assigned at the head
+var wend wip wbody wasg
+# the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
+# scope = 0 at top level or the number of the open function, nscope =
+# functions opened so far, snh = nhn before the first pass over a function
+var nhn hbkt scope nscope snh
+# rwstart = where the writable segment starts in the image, known in fin
+var rwstart
+# expressions: the nodes, values and operators of the one being parsed, and
+# whether it divides or shifts
+var nex nexv nexs exdm exsh
+# code for expressions: the free registers and the preferred one, the
+# number of values that wait and of those that hold no register, the two
+# operands of the operator at hand, and how many bytes of the row of a
+# statement eop is to leave out
+var xfree xpref nxs xspl xlk xla xlb xlc xrk xra xrb xrc xskip xcl xct
+# for an assignment to a variable that has a register: that register (else
+# 16), whether the operator at hand is the last, and whether the result is
+# already in the register
+var xtr xlast xtin
+# the kind of the statement at hand if it is compiled like an expression
+# (else 0), and the operator of one that computes
+var xst xso
+# the register whose value the zero flag describes, if nothing was written
+# since the output stood at xflgpos
+var xflg xflgpos
+# the memory of a load or store: base, index (16 for none) and number
+var xmb xmx xmd
+# epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
+# address in the source; ename, enamel = the name it is about, or 0;
+# mainend = end of the source from stdin; curunit = 0, or 1 + the file of
+# use being read
+var epos ename enamel mainend curunit
+# the source limit of 8 MiB is in the sizes below: in holds one byte more,
+# out 16 times as much (see OUTSZ in stage0), and each table one entry for
+# every shortest line that makes one
+const inmax 8388609
+buf in inmax
+buf out 134217728
+buf sig 32          # struct sigaction
+buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
+buf topcell 512     # per top-level variable after the sixth: the address of its cell
+buf vfirst 512      # per variable of the function: where the source defines it,
+buf vlast 512       # and mentions it last
+buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
+buf vlocal 512      # per variable of the function that is a local: 1 + its offset
+buf vlocsz 512      # per local: its size as declared
+buf locfree 560     # per place: the last mention of its variable
+buf loops 22369632    # 1398102 backward jumps of the function: where the source has
+                    # the label, and the jump
+buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
+                    # value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
+buf opd 96          # what is known of the first two values of the statement, 32 bytes
+                    # each: kind (1 number, 2 name plus number, 3 string), then the
+                    # number, or name, length and number; a third entry is scratch
+buf vk 2048         # the same per variable of the current scope
+buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
+                    # length, offset, width + 256 for a store
+buf runend 7456544    # per run of data statements: the address after its last byte
+buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
+                    # the block, asg, and (4 bytes each) 1 for an else part and dead
+                    # at its end, and for a while the address of its first line and
+                    # the place of its value in the source, else 0
+buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
+buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
+                    # yet defined, length, next node, scope, index in the table of
+                    # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
+                    # label with jumps but no definition yet)
+buf ustart 9586984  # per file of use: where its bytes start,
+buf uendp 9586984   # and end
+buf ucur 9586984    # per use being compiled: curunit outside it
+buf numbuf 24       # a line number in decimal
+buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
+buf ustack 19173968   # per use being compiled: where its line ended, and the end of
+                    # the unit that has it
+buf pathbuf 4096    # the path of a use, with a NUL for open
+buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
+                    # source, variables assigned on every way to it
+buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
+                    # variables assigned at the jump
+buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
+buf calls 38347936    # 1198373 calls of 32 bytes: name, length, rel32 address, then two
+                    # 4-byte counts: values (all ones for ref) and names after "as"
+buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
+buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
+buf exs 8388609      # and as many operators or open parentheses, a byte each
+buf xrows 128        # the rows of the statements of the sixteen operators
+buf exnm 8           # the name of a statement that compares and jumps
+buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
+buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
+                    # imm32 address, 0 for its address or 1 for its length
 
-# ---- errors: source problems exit 1, I/O problems exit 2
+# ---- errors: one line on stderr, "ailc: <place>: <message> <name>", then
+# exit. Source problems exit 1, I/O problems 2. The place is the path of a
+# file read by use and a colon, if the fault is in one, and the line number;
+# it is taken from epos, or from the input cursor while that is zero.
+fn ew p n
+sys write 2 p n
+end
+# print the message m of n bytes with its place and exit with status s
+fn die m n s
+call ew "ailc: "
+jeq epos -1 q
+pos=ip
+u=curunit
+if epos
+pos=epos
+u=0
+jlt pos mainend g
+label a
+u+=1
+jgt u nuses q
+load u*8+ustart-8 as c
+jlt pos c a
+load u*8+uendp-8 as c
+jge pos c a
+label g
+end
+st=in
+if u
+load u*8+ustart-8 as st
+c=(u-1)*16+uses
+load c as pp
+load c+8 as pl
+call ew pp pl
+call ew ":"
+end
+ln=1
+while st<pos
+loadb st as c
+if c==10
+ln+=1
+end
+st+=1
+end
+e=numbuf+24
+b=e
+label t
+b-=1
+storeb b ln%10+48
+ln/=10
+jnz ln t
+call ew b e-b
+call ew ": "
+label q
+call ew m n
+if enamel
+call ew " "
+call ew ename enamel
+end
+call ew "\n"
+sys exit s
+end
 fn err
-sys 1 2 "ailc: syntax error\n"
-sys 60 1
+call die "syntax error" 1
 end
-fn ebig
-sys 1 2 "ailc: source too big\n"
-sys 60 1
+fn estmt
+call die "unknown statement" 1
 end
-fn eund
-sys 1 2 "ailc: undefined variable\n"
-sys 60 1
+fn eplace
+call die "not allowed here" 1
+end
+fn eend
+call die "missing end" 1
+end
+fn eas
+call die "missing as" 1
+end
+fn enoas
+call die "unexpected as" 1
+end
+fn emlab
+call die "missing label" 1
+end
+fn ecount
+call die "wrong operand count" 1
+end
+fn estr
+call die "unterminated string" 1
+end
+fn enam
+call die "expected a name" 1
 end
 fn evar
-sys 1 2 "ailc: too many variables\n"
-sys 60 1
+call die "too many variables" 1
 end
-fn edup
-sys 1 2 "ailc: duplicate name\n"
-sys 60 1
+fn enum
+call die "number too big" 1
 end
 fn ebuf
-sys 1 2 "ailc: too many buffers\n"
-sys 60 1
+call die "buffers too big" 1
+end
+fn eres
+call die "wrong result count" 1
+end
+fn eunasgj
+call die "unassigned variable" 1
+end
+fn eaccl
+call die "invalid access" 1
+end
+fn edup
+ename=ns
+enamel=nl
+call die "duplicate name" 1
+end
+fn eund
+ename=ns
+enamel=nl
+call die "undefined variable" 1
+end
+fn eunasg
+ename=ns
+enamel=nl
+call die "unassigned variable" 1
+end
+fn eacc
+ename=ns
+enamel=nl
+call die "invalid access" 1
+end
+fn euse
+ename=ns
+enamel=nl
+call die "cannot read file" 1
 end
 fn elab
-sys 1 2 "ailc: undefined label\n"
-sys 60 1
+ename=ns
+enamel=nl
+call die "undefined label" 1
 end
 fn efn
-sys 1 2 "ailc: undefined function\n"
-sys 60 1
+ename=ns
+enamel=nl
+call die "undefined function" 1
 end
 fn eargc
-sys 1 2 "ailc: wrong argument count\n"
-sys 60 1
+ename=ns
+enamel=nl
+call die "wrong argument count" 1
+end
+fn eresf
+ename=ns
+enamel=nl
+call die "wrong result count" 1
+end
+fn ebig
+epos=-1
+call die "source too big" 1
+end
+fn eprog
+epos=-1
+call die "program too big" 1
 end
 fn erd
-sys 1 2 "ailc: read error\n"
-sys 60 2
+epos=-1
+call die "read error" 2
 end
 fn ewr
-sys 1 2 "ailc: write error\n"
-sys 60 2
+epos=-1
+call die "write error" 2
 end
 # syntax error unless c is not zero
 fn ok c
-jnz c k
+ifz c
 call err
-label k
+end
 end
 # syntax error unless c is zero
 fn no c
-jz c k
+if c
 call err
-label k
+end
 end
 # duplicate name unless the lookup result i is "not found"
 fn nodup i
-eq i 99999 as i
-jnz i k
+ifz i==-1
 call edup
-label k
+end
 end
 
-# ---- cold state
-fn g k
-add st k as k
-load k as k
-ret k
+# the output buffer must have room left for what comes before the next
+# check: 4096 bytes, more than any statement emits between two checks
+fn ochk
+if op-out>134213632
+call eprog
 end
-fn s k v
-add st k as k
-store k v
 end
 
 # ---- input
 # the byte at the cursor, or 256 at the end of the input
 fn pk
-load ip as p
-load ie as e
-lt p e as c
-jz c z
-loadb p as c
+if ip<ie
+loadb ip as c
 ret c
-label z
+end
 ret 256
 end
 fn adv
-load ip as p
-add p 1 as p
-store ip p
+ip+=1
 end
 fn low c
-sub c 97 as c
-lt c 26 as c
-ret c
+ret c-97<26
 end
 fn dig c
-sub c 48 as c
-lt c 10 as c
-ret c
+ret c-48<10
 end
 fn blank c
-eq c 32 as d
-eq c 9 as c
-or c d as c
-ret c
+ret (c==9)|(c==32)
 end
 # a CR at the cursor must be the first half of a CRLF line end
 fn crlf
-load ip as p
-add p 1 as p
-load ie as e
-lt p e as c
-jz c bad
+p=ip+1
+jge p ie bad
 loadb p as c
-eq c 10 as c
-jnz c k
+ifz c==10
 label bad
 call err
-label k
+end
 end
 fn blanks
 label a
 call pk as c
 call blank c as c
-jz c x
+if c
 call adv
 jmp a
-label x
+end
 end
 # one space or tab at least
 fn blank1
@@ -173,58 +382,130 @@ end
 fn eol
 call blanks
 call pk as c
-eq c 256 as d
-jnz d k
-eq c 10 as d
-jnz d k
-eq c 35 as d
-jnz d k
-eq c 13 as d
-call ok d
+jeq c 256 k
+jeq c 10 k
+jeq c 35 k
+call ok c==13
 call crlf
+label k
+end
+# a token must be followed by a space, tab, comment or end of line
+fn tokchk
+call pk as c
+jeq c 256 k
+call blank c as d
+jnz d k
+jeq c 10 k
+jeq c 13 k
+call ok c==35
 label k
 end
 # read a name [a-z0-9_]* into ns and nl
 fn name
-load ip as p
-store ns p
+p=ip
+ns=p
 label a
 call pk as c
-eq c 95 as d
-jnz d t
+jeq c 95 t
 call dig c as d
 jnz d t
 call low c as d
-jz d x
+if d
 label t
 call adv
 jmp a
-label x
-load ip as e
-sub e p as e
-store nl e
+end
+nl=ip-p
 end
 # the same, but it must start with a letter
 fn rname
 call pk as c
 call low c as c
-call ok c
+ifz c
+call enam
+end
 call name
 end
 # 1 if the name read last is "as"
 fn isas
-load nl as n
-eq n 2 as n
-jz n x
-load ns as p
+jne nl 2 x
+p=ns
 loadb p as n
-eq n 97 as n
-jz n x
-add p 1 as p
-loadb p as n
-eq n 115 as n
-ret n
+jz n==97 x
+loadb p+1 as n
+ret n==115
 label x
+end
+# a name that starts with a letter and is not "as"
+fn rdname
+call rname
+call isas as c
+if c
+call enam
+end
+end
+# the number at the cursor: decimal, or hexadecimal after "0x", either one
+# after an optional "-"; it must fit 64 bits
+fn rdnum
+call pk as c
+n=c==45
+if n
+call adv
+call pk as c
+end
+call dig c as d
+call ok d
+r=0
+jne c 48 m
+d=ip+1
+jge d ie m
+loadb d as d
+jz d==120 m
+ip+=2
+k=0
+label h
+call pk as c
+call dig c as d
+if d
+c-=48
+jmp h2
+end
+c=(c|32)-97
+if c<6
+c+=10
+label h2
+k+=1
+if k>16
+call enum
+end
+r=r<<4|c
+call adv
+jmp h
+end
+call ok k
+jmp s
+label m
+call pk as c
+call dig c as d
+jz d s
+c-=48
+if r<=0x1999999999999999
+jne r 0x1999999999999999 f
+jle c 5 f
+end
+call enum
+label f
+r=r*10+c
+call adv
+jmp m
+label s
+if n
+if r>0x8000000000000000
+call enum
+end
+r=0-r
+end
+ret r
 end
 
 # ---- tables of names
@@ -234,492 +515,2894 @@ label l
 jz n y
 loadb a as c
 loadb b as d
-ne c d as c
-jnz c x
-add a 1 as a
-add b 1 as b
-sub n 1 as n
+ifz c!=d
+a+=1
+b+=1
+n-=1
 jmp l
 label y
 ret 1
-label x
+end
 end
 # 1 if the table entry q holds the name read last
 fn same q
-add q 8 as t
-load t as t
-load nl as n
-ne t n as t
-jnz t x
+load q+8 as t
+n=nl
+ifz t!=n
 load q as q
-load ns as p
-call eqn q p n as t
+call eqn q ns n as t
 ret t
-label x
 end
-# index of the name read last among n entries of z bytes at b, or 99999
+end
+# index of the name read last among n entries of z bytes at b, or -1
 fn look b n z
-set 0 as i
+i=0
 label a
-ge i n as t
-jnz t x
+if i<n
 call same b as t
-jnz t y
-add b z as b
-add i 1 as i
+ifz t
+b+=z
+i+=1
 jmp a
-label y
+end
 ret i
-label x
-ret 99999
+end
+ret -1
 end
 # the variable pool of the current scope
 fn vbase
-add st 144 as p
-call g 32 as c
-jz c x
-add p 96 as p
-label x
+p=vars
+if infn
+p+=1024
+end
 ret p
 end
 fn lvar
 call vbase as p
-load nv as n
-call look p n 16 as i
+call look p nv 16 as i
 ret i
 end
 # the top-level variables, also from inside a function
 fn ltop
-add st 144 as p
-load nv as n
-call g 32 as c
-jz c x
-call g 40 as n
-label x
+p=vars
+n=nv
+if infn
+n=topvars
+end
 call look p n 16 as i
 ret i
 end
+# labels, functions and global names are found through one hash table with
+# chains. Nodes are never removed, except those of the first pass over a
+# function; the labels of a finished function match nothing afterwards,
+# since every function has a scope number of its own.
+# the bucket of the name read last with the kind k in the scope sc
+fn hhash k sc
+m=sc*0x9e3779b1+k&0xffffffff
+h=2166136261
+p=ns
+n=nl
+while n
+loadb p as c
+h=(h^c)*16777619&0xffffffff
+p+=1
+n-=1
+end
+h^=m
+h=(h^h>>15)&1048575
+hbkt=h
+ret h
+end
+# the node of the name read last with the kind k in the scope sc, or 0
+fn hfind k sc
+call hhash k sc as b
+load b*8+buckets as i
+while i
+p=i*64+hnodes-64
+load p+56 as c
+jne c k t
+load p+32 as c
+jne c sc t
+load p+16 as c
+jne c nl t
+load p as q
+call eqn q ns nl as c
+jz c t
+ret p
+label t
+load p+24 as i
+end
+end
+# add a node for the name read last with the kind k in the scope sc and the
+# value v, in front of its bucket, and return it
+fn hadd k sc v
+call hhash k sc as b
+nhn+=1
+p=nhn*64+hnodes-64
+store p ns
+store p+8 0
+store p+16 nl
+store p+32 sc
+store p+40 v
+store p+48 b
+store p+56 k
+b=b*8+buckets
+load b as c
+store p+24 c
+store b nhn
+ret p
+end
+# remove the nodes added after the first n, last first: each is then the
+# first of its bucket
+fn hundo n
+while nhn>n
+p=nhn*64+hnodes-64
+load p+48 as b
+load p+24 as c
+store b*8+buckets c
+nhn-=1
+end
+end
+# the index that the node p holds, or -1 for no node
+fn hval p
+ifz p
+ret -1
+end
+load p+40 as p
+ret p
+end
 fn lbuf
-add st 336 as p
-call g 0 as n
-call look p n 24 as i
-ret i
+call hfind 1 0 as p
+tail hval p
+end
+# the entry of global name i
+fn gent i
+ret i*48+globs
+end
+# the name read last must not be in use at top level or in the open
+# function: enter it as the next global name and return its entry
+fn newglob
+call lvar as c
+call nodup c
+call ltop as c
+call nodup c
+call lbuf as c
+call nodup c
+call gent nbufs as p
+call putn p
+ret p
+end
+# the syscall number named at the cursor: a const of the program, or else
+# one of the names in sysnames
+fn sname
+call rdname
+call lbuf as i
+if i!=-1
+call gent i as p
+load p+32 as c
+call ok c==2
+load p+24 as p
+ret p
+end
+r=sysnames
+label a
+loadb r as l
+call ok l
+r+=1
+jne l nl t
+call eqn r ns l as c
+jz c t
+load2 r+l as r
+ret r
+label t
+r=r+l+2
+jmp a
+end
+# the value of the const whose name is at the cursor
+fn cname
+call rdname
+call lbuf as i
+call ok i!=-1
+call gent i as p
+load p+32 as c
+call ok c==2
+load p+24 as p
+ret p
 end
 # a label of the current scope: the index counts from labbase
 fn llab
-call g 56 as b
-call g 16 as n
-sub n b as n
-mul b 24 as b
-add b labs as b
-call look b n 24 as i
-ret i
+call hfind 3 scope as p
+ifz p
+ret -1
+end
+load p+40 as p
+ret p-labbase
 end
 fn lfn
-call g 88 as n
-call look funs n 32 as i
-ret i
+call hfind 2 0 as p
+tail hval p
+end
+# the global name whose entry newglob wrote is complete: from here on it is
+# found
+fn globdone
+call gent nbufs as p
+call getn p
+call hadd 1 0 nbufs
+nbufs+=1
 end
 # write the name read last into the table entry p, or read it back from it
 fn putn p
-load ns as c
-store p c
-add p 8 as p
-load nl as c
-store p c
+store p ns
+store p+8 nl
 end
 fn getn p
 load p as c
-store ns c
-add p 8 as p
-load p as c
-store nl c
+ns=c
+load p+8 as c
+nl=c
 end
 # read a variable name and find it in the pool of the scope, or add it
 fn defvar
-call rname
-call isas as c
-call no c
+call rdname
+tail defv
+end
+# the same for the name read last
+fn defv
 call lbuf as c
-call nodup c
+jeq c -1 v
+ifz infn
+call edup
+end
+call gent c as c
+load c+32 as c
+jz c==1 v
+call edup
+label v
 call lvar as i
-ne i 99999 as c
-jnz c x
-load nv as i
-lt i 6 as c
-jnz c k
+jne i -1 x
+i=nv
+if i>=64
 call evar
-label k
+end
 call vbase as p
-mul i 16 as c
-add p c as p
-call putn p
-add i 1 as c
-store nv c
-label x
+call putn p+i*16
+nv=i+1
+ifz infn
+if i>=6
+ngv+=1
+store i*8+topcell ngv
+end
 ret i
+end
+store i*8+vfirst ip
+label x
+store i*8+vlast ip
+ret i
+end
+# where variable i of the current scope lives, as two results: 0 and its
+# x86 register, 1 and the address of its cell, 2 and its distance from rsp,
+# or for a local 3 and the distance of its bytes from rsp
+fn vplace i
+ifz infn
+if i<6
+label r
+loadb i+varnum as i
+ret 0 i
+end
+load i*8+topcell as i
+ret 1 i
+end
+load i*8+vlocal as c
+if c
+ret 3 fnslots*8+c-1+pushed
+end
+if pass==1
+i=0
+jmp r
+end
+loadb i+fnloc as i
+jlt i 6 r
+ret 2 i*8-48+pushed
 end
 # the optab row of the name read last, at its operand count, or 0
 fn kw
-add ro 176 as r
-load nl as n
-load ns as p
+r=optab
+n=nl
+p=ns
 label a
 loadb r as l
-jz l x
-add r 1 as r
-ne l n as c
-jnz c t
+if l
+r+=1
+jne l n t
 call eqn r p n as c
 jz c t
-add r l as r
-ret r
+ret r+l
 label t
-add r l as r
-add r 2 as c
-loadb c as c
-add r 3 as r
-add r c as r
+r+=l
+loadb r+3 as c
+r=r+4+c
 jmp a
-label x
 end
-# x86 register number of variable i, and of argument position i
-fn vreg i
-add i ro as i
-add i 562 as i
-loadb i as i
-ret i
 end
+# x86 register number of argument position i
 fn areg i
-add i ro as i
-add i 555 as i
-loadb i as i
+loadb i+argnum as i
 ret i
+end
+
+# ---- expressions
+# An argument written with operators or parentheses, and no space in it, is
+# an expression. expr parses it into ex, a list of nodes in the order a
+# stack machine runs them: both operands of an operator stand before it,
+# the right one directly. A node is 32 bytes, a kind and three cells:
+#   1 a number: its value
+#   2 the address of a global name plus a number: name, length, number
+#   4 a variable: its index
+#   5 a var: its cell
+#   6 an operator: its number, and the node of its left operand
+# The operators, by number, with how tightly each binds:
+#   0 *  1 /  2 %   (6)     3 +  4 -   (5)     5 <<  6 >>   (4)
+#   7 &  (3)     8 ^  (2)     9 |  (1)     10 ==  11 !=  12 <  13 <=  14 >
+#   15 >=   (0)
+# exv is the stack of values while parsing, 40 bytes each: the node, then
+# what is known of the value, four cells as in opd. exs is the stack of
+# operators, a byte each, 255 for an open parenthesis.
+fn exnode k a b c
+p=nex*32+ex
+store p k
+store p+8 a
+store p+16 b
+store p+24 c
+i=nex
+nex+=1
+ret i
+end
+fn exvpush i a b c d
+p=nexv*40+exv
+store p i
+p+=8
+store p a
+p+=8
+store p b
+p+=8
+store p c
+store p+8 d
+nexv+=1
+end
+fn exspush o
+storeb exs+nexs o
+nexs+=1
+end
+fn exspop
+nexs-=1
+loadb exs+nexs as o
+ret o
+end
+# the name read last, as a value: a variable, a var, a const, or the
+# address of a buffer or of data, which may be declared later
+fn exname
+call lvar as r
+if r!=-1
+# its last mention: never earlier than one already noted, since the value
+# of a while is read a second time from the end of its loop
+d=r*8+vlast
+load d as c
+if ip>c
+store d ip
+end
+ifz asg>>r&1
+call eunasg
+end
+call exnode 4 r 0 0 as i
+f=r*32+vk
+load f as a
+load f+8 as b
+load f+16 as c
+load f+24 as d
+call exvpush i a b c d
+ret 0
+end
+call lbuf as r
+if r!=-1
+call gent r as p
+load p+32 as d
+if d==1
+load p+16 as q
+call exnode 5 q 0 0 as i
+call exvpush i 0 0 0 0
+ret 0
+end
+if d==2
+load p+24 as q
+call exnode 1 q 0 0 as i
+call exvpush i 1 q 0 0
+ret 0
+end
+end
+call exnode 2 ns nl 0 as i
+call exvpush i 2 ns nl 0
+end
+# the value of a o b for two numbers, as the instructions compute it
+fn exfold o a b
+if o==0
+a*=b
+end
+if o==1
+a/=b
+end
+if o==2
+a%=b
+end
+if o==3
+a+=b
+end
+if o==4
+a-=b
+end
+if o==5
+b&=63
+a<<=b
+end
+if o==6
+b&=63
+a>>=b
+end
+if o==7
+a&=b
+end
+if o==8
+a^=b
+end
+if o==9
+a|=b
+end
+if o==10
+a=a==b
+end
+if o==11
+a=a!=b
+end
+if o==12
+a=a<b
+end
+if o==13
+a=a<=b
+end
+if o==14
+a=a>b
+end
+if o==15
+a=a>=b
+end
+ret a
+end
+# apply operator o to the two values on top of exv. Two numbers become one
+# number, except a division by zero, which is left to fail when it runs; a
+# name and a number become the name with another number, if that fits the
+# displacement of an instruction; anything else is an operator node. What
+# is known of the result follows the operands through + and -.
+fn exred o
+if nexv<2
+call err
+end
+nexv-=1
+r=nexv*40+exv
+l=r-40
+load r as ri
+load l as li
+load l+8 as lk
+load l+16 as la
+load l+24 as lb
+load l+32 as lc
+load r+8 as rk
+load r+16 as ra
+load r+24 as rb
+load r+32 as rc
+# the kinds of the two nodes, when they are the last two of the list
+ln=0
+rn=0
+if li+2==nex
+if ri+1==nex
+load li*32+ex as ln
+load ri*32+ex as rn
+end
+end
+if ln==1
+if rn==1
+if o<=2
+ifz o
+jmp f
+end
+jz ra n
+end
+label f
+call exfold o la ra as v
+nex-=2
+call exnode 1 v 0 0 as i
+nexv-=1
+call exvpush i 1 v 0 0
+ret 0
+end
+end
+# name + number, number + name, name - number
+t=0
+v=0
+if o==3
+if ln==2
+if rn==1
+v=lc+ra
+t=1
+end
+end
+if ln==1
+if rn==2
+v=rc+la
+la=ra
+lb=rb
+t=1
+end
+end
+end
+if o==4
+if ln==2
+if rn==1
+v=lc-ra
+t=1
+end
+end
+end
+if t
+ifz v+0x80000000>>32
+nex-=2
+call exnode 2 la lb v as i
+nexv-=1
+call exvpush i 2 la lb v
+ret 0
+end
+end
+label n
+call exnode 6 o li 0 as i
+# what is known: a name or a number, plus or minus a number
+k=0
+a=0
+b=0
+c=0
+if rk==1
+if o==3
+if lk==1
+k=1
+a=la+ra
+end
+if lk==2
+k=2
+a=la
+b=lb
+c=lc+ra
+end
+end
+if o==4
+if lk==1
+k=1
+a=la-ra
+end
+if lk==2
+k=2
+a=la
+b=lb
+c=lc-ra
+end
+end
+end
+if rk==2
+if o==3
+if lk==1
+k=2
+a=ra
+b=rb
+c=rc+la
+end
+end
+end
+if o<=2
+if o
+exdm=1
+end
+end
+if o==5
+exsh=1
+end
+if o==6
+exsh=1
+end
+nexv-=1
+call exvpush i k a b c
+end
+# the operator at the cursor, whose first byte is c
+fn exop c
+call adv
+if c==42
+ret 0
+end
+if c==47
+ret 1
+end
+if c==37
+ret 2
+end
+if c==43
+ret 3
+end
+if c==45
+ret 4
+end
+if c==38
+ret 7
+end
+if c==94
+ret 8
+end
+if c==124
+ret 9
+end
+call pk as d
+if c==60
+if d==60
+call adv
+ret 5
+end
+if d==61
+call adv
+ret 13
+end
+ret 12
+end
+if c==62
+if d==62
+call adv
+ret 6
+end
+if d==61
+call adv
+ret 15
+end
+ret 14
+end
+if d!=61
+call err
+end
+call adv
+if c==61
+ret 10
+end
+if c==33
+ret 11
+end
+call err
+end
+# how tightly operator o binds
+fn exprec o
+if o<3
+ret 6
+end
+if o<5
+ret 5
+end
+if o<7
+ret 4
+end
+if o>=10
+ret 0
+end
+ret 10-o
+end
+fn exinit
+nex=0
+nexv=0
+nexs=0
+exdm=0
+exsh=0
+end
+# parse the expression at the cursor, up to the end of its token, on top of
+# the m values that exv has; it leaves one more
+fn exparse m
+base=nexs
+label atom
+call pk as c
+if c==40
+call exspush 255
+call adv
+jmp atom
+end
+call low c as d
+if d
+call name
+call exname
+jmp oper
+end
+if c==45
+p=ip+1
+jge p ie bad
+loadb p as d
+call dig d as d
+jnz d num
+jmp bad
+end
+call dig c as d
+ifz d
+label bad
+call err
+end
+label num
+call rdnum as v
+call exnode 1 v 0 0 as i
+call exvpush i 1 v 0 0
+label oper
+call pk as c
+if c==41
+label cl
+jle nexs base bad
+call exspop as o
+if o!=255
+call exred o
+jmp cl
+end
+call adv
+jmp oper
+end
+jeq c 256 dn
+call blank c as d
+jnz d dn
+jeq c 10 dn
+jeq c 13 dn
+jeq c 35 dn
+call exop c as o
+call exprec o as p
+label rd
+if nexs>base
+loadb nexs-1+exs as t
+if t!=255
+call exprec t as q
+if q>=p
+call exspop as t
+call exred t
+jmp rd
+end
+end
+end
+call exspush o
+jmp atom
+label dn
+if nexs>base
+call exspop as o
+jeq o 255 bad
+call exred o
+jmp dn
+end
+m+=1
+jne nexv m bad
+end
+# 1 if the token at the cursor is an expression: it starts with a
+# parenthesis, or has a byte after its first that no name or number has
+# and is not the word as
+fn excomp
+p=ip
+loadb p as c
+jeq c 40 y
+label a
+p+=1
+jge p ie n
+loadb p as c
+call blank c as d
+jnz d n
+jeq c 10 n
+jeq c 13 n
+jeq c 35 n
+jeq c 95 a
+call dig c as d
+jnz d a
+call low c as d
+jnz d a
+# "as" before a byte that separates nothing is still as, and its error
+if p-ip==2
+load2 ip as d
+jeq d 0x7361 n
+end
+label y
+ret 1
+label n
+ret 0
+end
+# mov <register g>, v, in its shortest form
+fn movi g v
+b=g>>3
+l=g&7
+ifz v>>32
+if b
+call eb 65
+end
+call eb l|184
+immpos=op
+call e4 v
+ret 0
+end
+call eb b|72
+if v>=0xffffffff80000000
+call eb 199
+call eb l|192
+call e4 v
+ret 0
+end
+call eb l|184
+store op v
+op+=8
+end
+# lea <register g>, [rip+rel32], with the rel32 zero and its address in
+# immpos
+fn lear g
+call eb g>>3<<2|72
+call eb 141
+call eb (g&7)<<3|5
+immpos=op
+call e4 0
+end
+# ---- code for expressions
+# The nodes of ex are run as on a stack machine, but the stack is kept by
+# the compiler: exv, used again now that parsing is over, has an entry of
+# 40 bytes for each value that waits, a kind and three cells. A value that
+# needs no instruction yet stays what its node was, kind 1 a number, 2 a
+# global name and a number, 4 a variable, 5 a var, and is used where it is
+# when its operator comes; a computed value is kind 7, in a register, or 8,
+# pushed. Registers come from xfree, the scratch
+# registers that hold no value of the statement, rcx and rdx apart: a shift
+# counts in rcx and a division needs rdx, so those two never hold a value
+# that waits. When none is free, the lowest value that is in a register is
+# pushed; xspl is the entry below which none is in a register, so pushed
+# values are the lowest and come back in order.
+fn rexw r b
+call eb r>>3<<2|b>>3|72
+end
+# ModRM for two registers: r in the reg field, b in the r/m field
+fn modrr r b
+call eb (r&7)<<3|b&7|192
+end
+# <o> d, s for an instruction of the form "r/m64, r64"
+fn orr o d s
+call rexw s d
+call eb o
+call modrr s d
+end
+# instruction n of the group 81/83 on register d with the number v, which
+# fits 32 bits signed: 0 add, 1 or, 4 and, 5 sub, 6 xor, 7 cmp; in the
+# shortest form, as an assembler writes it
+fn ori n d v
+call rexw 0 d
+ifz v+128>>8
+call eb 131
+call modrr n d
+call eb v
+ret 0
+end
+ifz d
+# rax has a form without ModRM
+call eb n*8+5
+call e4 v
+ret 0
+end
+call eb 129
+call modrr n d
+call e4 v
+end
+fn epush r
+if r>=8
+call eb 65
+end
+call eb (r&7)+80
+pushed+=8
+end
+fn epop r
+if r>=8
+call eb 65
+end
+call eb (r&7)+88
+pushed-=8
+end
+# setcc d8 with the condition byte c, then movzx d32, d8
+fn esetcc d c
+if d>=4
+call eb d>>3|64
+end
+call eb 15
+call eb c
+call modrr 0 d
+if d>=4
+call eb (d>>3)*5|64
+end
+call eb 15
+call eb 182
+call modrr d d
+end
+fn xpush k a b c
+p=nxs*40+exv
+store p k
+store p+8 a
+store p+16 b
+store p+24 c
+nxs+=1
+end
+# register r is free again
+fn xrel r
+xfree|=1<<r
+end
+# a free register, the preferred one if it is free; with none free, the
+# lowest waiting value that is in a register is pushed and gives its own
+fn xalloc
+r=xpref
+if r<16
+jnz xfree>>r&1 t
+end
+i=0
+label a
+if i<13
+loadb i+xord as r
+jnz xfree>>r&1 t
+i+=1
+jmp a
+end
+label s
+jge xspl nxs bad
+p=xspl*40+exv
+load p as k
+xspl+=1
+jne k 7 s
+store p 8
+load p+8 as r
+call epush r
+ret r
+label bad
+call err
+label t
+xfree^=1<<r
+ret r
+end
+# take register x: if a waiting value is in it, that value moves
+fn xtake x
+if xfree>>x&1
+xfree^=1<<x
+ret 0
+end
+i=0
+label a
+jge i nxs n
+p=i*40+exv
+load p as k
+q=p+8
+load q as r
+i+=1
+jne k 7 a
+jne r x a
+call xalloc as t
+if t!=x
+call mrr t x
+store q t
+end
+label n
+end
+# load the value k a b c into register r
+fn xld k a b c r
+if k==1
+call movi r a
+ret 0
+end
+if k==4
+call vmov a r 139
+ret 0
+end
+if k==5
+call emem r 1 a 139
+ret 0
+end
+if k==7
+if a!=r
+call mrr r a
+end
+ret 0
+end
+ns=a
+nl=b
+call lear r
+call addref 0
+if c
+call ori 0 r c
+end
+end
+# how the value k a b c can be the second operand of an instruction, as
+# three results: 0, a register, and 1 if it was taken for this and is to be
+# freed; or 1 and a number that fits 32 bits signed; or 2 and memory, as
+# emem takes it, kind then place
+fn xsrc k a b c
+if k==7
+ret 0 a 1
+end
+if k==1
+ifz a+0x80000000>>32
+ret 1 a 0
+end
+end
+if k==4
+call vplace a as kk pp
+ifz kk
+ret 0 pp 0
+end
+if kk<3
+ret 2 kk pp
+end
+end
+if k==5
+ret 2 1 a
+end
+call xalloc as r
+call xld k a b c r
+ret 0 r 1
+end
+# take the two operands of an operator off the stack into xlk.. and xrk..;
+# one that was pushed comes back into a register, the right one first
+fn xpop2
+nxs-=1
+p=nxs*40+exv
+load p as c
+xrk=c
+load p+8 as c
+xra=c
+load p+16 as c
+xrb=c
+load p+24 as c
+xrc=c
+nxs-=1
+p-=40
+load p as c
+xlk=c
+load p+8 as c
+xla=c
+load p+16 as c
+xlb=c
+load p+24 as c
+xlc=c
+if xspl>nxs
+xspl=nxs
+end
+if xrk==8
+call xalloc as r
+call epop r
+xrk=7
+xra=r
+end
+if xlk==8
+call xalloc as r
+call epop r
+xlk=7
+xla=r
+end
+end
+# the result is being made in the register of the variable assigned: it is
+# no longer free for anything else
+fn xtarget
+xtin=1
+m=1<<xtr
+xfree=(xfree|m)^m
+end
+# the two operands change places
+fn xswap
+k=xlk
+a=xla
+b=xlb
+c=xlc
+xlk=xrk
+xla=xra
+xlb=xrb
+xlc=xrc
+xrk=k
+xra=a
+xrb=b
+xrc=c
+end
+# the register that an operator computes in: that of its left operand if
+# it is a computed value, or of its right one if the operands may change
+# places (m = 1), else a new one with the left operand loaded
+fn xdst m
+if xlast
+if xtr<16
+# The last operator of an assignment computes in the register of the
+# variable where it can: at once if its left operand is in that register,
+# or its right one and the two may change places; else after loading the
+# left operand there, unless the right one is in it.
+call xint xlk xla as c
+if m
+ifz c
+call xint xrk xra as c
+if c
+call xswap
+end
+end
+end
+if c
+call xtarget
+ret xtr
+end
+if xlk!=7
+call xint xrk xra as c
+if xrk==7
+c=xra==xtr
+end
+ifz c
+call xld xlk xla xlb xlc xtr
+call xtarget
+ret xtr
+end
+end
+end
+end
+if xlk==7
+ret xla
+end
+if m
+if xrk==7
+call xswap
+ret xla
+end
+end
+call xalloc as d
+call xld xlk xla xlb xlc d
+ret d
+end
+# a variable that has a register times a number that fits 32 bits, in
+# either order, is one imul into a new register; 16 if it is not that
+fn xmuli
+k=xlk
+a=xla
+v=xra
+if k==1
+if xrk==4
+k=4
+a=xra
+v=xla
+jmp t
+end
+end
+jne k 4 n
+jne xrk 1 n
+label t
+jnz v+0x80000000>>32 n
+call vplace a as kk pp
+jnz kk n
+d=16
+if xlast
+if xtr<16
+d=xtr
+call xtarget
+end
+end
+if d==16
+call xalloc as d
+end
+call rexw d pp
+ifz v+128>>8
+call eb 107
+call modrr d pp
+call eb v
+ret d
+end
+call eb 105
+call modrr d pp
+call e4 v
+ret d
+label n
+ret 16
+end
+# + - & ^ | and *: instruction o of xopc on the register of the left
+# operand, with the right one where it is
+fn xarith o
+m=0
+if o!=4
+m=1
+end
+ifz o
+call xmuli as d
+if d!=16
+call xpush 7 d 0 0
+ret 0
+end
+end
+call xdst m as d
+call xsrc xrk xra xrb xrc as s x y
+p=o*3+xopc
+ifz o
+ifz s
+call rexw d x
+call eb 15
+call eb 175
+call modrr d x
+end
+if s==1
+call rexw d d
+ifz x+128>>8
+call eb 107
+call modrr d d
+call eb x
+else
+call eb 105
+call modrr d d
+call e4 x
+end
+end
+if s==2
+call emem d x y 175
+end
+jmp f
+end
+ifz s
+loadb p as c
+call orr c d x
+end
+if s==1
+loadb p+2 as c
+call ori c d x
+end
+if s==2
+loadb p+1 as c
+call emem d x y c
+end
+label f
+ifz s
+if y
+call xrel x
+end
+end
+if o
+# the zero flag now says whether the result is zero
+xflg=d
+xflgpos=op
+end
+call xpush 7 d 0 0
+end
+# << and >>: by a number, or by the count moved to rcx
+fn xshift o
+call xdst 0 as d
+loadb o*3+xopc+2 as n
+if xrk==1
+c=xra&63
+if c
+call rexw 0 d
+if c==1
+call eb 209
+call modrr n d
+else
+call eb 193
+call modrr n d
+call eb c
+end
+xflg=d
+xflgpos=op
+end
+jmp f
+end
+if xrk==7
+call mrr 1 xra
+call xrel xra
+else
+call xld xrk xra xrb xrc 1
+end
+call rexw 0 d
+call eb 211
+call modrr n d
+label f
+call xpush 7 d 0 0
+end
+# / and %: by a power of two a shift or a mask; else the left operand goes
+# to rax, rdx is cleared, and the quotient is in rax, the remainder in rdx
+fn xdiv o
+if xrk==1
+if xra
+c=xra-1
+ifz c&xra
+if o==2
+xra=c
+tail xarith 7
+end
+n=0
+c=xra
+label l
+c>>=1
+if c
+n+=1
+jmp l
+end
+xra=n
+tail xshift 6
+end
+end
+end
+h=0
+if xrk==7
+ifz xra
+call xalloc as t
+call mrr t 0
+xra=t
+h=1
+end
+end
+if xlk==7
+ifz xla
+h=1
+end
+end
+ifz h
+call xtake 0
+end
+h=0
+if xlk==7
+ifz xla
+h=1
+end
+end
+ifz h
+call xld xlk xla xlb xlc 0
+if xlk==7
+call xrel xla
+end
+end
+call xsrc xrk xra xrb xrc as s x y
+if s==1
+call xalloc as t
+call movi t x
+s=0
+x=t
+y=1
+end
+call eb 49
+call eb 210
+ifz s
+call rexw 0 x
+call eb 247
+call modrr 6 x
+if y
+call xrel x
+end
+else
+call emem 6 x y 247
+end
+if o==2
+call mrr 0 2
+end
+call xpush 7 0 0 0
+end
+# cmp <left operand>, <right operand>. The left one is compared in the
+# register of its variable if it is one that has a register, else in a
+# register of its own: xcl is the register and xct says whether it was
+# taken for this. The results say where the right one was, as xsrc does.
+fn xcmp
+l=16
+t=1
+if xlk==7
+l=xla
+end
+if xlk==4
+call vplace xla as kk pp
+ifz kk
+l=pp
+t=0
+end
+end
+if l==16
+call xalloc as l
+call xld xlk xla xlb xlc l
+end
+xcl=l
+xct=t
+call xsrc xrk xra xrb xrc as s x y
+ifz s
+call orr 57 l x
+end
+if s==1
+call ori 7 l x
+end
+if s==2
+call emem l x y 59
+end
+ret s x y
+end
+# a comparison as a value: 1 or 0, in a register that one of the operands
+# had for itself, or in a new one
+fn xcmpv o
+call xcmp as s x y
+d=16
+if xct
+d=xcl
+end
+ifz s
+if y
+if d==16
+d=x
+else
+call xrel x
+end
+end
+end
+if d==16
+call xalloc as d
+end
+loadb o*3+xopc+2 as c
+call esetcc d c
+call xpush 7 d 0 0
+end
+fn xop o
+call xpop2
+if o>=10
+tail xcmpv o
+end
+if o<3
+if o
+tail xdiv o
+end
+end
+if o==5
+tail xshift o
+end
+if o==6
+tail xshift o
+end
+tail xarith o
+end
+# compute the nodes i up to h of ex, which are one expression: its value
+# is left on the stack
+fn xgen i h
+while i<h
+call ochk
+p=i*32+ex
+load p as k
+load p+8 as a
+load p+16 as b
+load p+24 as c
+if k==6
+xlast=i+1==h
+call xop a
+else
+call xpush k a b c
+end
+i+=1
+end
+end
+# the value on top of the stack, the result, into register g
+fn xfin g
+nxs-=1
+p=nxs*40+exv
+load p as k
+load p+8 as a
+load p+16 as b
+load p+24 as c
+call xld k a b c g
+end
+# an empty stack, and m the registers that are free; g is the one to
+# prefer, 16 for none
+fn xinit m g
+xfree=m
+xpref=g
+nxs=0
+xspl=0
+xtr=16
+xtin=0
+end
+# 1 if variable i lives in register r
+fn xinreg i r
+call vplace i as kk pp
+ifz kk
+ret pp==r
+end
+ret 0
+end
+# 1 if the value k a is a variable that lives in the register of the
+# variable being assigned
+fn xint k a
+if k==4
+if xtr<16
+tail xinreg a xtr
+end
+end
+ret 0
+end
+# the expression parsed last is the next value of the statement: compute it
+# into the register of its position, note what is known of it, count it.
+# The registers that hold earlier values of the statement are not free; a
+# division needs rax and rdx and a shift rcx, which are pushed around the
+# computation when they hold one.
+fn exarg
+call aidx as t
+call areg t as g
+call opdp as p
+call cp4 exv+8 p
+n=ai
+s8=0
+loadb cur+2 as c
+if c&4
+if n
+n-=1
+s8=exsh
+end
+end
+m=0x0fc1
+j=0
+label a
+if j<n
+if j<6
+call areg j as r
+b=1<<r
+m=(m|b)^b
+j+=1
+jmp a
+end
+end
+s0=0
+s3=0
+if exdm
+if n>=1
+s0=1
+call epush 0
+m|=1
+end
+if n>=4
+s3=1
+call epush 2
+end
+end
+if s8
+call epush 1
+end
+call xinit m g
+call xgen 0 nex
+call xfin g
+if s8
+call epop 1
+end
+if s3
+call epop 2
+end
+if s0
+call epop 0
+end
+call anext
+end
+# ---- loads and stores
+# A load or store that is compiled like an expression (kinds 4 and 5 of
+# xclass) addresses memory as [base + index + number]: xaddr computes the
+# address expression into that form, and xmins writes the instruction.
+# REX for an instruction with a memory operand: w for 64 bits, g the
+# register in the reg field, b the base, x the index (16 for none); written
+# only if it says something, or if f is set
+fn erexm w g b x f
+v=w<<3|g>>3<<2
+if x<16
+v|=x>>3<<1
+end
+v|=b>>3
+if v|f
+call eb v|64
+end
+end
+# ModRM, SIB and displacement of [b + x + d], with g in the reg field
+fn emodm g b x d
+g=(g&7)<<3
+b&=7
+m=0
+n=0
+if d
+m=128
+n=4
+ifz d+128>>8
+m=64
+n=1
+end
+else
+# rbp and r13 cannot be a base without a displacement
+if b==5
+m=64
+n=1
+end
+end
+s=0
+if x!=16
+s=1
+end
+if b==4
+s=1
+end
+m|=g
+if s
+call eb m|4
+i=4
+if x!=16
+i=x&7
+end
+call eb i<<3|b
+else
+call eb m|b
+end
+if n==1
+call eb d
+end
+if n==4
+call e4 d
+end
+end
+# the width in bytes of the load or store at cur, from the last letter of
+# its name
+fn xwidth
+loadb cur-1 as c
+if c==98
+ret 1
+end
+if c==50
+ret 2
+end
+if c==52
+ret 4
+end
+ret 8
+end
+# Compute the nodes 0 up to e of ex, an address, as base, index and number
+# in xmb, xmx and xmd. A number added or subtracted last is the number, and
+# a variable that has a register, added last, is the index; the rest is
+# computed into a register, which is that of a variable if the rest is one.
+fn xaddr e
+xmx=16
+xmd=0
+h=e
+p=(e-1)*32+ex
+load p as k
+if k==6
+load p+8 as o
+q=p-32
+load q as rk
+load q+8 as ra
+if rk==1
+t=0
+v=0
+if o==3
+v=ra
+t=1
+end
+if o==4
+v=0-ra
+t=1
+end
+if t
+ifz v+0x80000000>>32
+xmd=v
+h=e-2
+end
+end
+end
+if rk==4
+if o==3
+call vplace ra as kk pp
+ifz kk
+xmx=pp
+h=e-2
+end
+end
+end
+end
+call xgen 0 h
+nxs=0
+xspl=0
+load exv as k
+load exv+8 as a
+load exv+16 as b
+load exv+24 as c
+r=16
+if k==7
+r=a
+end
+if k==4
+call vplace a as kk pp
+ifz kk
+r=pp
+end
+end
+if r==16
+call xalloc as r
+if k==2
+# the number that goes with a name is the displacement, if there is none
+ifz xmd
+xmd=c
+c=0
+end
+end
+call xld k a b c r
+end
+xmb=r
+end
+# the instruction of a load (s = 0) or a store (s = 1) of w bytes between
+# register g and the memory that xaddr found
+fn xmins w s g
+if w==2
+if s
+call eb 102
+end
+end
+f=0
+if w==1
+if s
+if g>=4
+f=64
+end
+end
+end
+call erexm w==8 g xmb xmx f
+if s
+o=137
+if w==1
+o=136
+end
+call eb o
+else
+o=139
+if w<4
+call eb 15
+o=183
+if w==1
+o=182
+end
+end
+call eb o
+end
+call emodm g xmb xmx xmd
+end
+# a load is complete, with its name after as
+fn xmload
+loadb cur as n
+if ai!=n
+call ecount
+end
+call cp4 exv+8 opd
+call memchk cur
+call xwidth as w
+load caps as f
+load caps+8 as p
+g=0
+kk=1
+ifz f
+asg|=1<<p
+store p*32+vk 0
+call vplace p as kk pp
+ifz kk
+g=pp
+end
+end
+call xinit 0x0fc1 16
+call xaddr nex
+call xmins w 0 g
+if f
+call emem 0 1 p 137
+ret 0
+end
+if kk
+call vmov p 0 137
+end
+end
+# A store is complete: the address, then the value, which is written from
+# its register, or as a number if it fits the instruction. eop is left to
+# check the access and to copy nothing of the row.
+fn xmstore
+loadb cur as n
+if ai!=n
+ret 0
+end
+call cp4 exv+8 opd
+load exv as e
+e+=1
+call xwidth as w
+call xinit 0x0fc1 16
+# a value that divides needs rax: the address is then kept out of it
+if exdm
+xfree=0x0fc0
+end
+call xaddr e
+if exdm
+xfree|=1
+end
+call xgen e nex
+load exv as k
+load exv+8 as a
+load exv+16 as b
+load exv+24 as c
+if k==1
+t=1
+if w==8
+if a+0x80000000>>32
+t=0
+end
+end
+if t
+if w==2
+call eb 102
+end
+call erexm w==8 0 xmb xmx 0
+o=199
+if w==1
+o=198
+end
+call eb o
+call emodm 0 xmb xmx xmd
+if w==1
+call eb a
+end
+if w==2
+call eb a
+call eb a>>8
+end
+if w>=4
+call e4 a
+end
+jmp x
+end
+end
+r=16
+if k==7
+r=a
+end
+if k==4
+call vplace a as kk pp
+ifz kk
+r=pp
+end
+end
+if r==16
+call xalloc as r
+call xld k a b c r
+end
+call xmins w 1 r
+label x
+loadb cur+3 as c
+xskip=c
+end
+# The statements that only compute or compare are compiled like
+# expressions: their values are parsed into ex, each as an expression, and
+# no code is written until the statement is complete. xclass says which
+# kind the statement at cur is: 1 it computes and keeps the result with as
+# (set, and the sixteen whose operators an expression has: xso is the
+# operator, -1 for set), 2 it compares two values and jumps or opens a
+# block, 3 it tests one value and does, 4 it is a load, 5 a store. 0 is
+# every other statement, and any line with a string, which is compiled the
+# old way, by the bytes of its row.
+fn xclass
+p=ip
+while p<ie
+loadb p as c
+jeq c 34 z
+jeq c 10 e
+jeq c 35 e
+p+=1
+end
+label e
+load2 cur+1 as f
+loadb cur as n
+loadb cur+3 as l
+if f&128
+if l<=3
+if f&2
+if n==2
+ret 5
+end
+else
+if n==1
+ret 4
+end
+end
+end
+end
+if f==1
+ifz l
+if n==1
+xso=-1
+ret 1
+end
+end
+if n==2
+load xrows as q
+ifz q
+# the rows of the sixteen operators, found once by their names
+sn=ns
+sl=nl
+i=0
+label b
+if i<16
+ns=i*3+exkw
+q=3
+if i>=9
+q=2
+end
+nl=q
+call kw as r
+store i*8+xrows r
+i+=1
+jmp b
+end
+ns=sn
+nl=sl
+end
+i=0
+label a
+if i<16
+load i*8+xrows as q
+if q==cur
+xso=i
+ret 1
+end
+i+=1
+jmp a
+end
+end
+ret 0
+end
+if l==5
+load4 cur+4 as c
+if n==2
+if c==0x0ff83948
+ret 2
+end
+end
+if n==1
+if c==0x0fc08548
+ret 3
+end
+end
+end
+label z
+ret 0
+end
+# a statement of kind 1 is complete, with its name after as: apply its
+# operator and keep the result
+fn xcap
+loadb cur as n
+if ai!=n
+call ecount
+end
+if xso!=-1
+call exred xso
+end
+load caps as f
+load caps+8 as p
+call xstore f p
+end
+# A statement of kind 2 or 3 is complete: compare its values where they
+# are, or test its one value, and make eop leave out the cmp or test of the
+# row and copy only its jump (xskip). A comparison that is the whole value
+# of if, ifz, jz or jnz is not turned into 1 or 0 and tested: the statement
+# becomes the one that compares and jumps (ifeq, jlt, ...), or its opposite
+# for ifz and jz. The name read last, the label of a jump, is kept.
+fn xjcond
+if xst<2
+ret 0
+end
+if xst>3
+ret 0
+end
+loadb cur as n
+if ai!=n
+ret 0
+end
+sn=ns
+sl=nl
+h=nex
+load exv as e
+e+=1
+if xst==3
+h=nex-1
+p=h*32+ex
+load p as k
+load p+8 as o
+if k!=6
+o=0
+end
+if o<10
+call xinit 0x0fc1 16
+call xgen 0 nex
+nxs-=1
+load exv as k
+load exv+8 as a
+load exv+16 as b
+load exv+24 as c
+r=16
+if k==7
+r=a
+end
+if k==4
+call vplace a as kk pp
+ifz kk
+r=pp
+end
+end
+if r==16
+call xalloc as r
+call xld k a b c r
+end
+# no test if the instruction just written left the zero flag of this value
+t=1
+if xflg==r
+if xflgpos==op
+t=0
+end
+end
+if t
+call orr 133 r r
+end
+xskip=3
+jmp x
+end
+# test rax, rax and a jump: 132 if it is taken on zero
+loadb cur+8 as b
+loadb cur+2 as f
+f&=8
+t=b==133
+if f
+t=b==132
+end
+ifz t
+if o<12
+o^=1
+else
+o=27-o
+end
+end
+q=exnm
+if f
+storeb q 105
+q+=1
+storeb q 102
+else
+storeb q 106
+end
+q+=1
+load2 o*3+exkw as c
+store2 q c
+q+=2
+c=exnm
+ns=c
+nl=q-c
+call kw as r
+cur=r
+load p+16 as e
+e+=1
+ai=2
+end
+call xinit 0x0fc1 16
+call xgen 0 e
+call xgen e h
+call xpop2
+call xcmp as s x y
+xskip=3
+label x
+ns=sn
+nl=sl
+end
+# after the name that starts a line: 0, or 1 for "=", or 2 + an operator
+# for the operator and "=", with the cursor behind the "="
+fn exasg
+call pk as c
+p=ip+1
+jge p ie n
+loadb p as d
+if c==61
+jeq d 61 n
+call adv
+ret 1
+end
+o=99
+if c==42
+o=0
+end
+if c==47
+o=1
+end
+if c==37
+o=2
+end
+if c==43
+o=3
+end
+if c==45
+o=4
+end
+if c==38
+o=7
+end
+if c==94
+o=8
+end
+if c==124
+o=9
+end
+if o!=99
+jne d 61 n
+ip+=2
+ret o+2
+end
+jne c d n
+p+=1
+jge p ie n
+loadb p as d
+jne d 61 n
+if c==60
+ip+=3
+ret 7
+end
+if c==62
+ip+=3
+ret 8
+end
+label n
+ret 0
+end
+# "<name>=<expression>", or with operator f before the "=" (-1 for none):
+# compute the expression, with the name as its left operand if there is an
+# operator, and keep the result as "as <name>" would
+fn exasn f
+ts=ns
+tl=nl
+call exinit
+m=0
+if f!=-1
+call exname
+m=1
+end
+call exparse m
+if f!=-1
+call exred f
+end
+call eol
+ns=ts
+nl=tl
+call lbuf as r
+if r!=-1
+call gent r as p
+load p+32 as d
+if d==1
+load p+16 as p
+call xstore 1 p
+ret 0
+end
+end
+o=nv
+call defv as i
+load i*8+vlocal as d
+if d
+call edup
+end
+if infn
+if nv!=o
+# a new variable begins behind the line, after the last mention of every
+# operand, so that it may take the place of one that is done
+d=i*8+vfirst
+load d as c
+store d c+1
+end
+end
+call xstore 0 i
+end
+# keep the expression in ex, whose value is alone on exv: in the cell i of
+# a var (f = 1), or in variable i, which is thereby assigned
+fn xstore f i
+q=exv+8
+load q as k0
+q+=8
+load q as k1
+q+=8
+load q as k2
+load q+8 as k3
+if f
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
+call emem 0 1 i 137
+ret 0
+end
+asg|=1<<i
+d=i*32+vk
+store d k0
+d+=8
+store d k1
+d+=8
+store d k2
+store d+8 k3
+call vplace i as kk pp
+if kk
+# the variable lives in memory: through rax
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
+call vmov i 0 137
+ret 0
+end
+# The variable has a register. If no variable of the expression lives in
+# that register (the variable itself, or one that is done and left it its
+# place), the register is free for the computation and preferred, so that
+# the result is likely to be made in it. Otherwise it holds a value the
+# expression still reads, and only the last operator may write it (xdst).
+j=0
+al=0
+label a
+if j<nex
+d=j*32+ex
+load d as c
+if c==4
+load d+8 as c
+call xinreg c pp as c
+al|=c
+end
+j+=1
+jmp a
+end
+m=0x0fc1
+g=16
+ifz al
+m|=1<<pp
+g=pp
+end
+call xinit m g
+xtr=pp
+call xgen 0 nex
+ifz xtin
+call xfin pp
+end
+xtr=16
 end
 
 # ---- output
 fn eb v
-load op as p
-storeb p v
-add p 1 as p
-store op p
+storeb op v
+op+=1
 end
-# four bytes; the store also clears the four after them, not yet written
 fn e4 v
-and v 4294967295 as v
-load op as p
-store p v
-add p 4 as p
-store op p
+store4 op v
+op+=4
 end
 fn z n
-load op as p
-add p n as p
-store op p
+op+=n
 end
 fn cp a n
-load op as p
+p=op
 label l
-jz n x
+if n
 loadb a as c
 storeb p c
-add a 1 as a
-add p 1 as p
-sub n 1 as n
+a+=1
+p+=1
+n-=1
 jmp l
-label x
-store op p
 end
-# patch four bytes at a, keeping the four after them
-fn p4 a v
-load a as o
-shr o 32 as o
-shl o 32 as o
-and v 4294967295 as v
-or o v as o
-store a o
+op=p
+end
+# the value of the hexadecimal digit at the cursor, which is consumed
+fn hexd
+call pk as c
+call no c==256
+call adv
+call dig c as d
+if d
+ret c-48
+end
+c=(c|32)-97
+call ok c<6
+ret c+10
+end
+# copy the bytes of a string, whose opening quote is behind the cursor
+fn sbytes
+label a
+call pk as c
+if c==256
+call estr
+end
+call adv
+jeq c 34 x
+jne c 92 k
+call pk as c
+if c==256
+call estr
+end
+call adv
+if c==110
+c=10
+jmp k
+end
+if c==116
+c=9
+jmp k
+end
+if c==48
+c=0
+jmp k
+end
+jne c 120 k
+call hexd as c
+c<<=4
+call hexd as d
+c|=d
+label k
+call eb c
+call ochk
+jmp a
+label x
 end
 # mov <register d>, <register s>, 64-bit
 fn mrr d s
-shr s 3 as a
-shl a 2 as a
-shr d 3 as b
-or a b as a
-or a 72 as a
-call eb a
+call eb s>>3<<2|d>>3|72
 call eb 137
-and s 7 as s
-shl s 3 as s
-and d 7 as d
-or s d as s
-or s 192 as s
-call eb s
+call eb (s&7)<<3|d&7|192
 end
-# mov <register of the next argument>, v
+# the row of regtab and argnum for the next value of the statement: its
+# position, or 7 (r11) for a value of a call after the sixth. For callp the
+# first value, the address, takes row 8 (rcx) and the rest are those of a call
+fn aidx
+loadb cur+2 as c
+if c&4
+ifz ai
+ret 8
+end
+i=ai-1
+jmp g
+end
+i=ai
+loadb cur+1 as c
+if c&16
+label g
+jlt i 6 b
+ret 7
+end
+if ai>=7
+call ecount
+end
+label b
+ret i
+end
+# the value is in its register: push it if it goes on the stack, count it
+fn anext
+i=ai
+loadb cur+2 as c
+if c&4
+i-=1
+jmp b
+end
+loadb cur+1 as c
+jz c&16 x
+label b
+jslt i 6 x
+call eb 65
+call eb 83
+pushed+=8
+label x
+ai+=1
+end
+# mov <register of the next argument>, v, in its shortest form
 fn mov v
-load ai as i
-lt i 7 as c
-call ok c
-mul i 2 as r
-add r ro as r
-add r 541 as r
+call aidx as i
+ifz v>>32
+r=i*2+regtab
 loadb r as c
-jz c n
+if c
 call eb c
-label n
-add r 1 as r
-loadb r as c
+end
+loadb r+1 as c
 call eb c
+immpos=op
 call e4 v
-add i 1 as i
-store ai i
+jmp x
+end
+call areg i as r
+call eb r>>3|72
+r&=7
+if v>=0xffffffff80000000
+call eb 199
+call eb r|192
+call e4 v
+jmp x
+end
+call eb r|184
+store op v
+op+=8
+label x
+call anext
+end
+# lea <register of the next argument>, [rip+rel32], with the rel32 zero and
+# its address in immpos
+fn elea
+call aidx as i
+call areg i as r
+call eb r>>3<<2|72
+call eb 141
+call eb (r&7)<<3|5
+immpos=op
+call e4 0
+call anext
+end
+# a 64-bit mov between the register g and memory: the cell number p (k = 1,
+# rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
+# register, 137 to store it
+fn emem g k p o
+call eb g>>3<<2|72
+if o==175
+call eb 15
+end
+call eb o
+g=(g&7)<<3
+if k==1
+call eb g|5
+c=nrefs*32+refs
+store c p
+store c+8 0
+store c+16 op
+store c+24 3
+nrefs+=1
+call e4 0
+ret 0
+end
+call eb g|132
+call eb 36
+call e4 p
+end
+# the same between the register g and variable i of the current scope; a
+# local is not stored to, and loading it gives its address (lea, 141)
+fn vmov i g o
+call vplace i as k p
+ifz k
+if o==139
+call mrr g p
+ret 0
+end
+call mrr p g
+ret 0
+end
+if k==3
+call emem g 2 p 141
+ret 0
+end
+call emem g k p o
+end
+# mov <register of the next argument>, [a]: read the cell of a var
+fn ldvar a
+call aidx as i
+call areg i as r
+call emem r 1 a 139
+call anext
+end
+# 1 if the statement is at and this is its first value, which must be a name
+fn atfirst
+ifz ai
+loadb cur+2 as c
+ret c&1
+end
+end
+# record that the imm32 just written stands for the name read last: k = 0
+# its address, 1 its length, 2 the bytes from it to the end of its object
+fn addref k
+p=nrefs*32+refs
+call putn p
+store p+16 immpos
+store p+24 k
+nrefs+=1
+end
+# the innermost open block, which the statement at hand closes or continues;
+# the jump recorded for it lands here
+fn blktop
+p=(nblk-1)*40+blks
+load p as d
+store4 d op-d-4
+ret p
+end
+# where to note what is known of the next value of the statement
+fn opdp
+i=ai
+if i>=2
+i=2
+end
+ret i*32+opd
+end
+# note that the next value is the address of the global name read last
+fn opda
+call opdp as p
+store p 2
+p+=8
+store p ns
+p+=8
+store p nl
+store p+8 0
+end
+# copy the four cells at a to b
+fn cp4 a b
+n=4
+label l
+load a as c
+store b c
+a+=8
+b+=8
+n-=1
+jnz n l
+end
+# forget what is known of the variables: at a label and at the end of a
+# function (the first pass over the next one may see stale knowledge, but
+# its checks are dropped)
+fn clrvk
+p=vk
+n=64
+label a
+store p 0
+p+=32
+n-=1
+jnz n a
+end
+# the statement assigns variable i: note what is known of the new value.
+# Only set, add and sub carry knowledge
+fn prop i
+k=i*32+vk
+store k 0
+load2 cur+1 as c
+jnz c!=1 x
+loadb cur+3 as n
+ifz n
+load opd as c
+jnz c==3 x
+d=0
+jmp e
+end
+jne n 3 x
+load4 cur+4 as c
+c&=0xffffff
+q=opd+32
+load q as t
+load q+8 as u
+if c!=0xf80148
+jne c 0xf82948 x
+jne t 1 x
+d=0-u
+jmp e
+end
+jne t 1 f
+d=u
+label e
+load opd as c
+jeq c 1 g
+jne c 2 x
+store k 2
+load opd+8 as c
+store k+8 c
+load opd+16 as c
+store k+16 c
+load opd+24 as c
+store k+24 c+d
+ret 0
+label g
+store k 1
+load opd+8 as c
+store k+8 c+d
+ret 0
+label f
+load opd as c
+jnz c!=1 x
+jne t 2 x
+load opd+8 as d
+store k 2
+store k+8 u
+load opd+48 as c
+store k+16 c
+load opd+56 as c
+store k+24 c+d
+label x
+end
+# a load or store, r = its row: check an access through a string now, and
+# note one through a global name plus a number for the end
+fn memchk r
+loadb r-1 as c
+w=8
+if c==98
+w=1
+end
+if c==50
+w=2
+end
+if c==52
+w=4
+end
+loadb r+1 as c
+if c&2
+w|=256
+end
+load opd as c
+if c==3
+if w&256
+call eaccl
+end
+d=w&255
+load opd+8 as c
+jz d>c x
+call eaccl
+end
+jne c 2 x
+p=nchks*32+chks
+load opd+8 as c
+store p c
+load opd+16 as c
+p+=8
+store p c
+load opd+24 as c
+p+=8
+store p c
+p+=8
+store4 p w
+store4 p+4 ip-in
+nchks+=1
+label x
+end
+# no way leads to the code that follows, until a label: remember what was
+# assigned and take everything as assigned
+fn godead
+ifz dead
+jmask=asg
+dead=1
+asg=-1
+end
+end
+# the label read last is being defined: asg becomes what is assigned on
+# every way to it, the line before and each jump seen so far; a label that
+# only later jumps reach starts from jmask
+fn labasg
+call hfind 4 scope as p
+jz p n
+load p+8 as m
+asg&=m
+jmp x
+label n
+jz dead x
+asg=jmask
+label x
+dead=0
+end
+# sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
+# function has stack slots
+fn frame o
+c=fnslots*8+fnlocal
+if c
+jne o 236 s
+jlt c 4096 s
+call cp probe 36
+store4 op-34 c
+ret 0
+label s
+call eb 72
+call eb 129
+call eb o
+call e4 c
+end
+end
+# how many bytes of the six pops to leave out: those of the registers that
+# the function does not use and so did not save
+fn popskip
+loadb fnregs+pushlen as c
+ret 10-c
+end
+# no variable is a local: where a function starts and ends
+fn clrloc
+p=vlocal
+n=64
+label a
+store p 0
+p+=8
+n-=1
+jnz n a
+end
+# give each of the nv variables of the function a place. A variable is in
+# use from its definition to its last mention; if that range meets a loop,
+# to the end of the loop. A place is free for a variable defined after the
+# last mention of the one that had it.
+fn alloc
+label a
+g=0
+n=nloops
+b=loops
+while n
+load b as lo
+load b+8 as hi
+i=0
+label v
+if i<nv
+k=i*8
+load k+vfirst as t
+jnz t>hi s
+k+=vlast
+load k as t
+jlt t lo s
+jge t hi s
+store k hi
+g=1
+label s
+i+=1
+jmp v
+end
+b+=16
+n-=1
+end
+jnz g a
+i=0
+label z
+store i*8+locfree 0
+i+=1
+jlt i 70 z
+fnslots=0
+fnregs=0
+i=0
+while i<nv
+k=i*8
+load k+vlocal as t
+jnz t c
+load k+vfirst as lo
+load k+vlast as hi
+j=0
+label q
+t=j*8+locfree
+load t as u
+ifz u<lo
+j+=1
+jmp q
+end
+store t hi
+storeb i+fnloc j
+if j<6
+jlt j fnregs c
+fnregs=j+1
+jmp c
+end
+j-=5
+jle j fnslots c
+fnslots=j
+label c
+i+=1
+end
 end
 # the code of the statement, after checking its operand count; a call
 # also leaves room for its rel32 and is recorded
 fn eop
-load cur as r
-add r 1 as f
-loadb f as f
-and f 20 as c
-jnz c k
+r=cur
+loadb r+1 as f
+jnz f&20 k
+loadb r+2 as c
+if c&4
+ifz ai
+call ecount
+end
+jmp k
+end
+if f&32
+ifz ai
+call ecount
+end
+if ai>6
+call ecount
+end
+ifz fnres
+fnres=ai
+end
+jeq fnres ai k
+call eres
+end
 loadb r as c
-load ai as i
-eq c i as c
-call ok c
+if c!=ai
+call ecount
+end
 label k
-add r 2 as c
-loadb c as c
-add r 3 as r
-call cp r c
-and f 16 as f
-jz f x
-load ai as i
-lt i 7 as c
-call ok c
-call g 96 as n
-mul n 32 as p
-add p calls as p
-call g 72 as c
-store p c
-call g 80 as c
-add p 8 as r
-store r c
-load op as c
-add p 16 as r
-store r c
-add p 24 as r
-store r i
+if f&128
+call memchk r
+end
+jz f&32 m
+if f&16
+if ai>6
+call ecount
+end
+fntail=1
+end
+call frame 196
+call godead
+call popskip as n
+loadb r+3 as c
+call cp r+4+n c-n
+jmp h
+label m
+loadb r+3 as c
+p=r+4+xskip
+c-=xskip
+xskip=0
+call cp p c
+label h
+jz f&16 w
+i=ai
+loadb cur+2 as c
+if c&2
+if ai
+call ecount
+end
+call ok ncap==1
+i=0xffffffff
+end
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 i
+store4 p+28 ncap
 call z 4
-add n 1 as n
-call s 96 n
-label x
+ncalls=n+1
+label w
+if pushed
+call eb 72
+call eb 129
+call eb 196
+call e4 pushed
+pushed=0
+end
 end
 # fill in the jumps of the current scope, now that its labels are known
 fn resolve
-call g 64 as i
-call g 24 as n
-sub n i as n
-mul i 24 as p
-add p fixs as p
-label a
-jz n x
+i=fixbase
+n=nfix-i
+p=i*32+fixs
+while n
 call getn p
+epos=ns
 call llab as c
-ne c 99999 as i
-jnz i k
+if c==-1
 call elab
-label k
-call g 56 as i
-add c i as c
-mul c 24 as c
-add c labs as c
-add c 16 as c
-load c as c
-add p 16 as i
-load i as i
-sub c i as c
-sub c 4 as c
-call p4 i c
-add p 24 as p
-sub n 1 as n
-jmp a
-label x
+end
+load (c+labbase)*40+labs+16 as c
+load p+16 as i
+store4 i c-i-4
+p+=32
+n-=1
+end
+epos=0
 end
 
 # ---- start: a closed output pipe must be a write error, not a death
-add st 104 as p
-store p 1
-sys 13 13 p 0 8
-set in as p
-add in 65537 as q
+store sig 1
+sys rt_sigaction 13 sig 0 8
+p=in
+q=in+inmax
 label rd
-sub q p as r
-jnz r rd1
+r=q-p
+ifz r
 call ebig
-label rd1
-sys 0 0 p r as r
-jz r rd2
-gt r 65537 as c
-jz c rd3
+end
+sys read 0 p r as r
+if r
+if r>inmax
 call erd
-label rd3
-add p r as p
+end
+p+=r
 jmp rd
-label rd2
-store ie p
-store ip in
-# ---- tables, four bytes a line, low byte first: the ELF header (0), the
-# statements (176; per row name length, name, operand count, flags, code
-# length, code; flag 64 is a statement parsed on its own), then fnpush
-# (531), regtab (541), argnum (555), varnum (562) and exit0 (568)
-store op ro
-call e4 1179403647
-call e4 65794
-call z 8
-call e4 4063234
-call e4 1
-call e4 4194480
-call z 4
-call e4 64
-call z 16
-call e4 3670080
-call e4 4194306
-call z 4
-call e4 1
-call e4 5
-call z 8
-call e4 4194304
-call z 4
-call e4 4194304
-call z 20
-call e4 4096
-call z 4
-call e4 1
-call e4 6
-call z 8
-call e4 268435456
-call z 4
-call e4 268435456
-call z 20
-call e4 4096
-call z 4
-call e4 1937339139
-call e4 251790336
-call e4 1702036229
-call e4 65908
-call e4 1684300035
-call e4 1208156418
-call e4 1929639937
-call e4 16933493
-call e4 4163454979
-call e4 1819634947
-call e4 1208221954
-call e4 63418127
-call e4 41314660
-call e4 3526427905
-call e4 66582344
-call e4 40136557
-call e4 3526428673
-call e4 1224210248
-call e4 1627639945
-call e4 16933998
-call e4 4162930691
-call e4 41053954
-call e4 155714305
-call e4 1870136312
-call e4 50397810
-call e4 66597192
-call e4 40659059
-call e4 2303198721
-call e4 3771943161
-call e4 1919447811
-call e4 1208353026
-call e4 3544775049
-call e4 1902445288
-call e4 1208549634
-call e4 2484074553
-call e4 3233157056
-call e4 40201730
-call e4 961022209
-call e4 3230994424
-call e4 46183951
-call e4 16938092
-call e4 4164503561
-call e4 264278543
-call e4 1812119734
-call e4 151061093
-call e4 267925832
-call e4 3054485654
-call e4 1952907968
-call e4 1208549634
-call e4 2534406201
-call e4 3233157056
-call e4 40199938
-call e4 961022209
-call e4 3230863352
-call e4 79738383
-call e4 1684107116
-call e4 1208156417
-call e4 1812267147
-call e4 1650745711
-call e4 251855105
-call e4 1929707702
-call e4 1701998452
-call e4 1208156674
-call e4 1929787529
-call e4 1701998452
-call e4 50463330
-call e4 54036544
-call e4 7368042
-call e4 48824586
-call e4 167869034
-call e4 3229960197
-call e4 1778615311
-call e4 167869038
-call e4 3229960197
-call e4 1661240591
-call e4 7105633
-call e4 65536272
-call e4 24405362
-call e4 1598098210
-call e4 1564565057
-call e4 1532845121
-call e4 1852179139
-call e4 50348033
-call e4 40269154
-call e4 1694695488
-call e4 1073964142
-call e4 1634469120
-call e4 74212706
-call e4 1392508992
-call e4 1096040789
-call e4 1096171861
-call e4 12058711
-call e4 12452031
-call e4 1102725562
-call e4 12140984
-call e4 167904775
-call e4 84085000
-call e4 252579084
-call e4 15544
-call e4 268382464
-call e4 5
-store op out
-call cp ro 176
+end
+ie=p
+srcend=p
+mainend=p
+ip=in
+op=out
+call cp hdr 176
 
 # ---- statement
 label next
+call ochk
 call pk as c
-eq c 256 as d
-jnz d fin
+jeq c 256 uend
 call blank c as d
 jnz d n1
-eq c 10 as d
-jnz d n1
-eq c 35 as d
-jnz d n2
-eq c 13 as d
-jz d n4
+jeq c 10 n1
+jeq c 35 n2
+if c==13
 call crlf
 label n1
 call adv
@@ -727,285 +3410,665 @@ jmp next
 label n2
 call adv
 call pk as c
-eq c 256 as d
-jnz d fin
-eq c 10 as d
-jnz d next
-eq c 13 as d
-jz d n2
+jeq c 256 uend
+jeq c 10 next
+jne c 13 n2
 call crlf
 jmp n2
-label n4
-call rname
+end
+call pk as c
+call low c as d
+ifz d
+call estmt
+end
+call name
+call exasg as d
+jnz d asgn
 call kw as r
-call ok r
-add r 1 as f
-loadb f as f
-and f 64 as d
-jz d n6
+ifz r
+call estmt
+end
+loadb r+1 as f
+if f==255
 loadb r as d
-eq d 1 as c
-jnz c fndef
-eq d 2 as c
-jnz c bufdef
-eq d 3 as c
-jnz c fnend
-jmp labdef
-label n6
-store cur r
-store ai 0
+jeq d 1 fndef
+jeq d 2 bufdef
+jeq d 3 fnend
+jeq d 4 labdef
+jeq d 5 datadef
+jeq d 6 vardef
+jeq d 7 constdef
+jeq d 8 localdef
+jeq d 9 usedef
+jeq d 10 elsedef
+jmp whiledef
+end
+cur=r
+ai=0
+ncap=0
+store opd 0
+store opd+32 0
 call pk as c
 call blank c as d
 call ok d
 call blanks
-and f 32 as d
-jz d n7
-call g 32 as d
-call ok d
-label n7
-and f 16 as d
-jz d n8
+if f&32
+ifz infn
+call eplace
+end
+end
+loadb cur+2 as d
+if d&16
+if infn
+call eplace
+end
+end
+call xclass as d
+xst=d
+if d
+call exinit
+end
+if f&16
 call rname
-load ns as d
-call s 72 d
-load nl as d
-call s 80 d
+cn=ns
+cl=nl
 jmp tokend
-label n8
-and f 4 as d
-jz d arg
+end
+jz f&4 arg
 call pk as c
-call dig c as d
-call ok d
-jmp num
+call low c as d
+jz d num
+call sname as r
+call mov r
+jmp tokend
+
+# The value of a while has been read again, at the end of its loop, as the
+# value of a jnz: compare or test it, and jump back to the first line of
+# the loop while it holds. The jump of the head, taken when the value does
+# not hold at first, lands behind.
+label wclose
+call xjcond
+call eop
+call e4 wbody-op-4
+call blktop as p
+nblk-=1
+wend=0
+ip=wip
+asg=wasg
+dead=0
+jmp be3
+
+# "<name>=<expression>" and "<name><operator>=<expression>"
+label asgn
+call exasn d-2
+jmp next
+
+# the end of a unit of source: go on after the use that named it, or finish
+label uend
+jz nustk fin
+if infn
+call eend
+end
+nustk-=1
+load nustk*8+ucur as curunit
+p=nustk*16+ustack
+load p as ip
+p+=8
+load p as ie
+jmp next
+
+# "use "<path>"": read the file behind the source read so far and compile
+# it here, unless a use with the same path was compiled before
+label usedef
+if infn
+call eplace
+end
+call blank1
+call pk as c
+call ok c==34
+call adv
+p=ip
+label u1
+call pk as c
+if c==256
+call estr
+end
+if c!=34
+if c==10
+call estr
+end
+call adv
+jmp u1
+end
+q=ip-p
+call adv
+call eol
+ns=p
+nl=q
+call ok q
+call no q>4095
+call look uses nuses 16 as r
+jne r -1 next
+call putn nuses*16+uses
+nuses+=1
+r=pathbuf
+label u8
+if q
+loadb p as c
+storeb r c
+p+=1
+r+=1
+q-=1
+jmp u8
+end
+storeb r 0
+epos=ns
+sys open pathbuf 0 0 as f
+ifslt f 0
+call euse
+end
+r=srcend
+label u4
+q=in+inmax-srcend
+ifz q
+call ebig
+end
+sys read f srcend q as c
+ifslt c 0
+call euse
+end
+if c
+srcend+=c
+jmp u4
+end
+sys close f
+epos=0
+p=nuses*8
+store p+ustart-8 r
+store p+uendp-8 srcend
+store nustk*8+ucur curunit
+curunit=nuses
+p=nustk*16+ustack
+store p ip
+p+=8
+store p ie
+nustk+=1
+ip=r
+ie=srcend
+jmp next
 
 # ---- arguments
 # every token must be followed by a space, tab, comment or end of line
 label tokend
-call pk as c
-eq c 256 as d
-jnz d arg
-call blank c as d
-jnz d arg
-eq c 10 as d
-jnz d arg
-eq c 13 as d
-jnz d arg
-eq c 35 as d
-call ok d
+call tokchk
 label arg
+call ochk
 call pk as c
-eq c 256 as d
-jnz d a1
-eq c 10 as d
-jnz d a1
-eq c 35 as d
-jnz d a1
+jeq c 256 a1
+jeq c 10 a1
+jeq c 35 a1
 call blank c as d
 jnz d a2
-eq c 13 as d
-jnz d a4
-eq c 34 as d
-jnz d str
+if c!=13
+jnz xst xarg
+jeq c 34 str
+call excomp as d
+jnz d earg
 call low c as d
 jnz d ident
+jeq c 45 num
 call dig c as d
 jnz d num
 call err
-label a4
+end
 call crlf
 label a1
-load cur as r
-add r 1 as f
-loadb f as f
-and f 9 as f
-call no f
+jnz wend wclose
+loadb cur+1 as f
+if f&8
+call emlab
+end
+if f&1
+call eas
+end
+if xst==5
+call xmstore
+end
+call xjcond
 call eop
+loadb cur+2 as f
+jz f&8 next
+p=nblk*40+blks
+store p op
+p+=8
+store p asg
+p+=8
+store p 0
+p+=8
+ifz whead
+store p 0
+else
+# a while: its first line is behind this jump
+store p op+4
+end
+p+=8
+store p wsrc
+whead=0
+call z 4
+nblk+=1
 jmp next
 label a2
 call adv
 jmp arg
 
+# an expression: not where a name must stand (the first value of at, the
+# operand of len, the label of a jump)
+label earg
+call atfirst as d
+call no d
+loadb cur+1 as r
+call no r&64
+if r&8
+loadb cur as d
+if ai>=d
+call err
+end
+end
+call exinit
+call exparse 0
+call exarg
+jmp tokend
+
+# a value of a statement that is compiled like an expression: parsed now,
+# computed when the statement is complete. A name may be as, or the label
+# of a jump that has its values.
+label xarg
+call low c as d
+if d
+q=ip
+call name
+r=cur
+loadb r+1 as f
+if f&8
+loadb r as f
+jge ai f jtarget
+end
+call isas as d
+jnz d capture
+ip=q
+end
+call exparse ai
+ai+=1
+jmp tokend
+
 label num
-set 0 as r
-label nm1
-call pk as c
-call dig c as d
-jz d nm2
-mul r 10 as r
-sub c 48 as c
-add r c as r
-and r 4294967295 as r
-call adv
-jmp nm1
-label nm2
+call atfirst as d
+call no d
+call rdnum as r
+loadb cur+1 as d
+call no d&64
+call opdp as p
+store p 1
+p+=8
+store p r
 call mov r
 jmp tokend
 
-# string: the bytes go into the code behind a jmp, then address and length
+# string: the bytes go into the code behind a jmp. sys and call get two
+# values (address, length), len the length, the rest the address
 label str
-load cur as r
-add r 1 as r
-loadb r as r
-and r 4 as r
-call ok r
+call atfirst as d
+call no d
 call adv
 call eb 233
-load op as r
+r=op
 call z 4
-load op as p
+p=op
+call sbytes
+q=op-p
+store4 r q
+call opdp as d
+store d 3
+store d+8 q
+loadb cur+1 as r
+jnz r&64 s1
+call elea
+store4 immpos p-immpos-4
+jnz r&20 s1
+loadb cur+2 as d
+jz d&4 tokend
 label s1
-call pk as c
-eq c 256 as d
-call no d
-call adv
-eq c 34 as d
-jnz d s4
-eq c 92 as d
-jz d s3
-call pk as c
-eq c 256 as d
-call no d
-call adv
-eq c 110 as d
-jz d s5
-set 10 as c
-jmp s3
-label s5
-eq c 116 as d
-jz d s6
-set 9 as c
-jmp s3
-label s6
-eq c 48 as d
-jz d s3
-set 0 as c
-label s3
-call eb c
-jmp s1
-label s4
-load op as q
-sub q p as q
-call p4 r q
-sub p out as p
-add p 4194304 as p
-call mov p
 call mov q
 jmp tokend
 
 # a name: a variable or buffer to pass, "as", or the label of a jump
 label ident
 call name
-load cur as r
-add r 1 as f
-loadb f as f
-and f 8 as f
-jz f i3
+r=cur
+loadb r+1 as f
+if f&8
 loadb r as f
-load ai as d
-ge d f as d
-jnz d jtarget
-label i3
+jge ai f jtarget
+end
 call isas as d
 jnz d capture
+call atfirst as d
+jnz d atname
+loadb cur+1 as r
+if r&64
+call lbuf as r
+if r==-1
+call mov 0
+r=1
+jmp i9
+end
+call gent r as r
+load r+32 as d
+call no d
+load r+24 as r
+call mov r
+jmp tokend
+end
 call lvar as r
-eq r 99999 as d
-jnz d i2
-load ai as d
-lt d 7 as f
-call ok f
-call vreg r as r
+jeq r -1 i2
+store r*8+vlast ip
+ifz asg>>r&1
+call eunasg
+end
+call opdp as d
+call cp4 r*32+vk d
+call aidx as d
 call areg d as f
-call mrr f r
-add d 1 as d
-store ai d
+call vmov r f 139
+call anext
 jmp tokend
 label i2
 call lbuf as r
-ne r 99999 as d
-jnz d i4
-call eund
+jne r -1 i4
+label i8
+call opda
+call elea
+r=0
+label i9
+call addref r
+jmp tokend
+
+# the first value of at: a name, passed as its address and its size
+label atname
+call lvar as r
+if r!=-1
+load r*8+vlocal as d
+call ok d
+store r*8+vlast ip
+call vmov r 0 139
+ai=1
+load r*8+vlocsz as d
+call mov d
+jmp tokend
+end
+call lbuf as r
+if r!=-1
+call gent r as p
+load p+32 as d
+call no d
+end
+call elea
+call addref 0
+call mov 0
+call addref 2
+jmp tokend
 label i4
-mul r 24 as r
-add r st as r
-add r 352 as r
-load r as r
+call gent r as p
+load p+32 as d
+if d!=1
+if d==2
+load p+24 as r
+call opdp as d
+store d 1
+store d+8 r
 call mov r
+jmp tokend
+end
+jmp i8
+end
+load p+16 as r
+call ldvar r
 jmp tokend
 
 # "as <name>": emit the statement and keep rax in the variable
 label capture
-load cur as r
-add r 1 as r
-loadb r as r
-and r 2 as r
-call no r
+loadb cur+1 as r
+if r&2
+call enoas
+end
+label cp0
 call blanks
-call defvar as r
-call vreg r as r
+q=ip
+call rdname
+call lbuf as r
+jeq r -1 cp1
+call gent r as p
+load p+32 as d
+jz d==1 cp1
+load p+16 as p
+f=1
+jmp cp3
+label cp1
+ip=q
+call defvar as p
+load p*8+vlocal as d
+if d
+call edup
+end
+f=0
+label cp3
+call ok ncap<6
+d=ncap*16+caps
+store d f
+store d+8 p
+ncap+=1
+call blanks
+call pk as c
+jeq c 256 cp4
+jeq c 10 cp4
+jeq c 13 cp4
+jeq c 35 cp4
+loadb cur+1 as d
+jnz d&16 cp0
+loadb cur+2 as d
+jnz d&4 cp0
+call err
+label cp4
 call eol
-call eop
-call mrr r 0
+if xst
+if xst==4
+call xmload
 jmp next
+end
+call xcap
+jmp next
+end
+call eop
+r=0
+label cp5
+jge r ncap next
+d=r*16+caps
+load d as f
+load d+8 as p
+call areg r as q
+ifz f
+asg|=1<<p
+call prop p
+call vmov p q 137
+jmp cp7
+end
+call emem q 1 p 137
+label cp7
+r+=1
+jmp cp5
 
 # "buf <name> <size>"
 label bufdef
 call blank1
-call rname
-call isas as d
-call no d
-call lvar as r
-call nodup r
-call ltop as r
-call nodup r
-call lbuf as r
-call nodup r
-call g 0 as r
-lt r 16 as d
-jnz d b1
-call ebuf
-label b1
-mul r 24 as p
-add p st as p
-add p 336 as p
-call putn p
+call rdname
+call newglob as p
 call blank1
 call pk as c
-call dig c as d
-call ok d
-set 0 as r
-label b2
-call pk as c
-call dig c as d
-jz d b3
-mul r 10 as r
-sub c 48 as c
-add r c as r
-gt r 4026531840 as d
-jz d b4
-call ebuf
-label b4
-call adv
+call low c as d
+if d
+call cname as r
 jmp b2
-label b3
+end
+call rdnum as r
+label b2
+if r>0x7fffffff
+call ebuf
+end
+call eol
+store p+32 0
+store p+40 0
+store p+24 r
+r=r+7>>3<<3
+q=bsssz
+r+=q
+if r>0x7fffffff
+call ebuf
+end
+bsssz=r
+p+=16
+store p q
+call globdone
+jmp next
+
+# "local <name> <size>": bytes in the frame of the open function; the name
+# takes one of its variables, whose value is the address
+label localdef
+ifz infn
+call eplace
+end
+call blank1
+q=nv
+call defvar as r
+if nv==q
+call edup
+end
+call blank1
+call pk as c
+call low c as d
+if d
+call cname as p
+jmp l3
+end
+call rdnum as p
+label l3
+if p>0x7ffffff0
+call ebuf
+end
+call eol
+store r*8+vlocsz p
+p=p+7>>3<<3
+store r*8+vlocal loccur+1
+p+=loccur
+if p>0x7ffffff0
+call ebuf
+end
+loccur=p
+asg|=1<<r
+store r*32+vk 0
+jmp next
+
+# "var <name>...": global cells, below the buffers, the first one highest
+label vardef
+call blank1
+label v1
+call rdname
+call newglob as p
+store p+32 1
+r=ngv+1
+ngv=r
+store p+16 r
+call globdone
+call tokchk
+call blanks
+call pk as c
+jeq c 256 v2
+jeq c 10 v2
+jeq c 13 v2
+jne c 35 v1
+label v2
+call eol
+jmp next
+
+# "const <name> <number>"
+label constdef
+call blank1
+call rdname
+call newglob as p
+call blank1
+call rdnum as r
+call eol
+store p+24 r
+store p+32 2
+call globdone
+jmp next
+
+# "data [<name>] <item>...": bytes behind a jmp; data statements that
+# follow each other share the jmp, so their bytes are contiguous
+label datadef
+call blank1
+f=0
+call pk as c
+call no c==256
+call low c as d
+if d
+call rdname
+call newglob as p
+call tokchk
+f=1
+end
+if op!=dataend
+call eb 233
+datarel=op
+call z 4
+nruns+=1
+end
+q=op
+r=0
+label d3
+call ochk
+call blanks
+call pk as c
+jeq c 256 d6
+jeq c 10 d6
+jeq c 13 d6
+jeq c 35 d6
+if c==34
+call adv
+call sbytes
+jmp d5
+end
+call rdnum as c
+call no c>255
+call eb c
+label d5
+call tokchk
+r+=1
+jmp d3
+label d6
 call ok r
 call eol
-add r 7 as r
-shr r 3 as r
-shl r 3 as r
-call g 8 as q
-add r q as r
-gt r 4026531840 as d
-jz d b5
-call ebuf
-label b5
-call s 8 r
-add q 268435456 as q
-add p 16 as p
-store p q
-call g 0 as r
-add r 1 as r
-call s 0 r
+if f
+store p+32 0
+store p+40 nruns
+store p+24 op-q
+store p+16 q-out
+call globdone
+end
+p=datarel
+q=op
+store4 p q-p-4
+dataend=q
+store nruns*8+runend-8 q-out
 jmp next
 
 # "label <name>"
@@ -1015,176 +4078,497 @@ call rname
 call eol
 call llab as r
 call nodup r
-call g 16 as r
-mul r 24 as p
-add p labs as p
+r=nlabels
+p=r*40+labs
 call putn p
-add p 16 as p
-load op as q
-store p q
-add r 1 as r
-call s 16 r
+p+=16
+store p op
+p+=8
+store p ip
+call labasg
+call clrvk
+xflg=16
+p+=8
+store p asg
+call hadd 3 scope r
+nlabels=r+1
+dataend=0
 jmp next
 
 # the label name of a jump: its rel32 is filled in by resolve
 label jtarget
 call eol
+call llab as r
+jeq r -1 j1
+r=(r+labbase)*40+labs
+load r+32 as d
+if d&(asg^-1)
+call eunasgj
+end
+jne pass 1 j2
+load r+24 as r
+p=nloops*16+loops
+store p r
+store p+8 ip
+nloops+=1
+jmp j2
+label j1
+call hfind 4 scope as q
+ifz q
+call hadd 4 scope 0 as q
+store q+8 -1
+end
+q+=8
+load q as d
+store q d&asg
+label j2
+call xjcond
 call eop
-call g 24 as r
-mul r 24 as p
-add p fixs as p
+r=nfix
+p=r*32+fixs
 call putn p
-add p 16 as p
-load op as q
-store p q
+p+=16
+store p op
+p+=8
+store p asg
 call z 4
-add r 1 as r
-call s 24 r
+nfix=r+1
+loadb cur as d
+jnz d next
+call godead
 jmp next
 
 # "fn <name> <parameter>...": jump over the body, save the variable
 # registers and open a scope whose first variables are the parameters
 label fndef
-call g 32 as d
-call no d
+if infn
+call eplace
+end
+jnz pass f0
+sip=ip
+sop=op
+snb=nbufs
+snv=ngv
+sbs=bsssz
+snc=ncalls
+snf=nfuncs
+snr=nrefs
+sde=dataend
+sdr=datarel
+snk=nchks
+snu=nruns
+snh=nhn
+pass=1
+fnslots=0
+fnregs=6
+fnlocal=0
+nloops=0
+label f0
+loccur=0
+fnres=0
+fntail=0
+call clrloc
 call blank1
 call rname
 call lfn as r
 call nodup r
-call g 88 as r
-mul r 32 as p
-add p funs as p
+p=nfuncs*40+funs
 call putn p
 call eb 233
-load op as q
-call s 48 q
+fnskip=op
 call z 4
-load op as q
-add p 16 as p
+q=op
+p+=16
 store p q
-add ro 531 as q
-call cp q 10
-load nv as q
-call s 40 q
-store nv 0
-call s 32 1
-call g 16 as q
-call s 56 q
-call g 24 as q
-call s 64 q
+loadb fnregs+pushlen as q
+call cp fnpush q
+call frame 236
+topvars=nv
+nv=0
+topblk=blkbase
+blkbase=nblk
+tasg=asg
+tdead=dead
+tjmask=jmask
+asg=0
+dead=0
+infn=1
+nscope+=1
+scope=nscope
+labbase=nlabels
+fixbase=nfix
 label f1
 call blanks
 call pk as c
-eq c 256 as d
-jnz d f2
-eq c 10 as d
-jnz d f2
-eq c 13 as d
-jnz d f2
-eq c 35 as d
-jnz d f2
-load nv as q
+jeq c 256 f2
+jeq c 10 f2
+jeq c 13 f2
+jeq c 35 f2
+q=nv
 call defvar as r
-load nv as d
-ne d q as d
-jnz d f3
+if nv==q
 call edup
-label f3
-call vreg r as f
-call areg r as r
-call mrr f r
+end
+asg|=1<<r
+if r<6
+call areg r as f
+call vmov r f 137
+jmp f1
+end
+call emem 11 2 (fnnpar-r+fnslots+fnregs)*8+fnlocal 139
+call vmov r 11 137
 jmp f1
 label f2
 call eol
-load nv as q
-add p 8 as p
-store p q
-call g 88 as r
-add r 1 as r
-call s 88 r
+fnnpar=nv
+store p+8 nv
+p=nfuncs*40+funs
+call getn p
+call hadd 2 0 nfuncs
+nfuncs=nfuncs+1
 jmp next
 
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
-call g 32 as d
-call ok d
+jgt nblk blkbase blkend
+ifz infn
+call eplace
+end
 call eol
-call eb 49
-call eb 192
-add ro 490 as q
-call cp q 11
+q=fnres
+d=q
+jnz q e0
+q=1
+d=1
+jz fntail e0
+d=6
+label e0
+store (nfuncs-1)*40+funs+32 d
+loadb q+zerolen-1 as p
+call cp zeroes p
+call frame 196
+call popskip as q
+call cp retc+q 11-q
 call resolve
-call g 64 as q
-call s 24 q
-call g 56 as q
-call s 16 q
-call s 64 0
-call s 56 0
-call s 32 0
-call g 48 as p
-load op as q
-sub q p as q
-sub q 4 as q
-call p4 p q
-call g 40 as q
-store nv q
+nfix=fixbase
+nlabels=labbase
+fixbase=0
+labbase=0
+infn=0
+scope=0
+asg=tasg
+dead=tdead
+jmask=tjmask
+blkbase=topblk
+call clrvk
+p=fnskip
+store4 p op-p-4
+jne pass 1 e1
+fnlocal=loccur
+call alloc
+ip=sip
+op=sop
+nbufs=snb
+ngv=snv
+bsssz=sbs
+ncalls=snc
+nfuncs=snf
+nrefs=snr
+dataend=sde
+datarel=sdr
+nchks=snk
+nruns=snu
+call hundo snh
+nv=topvars
+pass=2
+jmp fndef
+label e1
+call clrloc
+pass=0
+fnslots=0
+fnregs=6
+fnlocal=0
+nv=topvars
 jmp next
+
+# "end" with a block open: what is assigned after it is what both ways
+# here have assigned, its last line and the jump past it, or after an else
+# part the last line of the part before
+label blkend
+call eol
+p=(nblk-1)*40+blks
+load p+24 as r
+if r
+# The end of a while: here its value is read again from the source, as the
+# value of a jnz that leads back to the first line of the loop (wclose),
+# and behind that the jump of the head lands. A round is thus one jump. The way
+# back must have assigned what was assigned at the head, like a jump back
+# to a label, and in the first pass over a function the loop is noted for
+# alloc. At the test and after the loop, what is assigned is what the head
+# had.
+ifz dead
+load p+8 as q
+if q&(asg^-1)
+call eunasgj
+end
+end
+if pass==1
+load p+32 as q
+d=nloops*16+loops
+store d q
+store d+8 ip
+nloops+=1
+end
+load p+8 as q
+wasg=q
+asg=q
+dead=0
+wbody=r
+load p+32 as q
+wip=ip
+ip=q
+p=exnm
+store2 p 0x6e6a
+storeb p+2 122
+p=exnm
+ns=p
+nl=3
+call kw as r
+cur=r
+ai=0
+ncap=0
+store opd 0
+store opd+32 0
+call xclass as d
+xst=d
+if d
+call exinit
+end
+wend=1
+jmp arg
+end
+call blktop as p
+nblk-=1
+load4 p+16 as d
+if d
+load4 p+20 as d
+jnz d be3
+end
+load p+8 as q
+if dead
+asg=q
+dead=0
+jmp be3
+end
+asg&=q
+label be3
+xflg=16
+call clrvk
+dataend=0
+jmp next
+
+# "else": the block so far ends with a jump past the rest, and the jump of
+# its "if" lands here
+label elsedef
+if nblk<=blkbase
+call eplace
+end
+call eol
+load (nblk-1)*40+blks+24 as d
+if d
+call eplace
+end
+call eb 233
+r=op
+call z 4
+call blktop as p
+load4 p+16 as d
+if d
+call eplace
+end
+store p r
+q=p+8
+load q as f
+store q asg
+store4 p+20 dead
+store4 p+16 1
+asg=f
+dead=0
+call clrvk
+jmp next
+
+# "while <value>": an if on the value, whose block ends with the value
+# read again and a jump back to its first line while it holds. A
+# jump reaches the loop, so what is known of the variables is forgotten, as
+# at a label.
+label whiledef
+call blank1
+call clrvk
+dataend=0
+whead=op
+wsrc=ip
+p=exnm
+store2 p 0x6669
+ns=p
+nl=2
+call kw as r
+cur=r
+ai=0
+ncap=0
+store opd 0
+store opd+32 0
+call xclass as d
+xst=d
+if d
+call exinit
+end
+jmp arg
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
 label fin
-call g 32 as d
-call no d
-add ro 568 as q
-call cp q 9
+if infn
+call eend
+end
+if nblk
+call eend
+end
+call cp exit0 9
+rwstart=op-out+4095>>12<<12
 call resolve
-set calls as p
-call g 96 as r
-label c1
-jz r c2
+p=calls
+r=ncalls
+while r
 call getn p
+epos=ns
 call lfn as c
-ne c 99999 as d
-jnz d c3
+if c==-1
 call efn
-label c3
-mul c 32 as c
-add c funs as c
-add c 24 as d
-load d as d
-add p 24 as q
-load q as q
-eq d q as d
-jnz d c4
+end
+c=c*40+funs
+load4 p+24 as q
+jeq q 0xffffffff c5
+load c+24 as d
+ifz d==q
 call eargc
-label c4
-add c 16 as c
-load c as c
-add p 16 as q
-load q as q
-sub c q as c
-sub c 4 as c
-call p4 q c
-add p 32 as p
-sub r 1 as r
-jmp c1
-label c2
-load op as q
-sub q out as q
-add out 96 as p
-store p q
-add out 104 as p
-store p q
-call g 8 as c
-add out 160 as p
-store p c
-set out as p
+end
+load c+32 as d
+load4 p+28 as q
+if q>d
+call eresf
+end
+load c+16 as c
+load p+16 as q
+store4 q c-q-4
+jmp c7
+label c5
+load c+16 as c
+load p+16 as q
+store4 q c-q-4
+label c7
+p+=32
+r-=1
+end
+p=refs
+r=nrefs
+while r
+load p+24 as f
+if f==3
+load p as q
+q=q*8-8+rwstart
+jmp r7
+end
+call getn p
+epos=ns
+call lbuf as c
+if c==-1
+call eund
+end
+call gent c as c
+load c+32 as d
+if d
+call eund
+end
+load c+16 as q
+load c+40 as d
+ifz f
+jnz d r7
+q=q+ngv*8+rwstart
+label r7
+load p+16 as d
+store4 d q-(d-out+4)
+jmp r8
+end
+jnz f!=2 r6
+jz d r6
+load d*8+runend-8 as d
+q=d-q
+jmp r5
+label r6
+load c+24 as q
+label r5
+load p+16 as d
+store4 d q
+label r8
+p+=32
+r-=1
+end
+p=chks
+r=nchks
+while r
+call getn p
+load4 p+28 as d
+epos=d+in
+call lbuf as c
+jeq c -1 k4
+call gent c as c
+load c+32 as d
+jnz d k4
+load c+40 as d
+if d
+load p+24 as q
+if q&256
+call eacc
+end
+load d*8+runend-8 as d
+load c+16 as q
+d-=q
+jmp k6
+end
+load c+24 as d
+label k6
+load p+16 as q
+if q>=d
+call eacc
+end
+d-=q
+loadb p+24 as q
+jle q d k4
+call eacc
+label k4
+p+=32
+r-=1
+end
+epos=-1
+q=op-out
+store out+96 q
+store out+104 q
+store out+136 rwstart
+store out+144 rwstart
+c=ngv*8+bsssz
+store out+160 c
+if c+rwstart>0x7fffffff
+call ebuf
+end
+p=out
 label w1
-sys 1 1 p q as c
-sub c 1 as d
-lt d q as d
-jnz d w2
+sys write 1 p q as c
+ifz c-1<q
 call ewr
-label w2
-add p c as p
-sub q c as q
+end
+p+=c
+q-=c
 jnz q w1
+
+# ---- the read-only tables are a file of their own, compiled here: a data
+# name may be declared after its uses
+use "stage1/tables.ai"

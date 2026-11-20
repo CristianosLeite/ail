@@ -1,0 +1,12 @@
+# each holds in signed order and fails in unsigned order
+sle -1 1 as a
+sge 1 -1 as b
+le -1 1 as c
+ge 1 -1 as d
+shl b 1 as b
+shl c 2 as c
+shl d 3 as d
+or a b as a
+or a c as a
+or a d as a
+sys 60 a

@@ -1,0 +1,6 @@
+set -1 as a
+shr a 60 as a
+set -256 as b
+and b 255 as b
+add a b as a
+sys 60 a

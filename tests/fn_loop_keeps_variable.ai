@@ -1,0 +1,24 @@
+# a is read at the top of the loop: the register it is in must not be
+# given to a variable defined later in the loop
+fn f
+set 3 as n
+set 10 as a
+set 0 as s
+label top
+add s a as s
+set 1 as b
+set 1 as c
+set 1 as d
+set 1 as e
+set 1 as g
+add b c as h
+add h d as h
+add h e as h
+add h g as h
+add s h as s
+sub n 1 as n
+jnz n top
+ret s
+end
+call f as r
+sys 60 r

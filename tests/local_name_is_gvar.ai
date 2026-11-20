@@ -1,0 +1,4 @@
+var v
+fn f
+local v 8
+end

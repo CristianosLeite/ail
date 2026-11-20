@@ -1,0 +1,10 @@
+# the block may not run: after it the compiler must not take p for what
+# the block made it
+buf b 8
+set b as p
+sys 39 as k
+ifz k
+add b 8 as p
+end
+loadb p as x
+sys 60 x

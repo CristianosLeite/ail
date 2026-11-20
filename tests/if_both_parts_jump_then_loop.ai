@@ -1,0 +1,16 @@
+# both parts leave by a jump, so no way leads past the block; the loop
+# body after it is only reached from below and starts from what was
+# assigned before
+set 3 as n
+set 0 as s
+if n
+jmp test
+else
+jmp test
+end
+label body
+add s n as s
+sub n 1 as n
+label test
+jnz n body
+sys 60 s

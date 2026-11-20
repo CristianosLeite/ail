@@ -4,6 +4,8 @@ last-verified: 2026-11-19
 sources: [conversation 2026-11-19, stage1/ailc.ai, tests/stage1.sh]
 status: current
 ---
+
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage1 self-hosting
 
 **Summary.** `stage1/ailc.ai` is the stage0 compiler translated to AIL, routine by routine. It
@@ -62,7 +64,6 @@ about the language.
 
 ## Open items
 - 2026-11-19: no constant data in the language; the tables are 131 lines of decimal words.
-- 2026-11-19: all sixteen buffers are used; a new global cell must go into `st`.
 - 2026-11-19: no 32-bit store, hence `e4` and `p4`.
 - 2026-11-19: the differential fuzz and the table generator are not in the repository.
 

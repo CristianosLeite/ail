@@ -1,0 +1,12 @@
+set 0 as r
+if 1
+add r 1 as r
+else
+add r 2 as r
+end
+if 0
+add r 4 as r
+else
+add r 8 as r
+end
+sys 60 r

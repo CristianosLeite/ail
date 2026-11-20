@@ -1,0 +1,4 @@
+set 1 as a
+fn f
+var a
+end

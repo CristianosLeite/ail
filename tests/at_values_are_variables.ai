@@ -1,0 +1,6 @@
+buf b 32
+set 8 as o
+set 4 as n
+at b o n as p
+sub p b as d
+sys 60 d

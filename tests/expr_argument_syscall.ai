@@ -1,0 +1,7 @@
+# and of a syscall
+buf b 8
+n=2
+storeb b 47+n
+storeb b+n-1 5*n
+sys 1 n-1 b n
+sys 60 n*3+1

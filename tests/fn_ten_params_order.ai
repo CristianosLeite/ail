@@ -1,0 +1,15 @@
+# each stack value reaches its own parameter
+fn f a b c d e g h i j k
+mul h 1 as s
+mul i 2 as t
+add s t as s
+mul j 4 as t
+add s t as s
+mul k 8 as t
+add s t as s
+add s a as s
+add s g as s
+ret s
+end
+call f 1 0 0 0 0 2 3 5 7 11 as r
+sys 60 r
