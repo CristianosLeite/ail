@@ -52,6 +52,10 @@ vlast:  .skip NVARS * 8         # defines it, and mentions it last
 fnloc:  .skip NVARS             # its place: a register 0-5, or 6 + a stack slot
 locfree: .skip (NREGS + NVARS) * 8  # per place: the last mention of its variable
 fnslots: .skip 4                # stack slots of the function
+vlocal: .skip NVARS * 4         # per variable of the function that is a local:
+                                # 1 + its offset among the locals
+loccur: .skip 4                 # bytes of locals declared so far in this pass
+fnlocal: .skip 4                # bytes of locals of the function, after pass 1
 pushed: .skip 4                 # bytes of call values pushed so far in this statement
 fnnpar: .skip 4                 # parameters of the function, known after pass 1
 immpos: .skip 8                 # where emit_mov wrote its last imm32
@@ -226,6 +230,42 @@ optab:
     .byte 6
     .ascii "store4"
     .byte 2, AS_NONE | IS_MEM, 2, 0x89,0x38                  # mov [rax], edi
+    # run-time storage: alloc maps the size plus a 16-byte header that keeps
+    # the length for free, and gives 0 if the kernel refuses
+    .byte 5
+    .ascii "alloc"
+    .byte 1, AS_REQ, alloc_end - alloc_code
+alloc_code:
+    cmp rax, -4096              # a size that would wrap with the header
+    jae 1f
+    lea rsi, [rax+16]
+    xor edi, edi
+    mov edx, 3                  # PROT_READ | PROT_WRITE
+    mov r10d, 0x22              # MAP_PRIVATE | MAP_ANONYMOUS
+    or r8, -1
+    xor r9d, r9d
+    mov eax, 9                  # mmap
+    syscall
+    cmp rax, -4096
+    ja 1f
+    mov [rax], rsi
+    add rax, 16
+    jmp 2f
+1:  xor eax, eax
+2:
+alloc_end:
+    .byte 4
+    .ascii "free"
+    .byte 1, AS_NONE, free_end - free_code
+free_code:
+    test rax, rax               # free 0 does nothing
+    jz 1f
+    lea rdi, [rax-16]
+    mov rsi, [rdi]
+    mov eax, 11                 # munmap
+    syscall
+1:
+free_end:
     # jumps: the code ends where the rel32 of the label goes
     .byte 3
     .ascii "jmp"
@@ -385,6 +425,10 @@ next:
     jne 4f
     cmp byte ptr [r8+4], 'l'
     je labdef
+4:  cmp dword ptr [r8], 0x61636f6c  # "loca"
+    jne 4f
+    cmp byte ptr [r8+4], 'l'
+    je localdef
 4:  cmp dword ptr [r8], 0x736e6f63  # "cons"
     jne 5f
     cmp byte ptr [r8+4], 't'
@@ -859,6 +903,9 @@ capture:
     jmp next
 1:  pop rsi
     call defvar
+    lea rcx, [rip+vlocal]       # a local is an address, not a variable to assign
+    cmp dword ptr [rcx+rax*4], 0
+    jne err_dup
     push rax
     call eol
     call emit_op
@@ -1013,8 +1060,13 @@ emit_varmov:
     call varplace
     pop rax
     test edx, edx
-    jnz emit_mem
-    cmp r9d, 0x8B
+    jz 1f
+    cmp edx, 3
+    jne emit_mem
+    mov r9d, 0x8D               # a local: lea <register>, [rsp + distance]
+    mov edx, 2
+    jmp emit_mem
+1:  cmp r9d, 0x8B
     jne emit_mov_rr             # store: from the register eax to the variable's
     xchg eax, ecx               # load: from the variable's register
     jmp emit_mov_rr
@@ -1043,8 +1095,9 @@ emit_mem:
     ret
 
 # where the variable eax of the current scope lives: edx = 0 and ecx = its
-# x86 register, edx = 1 and ecx = the address of its cell, or edx = 2 and
-# ecx = its distance from rsp. Keeps r9.
+# x86 register, edx = 1 and ecx = the address of its cell, edx = 2 and
+# ecx = its distance from rsp, or for a local edx = 3 and ecx = the distance
+# of its bytes from rsp. Keeps r9.
 varplace:
     cmp dword ptr [rip+infn], 0
     jne 2f
@@ -1058,7 +1111,17 @@ varplace:
     mov ecx, [rcx+rax*4]
     mov edx, 1
     ret
-2:  cmp dword ptr [rip+pass], 1 # first pass: no places yet, the code is dropped
+2:  lea rcx, [rip+vlocal]
+    mov ecx, [rcx+rax*4]
+    test ecx, ecx
+    jz 4f
+    dec ecx                     # a local: above the stack slots
+    mov edx, [rip+fnslots]
+    lea ecx, [rcx+rdx*8]
+    add ecx, [rip+pushed]
+    mov edx, 3
+    ret
+4:  cmp dword ptr [rip+pass], 1 # first pass: no places yet, the code is dropped
     jne 3f
     xor eax, eax
     jmp 0b
@@ -1128,8 +1191,6 @@ bufdef:
 3:  mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
     cmp rax, rdx
     ja err_bufs
-    test rax, rax
-    jz err
     push rax
     call eol
     pop rax
@@ -1153,6 +1214,52 @@ bufdef:
     lea r10, [rip+bufaddr]
     mov [r10+rax*4], ecx
     inc dword ptr [rip+nbufs]
+    jmp next
+
+# "local <name> <size>": bytes in the frame of the open function, not
+# initialised and gone when it returns. The name takes one of the function's
+# variables, whose value is the address.
+localdef:
+    cmp dword ptr [rip+infn], 0
+    je err
+    call blank1
+    push rbp
+    call defvar
+    pop rcx
+    cmp ecx, ebp                # the name must be new in the function
+    je err_dup
+    push rax
+    call blank1
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja 1f
+    call constname
+    jmp 2f
+1:  call rdnum
+2:  cmp rax, 0x7ffffff0
+    ja err_bufs
+    push rax
+    call eol
+    pop rax
+    add rax, 7
+    and rax, -8
+    pop rcx                     # the variable
+    mov edx, [rip+loccur]
+    lea r10, [rip+vlocal]
+    lea r11d, [rdx+1]
+    mov [r10+rcx*4], r11d
+    add rax, rdx
+    cmp rax, 0x7ffffff0
+    ja err_bufs
+    mov [rip+loccur], eax
+    bts [rip+asg], rcx          # its value, the address, is always there
+    mov eax, ecx
+    shl eax, 5
+    lea r10, [rip+vk]
+    mov qword ptr [r10+rax], 0
     jmp next
 
 # the name r8/r9 must not be in use at top level or in the open function:
@@ -1455,8 +1562,11 @@ fndef:
     mov [rax+88], rcx
     mov dword ptr [rip+pass], 1
     mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+fnlocal], 0
     mov dword ptr [rip+nloops], 0
-1:  call blank1
+1:  mov dword ptr [rip+loccur], 0
+    call clrloc
+    call blank1
     cmp rsi, r15
     jae err
     mov al, [rsi]
@@ -1521,10 +1631,11 @@ fndef:
     call emit_varmov            # mov <variable>, <argument reg>
     jmp 1b
 3:  push rax                    # from the seventh on the caller pushed them, the
-    mov ecx, [rip+fnnpar]       # last one nearest: above the slots, the six
-    sub ecx, eax                # saved registers and the return address
+    mov ecx, [rip+fnnpar]       # last one nearest: above the slots, the locals,
+    sub ecx, eax                # the six saved registers and the return address
     add ecx, [rip+fnslots]
     lea ecx, [rcx*8+48]
+    add ecx, [rip+fnlocal]
     mov eax, 11
     mov edx, 2
     mov r9d, 0x8B
@@ -1580,6 +1691,8 @@ fnend:
     mov [rcx], eax
     cmp dword ptr [rip+pass], 1
     jne 1f
+    mov eax, [rip+loccur]
+    mov [rip+fnlocal], eax
     call alloc                  # first pass done: place the variables and
     lea rax, [rip+snap]         # compile the function again
     mov rsi, [rax]
@@ -1607,20 +1720,32 @@ fnend:
     mov ebp, [rip+topvars]
     mov dword ptr [rip+pass], 2
     jmp fndef
-1:  mov dword ptr [rip+pass], 0
+1:  call clrloc                 # not before alloc, which must know the locals
+    mov dword ptr [rip+pass], 0
     mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+fnlocal], 0
     mov ebp, [rip+topvars]
     jmp next
 
+# no variable is a local: where a function starts and ends
+clrloc:
+    lea rcx, [rip+vlocal]
+    xor eax, eax
+1:  mov dword ptr [rcx+rax*4], 0
+    inc eax
+    cmp eax, NVARS
+    jb 1b
+    ret
+
 # emit "sub rsp, <frame>" (al = 0xEC) or "add rsp, <frame>" (al = 0xC4) when
-# the function has stack slots
+# the function has stack slots or locals
 emit_frame:
     mov ecx, [rip+fnslots]
-    test ecx, ecx
+    shl ecx, 3
+    add ecx, [rip+fnlocal]
     jz 1f
     mov word ptr [rdi], 0x8148
     mov [rdi+2], al
-    shl ecx, 3
     mov [rdi+3], ecx
     add rdi, 7
 1:  ret
@@ -1667,6 +1792,9 @@ alloc:
     xor eax, eax
 8:  cmp eax, ebp
     jae 9f
+    lea rdx, [rip+vlocal]       # a local has its place in the frame
+    cmp dword ptr [rdx+rax*4], 0
+    jne 60f
     lea rdx, [rip+vfirst]
     mov r10, [rdx+rax*8]
     lea rdx, [rip+vlast]
@@ -1685,7 +1813,8 @@ alloc:
     cmp ecx, [rip+fnslots]
     jbe 6f
     mov [rip+fnslots], ecx
-6:  inc eax
+6:
+60: inc eax
     jmp 8b
 9:  ret
 

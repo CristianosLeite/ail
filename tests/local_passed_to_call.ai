@@ -1,0 +1,14 @@
+# its address stays right while call values are pushed
+fn g a b c d e h i p
+load p as x
+add x i as x
+ret x
+end
+fn f
+local m 8
+store m 30
+call g 0 0 0 0 0 0 12 m as r
+ret r
+end
+call f as r
+sys 60 r

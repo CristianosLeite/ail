@@ -39,7 +39,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   addresses and constant offsets, and account for access width and write
   permissions. Raw `load` and `store` currently have no bounds checks, so an
   access can reach a neighboring buffer or fault.
-- [ ] Add allocation, release and local storage facilities. `buf` accepts a
+- [x] Add allocation, release and local storage facilities. `buf` accepts a
   positive decimal size, rounds it up to 8 bytes and reserves global zero-filled
   storage for the process lifetime. Runtime-sized storage currently uses raw
   syscalls. Consider configurable alignment and explicit zero-length objects.

@@ -1,0 +1,12 @@
+alloc 8 as p
+alloc 8 as q
+store p 1
+store q 2
+load p as x
+load q as y
+add x y as x
+eq p q as e
+add x e as x
+free q
+free p
+sys 60 x

@@ -189,7 +189,7 @@ Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `
 buf name size
 ```
 
-Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is an [integer](#integers) or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
+Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is an [integer](#integers) or the name of a [`const`](#const) and is rounded up to a multiple of 8, so every buffer is 8-byte aligned. A size of 0 is allowed: the name is then an address with no bytes of its own, for instance a mark between two buffers.
 
 A buffer name is a constant, not a variable: it uses none of the variables of a scope, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
 
@@ -198,6 +198,45 @@ buf line 4096
 sys 0 0 line 4096 as n     # read stdin into it
 sys 1 1 line n             # write what was read
 ```
+
+### `local`
+
+```
+local name size
+```
+
+Reserves `size` bytes in the frame of the function it stands in and makes `name` their address. The bytes exist while that call runs: every call has its own, also when a function calls itself, and they are gone when it returns, so their address must not be kept or returned. They are **not** zero-filled. `size` is an integer or a `const`, rounded up to a multiple of 8; 0 is allowed.
+
+```
+fn show n
+local line 8
+add n 48 as d
+storeb line d
+add line 1 as p
+storeb p 10
+sys 1 1 line 2
+end
+```
+
+`local` is only allowed inside a function. The name counts as one of the 64 variables of the function and follows their [rules for names](#names), but it is not a variable: `as` cannot assign it. The locals of one function may take about 2 GiB together, far more than a stack holds; a call uses 8 bytes of stack for each 8 bytes of locals.
+
+### `alloc` and `free`
+
+```
+alloc size as p
+free p
+```
+
+`alloc` asks the kernel for `size` bytes of memory at run time and keeps their address in a variable, or 0 if the kernel refuses. The bytes are zero-filled and the address is a multiple of 16. `free` gives back what one `alloc` returned; `free 0` does nothing. After `free` the address must not be used again.
+
+```
+alloc n as p
+jz p fail
+...
+free p
+```
+
+Each `alloc` is a memory mapping of its own (`mmap` and `munmap`, with 16 bytes in front for the length), so it costs a system call and at least a page: use it for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
 
 ### `var`
 
@@ -373,11 +412,11 @@ The top level of a program can define at most 64 variables, and so can each [fun
 
 Where a variable lives changes the speed and size of the code, never its meaning.
 
-Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), or one obtained at run time, for example from `mmap`:
+Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), a [local](#local), or one obtained at run time:
 
 ```
-sys 9 0 4096 3 34 0 0 as p    # mmap one anonymous read-write page
-sys 0 0 p 4096 as n           # read stdin into it
+alloc 4096 as p               # 4096 zero-filled bytes
+sys 0 0 p 4096 as n           # read stdin into them
 sys 1 1 p n                   # write what was read
 ```
 
@@ -415,13 +454,13 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
 | `ailc: unassigned variable` | 1 | a variable read, or a jump back to a label, on a way that may not have assigned it; see [Control flow](#control-flow) |
 | `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included |
-| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
 | `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
-| `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that |
+| `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that; the locals of a function exceeding about 2 GiB |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |
@@ -436,10 +475,12 @@ Causes of a syntax error:
 - the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
+- `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment
+- `alloc` without exactly one value and `as`, `free` without exactly one value or with `as`
 - `var` without a name, or with something that is not a name or is `as`
 - `const` without a name and an integer, with the name `as`, or followed by anything but a comment
 - `data` without an item, with an item that is not a string or an integer from 0 to 255, with the name `as`, or followed by anything but a comment
-- `buf` without a name and a size of at least 1 (an integer or a `const`), with the name `as`, or followed by anything but a comment
+- `buf` without a name and a size (an integer or a `const`), with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`

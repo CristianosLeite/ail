@@ -26,6 +26,9 @@ var asg dead jmask tasg tdead tjmask
 # nchks = loads and stores to check at the end; nruns = runs of data
 # statements; snk, snu = both before the first pass over a function
 var nchks nruns snk snu
+# loccur = bytes of locals declared so far in this pass; fnlocal = those of
+# the function, after its first pass
+var loccur fnlocal
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -34,6 +37,7 @@ buf topcell 512     # per top-level variable after the sixth: the address of its
 buf vfirst 512      # per variable of the function: where the source defines it,
 buf vlast 512       # and mentions it last
 buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
+buf vlocal 512      # per variable of the function that is a local: 1 + its offset
 buf locfree 560     # per place: the last mention of its variable
 buf loops 174768    # 10923 backward jumps of the function: where the source has
                     # the label, and the jump
@@ -534,7 +538,8 @@ store p ip
 ret i
 end
 # where variable i of the current scope lives: its x86 register (below 16),
-# 16 + its distance from rsp, or the address of its cell
+# 16 + its distance from rsp, the address of its cell, or for a local
+# 0x40000000 + 1 + the distance of its bytes from rsp
 fn vplace i
 jnz infn f
 lt i 6 as c
@@ -549,6 +554,16 @@ add i topcell as i
 load i as i
 ret i
 label f
+mul i 8 as c
+add c vlocal as c
+load c as c
+jz c h
+mul fnslots 8 as i
+add i c as i
+add i pushed as i
+add i 0x40000000 as i
+ret i
+label h
 eq pass 1 as c
 jz c g
 set 0 as i
@@ -789,6 +804,12 @@ end
 # the same between the register g and variable i of the current scope
 fn vmov i g o
 call vplace i as p
+lt p 0x40000000 as c
+jnz c n
+sub p 0x3ffffff1 as p
+call emem g p 141
+ret 0
+label n
 lt p 16 as c
 jz c m
 eq o 139 as c
@@ -1043,13 +1064,24 @@ end
 # sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
 # function has stack slots
 fn frame o
-jz fnslots x
+mul fnslots 8 as c
+add c fnlocal as c
+jz c x
 call eb 72
 call eb 129
 call eb o
-mul fnslots 8 as c
 call e4 c
 label x
+end
+# no variable is a local: where a function starts and ends
+fn clrloc
+set vlocal as p
+set 64 as n
+label a
+store p 0
+add p 8 as p
+sub n 1 as n
+jnz n a
 end
 # give each of the nv variables of the function a place. A variable is in
 # use from its definition to its last mention; if that range meets a loop,
@@ -1105,6 +1137,9 @@ label p
 ge i nv as t
 jnz t x
 mul i 8 as k
+add k vlocal as t
+load t as t
+jnz t c
 add k vfirst as t
 load t as lo
 add k vlast as t
@@ -1289,7 +1324,9 @@ eq d 5 as c
 jnz c datadef
 eq d 6 as c
 jnz c vardef
-jmp constdef
+eq d 7 as c
+jnz c constdef
+jmp localdef
 label n6
 set r as cur
 set 0 as ai
@@ -1528,6 +1565,12 @@ jmp next
 label cp1
 set q as ip
 call defvar as r
+mul r 8 as d
+add d vlocal as d
+load d as d
+jz d cp2
+call edup
+label cp2
 call eol
 call eop
 shl 1 r as d
@@ -1554,7 +1597,6 @@ gt r 0xf0000000 as d
 jz d b3
 call ebuf
 label b3
-call ok r
 call eol
 add p 32 as q
 store q 0
@@ -1577,6 +1619,51 @@ add p 16 as p
 store p q
 add nbufs 1 as r
 set r as nbufs
+jmp next
+
+# "local <name> <size>": bytes in the frame of the open function; the name
+# takes one of its variables, whose value is the address
+label localdef
+call ok infn
+call blank1
+set nv as q
+call defvar as r
+ne nv q as d
+jnz d l1
+call edup
+label l1
+call blank1
+call pk as c
+call low c as d
+jz d l2
+call cname as p
+jmp l3
+label l2
+call rdnum as p
+label l3
+gt p 0x7ffffff0 as d
+jz d l4
+call ebuf
+label l4
+call eol
+add p 7 as p
+shr p 3 as p
+shl p 3 as p
+mul r 8 as d
+add d vlocal as d
+add loccur 1 as c
+store d c
+add p loccur as p
+gt p 0x7ffffff0 as d
+jz d l5
+call ebuf
+label l5
+set p as loccur
+shl 1 r as d
+or asg d as asg
+mul r 32 as d
+add d vk as d
+store d 0
 jmp next
 
 # "var <name>...": global cells, below the buffers, the first one highest
@@ -1796,8 +1883,11 @@ set nchks as snk
 set nruns as snu
 set 1 as pass
 set 0 as fnslots
+set 0 as fnlocal
 set 0 as nloops
 label f0
+set 0 as loccur
+call clrloc
 call blank1
 call rname
 call lfn as r
@@ -1857,6 +1947,7 @@ sub fnnpar r as d
 add d fnslots as d
 mul d 8 as d
 add d 64 as d
+add d fnlocal as d
 call emem 11 d 139
 call vmov r 11 137
 jmp f1
@@ -1897,6 +1988,7 @@ sub q 4 as q
 store4 p q
 eq pass 1 as d
 jz d e1
+set loccur as fnlocal
 call alloc
 set sip as ip
 set sop as op
@@ -1914,8 +2006,10 @@ set topvars as nv
 set 2 as pass
 jmp fndef
 label e1
+call clrloc
 set 0 as pass
 set 0 as fnslots
+set 0 as fnlocal
 set topvars as nv
 jmp next
 
@@ -2108,6 +2202,8 @@ data 5 "store" 2 130 3 72 137 56
 data 6 "storeb" 2 130 3 64 136 56
 data 6 "store2" 2 130 3 102 137 56
 data 6 "store4" 2 130 2 137 56
+data 5 "alloc" 1 1 58 72 61 0 240 255 255 115 48 72 141 112 16 49 255 186 3 0 0 0 65 186 34 0 0 0 73 131 200 255 69 49 201 184 9 0 0 0 15 5 72 61 0 240 255 255 119 9 72 137 48 72 131 192 16 235 2 49 192
+data 4 "free" 1 2 19 72 133 192 116 14 72 141 120 240 72 139 55 184 11 0 0 0 15 5
 data 3 "jmp" 0 10 1 233
 data 2 "jz" 1 10 5 72 133 192 15 132
 data 3 "jnz" 1 10 5 72 133 192 15 133
@@ -2120,6 +2216,7 @@ data 5 "label" 4 255 0
 data 4 "data" 5 255 0
 data 3 "var" 6 255 0
 data 5 "const" 7 255 0
+data 5 "local" 8 255 0
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87

@@ -1,0 +1,24 @@
+# a local takes no register and no stack slot of its own. g has six
+# variables in use besides its local, which is still used after r is set;
+# if the local took a register, r
+# would go to the stack, the frame of g would be 8 bytes larger and its
+# local 72 bytes above the local of h instead of 64 (8 + six saved
+# registers + the return address)
+fn h p
+local m 8
+sub p m as r
+ret r
+end
+fn g a b c d e
+local m 8
+call h m as r
+store m r
+add a b as a
+add a c as a
+add a d as a
+add a e as a
+add r a as r
+ret r
+end
+call g 0 0 0 0 0 as r
+sys 60 r

@@ -51,6 +51,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `varplace`, `emit_varmov`, `emit_mem` | where a variable lives; a `mov` between a variable and a register; a `mov` between a register and memory |
 | `alloc`, `emit_frame` | place the variables of a function after its first pass; reserve or release its stack slots |
 | `defvar` | read a variable name and find it in the pool of the current scope, or add it |
+| `localdef`, `clrloc` | `local <name> <size>`: a variable of the function whose value is the address of bytes in its frame; forget the locals |
 | `bufdef` | `buf <name> <size>`: enter the buffer in the table of global names and reserve its bytes |
 | `vardef`, `constdef` | `var <name>...` and `const <name> <number>`: enter the names with their kind and the address of a cell, or the value |
 | `newglob` | refuse a name in use as a variable or a global name, else enter it in the next table slot |
@@ -118,7 +119,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `buf`, `data`, `var`, `const`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|
@@ -135,6 +136,8 @@ Every statement except `buf`, `data`, `var`, `const`, `label`, `fn` and `end` is
 | `load4` | `mov eax, [rax]` |
 | `load2` | `movzx eax, word ptr [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
+| `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
+| `free` | `munmap` of the mapping whose length lies 16 bytes before the address, unless it is 0: 19 bytes |
 | `store` | `mov [rax], rdi` |
 | `store4` | `mov [rax], edi` |
 | `store2` | `mov [rax], di` |
@@ -207,6 +210,8 @@ This is safe because execution only moves backward in the source through a backw
 
 A function with slots reserves them after its pushes (`sub rsp, 8n`) and releases them before every return (`emit_frame`); a slot is `[rsp + 8k]`.
 
+**Locals.** `local` defines a variable of the function through `defvar` and gives it an offset among the locals in `vlocal`. Such a variable has no place of its own: `alloc` skips it, `varplace` answers with kind 3 and the distance of its bytes from `rsp`, above the slots, and `emit_varmov` turns that into `lea`. `capture` refuses to assign it. The frame is `8 * slots + locals`; the total of the locals is counted in `loccur` during a pass and kept in `fnlocal` after the first, like the slot count. `clrloc` empties `vlocal` where a function starts and after its second pass, not before `alloc` has run.
+
 A name is only entered in the table when its `as` is reached, at the end of the statement, so `sys 1 n as n` with a new `n` is not the variable.
 
 ## Assigned variables
@@ -255,7 +260,7 @@ sub  rsp, 8 * slots                        ; only if a variable lives on the sta
 mov  <variable i>, <argument i>            ; one per parameter
 ```
 
-`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, and `emit_varmov` copies it from the argument position of the same index to its place. From the seventh on the value is on the stack, above the slots, the six saved registers and the return address, the last one nearest; the entry code loads it into `r11` and stores it like the others. That distance needs the number of parameters, `fnnpar`, which the first pass over the function leaves behind.
+`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, and `emit_varmov` copies it from the argument position of the same index to its place. From the seventh on the value is on the stack, above the slots, the locals, the six saved registers and the return address, the last one nearest; the entry code loads it into `r11` and stores it like the others. That distance needs the number of parameters, `fnnpar`, which the first pass over the function leaves behind.
 
 **Scope.** `fndef` saves `ebp` in `topvars`, clears it and sets `infn`, which makes `lookup_var` use the second half of `vars`. It also sets `labbase` and `fixbase` to the current ends of `labels` and `fixs`: the function's labels and jumps are stacked on top of the top-level ones collected so far. `fnend` calls `resolve` for exactly that part, then cuts both tables back to the bases and restores `ebp`. That is all that makes labels and variables local, and it is why functions do not nest: there is one saved scope.
 
@@ -297,7 +302,8 @@ f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx
 - Functions do not nest.
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to fewer than four output bytes (`end` is the worst line: 4 bytes of source, 13 of code).
 - x86-64 Linux only.
-- Strings and data are read-only; the only writable memory is what `buf` reserves or the program maps itself.
+- Strings and data are read-only; writable memory is what `buf`, `local` and `alloc` give, or what the program maps itself.
+- `alloc` is one mapping per call: at least a page and two system calls for every allocation and release.
 
 ## Adding a statement
 

@@ -106,7 +106,26 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - Stage1 marked its self-parsed statements with flag 128, which is now `IS_MEM`; they use 255.
 - The suite went from 434 to 467 tests.
 
+### Allocation, release and local storage (2026-11-19)
+- `alloc n as p` and `free p` are two rows of `optab` whose code is written as instructions in
+  stage0 and as bytes in stage1: `mmap` of the size plus a 16-byte header that keeps the length,
+  0 on failure or when the size would wrap; `munmap` through the header, nothing for 0.
+- `local name size` reserves bytes in the frame of the function. The name is a variable of the
+  function with no place of its own; reading it is `lea`. Not zero-filled.
+- `buf name 0` is allowed (a mark; any access through it is `invalid access`); alignment is not
+  configurable: 8 for `buf` and `local`, 16 for `alloc`.
+- A mutation that survived exposed a real fault: `clrloc` ran before `alloc`, so a local always
+  took a register or slot as well. `local_takes_no_register` now pins the frame size through the
+  distance between the locals of two nested calls.
+- The suite went from 467 to 504 tests.
+
 ## Why
+- **One mapping per `alloc`:** no allocator state, no free list to corrupt, and both statements
+  stay table rows. It is slow and page-sized; the reference says when to use `buf` or `local`.
+- **A header instead of `free p n`:** the size is one more value to get wrong at every release.
+- **`local` not zero-filled:** clearing costs a loop per call, and the program can clear what it
+  needs.
+- **No configurable alignment:** nothing measured asks for it, and `alloc` already gives 16.
 - **Declared size, not rounded size:** the rounding is an implementation detail, and the bytes
   between the two belong to nothing the program named.
 - **A data name reaches to the end of its run:** tables are written a row a line and indexed
