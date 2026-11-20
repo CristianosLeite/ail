@@ -55,6 +55,7 @@ test: $(B)/stage0 $(B)/ailc $(B)/ailc2
 ifeq ($(T),)
 	@f=0; AILC=$(B)/stage0 tests/run.sh || f=1; AILC=$(B)/stage0 tests/io.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; tests/stage1.sh || f=1; \
+	AILC=$(B)/stage0 tests/insn.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/stage0 AILC2=$(B)/ailc tests/bytes.sh || f=1; tests/fuzz.sh 300 1 || f=1; \
 	AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; exit $$f
 else
@@ -66,12 +67,7 @@ endif
 fuzz: $(B)/stage0 $(B)/ailc
 	tests/fuzz.sh $(or $(N),20000) $(or $(SEED),1)
 
-# stage1/tables.ai is generated from the tables of stage0, their one
-# definition; tests/tables.sh fails when it is out of date.
-tables:
-	tools/tables.sh > stage1/tables.ai.tmp && mv stage1/tables.ai.tmp stage1/tables.ai
-
 clean:
 	rm -rf $(B)
 
-.PHONY: all test fuzz tables clean
+.PHONY: all test fuzz clean

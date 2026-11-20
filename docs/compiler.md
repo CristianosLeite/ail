@@ -390,4 +390,4 @@ A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is
 2. Write the emitter, using `rdi` as the output cursor and leaving `rsi` after the statement. End its last token through `eol`.
 3. Jump back to `next`.
 
-Either way, document it in [language.md](language.md) and add tests in `tests/`, including one for each way it can be rejected. Make the same change in `stage1/ailc.ai`: `tests/stage1.sh` fails as long as the two compilers differ on any test. A row of `optab` or of another table needs no change there: run `make tables`, which writes `stage1/tables.ai` from the assembled bytes of this file.
+Either way, document it in [language.md](language.md) and add tests in `tests/`, including one for each way it can be rejected. Make the same change in `stage1/ailc.ai`: `tests/stage1.sh` fails as long as the two compilers differ on any test. A row of `optab` or of another table is written a second time in `stage1/tables.ai`, as decimal bytes, with a case in `tests/insn.cases` that checks them against an assembler's.
