@@ -1,0 +1,1494 @@
+# tools/infix.ai -- rewrite an AIL source from statements to expressions.
+#
+#   build/tools/infix in.ai out.ai
+#
+# Three rewrites, each of which leaves what the program does as it was:
+#
+# 1. A statement that computes is spelled as an assignment: "add a b as x"
+#    becomes "x=a+b", or "x+=b" when a is x; "set a as x" becomes "x=a";
+#    "iflt a b" becomes "if a<b".
+# 2. A loop written as a label, a jump out on a condition, lines and a
+#    jump back becomes "while" with the opposite condition, when nothing
+#    else jumps to the label.
+# 3. A variable that is assigned on one line and read exactly once, on
+#    the next, and not again before it is assigned anew on any way, is
+#    folded into that next line: "t=a+b" and "store p t" become
+#    "store p a+b". Two assignments to one variable in a row, the second
+#    of the form "x+=f", become one. This is repeated, so chains of such
+#    lines become one expression, up to 100 bytes. A "while" takes no
+#    value this way, since it reads its value every round, and a line with
+#    a comment is not folded away.
+#
+# Lines with a string are left alone, as are signed and float statements,
+# which have no operator. Comments stay on the lines that stay. A line
+# that is rewritten is written with one space between its words and
+# without a CR at its end; every other line keeps its bytes.
+#
+# On stderr: "spelled A, loops B, folded C". Status 0, or 1 with a message
+# when a file cannot be read or written. An expression with more than 497
+# parentheses in one another, 496 in the value of a statement, is taken
+# for no expression and its line stays: there the Python script this was
+# ported from gave up.
+use "lib/io.ai"
+use "lib/bytes.ai"
+use "lib/file.ai"
+use "tools/lib/scan.ai"
+use "tools/lib/flow.ai"
+
+# the lines, gnl of 176 bytes each at gltab; the fields are named below
+var gltab gnl
+# the scope at work: its line numbers (gsc, gm of them); for each word
+# number below gnid 40 bytes at gpos, valid when the first 8 are gstamp:
+# the last and the first position of the label of that name, the number
+# of jumps to it and the position of the last; for each position the
+# block it opens, continues or closes (gbo its opener or -1, gbe its else
+# or -1, gbc its end); gstk is room for a stack
+var gsc gm gpos gnid gstamp gbo gbe gbc gstk
+# the scopes of all lines (fwscopes), and a byte for each line and word
+var gidx gtab gkinds gflag
+# the expression being parsed: its tokens, their number, the next one,
+# 1 after an error, and the depth
+var gtp gtn gti gerr gdepth
+
+const ltext 0
+const ltextn 8
+# 0 a line kept as it is, 1 an assignment, 2 a statement with values
+const lkind 16
+const lcom 24
+const lcomn 32
+const lpad 40
+const lpadn 48
+# the code: the text before the comment, without the space at its end
+const lwas 56
+const lwasn 64
+# the words of the code: the index of the first in wbuf and their number
+const lws 72
+const lwc 80
+# the first word of a line without a string, or 0
+const lkw 88
+# an assignment: the target, the operator before the = or 0, the tree
+const ltgt 96
+const lop 104
+const ltree 112
+# a statement: the word before the values or 0, the values (trees, in
+# vbuf), the label or 0, and the words from "as" on (in wbuf)
+const lbef 120
+const lvs 128
+const lvc 136
+const llab 144
+const las 152
+const lac 160
+const ldel 168
+const lsz 176
+
+buf text 24
+buf wbuf 24
+buf vbuf 24
+# a tree is a word number times 2, or 1 plus 2 times the index of 24
+# bytes here: an operator and the trees of its two operands
+buf nodes 24
+buf ptoks 24
+buf ptxt 24
+buf scr 24
+buf tmp 24
+buf nvals 24
+buf out 24
+
+# the words with a meaning, in the order of their numbers
+const kfn 1
+const kvar 4
+const klabel 8
+const kelse 9
+const kend 10
+const kat 11
+const kas 14
+const kcall 15
+const ktail 16
+const kjmp 19
+const kjz 20
+const kjnz 21
+const kjeq 22
+const kret 32
+const kset 33
+const kmulw 34
+const kifeq 50
+const kif 56
+const kwhile 57
+const kmul 58
+const kminus 62
+const keq 68
+const klp 74
+const krp 75
+const kzero 76
+data words 2 "fn" 3 "buf" 4 "data" 3 "var" 5 "const" 3 "use" 5 "local" 5 "label" 4 "else" 3 "end"
+data 2 "at" 3 "len" 4 "args" 2 "as" 4 "call" 4 "tail" 3 "ref" 3 "sys" 3 "jmp" 2 "jz" 3 "jnz"
+data 3 "jeq" 3 "jne" 3 "jlt" 3 "jle" 3 "jgt" 3 "jge" 4 "jslt" 4 "jsle" 4 "jsgt" 4 "jsge"
+data 3 "ret" 3 "set"
+data 3 "mul" 3 "div" 3 "mod" 3 "add" 3 "sub" 3 "shl" 3 "shr" 3 "and" 3 "xor" 2 "or"
+data 2 "eq" 2 "ne" 2 "lt" 2 "le" 2 "gt" 2 "ge"
+data 4 "ifeq" 4 "ifne" 4 "iflt" 4 "ifle" 4 "ifgt" 4 "ifge" 2 "if" 5 "while"
+data 1 "*" 1 "/" 1 "%" 1 "+" 1 "-" 2 "<<" 2 ">>" 1 "&" 1 "^" 1 "|"
+data 2 "==" 2 "!=" 1 "<" 2 "<=" 1 ">" 2 ">="
+data 1 "(" 1 ")" 1 "0"
+data 0
+# how tightly each operator binds, from * to >=, and for a comparison the
+# one with the opposite result
+data prec 6 6 6 5 5 4 4 3 2 1 0 0 0 0 0 0
+data neg 1 0 5 4 3 2
+data endtext "end"
+
+fn oom
+call die "infix: out of memory\n"
+end
+
+# 0 is no memory
+fn must r
+ifz r
+call oom
+end
+end
+
+fn failpath m ml p pl
+call eprint "infix: "
+call eprint m ml
+call eprint p pl
+call eprint "\n"
+sys exit_group 1
+end
+
+# add the 8 bytes of v to the buffer b
+fn push8 b v
+call byneed b 8 as r
+call must r
+load b as p
+load b+8 as n
+store p+n v
+store b+8 n+8
+end
+
+fn add b p n
+call byadd b p n as r
+call must r
+end
+
+# add the word with the number t to the buffer b
+fn addw b t
+call scatom t as p n
+call add b p n
+end
+
+# the tree of the operator o with the operands a and b
+fn mknode o a b
+call byneed nodes 24 as r
+call must r
+load nodes as p
+load nodes+8 as n
+store p+n o
+store p+n+8 a
+store p+n+16 b
+store nodes+8 n+24
+ret n/24*2+1
+end
+
+# the length of the token at p in an expression that ends at e, or 0: a
+# number, a name, an operator or a parenthesis
+fn tok p e
+loadb p as c
+q=p+1
+if c==48
+if q<e
+loadb q as d
+if d==120
+q+=1
+while q<e
+loadb q as d
+jz (d-48<10)|((d|32)-97<6) hexend
+q+=1
+end
+label hexend
+if q>p+2
+ret q-p
+end
+q=p+1
+end
+end
+end
+if c-48<10
+while q<e
+loadb q as d
+jge d-48 10 numend
+q+=1
+end
+label numend
+ret q-p
+end
+if c-97<26
+while q<e
+loadb q as d
+jz (d-97<26)|(d-48<10)|(d==95) namend
+q+=1
+end
+label namend
+ret q-p
+end
+if q<e
+loadb q as d
+if ((c==60)|(c==62))&(d==c)
+ret 2
+end
+if ((c==61)|(c==33)|(c==60)|(c==62))&(d==61)
+ret 2
+end
+end
+if (c==45)|(c==43)|(c==42)|(c==47)|(c==37)|(c==38)|(c==94)|(c==124)|(c==60)|(c==62)|(c==40)|(c==41)
+ret 1
+end
+end
+
+# an operand: a token, a minus with the token after it, or an expression
+# in parentheses
+fn patom
+jge gti gtn bad
+load gtp+gti*8 as t
+gti+=1
+if t==klp
+call pexpr 0 as e
+jnz gerr bad
+jge gti gtn bad
+load gtp+gti*8 as t
+jne t krp bad
+gti+=1
+ret e
+end
+if t==kminus
+jge gti gtn bad
+load gtp+gti*8 as t
+gti+=1
+call bycut scr 0
+call add scr "-"
+call addw scr t
+load scr as p
+load scr+8 as n
+call scintern p n as t
+call must t
+end
+ret t*2
+label bad
+gerr=1
+end
+
+# operands joined by the operators that bind at least as tightly as low
+fn pexpr low
+gdepth+=1
+if gdepth>498
+gerr=1
+end
+call patom as left
+label more
+jnz gerr done
+jge gti gtn done
+load gtp+gti*8 as t
+jge t-kmul 16 done
+loadb prec+t-kmul as p
+jlt p low done
+gti+=1
+call pexpr p+1 as right
+call mknode t left right as left
+jmp more
+label done
+gdepth-=1
+ret left
+end
+
+# the tree of the n bytes at p, and 1; or 0 and 0 if they are no
+# expression. d is the depth it starts at
+fn parse p n d
+e=p+n
+call bycut ptoks 0
+while p<e
+call tok p e as k
+ifz k
+ret 0 0
+end
+call scintern p k as t
+call must t
+call push8 ptoks t
+p+=k
+end
+load ptoks as gtp
+load ptoks+8 as k
+gtn=k/8
+gti=0
+gerr=0
+gdepth=d
+call pexpr 0 as tr
+if gerr|(gti!=gtn)
+ret 0 0
+end
+ret tr 1
+end
+
+# the tree e into the buffer b, with the parentheses it needs as an
+# operand of an operator of the strength s-1 (0: of none), the right one
+# if right is 1
+fn show b e s right
+ifz e&1
+call addw b e>>1
+ret 0
+end
+load nodes as q
+q+=(e>>1)*24
+load q as o
+load q+8 as x
+load q+16 as y
+loadb prec+o-kmul as p
+p+=1
+par=(p<s)|((p==s)&right)
+if par
+call add b "("
+end
+call show b x p 0
+call addw b o
+call show b y p 1
+if par
+call add b ")"
+end
+end
+
+# the length of the tree e as text
+fn showlen e
+call bycut tmp 0
+call show tmp e 0 0
+load tmp+8 as n
+ret n
+end
+
+# the length of the word t
+fn wlen t
+call scatom t as p n
+ret n
+end
+
+# 1 if the word t is a name
+fn isname t
+call scatom t as p n
+call scname p n as r
+ret r
+end
+
+# how often the word v is an operand in the tree e
+fn tcount e v
+ifz e&1
+ret (e>>1)==v
+end
+load nodes as q
+q+=(e>>1)*24
+load q+8 as x
+load q+16 as y
+call tcount x v as a
+call tcount y v as b
+ret a+b
+end
+
+# the tree e with the tree by in place of every operand v
+fn subst e v by
+ifz e&1
+if (e>>1)==v
+ret by
+end
+ret e
+end
+load nodes as q
+q+=(e>>1)*24
+load q as o
+load q+8 as x
+load q+16 as y
+call subst x v by as x
+call subst y v by as y
+call mknode o x y as r
+ret r
+end
+
+# the words between p and e into wbuf: their number, and the address and
+# length of the first
+fn split p e
+c=0
+fp=0
+fl=0
+while p<e
+loadb p as ch
+call scspace ch as s
+if s
+p+=1
+else
+q=p
+while q<e
+loadb q as ch
+call scspace ch as s
+jnz s wend
+q+=1
+end
+label wend
+call scintern p q-p as t
+call must t
+call push8 wbuf t
+ifz c
+fp=p
+fl=q-p
+end
+c+=1
+p=q
+end
+end
+ret c fp fl
+end
+
+# is the word of n bytes at p an assignment, a name, perhaps an operator,
+# an = and more: the length of the name, of the operator, and where the
+# expression starts; or three times 0
+fn asgm p n
+ifz n
+ret 0 0 0
+end
+loadb p as c
+if c-97>=26
+ret 0 0 0
+end
+i=1
+while i<n
+loadb p+i as c
+jz (c-97<26)|(c-48<10)|(c==95) nend
+i+=1
+end
+label nend
+if i>=n
+ret 0 0 0
+end
+loadb p+i as c
+o=(c==42)|(c==47)|(c==37)|(c==43)|(c==45)|(c==38)|(c==94)|(c==124)
+if (c==60)|(c==62)
+if i+1<n
+loadb p+i+1 as d
+if d==c
+o=2
+end
+end
+end
+j=i+o
+# an operator that no = follows is none
+c=0
+if j<n
+loadb p+j as c
+end
+if c!=61
+o=0
+j=i
+loadb p+j as c
+end
+if c!=61
+ret 0 0 0
+end
+j+=1
+if j>=n
+ret 0 0 0
+end
+ret i o j
+end
+
+# make the line l of the n bytes at p
+fn mkline l p n
+store l+ltext p
+store l+ltextn n
+store l+lkind 0
+store l+lcomn 0
+store l+lkw 0
+store l+ltgt 0
+store l+lop 0
+store l+lbef 0
+store l+lvc 0
+store l+llab 0
+store l+lac 0
+store l+ldel 0
+# the comment starts at the first # if no string starts before it
+e=p+n
+q=p
+h=0
+while q<e
+loadb q as c
+jeq c 35 hash
+if c==34
+h=1
+end
+q+=1
+end
+label hash
+cn=n
+if (q<e)&(h==0)
+r=q
+while r>p
+loadb r-1 as c
+call scspace c as s
+jz s stripped
+r-=1
+end
+label stripped
+cn=r-p
+store l+lcom q
+store l+lcomn e-q
+store l+lpad r
+store l+lpadn q-r
+end
+store l+lwas p
+store l+lwasn cn
+load wbuf+8 as ws
+call split p p+cn as wc fp fl
+store l+lws ws/8
+store l+lwc wc
+if h|(wc==0)
+ret 0
+end
+load wbuf as w
+w+=ws
+load w as kw
+store l+lkw kw
+call asgm fp fl as tn on ro
+if tn
+loadb fp+ro as c
+if (wc==1)&(c!=61)
+call parse fp+ro fl-ro 0 as tr ok
+ifz ok
+ret 0
+end
+call scintern fp tn as t
+call must t
+o=0
+if on
+call scintern fp+tn on as o
+call must o
+end
+store l+lkind 1
+store l+ltgt t
+store l+lop o
+store l+ltree tr
+store l+lkw 0
+ret 0
+end
+end
+if kw-kfn<13
+ret 0
+end
+# the words that are values: not the name of a function, the number of
+# a syscall, a label, or what follows as
+ia=1
+while ia<wc
+load w+ia*8 as t
+jeq t kas asfound
+ia+=1
+end
+label asfound
+store l+las ws/8+ia
+store l+lac wc-ia
+j=1
+if kw-kcall<4
+if j<ia
+load w+8 as t
+store l+lbef t
+j=2
+end
+end
+if kw-kjmp<13
+if j>=ia
+ret 0
+end
+ia-=1
+load w+ia*8 as t
+store l+llab t
+end
+load vbuf+8 as vs
+store l+lvs vs/8
+while j<ia
+load wbuf as w
+load w+ws+j*8 as t
+call bycut ptxt 0
+call addw ptxt t
+load ptxt as tp
+load ptxt+8 as tn
+call parse tp tn 1 as tr ok
+ifz ok
+ret 0
+end
+call push8 vbuf tr
+j+=1
+end
+load vbuf+8 as t
+store l+lvc t/8-vs/8
+store l+lkind 2
+end
+
+# the line at the position n of the scope at work
+fn line n
+load gsc+n*8 as i
+ret gltab+i*lsz
+end
+
+# the word i of the line l
+fn word l i
+load l+lws as w
+load wbuf as p
+load p+w*8+i*8 as t
+ret t
+end
+
+# the value i of the statement l, and the same to set it
+fn val l i
+load l+lvs as v
+load vbuf as p
+load p+v*8+i*8 as t
+ret t
+end
+fn setval l i t
+load l+lvs as v
+load vbuf as p
+store p+v*8+i*8 t
+end
+
+# the index of the word "as" of the line l, or the number of its words
+fn asat l
+load l+lwc as c
+i=0
+while i<c
+call word l i as t
+if t==kas
+ret i
+end
+i+=1
+end
+ret c
+end
+
+# 1 if the line opens a block: while, or a first word that starts with if
+fn lopens l
+load l+lkw as k
+ifz k
+ret 0
+end
+if (k==kwhile)|(k==kif)|(k-kifeq<6)
+ret 1
+end
+call scatom k as p n
+if n<2
+ret 0
+end
+loadb p as a
+loadb p+1 as b
+ret (a==105)&(b==102)
+end
+
+# how often the line l reads the variable v
+fn lcount l v
+load l+lkind as k
+call isname v as nm
+c=0
+if k==1
+load l+ltree as e
+if nm
+call tcount e v as c
+end
+load l+lop as o
+load l+ltgt as t
+if o
+c+=t==v
+end
+ret c
+end
+if k==2
+ifz nm
+ret 0
+end
+load l+lvc as n
+i=0
+while i<n
+call val l i as e
+call tcount e v as r
+c+=r
+i+=1
+end
+ret c
+end
+load l+lkw as kw
+load l+lwc as n
+if (kw-kat<2)&(n>1)&nm
+call asat l as e
+if e<n
+i=1
+while i<e
+call word l i as t
+c+=t==v
+i+=1
+end
+end
+end
+ret c
+end
+
+# 1 if the line l writes the variable v
+fn lwrites l v
+load l+lkind as k
+if k==1
+load l+ltgt as t
+ret t==v
+end
+if k==2
+load l+lac as n
+load l+las as a
+load wbuf as p
+i=1
+while i<n
+load p+a*8+i*8 as t
+if t==v
+ret 1
+end
+i+=1
+end
+ret 0
+end
+load l+lkw as kw
+if kw-kat<3
+load l+lwc as n
+call asat l as i
+i+=1
+while i<n
+call word l i as t
+if t==v
+ret 1
+end
+i+=1
+end
+end
+end
+
+# the 40 bytes of the word t for the scope at work
+fn pent t
+if t>=gnid
+call die "infix: a word outside the table\n"
+end
+p=gpos+t*40
+load p as s
+if s!=gstamp
+store p gstamp
+store p+8 -1
+store p+16 -1
+store p+24 0
+store p+32 0
+end
+ret p
+end
+
+# the name a line defines as a label, or 0: "label" and one more word
+fn labname l
+load l+lkw as k
+load l+lwc as c
+if (k==klabel)&(c==2)
+call word l 1 as t
+ret t
+end
+end
+
+# where the ways go from the position n of the scope at work: 0 and two
+# positions, each of which may be -1; or 1 if a jump leaves what is seen
+fn succ n
+call line n as l
+load l+lkw as k
+load gbo+n*8 as o
+if o!=-1
+load gbe+n*8 as e
+load gbc+n*8 as c
+if n==o
+if e==-1
+e=c
+end
+ret 0 n+1 e+1
+end
+if n==e
+ret 0 c+1 -1
+end
+call line o as lo
+load lo+lkw as k
+if k==kwhile
+ret 0 o -1
+end
+ret 0 n+1 -1
+end
+if (k==kend)|(k==kret)|(k==ktail)
+ret 0 -1 -1
+end
+load l+lkind as kd
+load l+llab as t
+if (kd==2)&(t!=0)
+call pent t as p
+load p+8 as p
+if p==-1
+ret 1 0 0
+end
+if k==kjmp
+ret 0 p -1
+end
+ret 0 n+1 p
+end
+ret 0 n+1 -1
+end
+
+# what the walk of tools/lib/flow.ai asks of the position n for the
+# variable v
+fn step n v
+call line n as l
+call lcount l v as r
+if r
+ret 1 0 0
+end
+call lwrites l v as r
+if r
+ret 0 0 0
+end
+call succ n as r a b
+if r
+ret 1 0 0
+end
+ret 2 a b
+end
+
+# the scopes of the lines as they are now: their number
+fn scopes
+i=0
+while i<gnl
+l=gltab+i*lsz
+load l+lkw as k
+r=0
+if k==kfn
+r=1
+else
+if k==kend
+r=3
+else
+call lopens l as r
+r*=2
+end
+end
+storeb gkinds+i r
+i+=1
+end
+call fwscopes gkinds gnl gidx gtab as n
+call must n
+ret n
+end
+
+# make the scope i the scope at work
+fn scope i
+load gtab+i*16 as a
+load gtab+i*16+8 as gm
+gsc=gidx+a*8
+gstamp+=1
+end
+
+# the deleted lines go
+fn compact
+j=0
+i=0
+while i<gnl
+l=gltab+i*lsz
+load l+ldel as r
+ifz r
+if i!=j
+call bycopy gltab+j*lsz l lsz
+end
+j+=1
+end
+i+=1
+end
+gnl=j
+end
+
+# rewrite 1: statements as assignments, ifcc as if
+fn spell
+made=0
+i=0
+while i<gnl
+l=gltab+i*lsz
+i+=1
+load l+lkind as k
+jne k 2 next
+load l+lkw as k
+load l+lvc as n
+load l+lac as a
+if (k==kset)&(n==1)&(a==2)
+call val l 0 as e
+o=0
+jmp asg
+end
+if (k-kmulw<16)&(n==2)&(a==2)
+call val l 0 as x
+call val l 1 as e
+o=k+24
+load l+las as w
+load wbuf as p
+load p+w*8+8 as t
+if (x==t*2)&(o<keq)
+jmp asgt
+end
+call mknode o x e as e
+o=0
+jmp asgt
+end
+if (k-kifeq<6)&(n==2)
+call val l 0 as x
+call val l 1 as e
+call mknode k+18 x e as e
+call setval l 0 e
+store l+lvc 1
+store l+lkw kif
+made+=1
+end
+jmp next
+label asg
+load l+las as w
+load wbuf as p
+load p+w*8+8 as t
+label asgt
+store l+lkind 1
+store l+ltgt t
+store l+lop o
+store l+ltree e
+store l+lkw 0
+made+=1
+label next
+end
+ret made
+end
+
+# the position of the jump back, if the label t at the position a of the
+# scope at work heads a loop that may be a while; else -1
+fn loopcand a t
+call pent t as p
+load p+24 as c
+jne c 1 no
+load p+32 as b
+jle b a+1 no
+call line b as lb
+load lb+lkw as k
+jne k kjmp no
+load lb+lcomn as c
+jnz c no
+call line a as head
+load head+lcomn as c
+jnz c no
+call line a+1 as tail
+load tail+lkind as c
+jne c 2 no
+jge b+1 gm no
+load tail+lkw as k
+load tail+lvc as c
+jz ((k-kjeq<6)&(c==2))|((k==kjz)&(c==1))|((k==kjnz)&(c==1)) no
+call line b+1 as last
+call labname last as c
+load tail+llab as k
+jz c no
+jne c k no
+# the blocks between are whole
+d=0
+n=a+2
+while n<b
+call line n as l
+call lopens l as c
+load l+lkw as k
+if c
+d+=1
+else
+if k==kend
+jz d no
+d-=1
+end
+if (k==kelse)&(d==0)
+jmp no
+end
+end
+n+=1
+end
+jnz d no
+ret b
+label no
+ret -1
+end
+
+# rewrite 2: label, jump out on a condition, lines, jump back as while
+fn loops
+made=0
+label again
+call scopes as ns
+si=0
+while si<ns
+call scope si
+n=0
+while n<gm
+call line n as l
+call labname l as t
+if t
+call pent t as p
+store p+8 n
+load p+16 as c
+if c==-1
+store p+16 n
+end
+end
+load l+lkind as k
+load l+llab as t
+if (k==2)&(t!=0)
+call pent t as p
+load p+24 as c
+store p+24 c+1
+store p+32 n
+end
+n+=1
+end
+# the shortest loop of the scope, the first of those
+ba=-1
+bb=0
+n=0
+while n<gm
+call line n as l
+call labname l as t
+if t
+call pent t as p
+load p+16 as c
+if c==n
+load p+8 as a
+call loopcand a t as b
+if b!=-1
+if (ba==-1)|(b-a<bb-ba)
+ba=a
+bb=b
+end
+end
+end
+end
+n+=1
+end
+if ba!=-1
+call line ba+1 as tail
+load tail+lkw as k
+call val tail 0 as x
+if k==kjz
+e=x
+else
+if k==kjnz
+call mknode keq x kzero*2 as e
+else
+call val tail 1 as y
+loadb neg+k-kjeq as c
+call mknode keq+c x y as e
+end
+end
+load tail+llab as t
+call pent t as p
+load p+24 as alone
+call setval tail 0 e
+store tail+lvc 1
+store tail+lkw kwhile
+store tail+llab 0
+call line ba as l
+store l+ldel 1
+call line bb as l
+call mkline l endtext 3
+call line bb+1 as l
+load l+lcomn as c
+if (alone==1)&(c==0)
+store l+ldel 1
+end
+call compact
+made+=1
+jmp again
+end
+si+=1
+end
+ret made
+end
+
+# the blocks of the scope at work
+fn mkblocks
+n=0
+while n<gm
+store gbo+n*8 -1
+n+=1
+end
+sp=0
+n=0
+while n<gm
+call line n as l
+call lopens l as c
+load l+lkw as k
+if c
+store gstk+sp*16 n
+store gstk+sp*16+8 -1
+sp+=1
+else
+if sp
+if k==kelse
+store gstk+sp*16-8 n
+end
+if k==kend
+sp-=1
+load gstk+sp*16 as o
+load gstk+sp*16+8 as e
+store gbo+o*8 o
+store gbe+o*8 e
+store gbc+o*8 n
+store gbo+n*8 o
+store gbe+n*8 e
+store gbc+n*8 n
+if e!=-1
+store gbo+e*8 o
+store gbe+e*8 e
+store gbc+e*8 n
+end
+end
+end
+end
+n+=1
+end
+end
+
+# fold the assignment at the position n of the scope at work into the
+# line after it: 1 if it went, and its line is deleted
+fn foldpair n
+call line n as a
+call line n+1 as b
+load a+lkind as k
+load a+lcomn as c
+load a+ltgt as t
+jne k 1 no
+jnz c no
+loadb gflag+t as c
+jnz c no
+load a+lop as ao
+load a+ltree as at
+load b+lkind as bk
+load b+lop as bo
+load b+ltgt as bt
+load b+lcomn as bc
+call isname t as nm
+call wlen t as tl
+if (bk==1)&(bo!=0)&(bt==t)
+load b+ltree as e
+c=0
+if nm
+call tcount e t as c
+end
+if (c==0)&(bc==0)
+# t=e or t*=e, and then t+=f: one assignment
+if ao
+call mknode ao t*2 at as at
+end
+call mknode bo at e as e
+call showlen e as c
+jgt c+tl 100 no
+store b+lop 0
+store b+ltree e
+jmp yes
+end
+jmp no
+end
+jz bk no
+load b+lkw as k
+jeq k kwhile no
+call lcount b t as c
+jne c 1 no
+call succ n+1 as r x y
+jnz r no
+call lwrites b t as c
+ifz c
+ref step as sr
+call fwdead sr gm t x y as c
+jz c no
+end
+# what t holds after the line a
+if ao
+call mknode ao t*2 at as at
+end
+if bk==1
+load b+ltree as e
+call subst e t at as e
+call showlen e as c
+call wlen bt as tl
+jgt c+tl 100 no
+store b+ltree e
+jmp yes
+end
+load b+lvc as k
+call bycut nvals 0
+c=0
+i=0
+while i<k
+call val b i as e
+call subst e t at as e
+call push8 nvals e
+call showlen e as r
+c+=r
+i+=1
+end
+jgt c 100 no
+load nvals as p
+i=0
+while i<k
+load p+i*8 as e
+call setval b i e
+i+=1
+end
+label yes
+store a+ldel 1
+ret 1
+label no
+ret 0
+end
+
+# rewrite 3: a variable assigned on one line and read once, on the next
+fn fold
+made=0
+label again
+call scopes as ns
+si=0
+while si<ns
+call scope si
+call mkblocks
+n=0
+while n<gm
+call line n as l
+call labname l as t
+if t
+call pent t as p
+store p+8 n
+end
+n+=1
+end
+n=0
+while n+1<gm
+call foldpair n as r
+if r
+call compact
+made+=1
+jmp again
+end
+n+=1
+end
+si+=1
+end
+ret made
+end
+
+# the line l as it is now, into out
+fn render l
+load l+lkind as k
+ifz k
+load l+ltext as p
+load l+ltextn as n
+call add out p n
+ret 0
+end
+load out+8 as start
+if k==1
+load l+ltgt as t
+call addw out t
+load l+lop as t
+if t
+call addw out t
+end
+call add out "="
+load l+ltree as e
+call show out e 0 0
+else
+load l+lkw as t
+call addw out t
+load l+lbef as t
+if t
+call add out " "
+call addw out t
+end
+load l+lvc as n
+i=0
+while i<n
+call add out " "
+call val l i as e
+call show out e 0 0
+i+=1
+end
+load l+llab as t
+if t
+call add out " "
+call addw out t
+end
+load l+lac as n
+load l+las as a
+i=0
+while i<n
+call add out " "
+load wbuf as p
+load p+a*8+i*8 as t
+call addw out t
+i+=1
+end
+end
+load l+lcomn as cn
+ifz cn
+ret 0
+end
+# the comment stays in its column if the code still ends before it
+load out as p
+load out+8 as n
+n-=start
+load l+lwas as w
+load l+lwasn as wn
+load l+lpad as q
+load l+lpadn as qn
+same=0
+if n==wn
+call sceq p+start w n as same
+end
+if same
+call add out q qn
+else
+c=2
+ifsgt wn+qn-n 2
+c=wn+qn-n
+end
+while c
+call add out " "
+c-=1
+end
+end
+load l+lcom as q
+call add out q cn
+end
+
+fn main
+call argc as n
+if n!=3
+call die "usage: infix in.ai out.ai\n"
+end
+call argv 1 as ip il
+call argv 2 as op ol
+call sclist words as r
+call must r
+call sccount as r
+if r!=kzero
+call die "infix: the table of words is not as numbered\n"
+end
+# bytes as they are: a source may hold any byte in a string or comment
+call fileread ip il text as n
+ifslt n 0
+call failpath "cannot read " ip il
+end
+load text as p
+e=p+n
+gnl=1
+q=p
+while q<e
+loadb q as c
+gnl+=c==10
+q+=1
+end
+# a source that ends with LF has no line after it
+last=0
+if n
+loadb e-1 as c
+if c==10
+last=1
+gnl-=1
+end
+end
+alloc gnl*lsz+lsz as gltab
+call must gltab
+l=gltab
+i=0
+while i<gnl
+q=p
+while q<e
+loadb q as c
+jeq c 10 eol
+q+=1
+end
+label eol
+call mkline l p q-p
+l+=lsz
+p=q+1
+i+=1
+end
+call sccount as gnid
+gnid+=1
+alloc gnid*40 as gpos
+alloc gnid as gflag
+alloc gnl+8 as gkinds
+alloc gnl*8+8 as gidx
+alloc gnl*16+32 as gtab
+alloc gnl*8+8 as gbo
+alloc gnl*8+8 as gbe
+alloc gnl*8+8 as gbc
+alloc gnl*16+16 as gstk
+call must gpos
+call must gflag
+call must gkinds
+call must gidx
+call must gtab
+call must gbo
+call must gbe
+call must gbc
+call must gstk
+call fwroom gnl as r
+call must r
+# the names of the vars
+i=0
+while i<gnl
+l=gltab+i*lsz
+load l+lkw as k
+if k==kvar
+load l+lwc as c
+j=1
+while j<c
+call word l j as t
+storeb gflag+t 1
+j+=1
+end
+end
+i+=1
+end
+call spell as a
+call loops as b
+call fold as c
+i=0
+while i<gnl
+if i
+call add out "\n"
+end
+call render gltab+i*lsz
+i+=1
+end
+if last
+call add out "\n"
+end
+load out as p
+load out+8 as n
+call filewrite op ol p n as r
+ifslt r 0
+call failpath "cannot write " op ol
+end
+call byfree out
+call add out "spelled "
+call byaddn out a
+call add out ", loops "
+call byaddn out b
+call add out ", folded "
+call byaddn out c
+call add out "\n"
+load out as p
+load out+8 as n
+call eprint p n
+end
+
+call main

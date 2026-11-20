@@ -1,4 +1,4 @@
-# a source for tests/infix.sh: every rewrite of tools/infix.py, and what
+# a source for tests/infix.sh: every rewrite of tools/infix.ai, and what
 # it must leave alone
 var g
 buf b 64

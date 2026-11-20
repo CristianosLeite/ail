@@ -147,7 +147,7 @@ symbols by file purpose because `use` brings names into one program-wide scope.
 1. [x] Port `hashcol.py`. Use existing arithmetic and byte operations to
    enumerate names and compute the 32-bit hash. Check the reported pair against
    the current script and the `hash_collision_prefix` fixture.
-2. [ ] Port `fuse.py`, then `infix.py`. Add shared file and buffer helpers and a
+2. [x] Port `fuse.py`, then `infix.py`. Add shared file and buffer helpers and a
    byte-oriented source scanner that preserves strings, comments and line
    endings. Share label lookup and control-flow traversal where the passes
    need the same semantics. Keep expression trees and their printer in

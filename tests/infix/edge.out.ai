@@ -1,0 +1,33 @@
+# the fixture of tests/infix.sh for the lines at the edges of the rules;
+# tests/infix/edge.out.ai is what the Python script made of it, which
+# the tool was ported from. It is compared, not compiled.
+# a line without a string is written anew: one space between its words,
+# no CR at its end, also when nothing else changes
+x=1
+frob x x+2
+# a no-break space separates words
+z=3
+# a line with a string keeps every byte
+sys  write 1 "a # b"	3
+# negative numbers, and a minus that takes the next token along
+n=-5+-1-0x1F
+# the comment keeps its column, or follows after two spaces
+y=x+1                   # short
+x-=1         # close
+# two labels of one name: the last one counts
+label twice
+while x
+x-=1
+end
+# a line of 100 bytes is folded into, one of 101 is not
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=1
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=2
+ccccccccccccccccccccccccccccccccccccc=3
+dddddddddddddddddddddddddddddddddddddd=4
+u=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb+ccccccccccccccccccccccccccccccccccccc
+t=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+v=t+dddddddddddddddddddddddddddddddddddddd
+# what is no expression stays, and == makes no assignment
+w=u+
+w==v
+sys exit u+v
