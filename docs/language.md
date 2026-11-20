@@ -1066,6 +1066,32 @@ call asyncclose c
 - **Errors** are the kernel's, negated: -104 for a connection that was reset, -111 for a port where nobody listens, -9 for a descriptor that is none.
 - **The costs**: an event is a record of 128 bytes, used again; a descriptor is another, and 8 bytes in a table that is as long as the highest descriptor seen. An operation that the kernel does at once is one system call; one that waits is two, and its share of an `epoll_wait` that reports up to 64 descriptors.
 
+### Work that holds a thread
+
+One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.ai` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/task.ai` and the three files above before it.
+
+| Function | Does |
+|---|---|
+| `asyncblock p a b c d` | an event that is done when a worker of the pool has called the function at the address `p` with the four values; its result is the first result of the function |
+
+```
+fn hash p n c d
+...
+end
+async fn serve c
+...
+ref hash as f
+await asyncblock f b n 0 0 as x     # other tasks run meanwhile
+...
+end
+```
+
+- The function runs on another thread, at the same time as the tasks: what it shares with them it touches only through [`xadd` and `cas`](#atomic-operations), and it calls no function of the async library. Memory it is passed stays valid until the event is done.
+- `spawn`, `join` and `workers` are what they were, and a program may use both: the pool is one, and its limit holds for both kinds of work. `asyncblock` needs a worker, so the limit is not 0. A `join` in a task holds the polling thread until its task is done; `asyncblock` is the form that does not.
+- A worker that has finished puts its work in a list and, only if the polling thread sleeps, writes to an `eventfd` that ends the sleep. The polling thread takes the list when it next looks at the outside world.
+- **Cancelling** the event (`asynccancel`, a limit of `asynctimeout`) gives -125 at once. Work that no worker has begun is then not run; work that runs cannot be stopped: it returns later, and its result is dropped.
+- **The costs**: two records of 128 bytes and one task of the pool; in the kernel, what `spawn` costs, and a write and a wake when the polling thread sleeps.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.

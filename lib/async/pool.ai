@@ -1,0 +1,172 @@
+# lib/async/pool.ai -- work that holds a thread, for the tasks of
+# lib/async/task.ai: a function is run by the pool of lib/task.ai, and
+# the task that asked awaits an event that is done when the function has
+# returned. A program uses lib/task.ai and the three other files of
+# lib/async before this one. The file has no line that runs at its use.
+#
+# Every variable, parameter and label of this file has a name that starts
+# with "async", as its functions and its buffer have.
+#
+# A piece of work is a record from asyncget:
+#    0  the function and 8 to 32 its four values
+#   40  its result
+#   48  the next record of those that are done
+#   56  the task of the pool that runs it
+#   64  the event that awaits it, 0 once that was cancelled
+#   72  1 if it need not run any more
+# Only the thread that polls makes and frees records. A worker reads the
+# record it was given and writes 40 and 48.
+#
+# asyncpl: 0 the records that are done, a list that workers put theirs
+# at the head of with cas and the polling thread takes whole; 8 not zero
+# while the polling thread sleeps or is about to; 16 the eventfd, plus
+# 1, that a worker writes to then, which ends the sleep.
+buf asyncpl 24
+data asyncone 1 0 0 0 0 0 0 0
+const asynceventfd 290
+
+# what a worker runs: the function, then the record to the list, and a
+# word to the polling thread if it sleeps
+fn asyncjob asyncj
+load asyncj+72 as asyncx
+asyncv=-125
+ifz asyncx
+load asyncj as asyncf
+load asyncj+8 as asynca
+load asyncj+16 as asyncb
+load asyncj+24 as asyncc
+load asyncj+32 as asyncd
+callp asyncf asynca asyncb asyncc asyncd as asyncv
+end
+store asyncj+40 asyncv
+label asyncpush
+load asyncpl as asynch
+store asyncj+48 asynch
+cas asyncpl asynch asyncj as asyncx
+jz asyncx asyncpush
+load asyncpl+8 as asyncx
+if asyncx
+load asyncpl+16 as asyncfd
+sys write asyncfd-1 asyncone 8
+end
+end
+
+# end the events whose work is done: how many records there were
+fn asyncdrain
+load asyncpl as asyncj
+ifz asyncj
+ret 0
+end
+label asynctake
+load asyncpl as asyncj
+cas asyncpl asyncj 0 as asyncx
+jz asyncx asynctake
+asyncn=0
+while asyncj
+load asyncj+48 as asyncnext
+load asyncj+56 as asynct
+call join asynct
+load asyncj+64 as asynch
+if asynch
+load asyncj+40 as asyncv
+store asynch+56 0
+load asyncq+112 as asyncx
+store asyncq+112 asyncx-1
+call asyncfinish asynch asyncv
+end
+call asyncfree asyncj
+asyncj=asyncnext
+asyncn+=1
+end
+ret asyncn
+end
+
+# what asynctick calls to sleep once work was given out: asyncpoll, but
+# not asleep while a record is done, and woken by one that gets done
+fn asyncpsleep asyncms
+call asyncdrain as asyncn
+if asyncn
+asyncms=0
+end
+if asyncms
+xadd asyncpl+8 1 as asyncx
+load asyncpl as asyncj
+if asyncj
+asyncms=0
+end
+end
+call asyncpoll asyncms as asyncr
+store asyncpl+8 0
+call asyncdrain
+ret asyncr
+end
+
+# what asynccancel calls for the event of work: nobody waits for it any
+# more. Work that no worker has begun is not run; work that runs is left
+# to return, and its result dropped.
+fn asyncjoboff asynch
+load asynch+64 as asyncj
+store asyncj+64 0
+store asyncj+72 1
+load asyncq+112 as asyncx
+store asyncq+112 asyncx-1
+end
+
+# "call asyncblock p a b c d as h": an event that is done when a worker
+# of the pool has called the function at the address p with the four
+# values, with the first result of the function as its result. For work
+# that computes for long or waits in the kernel, which would keep every
+# task waiting if a task did it. 0 if there is no memory; an error of
+# the kernel, negated, as the result if the pool cannot be reached.
+fn asyncblock asyncp asynca asyncb asyncc asyncd
+call async 128 0 as asynch
+ifz asynch
+ret 0
+end
+load asyncpl+16 as asyncfd
+ifz asyncfd
+call asyncepoll as asyncep
+if asyncep>-4096
+call asyncfinish asynch asyncep
+ret asynch
+end
+sys asynceventfd 0 0x80800 as asyncfd
+if asyncfd>-4096
+call asyncfinish asynch asyncfd
+ret asynch
+end
+local asynce 16
+store4 asynce 0x80000001
+store asynce+4 asyncfd
+sys asyncepollctl asyncep-1 1 asyncfd asynce
+store asyncpl+16 asyncfd+1
+ref asyncpsleep as asyncf
+store asyncq+104 asyncf
+end
+call asyncget 128 as asyncj
+ifz asyncj
+call asyncfinish asynch -12
+ret asynch
+end
+store asyncj asyncp
+store asyncj+8 asynca
+store asyncj+16 asyncb
+store asyncj+24 asyncc
+store asyncj+32 asyncd
+store asyncj+64 asynch
+store asyncj+72 0
+ref asyncjob as asyncf
+call spawn asyncf asyncj 0 0 0 0 as asynct
+ifz asynct
+call asyncfree asyncj
+call asyncfinish asynch -12
+ret asynch
+end
+store asyncj+56 asynct
+store asynch+64 asyncj
+ref asyncjoboff as asyncf
+store asynch+56 asyncf
+load asyncq+112 as asyncx
+store asyncq+112 asyncx+1
+ret asynch
+end

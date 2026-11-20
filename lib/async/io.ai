@@ -204,6 +204,25 @@ call asyncfinish asynch asyncx
 ret 1
 end
 
+# the epoll descriptor plus 1, made at the first call, from when on the
+# thread sleeps in asyncpoll; or the error of the kernel, negated
+fn asyncepoll
+load asyncio as asyncep
+ifz asyncep
+sys asyncepollcreate 0x80000 as asyncep
+if asyncep>-4096
+ret asyncep
+end
+asyncep+=1
+store asyncio asyncep
+ref asyncpoll as asyncf
+store asyncq+104 asyncf
+ref asynctick as asyncf
+store asyncq+24 asyncf
+end
+ret asyncep
+end
+
 # the record of the descriptor, made and registered if the library sees
 # the descriptor for the first time, which also makes it non-blocking;
 # or an error of the kernel, negated
@@ -239,18 +258,9 @@ load asynct+asyncfd*8 as asyncr
 if asyncr
 ret asyncr
 end
-load asyncio as asyncep
-ifz asyncep
-sys asyncepollcreate 0x80000 as asyncep
+call asyncepoll as asyncep
 if asyncep>-4096
 ret asyncep
-end
-asyncep+=1
-store asyncio asyncep
-ref asyncpoll as asyncf
-store asyncq+104 asyncf
-ref asynctick as asyncf
-store asyncq+24 asyncf
 end
 sys asyncfcntl asyncfd 3 as asyncx
 if asyncx>-4096

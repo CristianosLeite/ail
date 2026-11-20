@@ -1,0 +1,35 @@
+# work that is cancelled: its event is -125 at once. Work that had begun
+# returns later, to nobody; work that had not begun is not run. Nothing
+# is waited for afterwards.
+use "lib/task.ai"
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/io.ai"
+use "lib/async/pool.ai"
+buf ran 8
+fn nap ms b c d
+xadd ran 1 as x
+local ts 16
+store ts 0
+store ts+8 ms*1000000
+sys nanosleep ts 0
+ret ms
+end
+call workers 1
+ref nap as p
+call asyncclock as t0
+call asyncblock p 100 0 0 0 as a
+call asyncblock p 100 0 0 0 as b
+await asyncsleep 20
+call asynccancel a as c
+call asynccancel b as d
+await a as x
+await b as y
+call asyncrun as n
+call asyncclock as t1
+ms=(t1-t0)/1000000
+# let the work that runs return, and the other be dropped
+await asyncsleep 150
+call asyncrun as m
+load ran as ran1
+sys exit_group (ms>80)+(x!=-125)*2+(y!=-125)*4+n*8+m*16+c*32+d*64+ran1
