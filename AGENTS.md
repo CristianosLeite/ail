@@ -56,7 +56,7 @@ Compiler errors are one line on stderr with no location: `ailc: syntax error`, `
 - `const name number`: a named number, usable as any value, as the `sys` number and as a `buf` size.
 - `data name item ...`: read-only bytes from strings and byte values 0 to 255; the name is a constant address and is optional. Consecutive `data` lines are contiguous, so a table is one row a line. No limit on their number.
 - `len x as n`: the length in bytes of a buffer (as declared), of a data name (its own line) or of a string.
-- `load p as x`, `loadb p as x`, `store p a`, `storeb p a`: 64-bit and byte access at address `p`.
+- `load p as x`, `store p a`: 64-bit access at address `p`; `load4`/`store4`, `load2`/`store2` and `loadb`/`storeb` are the 32-bit, 16-bit and byte forms, loads zero-extended.
 - `label name`, `jmp name`, `jz a name`, `jnz a name`: a label, and jumps to one always, if `a` is zero or if it is not (all 64 bits); labels may be used before they are defined.
 - `fn name a b` ... `end`: a function with up to 6 parameters; top-level execution skips the body, functions do not nest, and reaching `end` returns 0. `ret a` returns a value and is only allowed inside a function.
 - `call name a b as x`: calls a function with as many values as it has parameters; `as` is optional, and the function may be defined later.
@@ -87,5 +87,4 @@ A translation of stage0, routine by routine; `docs/stage1.md` has the map. What 
 - **Global state is in `var`s**, since a function sees no top-level variable: `ip`, `ie`, `op`, `ai`, `nv`, `cur`, `ns`, `nl` for the fixed registers of stage0 and its counters under their own names (`nbufs`, `infn`, `nfix`, ...). `as` on one of those names writes the global, so no function may use them for a local. The tables are buffers (`vars`, `globs`, `labs`, `fixs`, `funs`, `calls`).
 - **Errors are calls that never return** (`call err`, `call edup`, ...); `ok` and `no` are a syntax error unless their value is non-zero or zero. A lookup returns 99999 for a name that is not defined.
 - **The read-only tables** (ELF header, statement rows, register tables) are `data` lines at the end of the file under the names of stage0 (`hdr`, `optab`, `fnpush`, `regtab`, `argnum`, `varnum`, `exit0`, and `retc` for the code of `ret`), one row a line. The statement rows have the layout of `optab`, plus seven rows flagged 128 for `fn`, `buf`, `end`, `label`, `data`, `var` and `const`; flag 64 is `IS_LEN` as in stage0.
-- **`e4` clears the four bytes after the ones it writes**; use it only to append. `p4` patches four bytes in place.
 - The source must stay within the 65536-byte limit of the compilers (it is about 21 KiB).

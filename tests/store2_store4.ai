@@ -1,0 +1,17 @@
+# they write 2 and 4 bytes and leave the rest
+buf b 16
+store b -1
+store2 b 0
+load b as x
+shr x 16 as x
+and x 255 as x
+add b 8 as p
+store p -1
+store4 p 0
+load p as y
+shr y 32 as y
+and y 3 as y
+loadb p as z
+add x y as x
+add x z as x
+sys 60 x

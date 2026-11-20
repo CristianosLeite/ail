@@ -127,8 +127,12 @@ Every statement except `buf`, `data`, `var`, `const`, `label`, `fn` and `end` is
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
 | `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
+| `load4` | `mov eax, [rax]` |
+| `load2` | `movzx eax, word ptr [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
 | `store` | `mov [rax], rdi` |
+| `store4` | `mov [rax], edi` |
+| `store2` | `mov [rax], di` |
 | `storeb` | `mov [rax], dil` |
 | `jmp` | `jmp rel32` |
 | `jz` `jnz` | `test rax, rax` / `jz` or `jnz rel32` |

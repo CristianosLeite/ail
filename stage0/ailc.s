@@ -170,11 +170,23 @@ optab:
     .ascii "loadb"
     .byte 1, AS_REQ, 3,  0x0F,0xB6,0x00             # movzx eax, byte ptr [rax]
     .byte 5
+    .ascii "load2"
+    .byte 1, AS_REQ, 3,  0x0F,0xB7,0x00             # movzx eax, word ptr [rax]
+    .byte 5
+    .ascii "load4"
+    .byte 1, AS_REQ, 2,  0x8B,0x00                  # mov eax, [rax]
+    .byte 5
     .ascii "store"
     .byte 2, AS_NONE, 3, 0x48,0x89,0x38             # mov [rax], rdi
     .byte 6
     .ascii "storeb"
     .byte 2, AS_NONE, 3, 0x40,0x88,0x38             # mov [rax], dil
+    .byte 6
+    .ascii "store2"
+    .byte 2, AS_NONE, 3, 0x66,0x89,0x38             # mov [rax], di
+    .byte 6
+    .ascii "store4"
+    .byte 2, AS_NONE, 2, 0x89,0x38                  # mov [rax], edi
     # jumps: the code ends where the rel32 of the label goes
     .byte 3
     .ascii "jmp"

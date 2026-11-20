@@ -59,7 +59,14 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - `buf_size_over_32bit` became `buf_size_over_64bit` with the new message.
 - The suite went from 329 to 365 tests.
 
+### 16- and 32-bit loads and stores (2026-11-19)
+- Four rows of `optab`: `load2`, `load4`, `store2`, `store4`. Loads zero-extend.
+- Stage1 appends and patches displacements with `store4`; `p4` is gone and `e4` is two lines.
+- The suite went from 365 to 376 tests.
+
 ## Why
+- **A digit suffix, the size in bytes:** `load4` is two tokens like `loadb`; a letter (`loadd`,
+  `loadw`) tokenizes worse (`lo` + `add`) and its meaning depends on the reader's assembler.
 - **`0x` prefix:** `0xffffffff` is two tokens where `4294967295` is four (see
   [Token cost measurement](token-cost-measurement.md)).
 - **An error instead of wrapping:** a literal that silently becomes another number is the kind of

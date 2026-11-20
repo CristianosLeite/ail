@@ -31,7 +31,7 @@ What stage0 reaches with `call` is a function:
 | `putn`, `getn` | write the name read last into a table entry, or read it back |
 | `defvar`, `kw` | find or add a variable; find the statement row of a keyword |
 | `vreg`, `areg` | x86 register number of a variable, or of an argument position |
-| `eb`, `e4`, `z`, `cp`, `p4` | append a byte, four bytes, a gap, or a copy; patch four bytes |
+| `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
 
 Because `pk` returns 256 at the end of the input, the pairs "at the end?" and "which byte?" of stage0 are one comparison each.
@@ -57,10 +57,6 @@ The tables that stage0 keeps in `.rodata` are `data` statements at the end of th
 
 The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the flags, the code length and the code. It has seven more rows with the flag 128 for the statements parsed on their own: the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`), so `next` finds every keyword with the one search `kw`.
 
-## Writing bytes with 64-bit stores
-
-AIL stores a byte or 64 bits. `e4` appends four bytes with a 64-bit `store` and advances the cursor by four: the four bytes after them are cleared, which is harmless ahead of the cursor, where nothing has been written. A displacement is patched behind the cursor, so `p4` loads the eight bytes, replaces the low four and stores them back.
-
 ## What the translation had to match
 
 - Stage0 finds a decimal overflow in the carry flag after `mul` and `add`. AIL has no flags, so `rdnum` compares before it multiplies: the value may not be above 0x1999999999999999 (2^64 / 10, rounded down), nor equal to it with a digit above 5.
@@ -77,5 +73,5 @@ Writing stage1 did not need any change to the language, but these cost the most 
 
 - **No constant data.** The tables were 131 lines of decimal numbers that no one could read, written into a buffer at start. `data` replaced them, and with them the offsets into that buffer.
 - **Sixteen buffers.** Every global scalar wanted a buffer of its own, because a buffer name was the only global name; the limit forced most of them into one buffer behind two accessors. `var` replaced both, and the limit is gone.
-- **No 32-bit store**, hence `e4` and `p4`.
+- **No 32-bit store.** Appending four bytes cleared the four after them, and patching a displacement meant loading eight bytes, replacing half and storing them back. `store4` does both directly.
 - **Six variables** were enough everywhere, at the price of some reloading in `eop` and at the top level.

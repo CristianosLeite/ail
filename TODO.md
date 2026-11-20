@@ -21,7 +21,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   notation for hardware values. Ordinary literals are unsigned decimal and
   silently wrap at 32 bits. Diagnose out-of-range literals and keep wrapping
   arithmetic available.
-- [ ] Add 16-bit and 32-bit loads and stores. The current operations cover 8 and
+- [x] Add 16-bit and 32-bit loads and stores. The current operations cover 8 and
   64 bits, and stage1 needs helpers to append or patch 32-bit words.
 - [ ] Lift the six-variable limit at top level and in functions, including
   parameters. Registers are assigned for the entire scope. Reuse registers

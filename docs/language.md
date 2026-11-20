@@ -261,12 +261,16 @@ Keeps the length in bytes of a buffer, a data name or a string in a variable: fo
 
 ```
 load addr as name       # 64-bit value at addr
+load4 addr as name      # 32-bit value at addr, zero-extended
+load2 addr as name      # 16-bit value at addr, zero-extended
 loadb addr as name      # byte at addr, zero-extended
 store addr value        # write the 64 bits of value at addr
+store4 addr value       # write the low 32 bits of value at addr
+store2 addr value       # write the low 16 bits of value at addr
 storeb addr value       # write the low byte of value at addr
 ```
 
-`addr` is any value: a buffer or data name, a variable holding an address, a string or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
+`addr` is any value: a buffer or data name, a variable holding an address, a string or an integer. Loads need `as name`; stores do not take it. Values are little-endian in memory and need no alignment. A narrow store writes only its own bytes and leaves the ones after them. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
 
 ```
 buf b 8
@@ -394,7 +398,7 @@ Causes of a syntax error:
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
 - `sys` not followed by an integer or the name of a `const`
-- the wrong number of operands: `set`, `len`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
+- the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
 - `var` without a name, or with something that is not a name or is `as`

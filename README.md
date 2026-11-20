@@ -53,8 +53,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `const k 60` | A name for a number, also usable as the syscall number and as a buffer size |
 | `data d "abc" 10` | Read-only bytes from strings and byte values; `d` is their address |
 | `len d as x` | Length in bytes of a buffer, of data or of a string |
-| `load p as x`, `loadb p as x` | Read the 64-bit value or the byte at address `p` |
-| `store p a`, `storeb p a` | Write `a` as 64 bits or as one byte at address `p` |
+| `load p as x`, `load4`, `load2`, `loadb` | Read the 64-bit, 32-bit or 16-bit value or the byte at address `p` |
+| `store p a`, `store4`, `store2`, `storeb` | Write `a` as 64, 32 or 16 bits or as one byte at address `p` |
 | `label l` | Name this point of the program |
 | `jmp l`, `jz a l`, `jnz a l` | Jump to label `l`: always, if `a` is zero, if `a` is not zero |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
