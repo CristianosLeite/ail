@@ -44,7 +44,8 @@ mutate() {
     }
     BEGIN {
         srand(seed * 1000003 + i)
-        nw = split("sys set add sub mul div mod and or xor shl shr eq ne lt le gt ge " \
+        nw = split("a+1 (b)*2 x= x+= x=1 n-1 1<<2 (( ) a<=b x==y + * a=a+1 while " \
+            "sys set add sub mul div mod and or xor shl shr eq ne lt le gt ge " \
             "slt sdiv sar buf data var const local len at load loadb load2 load4 " \
             "store storeb store2 store4 label jmp jz jnz jeq jlt jsge if ifz ifeq " \
             "else end fn ret tail call ref callp use alloc free args as itof fadd " \

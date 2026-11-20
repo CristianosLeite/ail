@@ -819,6 +819,10 @@ end
 # read a variable name and find it in the pool of the scope, or add it
 fn defvar
 call rdname
+tail defv
+end
+# the same for the name read last
+fn defv
 call lbuf as c
 jeq c -1 v
 ifz infn
@@ -1527,19 +1531,260 @@ call eb d
 call e4 c
 end
 end
+# the instruction bytes of operator o, which are those of the statement of
+# the same meaning: operands in rax and rdi, result in rax
+fn exrow o
+mul o 3 as p
+add p exkw as p
+set p as ns
+add o exkwl as p
+loadb p as p
+set p as nl
+call kw as r
+add r 3 as p
+loadb p as n
+add r 4 as r
+call cp r n
+end
+# compute the expression in ex into rax, as a stack machine: the value on
+# top is in rax and those under it are pushed. A value that an operator
+# follows at once is its right operand and goes to rdi directly.
+fn exemit
+set 0 as i
+set 0 as dp
+set 0 as rd
+label a
+jge i nex x
+call ochk
+mul i 32 as p
+add p ex as p
+load p as k
+ifne k 6
+set 0 as g
+if dp
+add i 1 as j
+iflt j nex
+add p 32 as q
+load q as t
+ifeq t 6
+set 7 as g
+set 1 as rd
+end
+end
+ifz g
+call eb 80
+add pushed 8 as pushed
+end
+end
+call exload p g
+add dp 1 as dp
+add i 1 as i
+jmp a
+end
+ifz rd
+call mrr 7 0
+call eb 88
+sub pushed 8 as pushed
+end
+set 0 as rd
+add p 8 as q
+load q as o
+call exrow o
+sub dp 1 as dp
+add i 1 as i
+jmp a
+label x
+end
 # the expression parsed last is the next value of the statement: compute it
-# into the register of its position, note what is known of it, count it
+# into the register of its position, note what is known of it, count it.
+# The computation uses rax and rdi, rdx to divide and rcx to shift, so the
+# values of the statement that are in those are pushed around it.
 fn exarg
 call aidx as t
 call areg t as g
-ifne nex 1
-call err
-end
+ifeq nex 1
 call exload ex g
+jmp k
+end
+set ai as n
+set 0 as s8
+add cur 2 as c
+loadb c as c
+and c 4 as c
+if c
+if n
+sub n 1 as n
+set exsh as s8
+end
+end
+set 0 as s3
+ifge n 4
+set exdm as s3
+end
+ifge n 1
+call eb 80
+add pushed 8 as pushed
+end
+ifge n 2
+call eb 87
+add pushed 8 as pushed
+end
+if s3
+call eb 82
+add pushed 8 as pushed
+end
+if s8
+call eb 81
+add pushed 8 as pushed
+end
+call exemit
+if g
+call mrr g 0
+end
+if s8
+call eb 89
+sub pushed 8 as pushed
+end
+if s3
+call eb 90
+sub pushed 8 as pushed
+end
+ifge n 2
+call eb 95
+sub pushed 8 as pushed
+end
+ifge n 1
+call eb 88
+sub pushed 8 as pushed
+end
+label k
 call opdp as p
 add exv 8 as q
 call cp4 q p
 call anext
+end
+# after the name that starts a line: 0, or 1 for "=", or 2 + an operator
+# for the operator and "=", with the cursor behind the "="
+fn exasg
+call pk as c
+add ip 1 as p
+jge p ie n
+loadb p as d
+ifeq c 61
+jeq d 61 n
+call adv
+ret 1
+end
+set 99 as o
+ifeq c 42
+set 0 as o
+end
+ifeq c 47
+set 1 as o
+end
+ifeq c 37
+set 2 as o
+end
+ifeq c 43
+set 3 as o
+end
+ifeq c 45
+set 4 as o
+end
+ifeq c 38
+set 7 as o
+end
+ifeq c 94
+set 8 as o
+end
+ifeq c 124
+set 9 as o
+end
+ifne o 99
+jne d 61 n
+add ip 2 as ip
+add o 2 as o
+ret o
+end
+jne c d n
+add p 1 as p
+jge p ie n
+loadb p as d
+jne d 61 n
+ifeq c 60
+add ip 3 as ip
+ret 7
+end
+ifeq c 62
+add ip 3 as ip
+ret 8
+end
+label n
+ret 0
+end
+# "<name>=<expression>", or with operator f before the "=" (-1 for none):
+# compute the expression, with the name as its left operand if there is an
+# operator, and keep the result as "as <name>" would
+fn exasn f
+set ns as ts
+set nl as tl
+call exinit
+set 0 as m
+ifne f -1
+call exname
+set 1 as m
+end
+call exparse m
+ifne f -1
+call exred f
+end
+call eol
+ifeq nex 1
+call exload ex 0
+jmp s
+end
+call exemit
+label s
+set ts as ns
+set tl as nl
+call lbuf as r
+ifne r -1
+call gent r as p
+add p 32 as d
+load d as d
+ifeq d 1
+add p 16 as p
+load p as p
+call emem 0 1 p 137
+ret 0
+end
+end
+set nv as o
+call defv as i
+mul i 8 as d
+add d vlocal as d
+load d as d
+if d
+call edup
+end
+if infn
+ifne nv o
+# a new variable begins behind the line, after the last mention of every
+# operand, so that it may take the place of one that is done
+mul i 8 as d
+add d vfirst as d
+load d as c
+add c 1 as c
+store d c
+end
+end
+shl 1 i as d
+or asg d as asg
+mul i 32 as d
+add d vk as d
+add exv 8 as q
+call cp4 q d
+call vmov i 0 137
 end
 
 # ---- output
@@ -2354,6 +2599,8 @@ ifz d
 call estmt
 end
 call name
+call exasg as d
+jnz d asgn
 call kw as r
 ifz r
 call estmt
@@ -2414,6 +2661,12 @@ jz d num
 call sname as r
 call mov r
 jmp tokend
+
+# "<name>=<expression>" and "<name><operator>=<expression>"
+label asgn
+sub d 2 as d
+call exasn d
+jmp next
 
 # the end of a unit of source: go on after the use that named it, or finish
 label uend

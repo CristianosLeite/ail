@@ -151,6 +151,21 @@ Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones, which is `-1`. A
 
 Nothing is checked: an overflow wraps, and dividing by zero kills the program with `SIGFPE` (exit status 136 in a shell), as does the one signed quotient that does not fit, -9223372036854775808 by -1. Test the divisor with `jz` where it can be zero. The result may go into one of the operands: `add i 1 as i`.
 
+### Assignment
+
+```
+x=5
+y=x*x+1
+i+=1
+h=(h^r)*0x100000001b3
+```
+
+`name=expression` computes the [expression](#expressions) and keeps it in the variable, exactly as `set expression as name` does: the variable is defined if it is new, a `var` of that name is written, and any other global name is `duplicate name`. The statement is one word: no space on either side of the `=`, and nothing after the expression but a comment. A variable that is new cannot stand in its own expression.
+
+With one of the operators `* / % + - << >> & ^ |` directly before the `=`, the variable is changed in place: `x+=e` is `x=x+(e)`, the whole right side being the second operand, so `x*=a+1` multiplies by the sum. The variable must have a value already.
+
+The name is read before the statements are looked at, so a variable may be named like one: `end=add+1`. The comparisons have no such form, and `x==1` at the start of a line is not a statement.
+
 ### Floating point
 
 ```
@@ -705,7 +720,7 @@ A value in an expression is a number, a `const`, a variable, a `var`, or the nam
 
 The compiler computes what it can: an expression of numbers and consts is the number, and a buffer or data name plus or minus a number is one address, checked like any [address](#addresses) the compiler knows: with `buf b 8`, `storeb b+8 0` is `invalid access`. A division by a constant zero is not computed; it fails when it runs.
 
-For now an expression must come down to such a number or address; one that needs an instruction, like `n+1` with a variable `n`, is still a syntax error.
+The rest is computed when the program runs, the operands of an operator from left to right. Nothing in an expression can fail except a division or a remainder by zero, which kills the program with `SIGFPE` as `div` and `mod` do.
 
 ## The io library
 
@@ -800,6 +815,7 @@ What remains a plain `syntax error`:
 - an argument that is not an integer, a string, a variable name, a global name or an [expression](#expressions)
 - an expression with a parenthesis that is not closed or not opened, an operator without a value on each side, two values without an operator between them, a byte that is no operator, or a string in it
 - an expression where a name is required, or for the number of `sys`
+- an assignment with a space beside its `=`, with nothing after it, or with a second value
 - `-` or `0x` without a digit after it
 
 The output has no debugging information: a fault at run time is reported by the kernel as a signal, with no line. The exit status says which: 139 for an invalid memory access, 136 for a division by zero, 132 for the trap of [`at`](#at).

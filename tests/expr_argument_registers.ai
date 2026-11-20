@@ -1,0 +1,15 @@
+# an expression in any place leaves the values before it as they were
+fn f a b c d e g
+ret a*100000+b*10000+c*1000+d*100+e*10+g
+end
+x=2
+y=3
+call f 1 x+0 y x+y x*y-1 y*y-3 as r
+jne r 123556 bad
+call f x-1 x y x*x 15/y 100%y+5 as r
+jne r 123456 bad
+call f 1 2 3 4 15/y 54%(x*4) as r
+jne r 123456 bad
+sys exit 0
+label bad
+sys exit 1

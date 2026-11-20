@@ -1,0 +1,43 @@
+# arithmetic wraps at 64 bits; exit status = the first check that fails
+v0=0
+v1=1
+v2=0xffffffffffffffff
+v3=2
+v4=0x8000000000000000
+v5=0x100000000
+v6=3
+v7=5
+v8=63
+v9=8
+v10=10
+jne v0-v1 18446744073709551615 f1
+jne v2+v3 1 f2
+jne v4*v3 0 f3
+jne v5*v5 0 f4
+jne v6-v7 -2 f5
+jne v0-v1>>v8 1 f6
+jne v1<<v8>>v8 1 f7
+jne v0-v9/v3 -4 f8
+jne v2/v3 9223372036854775807 f9
+jne v2%v10 5 f10
+sys exit 0
+label f1
+sys exit 1
+label f2
+sys exit 2
+label f3
+sys exit 3
+label f4
+sys exit 4
+label f5
+sys exit 5
+label f6
+sys exit 6
+label f7
+sys exit 7
+label f8
+sys exit 8
+label f9
+sys exit 9
+label f10
+sys exit 10
