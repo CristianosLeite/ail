@@ -145,7 +145,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Record the measurements after instruction selection.
 - [x] Write the examples and the library with expressions.
 - [x] Add a tool that rewrites statements as expressions.
-- [ ] Release and pin the second seed.
+- [x] Release and pin the second seed.
 - [ ] Write the compiler with expressions.
 - [ ] Report the redesign against its acceptance criteria.
 

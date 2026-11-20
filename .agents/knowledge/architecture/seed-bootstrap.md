@@ -13,6 +13,11 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
 ## Facts
 - Seed 1 is `build/ailc1` of commit 489efbf (2026-11-20): 30796 bytes, SHA-256 `a3784aec...`,
   the same file whether stage0 or stage1 builds it. Release `seed-1`, asset `ailc-1`.
+- Seed 2 is `build/ailc` of commit c910430 (2026-11-20): 41784 bytes, SHA-256 `c2cb658c...`, the
+  fixed point of the build from seed 1, released as `seed-2` (asset `ailc-2`) after the user
+  confirmed the push of `backlog` and the release. It is the first seed that understands
+  expressions, `x=e` and `while`; with it pinned, a clean fetch gives three generations that are
+  one file.
 - The manifest keeps one line per seed, the last one pinned; a local copy is `seed/ailc-<n>`,
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
