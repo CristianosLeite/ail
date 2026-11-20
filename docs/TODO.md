@@ -193,7 +193,7 @@ its AIL replacement passes the corresponding checks.
 
 ## Source style and editor tooling
 
-- [ ] Document the indentation convention. Use one tab per syntactic block
+- [x] Document the indentation convention. Use one tab per syntactic block
   level and display tabs at a width of two columns in VS Code. Keep top-level
   statements at column one. Indent the bodies of `fn`, `if` (including its
   comparison forms), `else` and `while`. Align `else` and `end` with the

@@ -16,7 +16,7 @@ A program is a sequence of statements, one per line. Execution starts at the fir
 
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 
-Blank lines are ignored. Indentation is ignored.
+Blank lines are ignored. Indentation is ignored by the compiler; [Source style](#source-style) says how sources are indented.
 
 ### `use`
 
@@ -47,6 +47,33 @@ The same rule holds everywhere outside string literals:
 - `#` starts a comment and may directly follow a token.
 
 No other byte separates anything. A NUL or any other control character between tokens is a syntax error.
+
+## Source style
+
+Spaces and tabs at the start of a line mean nothing to the compiler: a block ends at its `end`, however the lines are indented. Sources are indented all the same, by one rule:
+
+- One tab for each block the line stands in. Statements of the top level start at column one.
+- The lines between `fn` (or `async fn`) and its `end` are one level deeper, and so are those of `while` and of `if` in all its forms (`ifz`, `ifeq`, `iflt`, ...), and those after `else`.
+- `else` and `end` stand at the level of the line that opened their block.
+- A `label` and a line that holds only a comment stand at the level of the statements around them.
+- Nothing else changes: an expression stays without spaces (`n-=1`), and the lines of a string that spans lines are part of the string.
+
+```
+fn gcd a b
+	while b
+		if a<b
+			t=a
+			a=b
+			b=t
+		else
+			a-=b
+		end
+	end
+	ret a
+end
+```
+
+Tabs, because they cost fewer tokens than spaces (measured in [token cost](tokens.md)); an editor shows one two columns wide, which `.editorconfig` asks for.
 
 ## Statements
 
