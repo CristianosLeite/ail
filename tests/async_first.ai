@@ -1,0 +1,56 @@
+# the first of two and of several: the index of the one that is done,
+# which is then awaited at once; the others stay the program's, to await
+# or to cancel; a handle of 0 counts as done
+use "lib/io.ai"
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/chan.ai"
+buf hs 32
+call asyncclock as t0
+call asyncsleep 5000 as a
+call asyncsleep 5 as b
+await asyncfirst a b as i
+await b as x
+call putn i
+call putn x
+call asynccancel a
+await a as y
+call putn 0-y
+call print " "
+call asyncchan 1 as c
+call asyncrecv c as r
+call asyncsleep 5 as s
+call asyncsend c 9 as w
+await asyncfirst r s as i
+await r as x
+await w
+await s
+call putn i
+call putn x
+call print " "
+call asyncsleep 30 as a
+call asyncsleep 20 as b
+call asyncsleep 10 as d
+store hs a
+store hs+8 b
+store hs+16 d
+call asyncany hs 3 as g
+await g as i
+call putn i
+call asyncany hs 2 as g
+call asynccancel g
+await g as j
+call putn 0-j
+await a
+await b
+await d
+call asyncsleep 1 as a
+call asyncfirst 0 a as g
+await g as i
+await a
+call putn i
+call asyncrun as n
+call putn n
+call asyncclock as t1
+call print "\n"
+sys exit_group t1-t0>1000000000

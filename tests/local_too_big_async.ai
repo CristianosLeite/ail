@@ -1,0 +1,7 @@
+fn async z p
+end
+async fn f
+local a 0x7fffffe8
+local b 8
+storeb b 1
+end

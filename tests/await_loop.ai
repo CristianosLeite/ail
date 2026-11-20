@@ -1,0 +1,28 @@
+# variables keep their values over an await in a loop and in both parts
+# of a block, and two tasks that give the thread back run in turn
+use "lib/io.ai"
+use "lib/async/task.ai"
+buf ch 8
+async fn count c n
+i=0
+s=0
+while i<n
+storeb ch c+i
+call print ch 1
+if i&1
+await asyncyield
+s+=i
+else
+s+=i*10
+await asyncyield
+end
+i+=1
+end
+ret s+n
+end
+call count 97 4 as a
+call count 119 3 as b
+await a as x
+await b as y
+call print "\n"
+sys exit_group x+y

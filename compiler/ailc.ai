@@ -14,6 +14,11 @@ var ip ie op ai nv cur ns nl
 var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
 # kwn, kwl = the keyword of a spawn or join, the name of the function they call
 var kwn kwl
+# fnasy = 1 in an async function; asyn, asyl = the word async of it, the
+# name of the function that makes its task
+var fnasy asyn asyl
+# awf = 1 in an await that names a function to call
+var awf
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
@@ -125,9 +130,9 @@ buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
                     # variables assigned at the jump
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
-buf calls 41297792    # 1290556 calls of 32 bytes: name, length, rel32 address, then two
+buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
                     # 4-byte counts: values (all ones for ref) and names after "as";
-                    # the shortest line is "spawn a as b", 13 bytes for two entries
+                    # the shortest line is "await a", 8 bytes for two entries
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
 buf exs 8388609      # and as many operators or open parentheses, a byte each
@@ -218,6 +223,7 @@ jeq d 7 constdef
 jeq d 8 localdef
 jeq d 9 usedef
 jeq d 10 elsedef
+jeq d 12 asydef
 jmp whiledef
 end
 cur=r
@@ -252,6 +258,30 @@ if d&32
 # spawn the name of a function, whose address is the value before its own
 kwn=ns
 kwl=nl
+if d&64
+# await: a word that is a variable or a global name is the handle, like
+# any value; any other name is a function to call, whose result is
+awf=0
+call pk as c
+call low c as d
+jz d arg
+call excomp as d
+jnz d arg
+q=ip
+call name
+call lvar as r
+if r==-1
+call lbuf as r
+end
+if r!=-1
+ip=q
+jmp arg
+end
+awf=1
+cn=ns
+cl=nl
+jmp tokend
+end
 jz d&2 arg
 ai=1
 end
@@ -747,7 +777,11 @@ jmp l3
 end
 call rdnum as p
 label l3
-if p>0x7ffffff0
+# The locals of a function together stay a page short of 2 GiB: a local
+# is addressed by a signed 32-bit distance from rsp, or from the record
+# of a task, and before it lie the slots of the variables and either the
+# values pushed for a call or the 64 bytes of the record
+if p>0x7ffff000
 call ebuf
 end
 call eol
@@ -755,7 +789,7 @@ store r*8+vlocsz p
 p=p+7>>3<<3
 store r*8+vlocal loccur+1
 p+=loccur
-if p>0x7ffffff0
+if p>0x7ffff000
 call ebuf
 end
 loccur=p
@@ -966,9 +1000,13 @@ call z 4
 q=op
 p+=16
 store p q
+if fnasy
+call asyent
+else
 loadb fnregs+pushlen as q
 call cp fnpush q
 call frame 236
+end
 topvars=nv
 nv=0
 topblk=blkbase
@@ -996,6 +1034,13 @@ if nv==q
 call edup
 end
 asg|=1<<r
+if fnasy
+# the code that makes the task has stored the parameter
+if r>5
+call ecount
+end
+jmp f1
+end
 if r<6
 call areg r as f
 call vmov r f 137
@@ -1014,6 +1059,23 @@ call hadd 2 0 nfuncs
 nfuncs=nfuncs+1
 jmp next
 
+# "async fn ...": a function whose call makes a task, which runs it
+label asydef
+if infn
+call eplace
+end
+asyn=ns
+asyl=nl
+call blank1
+call rname
+call ok nl==2
+loadb ns as c
+loadb ns+1 as d
+call ok c==102
+call ok d==110
+fnasy=1
+jmp fndef
+
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
 jgt nblk blkbase blkend
@@ -1029,12 +1091,20 @@ d=1
 jz fntail e0
 d=6
 label e0
+if fnasy
+# a call gives one result, the task; its own result is 0 here
+store (nfuncs-1)*40+funs+32 1
+call eb 49
+call eb 192
+call cp asyret 11
+else
 store (nfuncs-1)*40+funs+32 d
 loadb q+zerolen-1 as p
 call cp zeroes p
 call frame 196
 call popskip as q
 call cp retc+q 11-q
+end
 call resolve
 nfix=fixbase
 nlabels=labbase
@@ -1070,6 +1140,7 @@ pass=2
 jmp fndef
 label e1
 call clrloc
+fnasy=0
 pass=0
 fnslots=0
 fnregs=6

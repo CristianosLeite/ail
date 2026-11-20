@@ -1,0 +1,21 @@
+# parameters that are never mentioned share a slot with later ones: each
+# parameter that is used still has the value of its call, whichever of
+# those before and behind it are unused
+use "lib/async/task.ai"
+async fn second a b
+ret b
+end
+async fn last a b c d e f
+ret f
+end
+async fn middle a b c d e f
+ret c*10+e
+end
+async fn first a b c
+ret a
+end
+await second 11 22 as w
+await last 1 2 3 4 5 6 as x
+await middle 1 2 3 4 5 6 as y
+await first 7 8 9 as z
+sys exit_group w+x+y+z

@@ -186,6 +186,11 @@ nrefs+=1
 call e4 0
 ret 0
 end
+if fnasy
+call eb g|131
+call e4 p
+ret 0
+end
 call eb g|132
 call eb 36
 call e4 p
@@ -410,6 +415,9 @@ end
 # function has stack slots
 fn frame o
 c=fnslots*8+fnlocal
+if fnasy
+c=0
+end
 if c
 jne o 236 s
 jlt c 4096 s
@@ -422,6 +430,68 @@ call eb 129
 call eb o
 call e4 c
 end
+end
+# The entry of an async function. First the code that a call of it runs,
+# which makes the task: push the parameters, call the function async of
+# the program (named by the word in the source, as spawn is) with the
+# size of the record and the address of the poll function, store the
+# parameters in the record unless there is none, and return it. Then the
+# poll function, which goes on where the task waited, or here.
+fn asyent
+n=fnnpar
+if pass==1
+n=0
+end
+# pushed last to first, so that they are stored first to last: a
+# parameter that is never mentioned shares its slot with a later one,
+# whose value must be the one that stays
+i=n
+while i
+i-=1
+call areg i as r
+if r>=8
+call eb 65
+end
+call eb (r&7)+80
+end
+call movi 0 fnslots*8+fnlocal+64
+call lear 7
+c=6
+if n
+c=n*8+16
+end
+store4 immpos c
+call eb 232
+k=ncalls
+p=k*32+calls
+store p asyn
+store p+8 asyl
+store p+16 op
+store4 p+24 2
+store4 p+28 1
+call z 4
+ncalls=k+1
+if n
+call cp asytst 5
+storeb op-1 n*8+1
+i=0
+while i<n
+loadb i+fnloc as j
+i+=1
+call eb 89
+call eb 72
+call eb 137
+call eb 136
+call e4 j*8+16
+end
+call eb 195
+call eb 72
+call eb 131
+call eb 196
+call eb n*8
+end
+call eb 195
+call cp asypoll 15
 end
 # how many bytes of the six pops to leave out: those of the registers that
 # the function does not use and so did not save
@@ -485,7 +555,7 @@ load k+vlocal as t
 jnz t c
 load k+vfirst as lo
 load k+vlast as hi
-j=0
+j=fnasy*6
 label q
 t=j*8+locfree
 load t as u
@@ -542,11 +612,43 @@ if f&128
 call memchk r
 end
 jz f&32 m
+if fnasy
+if f&16
+call eplace
+end
+if ai!=1
+call eres
+end
+call godead
+call cp asyret 11
+jmp h
+end
 if f&16
 if ai>6
 call ecount
 end
 fntail=1
+if fnlocal
+# a tail in a function with a local: the address of the local may be
+# among the values, or in memory the callee reads, so the frame stays
+# until the callee has returned: its call, then the return, with the
+# results where the callee left them
+call eb 232
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai
+store4 p+28 ncap
+call z 4
+ncalls=n+1
+call frame 196
+call godead
+call popskip as n
+call cp retc+n 11-n
+ret 0
+end
 end
 call frame 196
 call godead
@@ -564,6 +666,59 @@ label h
 jz f&16 w
 i=ai
 loadb cur+2 as c
+if c&64
+# await. With a function, first its call, checked like any call, and the
+# values it pushed off the stack, since the task may return here. Then
+# the handle, in rax, and the task that asks, or 0, to the function await
+# of the program; in an async function around that the code that lets
+# the task go on here, and return 0 while the result is not there
+if ncap>1
+call err
+end
+if awf
+call eb 232
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai
+store4 p+28 1
+call z 4
+ncalls=n+1
+if pushed
+call eb 72
+call eb 129
+call eb 196
+call e4 pushed
+pushed=0
+end
+else
+if ai!=1
+call ecount
+end
+end
+if fnasy
+call cp asyawt 23
+else
+call eb 49
+call eb 255
+call eb 232
+end
+n=ncalls
+p=n*32+calls
+store p kwn
+store p+8 kwl
+store p+16 op
+store4 p+24 2
+store4 p+28 ncap
+call z 4
+ncalls=n+1
+if fnasy
+call cp asysus 9
+end
+ret 0
+end
 if c&32
 if c&2
 # spawn: the row was lea rax, [rip+rel32] for the function, recorded with

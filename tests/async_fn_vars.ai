@@ -1,0 +1,47 @@
+# the variables of an async function live in the record of its task:
+# more of them than a function has registers, loops, blocks, a local,
+# calls with values on the stack, and two tasks of one function at once
+use "lib/async/task.ai"
+fn add8 a b c d e f g h
+ret a+b+c+d+e+f+g+h
+end
+async fn work n k
+local b 64
+i=0
+while i<8
+store b+i*8 i*k
+i+=1
+end
+s=0
+i=0
+while i<8
+at b i*8 8 as p
+load p as v
+s+=v
+i+=1
+end
+a=n+1
+c=a+1
+d=c+1
+e=d+1
+f=e+1
+g=f+1
+h=g+1
+call add8 n a c d e f g h as t
+if t>s
+t-=s
+else
+t=s-t
+end
+x=a*c
+x-=d
+x<<=1
+x|=1
+x^=h
+ret t+x%7
+end
+call work 1 2 as p
+call work 10 3 as q
+call await q 0 as y
+call await p 0 as x
+sys exit_group x*16+y

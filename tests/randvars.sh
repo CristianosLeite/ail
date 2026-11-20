@@ -53,7 +53,7 @@ say randvars_reports_failures $r
 
 r=0
 build/tools/randvars > /dev/null 2> "$tmp/said"
-[ $? -eq 1 ] && grep -q '^usage: randvars <compiler> <count> <seed> \[top\]$' "$tmp/said" || r=1
+[ $? -eq 1 ] && grep -q '^usage: randvars <compiler> <count> <seed> \[top|async\]$' "$tmp/said" || r=1
 build/tools/randvars "$ailc" many 1 > /dev/null 2>&1
 [ $? -eq 1 ] || r=1
 say randvars_usage $r

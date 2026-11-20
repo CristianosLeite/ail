@@ -441,6 +441,54 @@ call workers 4
 - The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
 - The library owns the names `spawn`, `join`, `workers` and every name that starts with `task`: its other functions, its buffer and all its variables. A program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, the library's included. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
+#### Async functions
+
+```
+use "lib/async/task.ai"
+async fn name a b
+...
+ret x
+end
+call name 1 2 as h
+```
+
+`async fn` defines a function that runs as a task of [the async library](#the-async-library). A call of it runs none of its lines: it makes the task, with the values of the call as its parameters, puts it in the queue and returns its handle, which is the one result of the call. The lines run when the task is polled, and the value of its `ret` is the result of the task, which `await` gives:
+
+```
+use "lib/async/task.ai"
+async fn mul a b
+ret a*b
+end
+call mul 6 7 as h
+await h as x            # 42
+await mul 2 3 as y      # 6: the call and the await in one
+```
+
+`await` waits for a task or an event and keeps its result; `as` is optional and takes one name. It has two forms, told apart by its first word:
+
+- **`await h as x`**: the word is a variable of the scope or a global name, or the value is a number or an expression. It is the handle to wait for.
+- **`await name a b as x`**: any other name is a function. It is called with the values, as `call` does and with the same checks, and its first result is the handle. The function is an async function, or any function that returns a handle, such as `asyncsleep` or `asyncread`: `await asyncsleep 100`. A function with the name of a variable is reached with `call` and an `await` of its handle.
+
+What `await` does depends on where it stands:
+
+- **In an async function** the task waits: if the result is not there yet, the function returns to the code that polls, which runs other tasks, and goes on at the `await` when the result has come. Nothing of the stack is kept over that, and nothing needs to be: the variables and locals are in the record. An `await` may stand anywhere a statement may, in loops and blocks. Started work that is awaited later runs meanwhile:
+
+```
+call fetch a as h
+call fetch b as g       # both are under way
+await h as x
+await g as y
+```
+
+- **At top level and in a plain function** there is no task to put aside: `await` polls tasks until the one it waits for is done, and that is how a program runs its tasks. If nothing can happen any more before that, the result is -35.
+
+The statement is a call of the function `await` of the program, which `lib/async/task.ai` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
+
+- An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, `spawn` and `join` included, which hold the thread while they wait, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
+- The task is made by the function `async` of the program, which `lib/async/task.ai` defines; without that `use` an async function is an `undefined function async`.
+- **Its variables live in the record of the task**, not in registers and not on the stack, so that they are there when the task goes on after a wait: every use of a variable is a use of memory. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
+- The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
+
 #### Recursion and the stack
 
 A call uses 8 bytes of stack for the return address, 8 for each register the function saves, 8 for each value after the sixth, 8 for each variable that did not get a register and the bytes of its [locals](#local). A function with two variables, like `fact` above, takes 24 bytes a call, so the usual 8 MiB stack allows some 350000 nested calls.
@@ -464,7 +512,9 @@ ret acc
 end
 ```
 
-`tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. For the same reason it must not pass the address of a `local`. No way leads to the line after it.
+`tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. No way leads to the line after it.
+
+**In a function that has a `local`** the frame is not given up: the callee may be reading the local, through an address among the values, in a variable or in memory, which the compiler cannot follow. There `tail` is the call followed by the return of all its results, and the frame stays until the callee has returned. The program means the same; what it loses is the loop: each round of a function that has a local and ends with a `tail` to itself uses a frame. A function that is to run without a growing stack has no `local`, and keeps such bytes in a `buf` or an `alloc`.
 
 ### `buf`
 
@@ -914,6 +964,202 @@ call procwait p 10000 as r
 - **The result of `procwait`** is the exit status, 0 to 255; or the number of the signal that ended the child, negated (-9, -11); or -1000 if the child still ran when the time was up, in which case it was killed (`SIGKILL`) before the return; or -1001 if there is no such child. Every child is waited for exactly once, which takes it from the kernel; after that its number means nothing. Only the child itself is killed, not what it started.
 - **Names**: the library owns every name that starts with `proc`; a program has no `var` of such a name.
 
+## The async library
+
+`lib/async/task.ai` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.ai"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
+
+| Function | Does |
+|---|---|
+| `async z p` | makes a task of `z` bytes, its record of 64 included, that the function `p` polls, and puts it in the queue; with `p` 0 an event, which nothing polls. Returns the handle, 0 without memory |
+| `await h s` | two results: the result of the task `h` and 1, or 0 and 0 if `h` is not done, after which the task `s` is woken when it is. With `s` 0, for code that is no task, it polls tasks until `h` is done |
+| `asyncwake h` | puts the task in the queue, to be polled again |
+| `asyncfinish h v` | ends the task or event `h` with the result `v` and wakes the task that awaits it; returns 1, or 0 if it was done already |
+| `asyncdetach h` | says that nobody will await `h`: its record is released when it is done |
+| `asynccancel h` | cancels the event or task `h`; returns 1, or 0 if it was done |
+| `asyncstop` | cancels everything, polls until nothing can happen and gives back what the library holds; returns the number of tasks not done |
+| `asyncrun` | polls tasks until nothing can happen any more; returns the number of tasks that are not done |
+| `asyncstep` | polls one task; returns 1, or 0 if nothing can happen |
+| `asyncyield` | makes a task that is done at its first poll, with the result 0; a task that awaits it lets the tasks in the queue run first |
+
+```
+use "lib/async/task.ai"
+fn poll t
+load t+64 as e          # the first value: an event to wait for
+call await e t as v r
+ifz r
+ret 0                   # not yet: polled again when e is done
+end
+store t+16 v+1          # the result
+ret 1
+end
+call async 64 0 as e    # an event
+ref poll as p
+call async 72 p as h    # a task with one value
+store h+64 e
+call asyncfinish e 41
+call await h 0 as x     # 42
+```
+
+- **A task** is a record and its handle the address of it: the poll function at 0, a cell at 8 that belongs to the poll function (where it goes on), the result at 16, the state at 24, cells of the library up to 64, and from 64 the values of the task, as many as the size given to `async` has room for. The values are not zero: the code that makes the task stores them, which it can do before anything is polled, since `async` polls nothing.
+- **The poll function** is called with the handle. It returns 0 when the task has to wait, having arranged for a wake (an `await`, or an `asyncwake` by whoever knows), and 1 when the task is done, having stored its result at 16. It is called again from its first line every time; what must survive is in the values of the task.
+- **Wakes**: a task that is woken is polled once, however often it was woken before the poll; a wake of a task that is done, or of an event, does nothing. A task woken while it is being polled is polled again afterwards, so nothing that happens during a poll is lost, and a task that wakes itself and returns 0 lets the others run.
+- **`await`** gives the result once, to one asker, and releases the task; its handle means nothing afterwards. A task that is neither awaited nor detached keeps its record; after `asyncdetach` the handle means nothing either. One task awaits a task at a time. `await` of 0 gives 0 and 1.
+- **Outside a task** (`s` 0) `await` runs the queue until `h` is done. If nothing can happen any more before that, the result is -35 and 1, and `h` stays as it was; the same if it is called so from inside a poll, where it would poll tasks within a task.
+- **Errors**: a task has no failure of its own; what it reports, it reports in its result, by convention a negative number as the kernel's are.
+- **Order**: tasks are polled in the order in which they were made or woken. Nothing runs at the same time as anything else, so tasks share memory without `xadd` and `cas`; the functions of this library are for one thread, the one that polls.
+- **The costs**: a record is the next power of two from 128 bytes that holds the task. Records up to 4096 bytes are cut from blocks of 64 KiB that are never given back, and all up to 16384 bytes are used again by the next task of their size; larger ones are an `alloc` and a `free` each.
+- **Cancelling**: `asynccancel h` returns 1, or 0 if `h` was done. Its handle is still awaited or detached, as before.
+  - An **event** ends at once with the result -125 (`ECANCELED`), taken from where it waited: the timer is no longer due, the read no longer waits. The one exception is [work that a thread is doing](#work-that-holds-a-thread), whose event ends when the work has returned.
+  - A **task** is not ended; it is told. At the `await` it waits in, or the next one that would wait, what it awaits is cancelled in its turn, and when that has ended the `await` gives the task -125 in the place of a result. For an event that is at once. A task that it awaits is told the same way and takes the time it takes to return, and [work that a thread is doing](#work-that-holds-a-thread) the time it takes to finish; the cancelled task stays where it is until then, since they may be using memory it gave them. Cancelling thus goes down a chain of tasks to what the last one waits for, and comes back up as each returns. An `await` of something that is done already gives its result as always, to a cancelled task too: it may be a descriptor that only this task can close. That is its chance to give back what it holds, close its descriptors and return a result, which whoever awaits it gets. A task that was told and reaches another `await` that would wait is ended there with the result -125, once what it asked for has been cancelled and has ended: the lines behind that `await` never run. So a task that ignores results is still stopped, and a task that awaits nothing more runs to its `ret`.
+  - Only what a task waits for is cancelled with it. Work it started and has not awaited goes on.
+- **Stopping**: `asyncstop` cancels every event that waits for time, for a descriptor or for work of the pool; from then on tells every task at its `await`, as if it were cancelled; polls until nothing can happen; and gives back the `epoll` object, the table of the descriptors and the `eventfd`. The descriptors of the program stay open, and are the program's to close. It returns the number of tasks that are not done even so, which wait for an event that only the program ends. Afterwards the library is as it was before its first use. It is called by code that is no task.
+- **Names**: the library owns `async`, `await` and every name that starts with `async`, in all its files; a program has no `var` of such a name.
+
+### Timers
+
+`lib/async/time.ai`, used after `lib/async/task.ai`, makes events of time.
+
+| Function | Does |
+|---|---|
+| `asyncsleep ms` | an event that is done, with the result 0, when `ms` milliseconds have passed |
+| `asynctimeout h ms` | a task to await in the place of `h`: its result is that of `h` if `h` is done within `ms` milliseconds, else -62 (`ETIME`), after `h` was cancelled |
+| `asyncclock` | the clock that only goes forward (`CLOCK_MONOTONIC`), in nanoseconds |
+
+```
+call asyncread fd b 512 as h
+call asynctimeout h 2000 as g
+call await g 0 as n     # the bytes read, or -62 after two seconds
+```
+
+- When no task can be polled, the thread sleeps until the earliest timer is due; with no timer and nothing else to wait for, nothing can happen and `asyncrun` returns. A timer is never early; it is late by what the tasks polled before it take.
+- Tasks that always have something to do do not keep timers and files from being seen: every 61st poll looks at both without sleeping.
+- `asynctimeout` of 0, the handle of a task that could not be made, is 0, and no timer.
+- After `asynctimeout` the handle `h` belongs to the limit: it is not awaited or cancelled any more, and cancelling the limit cancels it. A task that runs out of time is told, like any cancelled task, and the limit has its result -62 when the task has returned: until then the task may be using memory of whoever awaits the limit. Whether the result or the time came first is decided when the limit is polled; if both have come by then, the result counts.
+- The timers that run are 16 bytes each in a heap, besides their events.
+
+### Files and sockets
+
+`lib/async/io.ai`, used after the other two, makes events of the work of the kernel on a descriptor.
+
+| Function | Does |
+|---|---|
+| `asyncread fd p n` | an event whose result is that of `read`: the number of bytes now at `p`, at most `n`, 0 at the end; or a negative error number |
+| `asyncwrite fd p n` | the same for `write`: how many of the `n` bytes were taken, which may be fewer |
+| `asyncwriteall fd p n` | an event that is done when all `n` bytes are written, with the result `n`, or after an error, with the error |
+| `asyncaccept fd` | an event whose result is the descriptor of the next connection to the listening socket `fd` |
+| `asyncconnect ip port` | an event whose result is a socket connected to that port of the IPv4 address `ip`, a number (`0x7f000001` is 127.0.0.1), or the error, after which there is no socket |
+| `asynclisten ip port` | a socket that listens there (`ip` 0: on every address; `port` 0: on a port the kernel chooses), with `SO_REUSEADDR`; the descriptor or a negative error number, at once |
+| `asyncport fd` | the port of a socket |
+| `asyncclose fd` | closes the descriptor, after ending the events that wait for it with the result -125; returns what `close` returns |
+
+```
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/io.ai"
+buf b 512
+call asynclisten 0 8080 as l
+call asyncaccept l as h
+call await h 0 as c         # a connection
+call asyncread c b 512 as h
+call await h 0 as n
+call asyncwriteall c b n as h
+call await h 0
+call asyncclose c
+```
+
+- **An operation asks the kernel first** and is done at once if the kernel does the work at once. Only when the kernel says "not now" (`EAGAIN`) does the event wait, and the kernel is asked again when `epoll` reports the descriptor ready. So a read gives what is there, which may be less than `n`, and `asyncwrite` what the kernel had room for; a loop, or `asyncwriteall`, sends the rest.
+- **Order**: events that wait to read from (or accept on) a descriptor are served in the order they were made, and the same for those that write; a new one waits behind them.
+- **A descriptor the library is given** is made non-blocking (`O_NONBLOCK`, which every holder of the open file sees) and registered with `epoll` once, for both directions and changes only (`EPOLLET`). A plain file is not something `epoll` watches: its operations are done at once. Close such a descriptor with `asyncclose`, which forgets it; a number that the kernel gives out again is then a new file.
+- **Cancelling** an event that waits (`asynccancel`, or the limit of `asynctimeout`) takes it out of its list; bytes that come later are there for the next read. A connect that is cancelled closes its socket. The bytes of a read or write must stay valid until the event is done or cancelled.
+- **Errors** are the kernel's, negated: -104 for a connection that was reset, -111 for a port where nobody listens, -9 for a descriptor that is none, -32 (`EPIPE`) for a write where nobody reads any more.
+- **No `SIGPIPE`**: the kernel sends that signal to a process that writes to a socket or a pipe whose other end is closed, and it ends a program that has not arranged otherwise. A write of this library gives the result -32 instead: a socket is written with `sendto` and `MSG_NOSIGNAL`; for a pipe the signal is blocked for the thread around the write and taken back if the write made it. What the program does with the signal elsewhere is not changed.
+- **The costs**: an event is a record of 128 bytes, used again; a descriptor is another, and 8 bytes in a table that is as long as the highest descriptor seen. An operation that the kernel does at once is one system call; one that waits is two, and its share of an `epoll_wait` that reports up to 64 descriptors.
+
+### Work that holds a thread
+
+One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.ai` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/task.ai` and the three files above before it.
+
+| Function | Does |
+|---|---|
+| `asyncblock p a b c d` | an event that is done when a worker of the pool has called the function at the address `p` with the four values; its result is the first result of the function |
+
+```
+fn hash p n c d
+...
+end
+async fn serve c
+...
+ref hash as f
+await asyncblock f b n 0 0 as x     # other tasks run meanwhile
+...
+end
+```
+
+- The function runs on another thread, at the same time as the tasks: what it shares with them it touches only through [`xadd` and `cas`](#atomic-operations), and it calls no function of the async library. Memory it is passed stays valid until the event is done.
+- `spawn`, `join` and `workers` are what they were, and a program may use both: the pool is one, and its limit holds for both kinds of work. With no worker at all, because the limit is 0 or the kernel refused the first thread, `asyncblock` runs the work itself before it returns, on the polling thread: the program is slower then, and still right. A `join` in a task holds the polling thread until its task is done; `asyncblock` is the form that does not.
+- A worker that has finished puts its work in a list and, only if the polling thread sleeps, writes to an `eventfd` that ends the sleep. The polling thread takes the list when it next looks at the outside world.
+- **Cancelling** the event (`asynccancel`, a limit of `asynctimeout`, a cancelled task that awaits it, `asyncstop`): work that no worker has begun is not run, and the event ends at once with -125. Work that a worker is doing cannot be stopped, and it may be using memory of the task that waits for it, a `local` for one. So its event does not end then: it ends with -125 when the function has returned, and until then the task that awaits it stays where it is, a limit on it does not give its -62, and `asyncstop` does not return. The rule above holds without exception: memory passed to the work is needed until the event is done, and no longer.
+- **The costs**: two records of 128 bytes and one task of the pool; in the kernel, what `spawn` costs, and a write and a wake when the polling thread sleeps.
+
+### Channels and the first of several
+
+`lib/async/chan.ai`, used after `lib/async/task.ai`, carries values between tasks and waits for several things at once.
+
+| Function | Does |
+|---|---|
+| `asyncchan n` | a channel that holds up to `n` values, at least one; 0 without memory |
+| `asyncsend c v` | an event that is done, with the result 0, when the channel has taken the value `v`: at once if there is room or a receive waits, else when there is room |
+| `asyncrecv c` | an event whose result is the oldest value of the channel: at once if it holds one, else when one is sent |
+| `asyncshut c` | no more values: sends and waiting receives end with -32 (`EPIPE`); what the channel holds is still received |
+| `asyncchanfree c` | shuts the channel and releases it |
+| `asyncfirst a b` | a task that is done when the first of the two handles is: its result is 0 for `a`, 1 for `b` |
+| `asyncany p n` | the same for the `n` handles at `p`, 8 bytes each: the index of the first that is done |
+
+```
+async fn produce c
+i=0
+while i<100
+await asyncsend c i      # waits while the channel is full
+i+=1
+end
+call asyncshut c
+end
+async fn consume c
+while 1
+await asyncrecv c as v
+if v==-32
+ret 0
+end
+...
+end
+end
+call asyncchan 8 as c
+call produce c as p
+await consume c
+await p
+call asyncchanfree c
+```
+
+- **A channel is bounded**: a task that sends faster than another receives waits, which is what keeps a fast producer from filling memory. Values are received in the order of their sends, and sends and receives that wait are served in the order they were made.
+- A channel carries any 64-bit value. -32 is also what a shut channel gives, so a program whose values may be that number tells the end another way.
+- A send or receive that waits is cancelled like any event, by `asynccancel`, a limit or `asyncstop`; a value is never lost by that: it stays with the sender or in the channel.
+- **The first of several** does not take a result. It says which handle is done; the program awaits that one, which gives the result at once, and keeps the others, to await later or to cancel:
+
+```
+call asyncrecv c as r
+call asyncsleep 1000 as s
+await asyncfirst r s as i
+if i
+call asynccancel r       # a second without a value
+end
+await r as v             # the value, or -125
+call asynccancel s
+await s
+```
+
+- While the first of several is awaited no other task awaits one of its handles. A handle of 0 counts as done. If several are done, the lowest index is the result. Cancelling it leaves the handles as they are.
+- **The costs**: a channel is 72 bytes and 8 for each value it can hold; a send or receive is an event of 128 bytes, also when it is done at once.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
@@ -937,12 +1183,12 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `use` or `args` inside one; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `args` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; `spawn` with more than five values; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys` |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -953,7 +1199,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
-| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; with the name of the function, a `call` with more names after `as` than it has results |
+| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |

@@ -191,6 +191,29 @@ command arguments, exit statuses and output formats where callers rely on
 them. Update the documented commands and retire each Python entry point after
 its AIL replacement passes the corresponding checks.
 
+## Source style and editor tooling
+
+- [ ] Document the indentation convention. Use one tab per syntactic block
+  level and display tabs at a width of two columns in VS Code. Keep top-level
+  statements at column one. Indent the bodies of `fn`, `if` (including its
+  comparison forms), `else` and `while`. Align `else` and `end` with the
+  matching opener. A `label` stays at its current block depth. Keep expressions
+  and assignments compact, as in `n-=1`. Indentation is a style convention
+  and has no effect on how the compiler parses blocks.
+- [ ] Write an AIL formatter that changes only leading spaces and tabs. Add
+  `--check` to report indentation violations without rewriting files, as the
+  first lint rule. Verify that formatting is idempotent and that formatted
+  examples compile to the same bytes.
+- [ ] Add a VS Code extension for `.ai` files with syntax highlighting, block
+  folding and formatting through the same AIL formatter.
+- [ ] Apply the convention to the examples first. Reindent the compiler in a
+  separate formatting commit and verify the bootstrap fixed point.
+
+On the ten examples, the `o200k_base` tokenizer counted 970 tokens without
+indentation, 990 with one tab per level (+2.1%), and 1,024 with either two or
+four spaces per level (+5.6%), excluding comments. All variants compiled to
+byte-identical executables. See [token cost](tokens.md) for the corpus.
+
 ## Parallel execution
 
 - [x] Define compact `spawn` and `join` forms for independent tasks. Have
@@ -213,19 +236,19 @@ architecture. Keep the runtime in AIL and expose its polling contract through
 a small internal interface for compiler-generated code.
 [Tokio runtime architecture](https://docs.rs/tokio/latest/tokio/runtime/index.html)
 
-1. [ ] Prototype the runtime in AIL with hand-written resumable tasks. Define
+1. [x] Prototype the runtime in AIL with hand-written resumable tasks. Define
    the task frame, poll and wake contract, result storage and task lifetime.
    Start with one executor thread, a ready queue and cooperative scheduling.
    Coalesce repeated wakeups and preserve wakeups that arrive during a poll.
    Keep runtime initialization on demand for programs that execute async code.
    [Tokio's poll and wake model](https://tokio.rs/tokio/tutorial/async)
-2. [ ] Add the Linux I/O driver and timers. Keep the executor, `epoll` driver,
+2. [x] Add the Linux I/O driver and timers. Keep the executor, `epoll` driver,
    and monotonic deadline queue in separate AIL files under `lib/async/`.
    Start with sleep, timeouts and nonblocking TCP accept, connect, read and
    write. Define how operations retry after `EAGAIN`, handle partial reads
    and writes, and remove registrations when cancelled. Test descriptor
    reuse and races between I/O readiness, deadline expiry and cancellation.
-3. [ ] Integrate native async syntax. Prototype `async fn name ...` and
+3. [x] Integrate native async syntax. Prototype `async fn name ...` and
    `await h as result`, and measure their token cost on timers and network
    programs before settling the syntax. Define how a call creates a future,
    which operation schedules it as a concurrent task, and how synchronous
@@ -235,7 +258,7 @@ a small internal interface for compiler-generated code.
    and when a `local` address remains valid across suspension. Keep the
    compiler sources within the syntax supported by the pinned seed until
    a seed that supports async is released and pinned.
-4. [ ] Integrate with the existing `spawn` and `join` worker pool. Keep their
+4. [x] Integrate with the existing `spawn` and `join` worker pool. Keep their
    documented behavior and use the pool for blocking calls and CPU-bound
    work. Deliver worker completion to the executor as a wakeup that an async
    task can await. Define cancellation and shutdown for queued work, running
@@ -243,7 +266,7 @@ a small internal interface for compiler-generated code.
    waiting on the first of several operations after those rules are tested.
    Evaluate a multithreaded async scheduler after measuring the single-thread
    executor and defining which task state can move across threads.
-5. [ ] Test suspension and resumption across branches and loops, propagation
+5. [x] Test suspension and resumption across branches and loops, propagation
    of results and errors, cancellation before and after readiness, shutdown
    with live tasks, and progress under load. Check that synchronous programs
    start no async runtime. Add a timer example and a concurrent TCP echo
