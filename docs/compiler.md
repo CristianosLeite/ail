@@ -68,7 +68,8 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `labdef` | `label <name>`: enter the label and the current output position in the label table |
 | `jtarget` | the label name of a jump: call `emit_op`, leave room for the displacement and record a fixup |
 | `fndef` | `fn <name> <parameter>...`: enter the function, emit the jump over it and its entry code, open its scope |
-| `fnend` | `end`: emit the default return, resolve the function's jumps and close its scope |
+| `fnend` | `end`: close the innermost open block if there is one, else emit the default return, resolve the function's jumps and close its scope |
+| `blkend`, `elsedef`, `blktop` | the `end` and the `else` of a block; fill in the jump recorded for the innermost block |
 | `resolve` | fill in the jumps of the current scope from its labels |
 | `opdptr`, `opdaddr`, `propagate`, `clrvk`, `memchk` | the access check: note what is known of a value, carry it to the variable assigned, forget it, and check or record a load or store |
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
@@ -127,7 +128,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags (two bytes) and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `fn`, `else` and `end` is one row of the table `optab`: keyword, operand count, flags (two bytes) and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|
@@ -156,6 +157,9 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `storeb` | `mov [rax], dil` |
 | `jmp` | `jmp rel32` |
 | `jz` `jnz` | `test rax, rax` / `jz` or `jnz rel32` |
+| `jeq` ... `jsge` | `cmp rax, rdi` / the conditional jump, `rel32` |
+| `if` `ifz` | `test rax, rax` / the opposite jump, past the block |
+| `ifeq` ... `ifsge` | `cmp rax, rdi` / the opposite jump, past the block |
 | `call` | `call rel32` |
 | `ref` | `mov eax, imm32`, the address of the function |
 | `callp` | `call rcx` |
@@ -260,6 +264,12 @@ A jump is an `optab` row whose instruction bytes stop just before the 32-bit dis
 No jump is resolved while scanning, not even a backward one. `resolve` walks `fixs` from the entry `fixbase` on, looks each name up in `labels` and writes the label address minus the address of the byte after the displacement. A name that is not found is the `undefined label` error. One path for both directions keeps the code small; the price is a linear search per jump. `fin` calls `resolve` for the top level after the `exit(0)` code is in place, and `end` calls it for a function.
 
 Neither table can overflow: the shortest `label` line is 8 bytes and the shortest jump line is 6, so the tables are sized for a 64 KiB source made only of those.
+
+## Blocks
+
+The `if` forms are rows flagged `IS_IF` whose bytes, like those of a jump, stop before the `rel32`; the jump is the opposite of the condition and leads past the block. When such a statement ends, `arg` pushes an entry on `blks`: the address of the `rel32` and `asg`, the variables assigned on the way past the block. No label is involved.
+
+`end` goes to `blkend` when a block is open (`nblk` above `blkbase`, the depth at which the function began), and only otherwise ends the function. `blktop` fills in the recorded jump. The variables assigned afterwards are those of both ways there: `asg` is and-ed with the recorded mask, or replaced by it when the block ended in `jmp` or `ret`. `else` emits a `jmp` past the rest, lets the jump of the `if` land behind it, and swaps the entry: it now holds the new `rel32`, the mask at the end of the first part and whether that part was dead, while `asg` goes back to what the `if` had. `end` then merges the two parts, and if both were dead the code after it is dead too. `end` and `else` call `clrvk`, and `end` clears `dataend`, as a label does.
 
 ## Functions
 

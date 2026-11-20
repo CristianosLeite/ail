@@ -37,6 +37,9 @@ var srcend nuses nustk
 # fnres = results of the open function, 0 until its first ret; fntail = 1
 # once it has a tail; ncap = names after "as" in this statement
 var fnres fntail ncap
+# nblk = open blocks; blkbase = those opened outside the open function;
+# topblk = blkbase of the top level, in a function
+var nblk blkbase topblk
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -59,6 +62,8 @@ buf vk 2048         # the same per variable of the current scope
 buf chks 262176     # 8193 loads and stores through a known name, 32 bytes: name,
                     # length, offset, width + 256 for a store
 buf runend 58256    # per run of data statements: the address after its last byte
+buf blks 314592     # 13108 open blocks of 24 bytes: address of the rel32 that jumps past
+                    # the block, asg, and (4 bytes each) 1 for an else part and dead
 buf uses 149808     # 9363 files compiled through use, 16 bytes: path as written, length
 buf ustack 149808   # per use being compiled: where its line ended, and the end of
                     # the unit that has it
@@ -141,32 +146,31 @@ sys 60 2
 end
 # syntax error unless c is not zero
 fn ok c
-jnz c k
+ifz c
 call err
-label k
+end
 end
 # syntax error unless c is zero
 fn no c
-jz c k
+if c
 call err
-label k
+end
 end
 # duplicate name unless the lookup result i is "not found"
 fn nodup i
 eq i 99999 as i
-jnz i k
+ifz i
 call edup
-label k
+end
 end
 
 # ---- input
 # the byte at the cursor, or 256 at the end of the input
 fn pk
-lt ip ie as c
-jz c z
+iflt ip ie
 loadb ip as c
 ret c
-label z
+end
 ret 256
 end
 fn adv
@@ -192,23 +196,22 @@ end
 fn crlf
 add ip 1 as p
 set ie as e
-lt p e as c
-jz c bad
+jge p e bad
 loadb p as c
 eq c 10 as c
-jnz c k
+ifz c
 label bad
 call err
-label k
+end
 end
 fn blanks
 label a
 call pk as c
 call blank c as c
-jz c x
+if c
 call adv
 jmp a
-label x
+end
 end
 # one space or tab at least
 fn blank1
@@ -221,12 +224,9 @@ end
 fn eol
 call blanks
 call pk as c
-eq c 256 as d
-jnz d k
-eq c 10 as d
-jnz d k
-eq c 35 as d
-jnz d k
+jeq c 256 k
+jeq c 10 k
+jeq c 35 k
 eq c 13 as d
 call ok d
 call crlf
@@ -235,14 +235,11 @@ end
 # a token must be followed by a space, tab, comment or end of line
 fn tokchk
 call pk as c
-eq c 256 as d
-jnz d k
+jeq c 256 k
 call blank c as d
 jnz d k
-eq c 10 as d
-jnz d k
-eq c 13 as d
-jnz d k
+jeq c 10 k
+jeq c 13 k
 eq c 35 as d
 call ok d
 label k
@@ -253,16 +250,15 @@ set ip as p
 set p as ns
 label a
 call pk as c
-eq c 95 as d
-jnz d t
+jeq c 95 t
 call dig c as d
 jnz d t
 call low c as d
-jz d x
+if d
 label t
 call adv
 jmp a
-label x
+end
 sub ip p as e
 set e as nl
 end
@@ -275,8 +271,7 @@ call name
 end
 # 1 if the name read last is "as"
 fn isas
-eq nl 2 as n
-jz n x
+jne nl 2 x
 set ns as p
 loadb p as n
 eq n 97 as n
@@ -298,18 +293,16 @@ end
 fn rdnum
 call pk as c
 eq c 45 as n
-jz n a
+if n
 call adv
 call pk as c
-label a
+end
 call dig c as d
 call ok d
 set 0 as r
-eq c 48 as d
-jz d m
+jne c 48 m
 add ip 1 as d
-ge d ie as k
-jnz k m
+jge d ie m
 loadb d as d
 eq d 120 as d
 jz d m
@@ -318,26 +311,24 @@ set 0 as k
 label h
 call pk as c
 call dig c as d
-jz d h1
+if d
 sub c 48 as c
 jmp h2
-label h1
+end
 or c 32 as c
 sub c 97 as c
-lt c 6 as d
-jz d h3
+iflt c 6
 add c 10 as c
 label h2
 add k 1 as k
-gt k 16 as d
-jz d h4
+ifgt k 16
 call enum
-label h4
+end
 shl r 4 as r
 or r c as r
 call adv
 jmp h
-label h3
+end
 call ok k
 jmp s
 label m
@@ -345,13 +336,10 @@ call pk as c
 call dig c as d
 jz d s
 sub c 48 as c
-gt r 0x1999999999999999 as d
-jnz d o
-ne r 0x1999999999999999 as d
-jnz d f
-gt c 5 as d
-jz d f
-label o
+ifle r 0x1999999999999999
+jne r 0x1999999999999999 f
+jle c 5 f
+end
 call enum
 label f
 mul r 10 as r
@@ -359,13 +347,12 @@ add r c as r
 call adv
 jmp m
 label s
-jz n x
-gt r 0x8000000000000000 as d
-jz d y
+if n
+ifgt r 0x8000000000000000
 call enum
-label y
+end
 sub 0 r as r
-label x
+end
 ret r
 end
 
@@ -377,14 +364,14 @@ jz n y
 loadb a as c
 loadb b as d
 ne c d as c
-jnz c x
+ifz c
 add a 1 as a
 add b 1 as b
 sub n 1 as n
 jmp l
 label y
 ret 1
-label x
+end
 end
 # 1 if the table entry q holds the name read last
 fn same q
@@ -392,36 +379,35 @@ add q 8 as t
 load t as t
 set nl as n
 ne t n as t
-jnz t x
+ifz t
 load q as q
 set ns as p
 call eqn q p n as t
 ret t
-label x
+end
 end
 # index of the name read last among n entries of z bytes at b, or 99999
 fn look b n z
 set 0 as i
 label a
-ge i n as t
-jnz t x
+iflt i n
 call same b as t
-jnz t y
+ifz t
 add b z as b
 add i 1 as i
 jmp a
-label y
+end
 ret i
-label x
+end
 ret 99999
 end
 # the variable pool of the current scope
 fn vbase
 set vars as p
 set infn as c
-jz c x
+if c
 add p 1024 as p
-label x
+end
 ret p
 end
 fn lvar
@@ -435,9 +421,9 @@ fn ltop
 set vars as p
 set nv as n
 set infn as c
-jz c x
+if c
 set topvars as n
-label x
+end
 call look p n 16 as i
 ret i
 end
@@ -514,11 +500,10 @@ end
 fn defvar
 call rdname
 call lbuf as c
-eq c 99999 as i
-jnz i v
-jnz infn w
+jeq c 99999 v
+ifz infn
 call edup
-label w
+end
 call gent c as c
 add c 32 as c
 load c as c
@@ -527,30 +512,27 @@ jz c v
 call edup
 label v
 call lvar as i
-ne i 99999 as c
-jnz c x
+jne i 99999 x
 set nv as i
-lt i 64 as c
-jnz c k
+ifge i 64
 call evar
-label k
+end
 call vbase as p
 mul i 16 as c
 add p c as p
 call putn p
 add i 1 as nv
-jnz infn y
-lt i 6 as c
-jnz c z
+ifz infn
+ifge i 6
 add ngv 1 as ngv
 mul ngv 8 as c
 sub 0x10000000 c as c
 mul i 8 as p
 add p topcell as p
 store p c
-label z
+end
 ret i
-label y
+end
 mul i 8 as p
 add p vfirst as p
 store p ip
@@ -564,38 +546,35 @@ end
 # x86 register, 1 and the address of its cell, 2 and its distance from rsp,
 # or for a local 3 and the distance of its bytes from rsp
 fn vplace i
-jnz infn f
-lt i 6 as c
-jz c m
+ifz infn
+iflt i 6
 label r
 add i varnum as i
 loadb i as i
 ret 0 i
-label m
+end
 mul i 8 as i
 add i topcell as i
 load i as i
 ret 1 i
-label f
+end
 mul i 8 as c
 add c vlocal as c
 load c as c
-jz c h
+if c
 mul fnslots 8 as i
 add i c as i
 sub i 1 as i
 add i pushed as i
 ret 3 i
-label h
-eq pass 1 as c
-jz c g
+end
+ifeq pass 1
 set 0 as i
 jmp r
-label g
+end
 add i fnloc as i
 loadb i as i
-lt i 6 as c
-jnz c r
+jlt i 6 r
 mul i 8 as i
 sub i 48 as i
 add i pushed as i
@@ -608,10 +587,9 @@ set nl as n
 set ns as p
 label a
 loadb r as l
-jz l x
+if l
 add r 1 as r
-ne l n as c
-jnz c t
+jne l n t
 call eqn r p n as c
 jz c t
 add r l as r
@@ -623,7 +601,7 @@ loadb c as c
 add r 4 as r
 add r c as r
 jmp a
-label x
+end
 end
 # x86 register number of argument position i
 fn areg i
@@ -647,14 +625,14 @@ end
 fn cp a n
 set op as p
 label l
-jz n x
+if n
 loadb a as c
 storeb p c
 add a 1 as a
 add p 1 as p
 sub n 1 as n
 jmp l
-label x
+end
 set p as op
 end
 # the value of the hexadecimal digit at the cursor, which is consumed
@@ -664,10 +642,10 @@ eq c 256 as d
 call no d
 call adv
 call dig c as d
-jz d a
+if d
 sub c 48 as c
 ret c
-label a
+end
 or c 32 as c
 sub c 97 as c
 lt c 6 as d
@@ -682,31 +660,25 @@ call pk as c
 eq c 256 as d
 call no d
 call adv
-eq c 34 as d
-jnz d x
-eq c 92 as d
-jz d k
+jeq c 34 x
+jne c 92 k
 call pk as c
 eq c 256 as d
 call no d
 call adv
-eq c 110 as d
-jz d t
+ifeq c 110
 set 10 as c
 jmp k
-label t
-eq c 116 as d
-jz d z
+end
+ifeq c 116
 set 9 as c
 jmp k
-label z
-eq c 48 as d
-jz d h
+end
+ifeq c 48
 set 0 as c
 jmp k
-label h
-eq c 120 as d
-jz d k
+end
+jne c 120 k
 call hexd as c
 shl c 4 as c
 call hexd as d
@@ -739,23 +711,22 @@ fn aidx
 add cur 2 as c
 loadb c as c
 and c 4 as c
-jz c d
-jnz ai e
+if c
+ifz ai
 ret 8
-label e
+end
 sub ai 1 as i
 jmp g
-label d
+end
 set ai as i
 add cur 1 as c
 loadb c as c
 and c 16 as c
-jz c a
+if c
 label g
-lt i 6 as c
-jnz c b
+jlt i 6 b
 ret 7
-label a
+end
 lt ai 7 as c
 call ok c
 label b
@@ -767,17 +738,16 @@ set ai as i
 add cur 2 as c
 loadb c as c
 and c 4 as c
-jz c a
+if c
 sub i 1 as i
 jmp b
-label a
+end
 add cur 1 as c
 loadb c as c
 and c 16 as c
 jz c x
 label b
-slt i 6 as c
-jnz c x
+jslt i 6 x
 call eb 65
 call eb 83
 add pushed 8 as pushed
@@ -788,33 +758,32 @@ end
 fn mov v
 call aidx as i
 shr v 32 as c
-jnz c w
+ifz c
 mul i 2 as r
 add r regtab as r
 loadb r as c
-jz c n
+if c
 call eb c
-label n
+end
 add r 1 as r
 loadb r as c
 call eb c
 set op as immpos
 call e4 v
 jmp x
-label w
+end
 call areg i as r
 shr r 3 as c
 or c 72 as c
 call eb c
 and r 7 as r
-ge v 0xffffffff80000000 as c
-jz c q
+ifge v 0xffffffff80000000
 call eb 199
 or r 192 as r
 call eb r
 call e4 v
 jmp x
-label q
+end
 or r 184 as r
 call eb r
 store op v
@@ -832,14 +801,13 @@ call eb c
 call eb o
 and g 7 as g
 shl g 3 as g
-eq k 1 as c
-jz c s
+ifeq k 1
 or g 4 as g
 call eb g
 call eb 37
 call e4 p
 ret 0
-label s
+end
 or g 132 as g
 call eb g
 call eb 36
@@ -849,20 +817,18 @@ end
 # local is not stored to, and loading it gives its address (lea, 141)
 fn vmov i g o
 call vplace i as k p
-jnz k m
-eq o 139 as c
-jz c s
+ifz k
+ifeq o 139
 call mrr g p
 ret 0
-label s
+end
 call mrr p g
 ret 0
-label m
-ne k 3 as c
-jnz c n
+end
+ifeq k 3
 call emem g 2 p 141
 ret 0
-label n
+end
 call emem g k p o
 end
 # mov <register of the next argument>, [a]: read the cell of a var
@@ -874,12 +840,12 @@ call anext
 end
 # 1 if the statement is at and this is its first value, which must be a name
 fn atfirst
-jnz ai x
+ifz ai
 add cur 2 as c
 loadb c as c
 and c 1 as c
 ret c
-label x
+end
 end
 # record that the imm32 just written stands for the name read last: k = 0
 # its address, 1 its length, 2 the bytes from it to the end of its object
@@ -893,13 +859,24 @@ add p 24 as q
 store q k
 add nrefs 1 as nrefs
 end
+# the innermost open block, which the statement at hand closes or continues;
+# the jump recorded for it lands here
+fn blktop
+sub nblk 1 as p
+mul p 24 as p
+add p blks as p
+load p as d
+sub op d as c
+sub c 4 as c
+store4 d c
+ret p
+end
 # where to note what is known of the next value of the statement
 fn opdp
 set ai as i
-lt i 2 as c
-jnz c k
+ifge i 2
 set 2 as i
-label k
+end
 mul i 32 as i
 add i opd as i
 ret i
@@ -950,15 +927,14 @@ ne c 1 as c
 jnz c x
 add cur 3 as n
 loadb n as n
-jnz n a
+ifz n
 load opd as c
 eq c 3 as c
 jnz c x
 set 0 as d
 jmp e
-label a
-ne n 3 as c
-jnz c x
+end
+jne n 3 x
 add cur 4 as c
 load4 c as c
 and c 0xffffff as c
@@ -966,24 +942,18 @@ add opd 32 as q
 load q as t
 add q 8 as q
 load q as u
-eq c 0xf80148 as n
-jnz n b
-ne c 0xf82948 as n
-jnz n x
-ne t 1 as n
-jnz n x
+ifne c 0xf80148
+jne c 0xf82948 x
+jne t 1 x
 sub 0 u as d
 jmp e
-label b
-ne t 1 as n
-jnz n f
+end
+jne t 1 f
 set u as d
 label e
 load opd as c
-eq c 1 as n
-jnz n g
-ne c 2 as n
-jnz n x
+jeq c 1 g
+jne c 2 x
 store k 2
 add opd 8 as q
 load q as c
@@ -1011,8 +981,7 @@ label f
 load opd as c
 ne c 1 as c
 jnz c x
-ne t 2 as c
-jnz c x
+jne t 2 x
 add opd 8 as q
 load q as d
 store k 2
@@ -1035,40 +1004,35 @@ fn memchk r
 sub r 1 as c
 loadb c as c
 set 8 as w
-eq c 98 as d
-jz d a
+ifeq c 98
 set 1 as w
-label a
-eq c 50 as d
-jz d b
+end
+ifeq c 50
 set 2 as w
-label b
-eq c 52 as d
-jz d e
+end
+ifeq c 52
 set 4 as w
-label e
+end
 add r 1 as c
 loadb c as c
 and c 2 as c
-jz c f
+if c
 or w 256 as w
-label f
+end
 load opd as c
-ne c 3 as d
-jnz d g
+ifeq c 3
 and w 256 as d
-jz d h
+if d
 call eacc
-label h
+end
 and w 255 as d
 add opd 8 as c
 load c as c
 gt d c as d
 jz d x
 call eacc
-label g
-ne c 2 as d
-jnz d x
+end
+jne c 2 x
 mul nchks 32 as p
 add p chks as p
 add opd 8 as c
@@ -1090,11 +1054,11 @@ end
 # no way leads to the code that follows, until a label: remember what was
 # assigned and take everything as assigned
 fn godead
-jnz dead x
+ifz dead
 set asg as jmask
 set 1 as dead
 set -1 as asg
-label x
+end
 end
 # the label read last is being defined: asg becomes what is assigned on
 # every way to it, the line before and each jump seen so far; a label that
@@ -1106,18 +1070,18 @@ sub nfix fixbase as n
 mul fixbase 32 as p
 add p fixs as p
 label a
-jz n e
+if n
 call same p as c
-jz c s
+if c
 add p 24 as c
 load c as c
 and m c as m
 add k 1 as k
-label s
+end
 add p 32 as p
 sub n 1 as n
 jmp a
-label e
+end
 jz dead x
 jnz k x
 set jmask as m
@@ -1130,11 +1094,9 @@ end
 fn frame o
 mul fnslots 8 as c
 add c fnlocal as c
-jz c x
-ne o 236 as d
-jnz d s
-lt c 4096 as d
-jnz d s
+if c
+jne o 236 s
+jlt c 4096 s
 call cp probe 36
 sub op 34 as d
 store4 d c
@@ -1144,7 +1106,7 @@ call eb 72
 call eb 129
 call eb o
 call e4 c
-label x
+end
 end
 # how many bytes of the six pops to leave out: those of the registers that
 # the function does not use and so did not save
@@ -1180,8 +1142,7 @@ add b 8 as t
 load t as hi
 set 0 as i
 label v
-ge i nv as t
-jnz t w
+iflt i nv
 mul i 8 as k
 add k vfirst as t
 load t as t
@@ -1189,16 +1150,14 @@ gt t hi as t
 jnz t s
 add k vlast as k
 load k as t
-lt t lo as u
-jnz u s
-ge t hi as u
-jnz u s
+jlt t lo s
+jge t hi s
 store k hi
 set 1 as g
 label s
 add i 1 as i
 jmp v
-label w
+end
 add b 16 as b
 sub n 1 as n
 jmp l
@@ -1210,14 +1169,12 @@ mul i 8 as t
 add t locfree as t
 store t 0
 add i 1 as i
-lt i 70 as t
-jnz t z
+jlt i 70 z
 set 0 as fnslots
 set 0 as fnregs
 set 0 as i
 label p
-ge i nv as t
-jnz t x
+jge i nv x
 mul i 8 as k
 add k vlocal as t
 load t as t
@@ -1232,23 +1189,20 @@ mul j 8 as t
 add t locfree as t
 load t as u
 lt u lo as u
-jnz u f
+ifz u
 add j 1 as j
 jmp q
-label f
+end
 store t hi
 add i fnloc as t
 storeb t j
-lt j 6 as u
-jz u r
-lt j fnregs as u
-jnz u c
+iflt j 6
+jlt j fnregs c
 add j 1 as fnregs
 jmp c
-label r
+end
 sub j 5 as j
-gt j fnslots as u
-jz u c
+jle j fnslots c
 set j as fnslots
 label c
 add i 1 as i
@@ -1266,39 +1220,38 @@ jnz c k
 add r 2 as c
 loadb c as c
 and c 4 as c
-jz c k1
+if c
 call ok ai
 jmp k
-label k1
+end
 and f 32 as c
-jz c k2
+if c
 call ok ai
 gt ai 6 as c
 call no c
-jnz fnres k3
+ifz fnres
 set ai as fnres
-label k3
-eq fnres ai as c
-jnz c k
+end
+jeq fnres ai k
 call eres
-label k2
+end
 loadb r as c
 set ai as i
 eq c i as c
 call ok c
 label k
 and f 128 as c
-jz c y
+if c
 call memchk r
-label y
+end
 and f 32 as c
 jz c m
 and f 16 as c
-jz c o
+if c
 gt ai 6 as c
 call no c
 set 1 as fntail
-label o
+end
 call frame 196
 call godead
 call popskip as n
@@ -1321,12 +1274,12 @@ set ai as i
 add cur 2 as c
 loadb c as c
 and c 2 as c
-jz c v
+if c
 call no ai
 eq ncap 1 as c
 call ok c
 set 0xffffffff as i
-label v
+end
 set ncalls as n
 mul n 32 as p
 add p calls as p
@@ -1345,13 +1298,13 @@ store4 r ncap
 call z 4
 add n 1 as ncalls
 label w
-jz pushed x
+if pushed
 call eb 72
 call eb 129
 call eb 196
 call e4 pushed
 set 0 as pushed
-label x
+end
 end
 # fill in the jumps of the current scope, now that its labels are known
 fn resolve
@@ -1363,10 +1316,9 @@ label a
 jz n x
 call getn p
 call llab as c
-ne c 99999 as i
-jnz i k
+ifeq c 99999
 call elab
-label k
+end
 set labbase as i
 add c i as c
 mul c 40 as c
@@ -1391,18 +1343,17 @@ set in as p
 add in 65537 as q
 label rd
 sub q p as r
-jnz r rd1
+ifz r
 call ebig
-label rd1
+end
 sys 0 0 p r as r
-jz r rd2
-gt r 65537 as c
-jz c rd3
+if r
+ifgt r 65537
 call erd
-label rd3
+end
 add p r as p
 jmp rd
-label rd2
+end
 set p as ie
 set p as srcend
 set in as ip
@@ -1412,16 +1363,12 @@ call cp hdr 176
 # ---- statement
 label next
 call pk as c
-eq c 256 as d
-jnz d uend
+jeq c 256 uend
 call blank c as d
 jnz d n1
-eq c 10 as d
-jnz d n1
-eq c 35 as d
-jnz d n2
-eq c 13 as d
-jz d n4
+jeq c 10 n1
+jeq c 35 n2
+ifeq c 13
 call crlf
 label n1
 call adv
@@ -1429,41 +1376,30 @@ jmp next
 label n2
 call adv
 call pk as c
-eq c 256 as d
-jnz d uend
-eq c 10 as d
-jnz d next
-eq c 13 as d
-jz d n2
+jeq c 256 uend
+jeq c 10 next
+jne c 13 n2
 call crlf
 jmp n2
-label n4
+end
 call rname
 call kw as r
 call ok r
 add r 1 as f
 loadb f as f
-eq f 255 as d
-jz d n6
+ifeq f 255
 loadb r as d
-eq d 1 as c
-jnz c fndef
-eq d 2 as c
-jnz c bufdef
-eq d 3 as c
-jnz c fnend
-eq d 4 as c
-jnz c labdef
-eq d 5 as c
-jnz c datadef
-eq d 6 as c
-jnz c vardef
-eq d 7 as c
-jnz c constdef
-eq d 8 as c
-jnz c localdef
-jmp usedef
-label n6
+jeq d 1 fndef
+jeq d 2 bufdef
+jeq d 3 fnend
+jeq d 4 labdef
+jeq d 5 datadef
+jeq d 6 vardef
+jeq d 7 constdef
+jeq d 8 localdef
+jeq d 9 usedef
+jmp elsedef
+end
 set r as cur
 set 0 as ai
 set 0 as ncap
@@ -1475,19 +1411,19 @@ call blank c as d
 call ok d
 call blanks
 and f 32 as d
-jz d n7
+if d
 set infn as d
 call ok d
-label n7
+end
 and f 16 as d
-jz d n8
+if d
 call rname
 set ns as d
 set d as cn
 set nl as d
 set d as cl
 jmp tokend
-label n8
+end
 and f 4 as d
 jz d arg
 call pk as c
@@ -1523,13 +1459,12 @@ label u1
 call pk as c
 eq c 256 as d
 call no d
-eq c 34 as d
-jnz d u2
+ifne c 34
 eq c 10 as d
 call no d
 call adv
 jmp u1
-label u2
+end
 sub ip p as q
 call adv
 call eol
@@ -1539,44 +1474,41 @@ call ok q
 gt q 4095 as d
 call no d
 call look uses nuses 16 as r
-ne r 99999 as d
-jnz d next
+jne r 99999 next
 mul nuses 16 as r
 add r uses as r
 call putn r
 add nuses 1 as nuses
 set pathbuf as r
 label u8
-jz q u9
+if q
 loadb p as c
 storeb r c
 add p 1 as p
 add r 1 as r
 sub q 1 as q
 jmp u8
-label u9
+end
 storeb r 0
 sys 2 pathbuf 0 0 as f
-slt f 0 as d
-jz d u3
+ifslt f 0
 call euse
-label u3
+end
 set srcend as r
 label u4
 add in 65537 as q
 sub q srcend as q
-jnz q u5
+ifz q
 call ebig
-label u5
+end
 sys 0 f srcend q as c
-slt c 0 as d
-jz d u6
+ifslt c 0
 call euse
-label u6
-jz c u7
+end
+if c
 add srcend c as srcend
 jmp u4
-label u7
+end
 sys 3 f
 mul nustk 16 as p
 add p ustack as p
@@ -1594,26 +1526,20 @@ label tokend
 call tokchk
 label arg
 call pk as c
-eq c 256 as d
-jnz d a1
-eq c 10 as d
-jnz d a1
-eq c 35 as d
-jnz d a1
+jeq c 256 a1
+jeq c 10 a1
+jeq c 35 a1
 call blank c as d
 jnz d a2
-eq c 13 as d
-jnz d a4
-eq c 34 as d
-jnz d str
+ifne c 13
+jeq c 34 str
 call low c as d
 jnz d ident
-eq c 45 as d
-jnz d num
+jeq c 45 num
 call dig c as d
 jnz d num
 call err
-label a4
+end
 call crlf
 label a1
 set cur as r
@@ -1622,6 +1548,19 @@ loadb f as f
 and f 9 as f
 call no f
 call eop
+add cur 2 as f
+loadb f as f
+and f 8 as f
+jz f next
+mul nblk 24 as p
+add p blks as p
+store p op
+add p 8 as p
+store p asg
+add p 8 as p
+store p 0
+call z 4
+add nblk 1 as nblk
 jmp next
 label a2
 call adv
@@ -1683,11 +1622,10 @@ set cur as r
 add r 1 as f
 loadb f as f
 and f 8 as f
-jz f i3
+if f
 loadb r as f
-ge ai f as d
-jnz d jtarget
-label i3
+jge ai f jtarget
+end
 call isas as d
 jnz d capture
 call atfirst as d
@@ -1695,14 +1633,13 @@ jnz d atname
 add cur 1 as r
 loadb r as r
 and r 64 as d
-jz d i5
+if d
 call lbuf as r
-ne r 99999 as d
-jnz d i6
+ifeq r 99999
 call mov 0
 set 1 as r
 jmp i9
-label i6
+end
 call gent r as r
 add r 32 as d
 load d as d
@@ -1711,18 +1648,17 @@ add r 24 as r
 load r as r
 call mov r
 jmp tokend
-label i5
+end
 call lvar as r
-eq r 99999 as d
-jnz d i2
+jeq r 99999 i2
 mul r 8 as d
 add d vlast as d
 store d ip
 shr asg r as d
 and d 1 as d
-jnz d i7a
+ifz d
 call eunasg
-label i7a
+end
 call opdp as d
 mul r 32 as f
 add f vk as f
@@ -1734,8 +1670,7 @@ call anext
 jmp tokend
 label i2
 call lbuf as r
-ne r 99999 as d
-jnz d i4
+jne r 99999 i4
 call opda
 call mov 0
 set 0 as r
@@ -1746,8 +1681,7 @@ jmp tokend
 # the first value of at: a name, passed as its address and its size
 label atname
 call lvar as r
-eq r 99999 as d
-jnz d at2
+ifne r 99999
 mul r 8 as d
 add d vlocal as d
 load d as d
@@ -1762,10 +1696,9 @@ add d vlocsz as d
 load d as d
 call mov d
 jmp tokend
-label at2
+end
 call lbuf as r
-eq r 99999 as d
-jnz d at3
+ifne r 99999
 call gent r as p
 add p 32 as d
 load d as d
@@ -1774,7 +1707,7 @@ add p 16 as d
 load d as d
 call mov d
 jmp at4
-label at3
+end
 call mov 0
 call addref 0
 label at4
@@ -1785,10 +1718,8 @@ label i4
 call gent r as p
 add p 32 as d
 load d as d
-eq d 1 as f
-jnz f i7
-eq d 2 as f
-jz f i8
+ifne d 1
+ifeq d 2
 add p 24 as r
 load r as r
 call opdp as d
@@ -1797,13 +1728,13 @@ add d 8 as d
 store d r
 call mov r
 jmp tokend
-label i8
+end
 add p 16 as r
 load r as r
 call opda
 call mov r
 jmp tokend
-label i7
+end
 add p 16 as r
 load r as r
 call ldvar r
@@ -1820,8 +1751,7 @@ call blanks
 set ip as q
 call rdname
 call lbuf as r
-eq r 99999 as d
-jnz d cp1
+jeq r 99999 cp1
 call gent r as p
 add p 32 as d
 load d as d
@@ -1837,9 +1767,9 @@ call defvar as p
 mul p 8 as d
 add d vlocal as d
 load d as d
-jz d cp2
+if d
 call edup
-label cp2
+end
 set 0 as f
 label cp3
 lt ncap 6 as d
@@ -1852,14 +1782,10 @@ store d p
 add ncap 1 as ncap
 call blanks
 call pk as c
-eq c 256 as d
-jnz d cp4
-eq c 10 as d
-jnz d cp4
-eq c 13 as d
-jnz d cp4
-eq c 35 as d
-jnz d cp4
+jeq c 256 cp4
+jeq c 10 cp4
+jeq c 13 cp4
+jeq c 35 cp4
 add cur 1 as d
 loadb d as d
 and d 16 as d
@@ -1874,21 +1800,20 @@ call eol
 call eop
 set 0 as r
 label cp5
-ge r ncap as d
-jnz d next
+jge r ncap next
 mul r 16 as d
 add d caps as d
 load d as f
 add d 8 as d
 load d as p
 call areg r as q
-jnz f cp6
+ifz f
 shl 1 p as d
 or asg d as asg
 call prop p
 call vmov p q 137
 jmp cp7
-label cp6
+end
 call emem q 1 p 137
 label cp7
 add r 1 as r
@@ -1902,16 +1827,15 @@ call newglob as p
 call blank1
 call pk as c
 call low c as d
-jz d b1
+if d
 call cname as r
 jmp b2
-label b1
+end
 call rdnum as r
 label b2
-gt r 0xf0000000 as d
-jz d b3
+ifgt r 0xf0000000
 call ebuf
-label b3
+end
 call eol
 add p 32 as q
 store q 0
@@ -1924,10 +1848,9 @@ shr r 3 as r
 shl r 3 as r
 set bsssz as q
 add r q as r
-gt r 0xf0000000 as d
-jz d b5
+ifgt r 0xf0000000
 call ebuf
-label b5
+end
 set r as bsssz
 add q 0x10000000 as q
 add p 16 as p
@@ -1943,23 +1866,21 @@ call ok infn
 call blank1
 set nv as q
 call defvar as r
-ne nv q as d
-jnz d l1
+ifeq nv q
 call edup
-label l1
+end
 call blank1
 call pk as c
 call low c as d
-jz d l2
+if d
 call cname as p
 jmp l3
-label l2
+end
 call rdnum as p
 label l3
-gt p 0x7ffffff0 as d
-jz d l4
+ifgt p 0x7ffffff0
 call ebuf
-label l4
+end
 call eol
 mul r 8 as d
 add d vlocsz as d
@@ -1972,10 +1893,9 @@ add d vlocal as d
 add loccur 1 as c
 store d c
 add p loccur as p
-gt p 0x7ffffff0 as d
-jz d l5
+ifgt p 0x7ffffff0
 call ebuf
-label l5
+end
 set p as loccur
 shl 1 r as d
 or asg d as asg
@@ -2003,14 +1923,10 @@ set r as nbufs
 call tokchk
 call blanks
 call pk as c
-eq c 256 as d
-jnz d v2
-eq c 10 as d
-jnz d v2
-eq c 13 as d
-jnz d v2
-eq c 35 as d
-jz d v1
+jeq c 256 v2
+jeq c 10 v2
+jeq c 13 v2
+jne c 35 v1
 label v2
 call eol
 jmp next
@@ -2040,40 +1956,34 @@ call pk as c
 eq c 256 as d
 call no d
 call low c as d
-jz d d1
+if d
 call rdname
 call newglob as p
 call tokchk
 set 1 as f
-label d1
+end
 set op as q
-eq q dataend as d
-jnz d d2
+ifne q dataend
 call eb 233
 set op as q
 set q as datarel
 call z 4
 add nruns 1 as nruns
-label d2
+end
 set op as q
 set 0 as r
 label d3
 call blanks
 call pk as c
-eq c 256 as d
-jnz d d6
-eq c 10 as d
-jnz d d6
-eq c 13 as d
-jnz d d6
-eq c 35 as d
-jnz d d6
-eq c 34 as d
-jz d d4
+jeq c 256 d6
+jeq c 10 d6
+jeq c 13 d6
+jeq c 35 d6
+ifeq c 34
 call adv
 call sbytes
 jmp d5
-label d4
+end
 call rdnum as c
 gt c 255 as d
 call no d
@@ -2085,7 +1995,7 @@ jmp d3
 label d6
 call ok r
 call eol
-jz f d7
+if f
 add p 32 as d
 store d 0
 add p 40 as d
@@ -2099,7 +2009,7 @@ add p 16 as d
 store d c
 add nbufs 1 as c
 set c as nbufs
-label d7
+end
 set datarel as p
 set op as q
 sub q p as c
@@ -2142,8 +2052,7 @@ jmp next
 label jtarget
 call eol
 call llab as r
-eq r 99999 as d
-jnz d j1
+jeq r 99999 j1
 add r labbase as r
 mul r 40 as r
 add r labs as r
@@ -2151,11 +2060,10 @@ add r 32 as d
 load d as d
 xor asg -1 as f
 and d f as d
-jz d j0
+if d
 call eunasg
-label j0
-eq pass 1 as d
-jz d j1
+end
+jne pass 1 j1
 add r 24 as r
 load r as r
 mul nloops 16 as p
@@ -2231,6 +2139,8 @@ call frame 236
 set nv as q
 set q as topvars
 set 0 as nv
+set blkbase as topblk
+set nblk as blkbase
 set asg as tasg
 set dead as tdead
 set jmask as tjmask
@@ -2244,28 +2154,22 @@ set q as fixbase
 label f1
 call blanks
 call pk as c
-eq c 256 as d
-jnz d f2
-eq c 10 as d
-jnz d f2
-eq c 13 as d
-jnz d f2
-eq c 35 as d
-jnz d f2
+jeq c 256 f2
+jeq c 10 f2
+jeq c 13 f2
+jeq c 35 f2
 set nv as q
 call defvar as r
-ne nv q as d
-jnz d f3
+ifeq nv q
 call edup
-label f3
+end
 shl 1 r as d
 or asg d as asg
-lt r 6 as d
-jz d f4
+iflt r 6
 call areg r as f
 call vmov r f 137
 jmp f1
-label f4
+end
 sub fnnpar r as d
 add d fnslots as d
 add d fnregs as d
@@ -2286,6 +2190,7 @@ jmp next
 
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
+jgt nblk blkbase blkend
 set infn as d
 call ok d
 call eol
@@ -2322,13 +2227,13 @@ set 0 as infn
 set tasg as asg
 set tdead as dead
 set tjmask as jmask
+set topblk as blkbase
 call clrvk
 set fnskip as p
 sub op p as q
 sub q 4 as q
 store4 p q
-eq pass 1 as d
-jz d e1
+jne pass 1 e1
 set loccur as fnlocal
 call alloc
 set sip as ip
@@ -2355,10 +2260,64 @@ set 0 as fnlocal
 set topvars as nv
 jmp next
 
+# "end" with a block open: what is assigned after it is what both ways
+# here have assigned, its last line and the jump past it, or after an else
+# part the last line of the part before
+label blkend
+call eol
+call blktop as p
+sub nblk 1 as nblk
+add p 16 as q
+load4 q as d
+if d
+add p 20 as q
+load4 q as d
+jnz d be3
+end
+add p 8 as q
+load q as q
+if dead
+set q as asg
+set 0 as dead
+jmp be3
+end
+and asg q as asg
+label be3
+call clrvk
+set 0 as dataend
+jmp next
+
+# "else": the block so far ends with a jump past the rest, and the jump of
+# its "if" lands here
+label elsedef
+gt nblk blkbase as d
+call ok d
+call eol
+call eb 233
+set op as r
+call z 4
+call blktop as p
+add p 16 as q
+load4 q as d
+call no d
+store p r
+add p 8 as q
+load q as f
+store q asg
+add p 20 as q
+store4 q dead
+add p 16 as q
+store4 q 1
+set f as asg
+set 0 as dead
+call clrvk
+jmp next
+
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
 label fin
 set infn as d
 call no d
+call no nblk
 call cp exit0 9
 call resolve
 set calls as p
@@ -2367,30 +2326,28 @@ label c1
 jz r c2
 call getn p
 call lfn as c
-ne c 99999 as d
-jnz d c3
+ifeq c 99999
 call efn
-label c3
+end
 mul c 40 as c
 add c funs as c
 add p 24 as q
 load4 q as q
-eq q 0xffffffff as d
-jnz d c5
+jeq q 0xffffffff c5
 add c 24 as d
 load d as d
 eq d q as d
-jnz d c4
+ifz d
 call eargc
-label c4
+end
 add c 32 as d
 load d as d
 add p 28 as q
 load4 q as q
 gt q d as d
-jz d c6
+if d
 call eres
-label c6
+end
 add c 16 as c
 load c as c
 add p 16 as q
@@ -2418,16 +2375,15 @@ label r1
 jz r r2
 call getn p
 call lbuf as c
-ne c 99999 as d
-jnz d r3
+ifeq c 99999
 call eund
-label r3
+end
 call gent c as c
 add c 32 as d
 load d as d
-jz d r4
+if d
 call eund
-label r4
+end
 add p 24 as d
 load d as d
 add c 16 as q
@@ -2461,21 +2417,20 @@ label k1
 jz r k2
 call getn p
 call lbuf as c
-eq c 99999 as d
-jnz d k4
+jeq c 99999 k4
 call gent c as c
 add c 32 as d
 load d as d
 jnz d k4
 add c 40 as d
 load d as d
-jz d k3
+if d
 add p 24 as q
 load q as q
 and q 256 as q
-jz q k5
+if q
 call eacc
-label k5
+end
 mul d 8 as d
 add d runend as d
 sub d 8 as d
@@ -2484,21 +2439,19 @@ add c 16 as q
 load q as q
 sub d q as d
 jmp k6
-label k3
+end
 add c 24 as d
 load d as d
 label k6
 add p 16 as q
 load q as q
-lt q d as f
-jnz f k7
+ifge q d
 call eacc
-label k7
+end
 sub d q as d
 add p 24 as q
 loadb q as q
-gt q d as f
-jz f k4
+jle q d k4
 call eacc
 label k4
 add p 32 as p
@@ -2528,9 +2481,9 @@ label w1
 sys 1 1 p q as c
 sub c 1 as d
 lt d q as d
-jnz d w2
+ifz d
 call ewr
-label w2
+end
 add p c as p
 sub q c as q
 jnz q w1

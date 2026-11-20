@@ -38,6 +38,9 @@
                                 # and size; in the second flag byte, as 1
 .equ IS_REF,  512               # ref: the address of the function, not a call of it
 .equ IS_PTR,  1024              # callp: the first value is the function's address
+.equ IS_IF,   2048              # opens a block: the code ends where the rel32 of
+                                # the jump past the block goes
+.equ NBLK,   INSZ / 5 + 1       # "if a\n" is 5 bytes
 .equ K_CONST, 1                 # what is known of a value: a number,
 .equ K_ADDR,  2                 # a global name plus a number,
 .equ K_LIT,   3                 # or the bytes of a string
@@ -83,6 +86,12 @@ nchks:  .skip 4
 bufrun: .skip NGLOB * 4         # per data name: 1 + its run of data statements
 runend: .skip NRUNS * 4         # per run: the address after its last byte
 nruns:  .skip 4
+blks:   .skip NBLK * 24         # per open block: address of the rel32 that jumps
+                                # past it, then asg and (4 bytes each) 1 for an
+                                # else part and dead, as noted where it began
+nblk:   .skip 4                 # open blocks
+blkbase: .skip 4                # those of them opened outside the open function
+topblk: .skip 4                 # blkbase of the top level, in a function
 srcend: .skip 8                 # end of all source read so far, in inbuf
 uses:   .skip NUSES * 16        # per file compiled through use: the path as
 nuses:  .skip 4                 # written (address in inbuf, length)
@@ -413,6 +422,120 @@ free_end:
     .byte 1
     .word AS_NONE | IS_JMP
     .byte 5,  0x48,0x85,0xC0, 0x0F,0x85
+    # a comparison and a jump in one: jump to the label if it holds
+    .byte 3
+    .ascii "jeq"                                     # cmp rax, rdi ; je rel32
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x84
+    .byte 3
+    .ascii "jne"                                     # jne
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x85
+    .byte 3
+    .ascii "jlt"                                     # jb
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x82
+    .byte 3
+    .ascii "jle"                                     # jbe
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x86
+    .byte 3
+    .ascii "jgt"                                     # ja
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x87
+    .byte 3
+    .ascii "jge"                                     # jae
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x83
+    .byte 4
+    .ascii "jslt"                                    # jl
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8C
+    .byte 4
+    .ascii "jsle"                                    # jle
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8E
+    .byte 4
+    .ascii "jsgt"                                    # jg
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8F
+    .byte 4
+    .ascii "jsge"                                    # jge
+    .byte 2
+    .word AS_NONE | IS_JMP
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8D
+    # blocks: the statements up to the matching end, or else, run if the
+    # value is not zero (if), is zero (ifz), or the comparison holds; the
+    # code is the opposite jump, past the block
+    .byte 2
+    .ascii "if"                                      # test rax, rax ; jz rel32
+    .byte 1
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x85,0xC0, 0x0F,0x84
+    .byte 3
+    .ascii "ifz"                                     # jnz
+    .byte 1
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x85,0xC0, 0x0F,0x85
+    .byte 4
+    .ascii "ifeq"                                    # cmp rax, rdi ; jne rel32
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x85
+    .byte 4
+    .ascii "ifne"                                    # je
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x84
+    .byte 4
+    .ascii "iflt"                                    # jae
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x83
+    .byte 4
+    .ascii "ifle"                                    # ja
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x87
+    .byte 4
+    .ascii "ifgt"                                    # jbe
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x86
+    .byte 4
+    .ascii "ifge"                                    # jb
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x82
+    .byte 5
+    .ascii "ifslt"                                   # jge
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8D
+    .byte 5
+    .ascii "ifsle"                                   # jg
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8F
+    .byte 5
+    .ascii "ifsgt"                                   # jle
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8E
+    .byte 5
+    .ascii "ifsge"                                   # jl
+    .byte 2
+    .word AS_NONE | IS_IF
+    .byte 5,  0x48,0x39,0xF8, 0x0F,0x8C
     # functions: the code of call ends where the rel32 of the function goes
     .byte 4
     .ascii "call"
@@ -605,6 +728,8 @@ next:
     jne 5f
     cmp dword ptr [r8], 0x61746164  # "data"
     je datadef
+    cmp dword ptr [r8], 0x65736c65  # "else"
+    je elsedef
 5:  cmp r9, 5
     jne 5f
     cmp dword ptr [r8], 0x6562616c  # "labe"
@@ -830,6 +955,19 @@ arg:
     test byte ptr [rdx+1], AS_REQ | IS_JMP
     jnz err
     call emit_op
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+2], IS_IF >> 8
+    jz next
+    mov eax, [rip+nblk]         # a block opens: its jump is filled in at the
+    lea rax, [rax+rax*2]        # matching else or end
+    lea rcx, [rip+blks]
+    lea rcx, [rcx+rax*8]
+    mov [rcx], rdi
+    mov rax, [rip+asg]          # what is assigned on the way past the block
+    mov [rcx+8], rax
+    mov qword ptr [rcx+16], 0
+    add rdi, 4
+    inc dword ptr [rip+nblk]
     jmp next
 2:  inc rsi
     jmp arg
@@ -1982,6 +2120,10 @@ fndef:
     call emit_frame
     mov [rip+topvars], ebp
     xor ebp, ebp
+    mov eax, [rip+blkbase]      # the blocks open outside are not the function's
+    mov [rip+topblk], eax
+    mov eax, [rip+nblk]
+    mov [rip+blkbase], eax
     mov rax, [rip+asg]          # the top level goes on after the function with
     mov [rip+topasg], rax       # what it had assigned
     mov eax, [rip+dead]
@@ -2045,6 +2187,9 @@ fndef:
 # "end": return zero, resolve the jumps of the function and drop its labels,
 # variables and jumps
 fnend:
+    mov eax, [rip+nblk]         # with a block open, end closes the block
+    cmp eax, [rip+blkbase]
+    ja blkend
     cmp dword ptr [rip+infn], 0
     je err
     call eol
@@ -2091,6 +2236,8 @@ fnend:
     mov [rip+dead], eax
     mov rax, [rip+topasg+16]
     mov [rip+jmask], rax
+    mov eax, [rip+topblk]
+    mov [rip+blkbase], eax
     call clrvk
     mov rcx, [rip+fnskip]       # top-level code continues here
     mov rax, rdi
@@ -2145,6 +2292,69 @@ clrloc:
     cmp eax, NVARS
     jb 1b
     ret
+
+# rcx = the innermost open block, which the statement at hand closes or
+# continues; the jump recorded for it lands here
+blktop:
+    mov eax, [rip+nblk]
+    dec eax
+    lea rax, [rax+rax*2]
+    lea rcx, [rip+blks]
+    lea rcx, [rcx+rax*8]
+    mov rdx, [rcx]
+    mov rax, rdi
+    sub rax, rdx
+    sub rax, 4
+    mov [rdx], eax
+    ret
+
+# "end" with a block open. After a plain block the two ways here are its
+# last line and the jump past it; after an else part, its last line and the
+# last line of the part before. What is assigned is what both have assigned.
+blkend:
+    call eol
+    call blktop
+    dec dword ptr [rip+nblk]
+    cmp dword ptr [rcx+16], 0
+    je 1f
+    cmp dword ptr [rcx+20], 0   # the part before else ended in jmp or ret:
+    jne 3f                      # only this way arrives
+1:  mov rax, [rcx+8]
+    cmp dword ptr [rip+dead], 0
+    je 2f
+    mov [rip+asg], rax          # only the other way arrives
+    mov dword ptr [rip+dead], 0
+    jmp 3f
+2:  and [rip+asg], rax
+3:  call clrvk
+    mov qword ptr [rip+dataend], 0
+    jmp next
+
+# "else": the block so far ends with a jump past the rest, and the jump of
+# its "if" lands here
+elsedef:
+    mov eax, [rip+nblk]
+    cmp eax, [rip+blkbase]
+    jbe err
+    call eol
+    mov byte ptr [rdi], 0xE9    # jmp rel32, filled in at end
+    inc rdi
+    mov r8, rdi
+    add rdi, 4
+    call blktop
+    cmp dword ptr [rcx+16], 0   # one else to a block
+    jne err
+    mov [rcx], r8
+    mov rax, [rcx+8]            # the else part starts with what the if had
+    mov rdx, [rip+asg]          # and remembers how the part before ended
+    mov [rcx+8], rdx
+    mov edx, [rip+dead]
+    mov [rcx+20], edx
+    mov dword ptr [rcx+16], 1
+    mov [rip+asg], rax
+    mov dword ptr [rip+dead], 0
+    call clrvk                  # (the jmp above already parted any data)
+    jmp next
 
 # emit "sub rsp, <frame>" (al = 0xEC) or "add rsp, <frame>" (al = 0xC4) when
 # the function has stack slots or locals
@@ -2597,6 +2807,8 @@ emit_mov:
 # ---- implicit exit(0), patch jumps, calls and sizes, write ELF to stdout
 fin:
     cmp dword ptr [rip+infn], 0 # a function without its end
+    jne err
+    cmp dword ptr [rip+nblk], 0 # or a block
     jne err
     lea rsi, [rip+exit0]
     mov ecx, EXIT0SZ

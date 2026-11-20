@@ -12,7 +12,7 @@ cmp build/ailc1 build/ailc2                    # the same file: a fixed point
 
 ## Shape of the program
 
-Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `usedef`, `uend`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
+Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `usedef`, `uend`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `blkend`, `elsedef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
 
 What stage0 reaches with `call` is a function:
 
@@ -59,7 +59,11 @@ The counters and the saved scope of stage0 are `var`s too, under its names (`nbu
 
 The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `zeroes`, `zerolen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
-The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has nine more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`), so `next` finds every keyword with the one search `kw`.
+The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has ten more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`, 10 `else`), so `next` finds every keyword with the one search `kw`.
+
+## Control flow
+
+The states of the top level are labels, as in stage0, and jump to each other. Inside a state and inside the functions, a test with its consequence is written as a block (`ifz d` ... `end`) and a comparison with its jump as one statement (`jeq c 10 n1`). `tools/fuse.py` made that change mechanically from the version with `eq`/`jnz` pairs: it fuses a pair only when the result of the comparison is not read on any path afterwards, turns a forward jump to a label that nothing else uses into a block when the region is short and nests, and leaves the state labels alone. It removed 138 lines and about 9% of the tokens.
 
 ## What the translation had to match
 

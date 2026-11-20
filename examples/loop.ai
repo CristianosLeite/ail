@@ -8,5 +8,4 @@ add i 48 as d           # 48 is "0"
 storeb out d
 sys 1 1 out 2
 add i 1 as i
-lt i 10 as c
-jnz c top
+jlt i 10 top

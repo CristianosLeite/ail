@@ -1,0 +1,7 @@
+set 0 as i
+set 0 as s
+label top
+add s i as s
+add i 1 as i
+jlt i 10 top
+sys 60 s

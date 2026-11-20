@@ -1,0 +1,12 @@
+# the else part starts from what was known before the if, which here is
+# nothing: not from the end of the part above it
+buf b 8
+sys 39 as k
+sub k k as o
+add b o as p
+if k
+add b 8 as p
+else
+loadb p as x
+end
+sys 60 0

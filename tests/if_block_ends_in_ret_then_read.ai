@@ -1,0 +1,9 @@
+# the block returns, so only the way past it arrives after end, and that
+# way has not assigned x
+fn f a
+if a
+set 1 as x
+ret x
+end
+ret x
+end

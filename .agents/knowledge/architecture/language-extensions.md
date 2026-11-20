@@ -172,7 +172,28 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   with magic offsets is gone.
 - The suite went from 596 to 628 tests.
 
+### Compare-and-jump statements and if blocks (2026-11-20)
+- Measured first (`docs/tokens.md`): control flow was 29% of the tokens of stage1 and the
+  examples; fusing a comparison with its jump saves 22% of that, an `if` block 15%. Both added;
+  no loop statement (31 loop-shaped labels against 152 if-shaped ones).
+- Ten jump rows (`jeq` ... `jsge`) and twelve block rows (`if`, `ifz`, `ifeq` ... `ifsge`) with
+  `else` and `end`. A block is an unnamed jump and label; `end` closes the innermost block.
+- `tools/fuse.py` rewrote stage1: 138 pairs fused, 119 blocks, 138 lines and 8.7% of the tokens
+  gone. It fuses only when the comparison result is dead on every path, converts only short,
+  properly nested regions, and keeps the documented state labels of the top level. A first run
+  without those limits turned `fin` and `blkend` into blocks hundreds of lines long.
+- The examples use the jumps: 411 to 384 tokens, C and Rust now at 0.89 and 0.90 of AIL.
+- The suite went from 628 to 675 tests.
+
 ## Why
+- **The prefix `j` and `if` on the comparison name:** no new words to learn, and `jne`, `ifle`
+  are single tokens while the others are two.
+- **`end` for blocks too:** a second closing word would cost a keyword, and the innermost-first
+  rule is unambiguous because functions do not nest.
+- **Blocks are not scopes:** variables stay those of the function, so the allocation and the
+  assignment check treat a block as the jump it is.
+- **No reset of `dataend` at `else`:** `else` always emits a `jmp`, so data before and after it
+  can never be adjacent; a mutation check showed the reset changed nothing.
 - **Results in the argument registers:** `ret` already loads its values through the argument
   parser, so several values need no new mechanism, only the count.
 - **Fewer names than results is allowed:** dropping a result is what a call without `as` does.

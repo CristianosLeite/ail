@@ -3,8 +3,7 @@
 buf in 4096
 buf out 8
 sys 0 0 in 4096 as n    # n = bytes read, or a negative error
-gt n 4096 as e          # unsigned: a negative n is far above 4096
-jnz e fail
+jgt n 4096 fail         # unsigned: a negative n is far above 4096
 
 div n 1000 as d         # thousands
 add d 48 as d           # 48 is "0"
@@ -30,8 +29,7 @@ storeb p d
 add p 1 as p
 storeb p 10             # newline
 sys 1 1 out 5 as w      # w = bytes written, or a negative error
-ne w 5 as e             # a short write counts as a failure
-jnz e fail
+jne w 5 fail            # a short write counts as a failure
 sys 60 0
 label fail
 sys 60 1

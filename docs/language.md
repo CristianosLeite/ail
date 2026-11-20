@@ -133,9 +133,50 @@ label name
 jmp name
 jz a name
 jnz a name
+jlt a b name
+
+if a
+...
+else
+...
+end
 ```
 
 `label` names the point in the program where it stands; it emits no code. `jmp` continues execution at a label. `jz` jumps if the value `a` is zero and `jnz` if it is not, otherwise execution goes on with the next line. All 64 bits of the value are tested, so a comparison result can be used directly. The value is any [argument](#arguments).
+
+The compare-and-jump statements take two values and a label and jump if the comparison holds, without a variable for the result:
+
+| Statement | Jumps when |
+|---|---|
+| `jeq a b`, `jne a b` | `a` equals `b`, differs from `b` |
+| `jlt a b`, `jle a b`, `jgt a b`, `jge a b` | `a` is below, below or equal, above, above or equal, in unsigned order |
+| `jslt a b`, `jsle a b`, `jsgt a b`, `jsge a b` | the same in signed order |
+
+`jlt i 10 top` does what `lt i 10 as c` and `jnz c top` do, in one line and five tokens instead of eleven.
+
+#### Blocks
+
+`if a` runs the lines up to the matching `end` when `a` is not zero, and passes over them otherwise. With an `else` line in between, the lines after it run in the other case. The opening line comes in the same forms as the jumps:
+
+| Statement | The block runs when |
+|---|---|
+| `if a`, `ifz a` | `a` is not zero, is zero |
+| `ifeq a b`, `ifne a b` | `a` equals `b`, differs from `b` |
+| `iflt a b`, `ifle a b`, `ifgt a b`, `ifge a b` | the unsigned comparison holds |
+| `ifslt a b`, `ifsle a b`, `ifsgt a b`, `ifsge a b` | the signed comparison holds |
+
+```
+ifgt n 4096
+sys 60 1                # too long
+end
+ifz n
+set 1 as n
+else
+sub n 1 as n
+end
+```
+
+Blocks nest, and `end` closes the innermost one that is open; only when none is open in a function does it end the function. A block is a jump and a label that need no name, nothing more: labels and jumps work inside and across blocks, and a block has no variables of its own. The check for [unassigned variables](#control-flow) treats it like the jumps it stands for: after `end`, a variable is assigned if both ways there assigned it.
 
 A label may be defined before or after the jumps that use it, and a label after the last statement stands at the appended `exit(0)`. Each label is defined once. Label names follow the rules of variable names but are a separate name space: a label may share its name with a variable or a buffer, and may be called `as`. There is no limit on the number of labels or jumps.
 
@@ -144,8 +185,7 @@ set 0 as i
 label top
 sys 1 1 "x"
 add i 1 as i
-lt i 3 as c
-jnz c top               # prints xxx
+jlt i 3 top             # prints xxx
 ```
 
 A jump does not touch any variable. A variable may only be read where every way to that line has assigned it: reading one on a path that may have jumped over its `as` is the error `unassigned variable`.
@@ -599,9 +639,10 @@ Causes of a syntax error:
 - `data` without an item, with an item that is not a string or an integer from 0 to 255, with the name `as`, or followed by anything but a comment
 - `buf` without a name and a size (an integer or a `const`), with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
-- `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
+- `jmp` with a value, `jz` or `jnz` without exactly one, a compare-and-jump without exactly two, any of them without a label name or with `as`, or followed by anything but a comment
+- an `if` form without its one or two values or with `as`, `else` without an open block or twice in one, a block without its `end`
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
-- `end` outside a function, or followed by anything but a comment
+- `end` with no block open and outside a function, or followed by anything but a comment
 - `ret` outside a function, without a value or with more than six, or with `as`
 - more than one name after `as` on a statement that is not `call` or `callp`, or more than six on those
 - `ref` without a function name and `as` with one name, or with a value; `callp` without a value
@@ -629,8 +670,7 @@ add i 48 as d
 storeb out d
 sys 1 1 out 2
 add i 1 as i
-lt i 10 as c
-jnz c top
+jlt i 10 top
 ```
 
 Copy up to 4096 bytes of stdin to stdout, in upper case only for the first byte:

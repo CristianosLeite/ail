@@ -61,7 +61,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Extend function composition where it saves tokens. Functions are flat,
   `call` requires a static name, and `ret` carries one value. Evaluate local
   helper definitions, indirect calls and multiple results independently.
-- [ ] Measure the cost of explicit labels, jumps and comparison temporaries in
+- [x] Measure the cost of explicit labels, jumps and comparison temporaries in
   real programs. Evaluate direct conditional branches and compact structured
   control flow while retaining explicit jumps.
 - [ ] Make system interfaces cheaper to use. `sys` requires numeric syscall
