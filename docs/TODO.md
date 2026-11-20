@@ -258,7 +258,7 @@ a small internal interface for compiler-generated code.
    and when a `local` address remains valid across suspension. Keep the
    compiler sources within the syntax supported by the pinned seed until
    a seed that supports async is released and pinned.
-4. [ ] Integrate with the existing `spawn` and `join` worker pool. Keep their
+4. [x] Integrate with the existing `spawn` and `join` worker pool. Keep their
    documented behavior and use the pool for blocking calls and CPU-bound
    work. Deliver worker completion to the executor as a wakeup that an async
    task can await. Define cancellation and shutdown for queued work, running

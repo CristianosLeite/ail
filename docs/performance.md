@@ -219,3 +219,70 @@ Source tokens (`o200k_base`), comments left out:
 | memsum | 142 | 249 | 22 |
 
 The task form of a program is 107 to 115 tokens and 22 to 24 lines longer. In `collatz`, 90 of the 115 are the two loops that cut the range into pieces, keep the handles and add up the results, `spawn` and `join` being 12 of those; the `use` is 6, `call workers` 6, and the rest declares the buffer of handles and reads the two numbers. [The token page](tokens.md#tasks-measured-on-2026-11-20) has the count of the forms.
+
+## Async, 2026-11-20
+
+The programs of `bench/async/` measure the runtime of `lib/async/`, which polls every task on one thread. They are the measurement of the backlog section on asynchronous execution: what a wait costs, what a server on one thread carries, and whether a scheduler on several threads would pay. Machine as above (Core i7-12700H, 20 threads, Linux 7.0); every figure is the median of five runs.
+
+```
+make
+for p in timer echod ping switch mem hop; do build/ailc < bench/async/$p.ai > build/$p && chmod +x build/$p; done
+build/switch 1000 1000      # a million waits
+build/mem 100000            # bytes a sleeping task
+build/hop 100000            # work handed to the pool, one after the other
+build/ping 100 2000         # server and clients in one process
+build/echod 0 & build/ping 100 2000 <port>
+gcc -O2 -o build/echod_c bench/async/echod.c
+```
+
+| program | what it does |
+|---|---|
+| `switch` | tasks that each `await asyncyield` many times: a task made, the asking task put aside, both polled, a record given back |
+| `mem` | tasks asleep in a timer, three variables alive in each; resident memory before and after |
+| `hop` | `await asyncblock` of a function that does nothing |
+| `echod` | a TCP echo server, one task a connection, 4096 bytes of buffer in each task |
+| `ping` | load for it: a task a connection sends 64 bytes and reads them back, and times each round trip |
+| `echod.c` | the same server on `epoll` by hand in C, one thread, for comparison |
+
+**A wait.**
+
+| | nanoseconds |
+|---|---:|
+| a wait that gives the thread to another task and gets it back (`switch`, 1000 tasks) | 22 |
+| the same with 100000 tasks, whose records no longer fit the cache | 43 |
+| work handed to the pool and awaited, 100000 pieces at once (`hop`) | 1100 |
+| the same one after the other, the polling thread asleep for each | 3500 |
+
+A wait on the thread is a few tens of instructions: a record from a free list, two entries in a queue, two indirect calls. Handing work to another thread costs 50 to 160 times that, a futex wake for the worker and, if the polling thread sleeps, an `eventfd` write and an `epoll_wait` to get back: `asyncblock` is for work of many microseconds, and the figures for `spawn` above hold for it.
+
+**Memory.** A task asleep in a timer is 272 bytes of resident memory: its record of 128 bytes (64 of the library, the rest for its variables, three here), the timer's event of 128 and 16 in the heap. A connection of `echod` is a record of 8192 bytes, of which 4096 are its buffer and the rest the rounding to a power of two, plus 128 for the descriptor. A hundred thousand waiting tasks are 27 MiB, and none has a stack.
+
+**A server.** Round trips of 64 bytes over loopback, `ping` in one process and the server in another, so each has a processor:
+
+| connections | server | round trips a second | mean | median | 99 of 100 within |
+|---:|---|---:|---:|---:|---:|
+| 1 | `echod` (AIL) | 112800 | 8 us | 7 us | 18 us |
+| 1 | `echod.c` | 109000 | 8 us | 8 us | 18 us |
+| 100 | `echod` (AIL) | 294600 | 337 us | 335 us | 615 us |
+| 100 | `echod.c` | 281300 | 353 us | 354 us | 413 us |
+| 1000 | `echod` (AIL) | 279400 | 3503 us | 3364 us | 5048 us |
+| 1000 | `echod.c` | 271700 | 3586 us | 3522 us | 4366 us |
+
+With clients and server as tasks of one thread (`ping` without a port) the same work is 165800, 171700 and 158600 round trips a second, about half, as one processor does both sides.
+
+- **The server written with `async fn` carries what the one written on `epoll` by hand carries.** The time of a round trip with many connections is the wait in line, connections times the service time, and the same for both.
+- **Where the time goes**: for a million round trips at 100 connections the AIL server uses 0.31 s in its own code and 3.0 s in the kernel; the C server 0.14 s and 2.97 s. The runtime costs 170 ns a round trip more than code written for this one program, 6% of the processor time of the server, and nine tenths of the time are the kernel's in either.
+- **System calls**: for 200000 round trips the AIL server made 208705 calls of `read`, 8605 of which said "not now", 200002 of `write` and 169 of `epoll_wait`. An operation asks the kernel first, so a busy server hardly ever sleeps; the server in C, which waits for an event before each read, cannot make fewer.
+- The source of the server is 245 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 481 in C; [token cost](tokens.md) has the forms.
+
+### A scheduler on several threads
+
+Tokio polls tasks on a pool of threads, each with a queue of its own that idle threads steal from. The backlog asks whether AIL should, once the single thread is measured.
+
+*What could move.* A task between two polls is its record and nothing else: the variables and locals are in it, the place to go on is in it, and no stack belongs to it. The code the compiler writes for an `async fn` does not care which thread calls it. So a task could be polled by another thread than the last time. Everything around it could not, as it is: the queue, the free lists of records, the heap of timers, the records and lists of the descriptors, the list of what can be cancelled and the cells of a task that say who awaits it are written without a lock or an atomic instruction, by the one thread that polls. An event belongs to the driver of the thread that made it.
+
+*What it would cost.* Every wake, every `await` and every operation on a descriptor would take a lock or become a loop around `cas`, which is paid by programs that never use a second thread, on a wait that costs 22 ns now. The hop measured above is what a task that is woken on another thread pays, 1.1 to 3.5 microseconds, more than a round trip's worth of the runtime's own work. And the larger cost is not in the library: today nothing in a program runs at the same time as anything else, so tasks share `var` cells and buffers freely, which is most of what makes them short to write. With tasks on several threads every program would need `xadd` and `cas` where tasks meet, as code for `spawn` does.
+
+*What it would gain.* The server above spends nine tenths of its time in the kernel, and that part does run in parallel. A second thread would raise what one process carries past the 280000 round trips a second of one processor. Work that computes is already parallel: `asyncblock` gives it to the pool.
+
+*The decision.* No scheduler on several threads for now. One thread carries as much as a server in C on one thread, its limit is the kernel's work on one processor, and the programs stay free of locks. If a program needs more than that, the form to build is a thread per processor with a runtime of its own each, tasks never moving, connections spread by the kernel (`SO_REUSEPORT`): it keeps the rule that the tasks of one runtime never run at the same time. Processes do that today without a change, each started with its own copy of the server; for threads the state of the library would have to be found through the thread instead of in a `buf`, which needs a thread-local cell that the language does not have. Work stealing would be the step after, and only measurement of such a program could ask for it.
