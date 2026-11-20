@@ -777,7 +777,11 @@ jmp l3
 end
 call rdnum as p
 label l3
-if p>0x7ffffff0
+# The locals of a function together stay a page short of 2 GiB: a local
+# is addressed by a signed 32-bit distance from rsp, or from the record
+# of a task, and before it lie the slots of the variables and either the
+# values pushed for a call or the 64 bytes of the record
+if p>0x7ffff000
 call ebuf
 end
 call eol
@@ -785,7 +789,7 @@ store r*8+vlocsz p
 p=p+7>>3<<3
 store r*8+vlocal loccur+1
 p+=loccur
-if p>0x7ffffff0
+if p>0x7ffff000
 call ebuf
 end
 loccur=p
