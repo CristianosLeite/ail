@@ -28,3 +28,7 @@ The language is now developed in stage1; stage0 stays in the repository as the b
 
 - Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 45% fewer tokens than assembly and about 10% more than C or Rust. Use `tools/tokens.sh` to choose between syntax alternatives.
 - Report a line number on compile errors, since the error message is what an AI uses to repair its program.
+
+## Not planned
+
+- A second target architecture, linkable object files, a platform calling convention and dynamic linking were evaluated on 2026-11-20 and left out. Each would add a second code generator or a file format to both compilers, for no program that needs it. A second target, if ever wanted, would start as a cross-compiling backend in stage1.

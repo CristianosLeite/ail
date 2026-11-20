@@ -343,7 +343,7 @@ ff:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
 - A function is compiled twice, so compiling takes up to twice as long.
 - Functions do not nest.
 - Input 8 MiB (8388608 bytes, inclusive), all units together; see [Capacity](#capacity).
-- x86-64 Linux only.
+- x86-64 Linux only, and a complete executable only: no object files, no dynamic linking, and a calling convention of its own. This was evaluated and kept; the target is in every layer of the compilers, and `use` joins sources without a linker.
 - Strings and data are read-only; writable memory is what `buf`, `local` and `alloc` give, or what the program maps itself.
 - `alloc` is one mapping per call: at least a page and two system calls for every allocation and release.
 

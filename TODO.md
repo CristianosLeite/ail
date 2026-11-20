@@ -84,7 +84,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   immediates. That caps the total rounded buffer size at 3,840 MiB. Evaluate
   relocatable addressing and position-independent executables, and handle
   branches or calls that exceed signed 32-bit displacement range as output grows.
-- [ ] Evaluate additional targets and interoperability. The compiler and its
+- [x] Evaluate additional targets and interoperability. The compiler and its
   output are x86-64 Linux only. Generated programs are standalone ELF64 files
   without ELF sections, symbols or dynamic linking, and AIL calls use an
   internal calling convention. Consider linkable objects and a platform ABI.
