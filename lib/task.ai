@@ -141,27 +141,31 @@ call taskrun t
 jmp top
 end
 
-# start a worker: a thread on a stack of 8 MiB whose lowest page is closed,
-# so that a task that needs more faults. 1 if it runs, 0 if the kernel
-# refused the memory or the thread. The new thread comes out of clone on
-# the new stack with the registers of this one, so nothing between the
-# clone and the call of taskwork may be kept in the frame: this function
-# has two variables, which have registers.
+# start a worker: a thread on a stack of 8 MiB whose lowest page is closed
+# before the thread exists, so that a task that needs more faults. 1 if it
+# runs, 0 if the kernel refused the memory, the closed page or the thread;
+# the stack is given back then. The stack is a mapping of its own and not
+# an alloc, whose length would stand in the closed page. The new thread
+# comes out of clone on the new stack with the registers of this one, so
+# nothing between the clone and the call of taskwork may be kept in the
+# frame: this function has two variables, which have registers.
 fn taskstart
-alloc 8388608 as s
-ifz s
+sys mmap 0 8388608 3 0x22 -1 0 as s
+if s>-4096
 ret 0
 end
+sys mprotect s 4096 0 as r
+ifz r
 sys clone 0x50f00 s+8388608 0 0 0 as r
 ifz r
 call taskwork
 end
-if r>-4096
-free s
-ret 0
-end
-sys mprotect s-16 4096 0
+if r<-4095
 ret 1
+end
+end
+sys munmap s 8388608
+ret 0
 end
 
 # 819 free records in one block of 64 KiB from alloc, linked; 0 if there
