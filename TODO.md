@@ -144,7 +144,7 @@ From `REDESIGN.md`; one commit per item.
   (added when the measurements showed where `isort` and `sieve` lost).
 - [x] Record the measurements after instruction selection.
 - [x] Write the examples and the library with expressions.
-- [ ] Add a tool that rewrites statements as expressions.
+- [x] Add a tool that rewrites statements as expressions.
 - [ ] Release and pin the second seed.
 - [ ] Write the compiler with expressions.
 - [ ] Report the redesign against its acceptance criteria.

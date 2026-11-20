@@ -51,6 +51,8 @@ Measured on the first `stage1/ailc.ai` without comments: 6181 tokens in 1107 lin
 
 Run the script again after a change of syntax and update the table when an example changes.
 
+`tools/infix.py` rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before.
+
 ## Control flow, measured on 2026-11-20
 
 Before choosing new forms of control flow, the cost of the existing ones was counted in `stage1/ailc.ai` and the examples together: 13447 tokens in 2443 lines.
