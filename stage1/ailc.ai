@@ -49,6 +49,11 @@ var rwstart
 # expressions: the nodes, values and operators of the one being parsed, and
 # whether it divides or shifts
 var nex nexv nexs exdm exsh
+# code for expressions: the free registers and the preferred one, the
+# number of values that wait and of those that hold no register, the two
+# operands of the operator at hand, and how many bytes of the row of a
+# statement eop is to leave out
+var xfree xpref nxs xspl xlk xla xlb xlc xrk xra xrb xrc xskip
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -1495,120 +1500,609 @@ call eb g
 set op as immpos
 call e4 0
 end
-# load the node at p, which is not an operator, into register g
-fn exload p g
+# ---- code for expressions
+# The nodes of ex are run as on a stack machine, but the stack is kept by
+# the compiler: exv, used again now that parsing is over, has an entry of
+# 40 bytes for each value that waits, a kind and three cells. A value that
+# needs no instruction yet stays what its node was, kind 1 a number, 2 a
+# global name and a number, 4 a variable, 5 a var; a computed value is kind
+# 7, in a register, or 8, pushed. Registers come from xfree, the scratch
+# registers that hold no value of the statement, rcx and rdx apart: a shift
+# counts in rcx and a division needs rdx, so those two never hold a value
+# that waits. When none is free, the lowest value that is in a register is
+# pushed; xspl is the entry below which none is in a register, so pushed
+# values are the lowest and come back in order.
+fn rexw r b
+shr r 3 as r
+shl r 2 as r
+shr b 3 as b
+or r b as r
+or r 72 as r
+call eb r
+end
+# ModRM for two registers: r in the reg field, b in the r/m field
+fn modrr r b
+and r 7 as r
+shl r 3 as r
+and b 7 as b
+or r b as r
+or r 192 as r
+call eb r
+end
+# <o> d, s for an instruction of the form "r/m64, r64"
+fn orr o d s
+call rexw s d
+call eb o
+call modrr s d
+end
+# instruction n of the group 81/83 on register d with the number v, which
+# fits 32 bits signed: 0 add, 1 or, 4 and, 5 sub, 6 xor, 7 cmp; in the
+# shortest form, as an assembler writes it
+fn ori n d v
+call rexw 0 d
+add v 128 as c
+shr c 8 as c
+ifz c
+call eb 131
+call modrr n d
+call eb v
+ret 0
+end
+ifz d
+# rax has a form without ModRM
+mul n 8 as c
+add c 5 as c
+call eb c
+call e4 v
+ret 0
+end
+call eb 129
+call modrr n d
+call e4 v
+end
+fn epush r
+ifge r 8
+call eb 65
+end
+and r 7 as r
+add r 80 as r
+call eb r
+add pushed 8 as pushed
+end
+fn epop r
+ifge r 8
+call eb 65
+end
+and r 7 as r
+add r 88 as r
+call eb r
+sub pushed 8 as pushed
+end
+# setcc d8 with the condition byte c, then movzx d32, d8
+fn esetcc d c
+ifge d 4
+shr d 3 as b
+or b 64 as b
+call eb b
+end
+call eb 15
+call eb c
+call modrr 0 d
+ifge d 4
+shr d 3 as b
+mul b 5 as b
+or b 64 as b
+call eb b
+end
+call eb 15
+call eb 182
+call modrr d d
+end
+fn xpush k a b c
+mul nxs 40 as p
+add p exv as p
+store p k
+add p 8 as q
+store q a
+add p 16 as q
+store q b
+add p 24 as q
+store q c
+add nxs 1 as nxs
+end
+# register r is free again
+fn xrel r
+shl 1 r as m
+or xfree m as xfree
+end
+# a free register, the preferred one if it is free; with none free, the
+# lowest waiting value that is in a register is pushed and gives its own
+fn xalloc
+set xpref as r
+iflt r 16
+shr xfree r as c
+and c 1 as c
+jnz c t
+end
+set 0 as i
+label a
+iflt i 13
+add i xord as p
+loadb p as r
+shr xfree r as c
+and c 1 as c
+jnz c t
+add i 1 as i
+jmp a
+end
+label s
+jge xspl nxs bad
+mul xspl 40 as p
+add p exv as p
+load p as k
+add xspl 1 as xspl
+jne k 7 s
+store p 8
+add p 8 as p
+load p as r
+call epush r
+ret r
+label bad
+call err
+label t
+shl 1 r as m
+xor xfree m as xfree
+ret r
+end
+# take register x: if a waiting value is in it, that value moves
+fn xtake x
+shr xfree x as c
+and c 1 as c
+if c
+shl 1 x as m
+xor xfree m as xfree
+ret 0
+end
+set 0 as i
+label a
+jge i nxs n
+mul i 40 as p
+add p exv as p
 load p as k
 add p 8 as q
-load q as a
+load q as r
+add i 1 as i
+jne k 7 a
+jne r x a
+call xalloc as t
+ifne t x
+call mrr t x
+store q t
+end
+label n
+end
+# load the value k a b c into register r
+fn xld k a b c r
 ifeq k 1
-call movi g a
+call movi r a
 ret 0
 end
 ifeq k 4
-call vmov a g 139
+call vmov a r 139
 ret 0
 end
 ifeq k 5
-call emem g 1 a 139
+call emem r 1 a 139
 ret 0
 end
-add p 16 as q
-load q as b
-add p 24 as q
-load q as c
+ifeq k 7
+ifne a r
+call mrr r a
+end
+ret 0
+end
 set a as ns
 set b as nl
-call lear g
+call lear r
 call addref 0
 if c
-# lea g, [g + c]
-shr g 3 as d
-mul d 5 as d
-or d 72 as d
-call eb d
-call eb 141
-and g 7 as d
-mul d 9 as d
-or d 128 as d
-call eb d
-call e4 c
+call ori 0 r c
 end
 end
-# the instruction bytes of operator o, which are those of the statement of
-# the same meaning: operands in rax and rdi, result in rax
-fn exrow o
+# how the value k a b c can be the second operand of an instruction, as
+# three results: 0, a register, and 1 if it was taken for this and is to be
+# freed; or 1 and a number that fits 32 bits signed; or 2 and memory, as
+# emem takes it, kind then place
+fn xsrc k a b c
+ifeq k 7
+ret 0 a 1
+end
+ifeq k 1
+add a 0x80000000 as t
+shr t 32 as t
+ifz t
+ret 1 a 0
+end
+end
+ifeq k 4
+call vplace a as kk pp
+ifz kk
+ret 0 pp 0
+end
+iflt kk 3
+ret 2 kk pp
+end
+end
+ifeq k 5
+ret 2 1 a
+end
+call xalloc as r
+call xld k a b c r
+ret 0 r 1
+end
+# take the two operands of an operator off the stack into xlk.. and xrk..;
+# one that was pushed comes back into a register, the right one first
+fn xpop2
+sub nxs 1 as nxs
+mul nxs 40 as p
+add p exv as p
+load p as c
+set c as xrk
+add p 8 as q
+load q as c
+set c as xra
+add p 16 as q
+load q as c
+set c as xrb
+add p 24 as q
+load q as c
+set c as xrc
+sub nxs 1 as nxs
+sub p 40 as p
+load p as c
+set c as xlk
+add p 8 as q
+load q as c
+set c as xla
+add p 16 as q
+load q as c
+set c as xlb
+add p 24 as q
+load q as c
+set c as xlc
+ifgt xspl nxs
+set nxs as xspl
+end
+ifeq xrk 8
+call xalloc as r
+call epop r
+set 7 as xrk
+set r as xra
+end
+ifeq xlk 8
+call xalloc as r
+call epop r
+set 7 as xlk
+set r as xla
+end
+end
+# the register that an operator computes in: that of its left operand if
+# it is a computed value, or of its right one if the operands may change
+# places (m = 1), else a new one with the left operand loaded
+fn xdst m
+ifeq xlk 7
+ret xla
+end
+if m
+ifeq xrk 7
+set xlk as k
+set xla as a
+set xlb as b
+set xlc as c
+set xra as r
+set 7 as xlk
+set r as xla
+set k as xrk
+set a as xra
+set b as xrb
+set c as xrc
+ret r
+end
+end
+call xalloc as d
+call xld xlk xla xlb xlc d
+ret d
+end
+# + - & ^ | and *: instruction o of xopc on the register of the left
+# operand, with the right one where it is
+fn xarith o
+set 0 as m
+ifne o 4
+set 1 as m
+end
+call xdst m as d
+call xsrc xrk xra xrb xrc as s x y
 mul o 3 as p
-add p exkw as p
-set p as ns
-add o exkwl as p
-loadb p as p
-set p as nl
-call kw as r
-add r 3 as p
-loadb p as n
-add r 4 as r
-call cp r n
+add p xopc as p
+ifz o
+ifz s
+call rexw d x
+call eb 15
+call eb 175
+call modrr d x
 end
-# compute the nodes i up to h of ex, which are one expression, into rax, as
-# a stack machine: the value on top is in rax and those under it are
-# pushed. A value that an operator follows at once is its right operand and
-# goes to rdi directly.
-fn exemit i h
-set 0 as dp
-set 0 as rd
+ifeq s 1
+call rexw d d
+add x 128 as c
+shr c 8 as c
+ifz c
+call eb 107
+call modrr d d
+call eb x
+else
+call eb 105
+call modrr d d
+call e4 x
+end
+end
+ifeq s 2
+call emem d x y 175
+end
+jmp f
+end
+ifz s
+loadb p as c
+call orr c d x
+end
+ifeq s 1
+add p 2 as q
+loadb q as c
+call ori c d x
+end
+ifeq s 2
+add p 1 as q
+loadb q as c
+call emem d x y c
+end
+label f
+ifz s
+if y
+call xrel x
+end
+end
+call xpush 7 d 0 0
+end
+# << and >>: by a number, or by the count moved to rcx
+fn xshift o
+call xdst 0 as d
+mul o 3 as p
+add p xopc as p
+add p 2 as p
+loadb p as n
+ifeq xrk 1
+and xra 63 as c
+if c
+call rexw 0 d
+ifeq c 1
+call eb 209
+call modrr n d
+jmp f
+end
+call eb 193
+call modrr n d
+call eb c
+end
+jmp f
+end
+ifeq xrk 7
+call mrr 1 xra
+call xrel xra
+else
+call xld xrk xra xrb xrc 1
+end
+call rexw 0 d
+call eb 211
+call modrr n d
+label f
+call xpush 7 d 0 0
+end
+# / and %: by a power of two a shift or a mask; else the left operand goes
+# to rax, rdx is cleared, and the quotient is in rax, the remainder in rdx
+fn xdiv o
+ifeq xrk 1
+if xra
+sub xra 1 as c
+and c xra as t
+ifz t
+ifeq o 2
+set c as xra
+tail xarith 7
+end
+set 0 as n
+set xra as c
+label l
+shr c 1 as c
+if c
+add n 1 as n
+jmp l
+end
+set n as xra
+tail xshift 6
+end
+end
+end
+set 0 as h
+ifeq xrk 7
+ifz xra
+call xalloc as t
+call mrr t 0
+set t as xra
+set 1 as h
+end
+end
+ifeq xlk 7
+ifz xla
+set 1 as h
+end
+end
+ifz h
+call xtake 0
+end
+set 0 as h
+ifeq xlk 7
+ifz xla
+set 1 as h
+end
+end
+ifz h
+call xld xlk xla xlb xlc 0
+ifeq xlk 7
+call xrel xla
+end
+end
+call xsrc xrk xra xrb xrc as s x y
+ifeq s 1
+call xalloc as t
+call movi t x
+set 0 as s
+set t as x
+set 1 as y
+end
+call eb 49
+call eb 210
+ifz s
+call rexw 0 x
+call eb 247
+call modrr 6 x
+if y
+call xrel x
+end
+else
+call emem 6 x y 247
+end
+ifeq o 2
+call mrr 0 2
+end
+call xpush 7 0 0 0
+end
+# cmp <left operand>, <right operand>; the left one is in a register
+# afterwards, xla, and the results say where the right one was, as xsrc does
+fn xcmp
+ifne xlk 7
+call xalloc as r
+call xld xlk xla xlb xlc r
+set 7 as xlk
+set r as xla
+end
+call xsrc xrk xra xrb xrc as s x y
+ifz s
+call orr 57 xla x
+end
+ifeq s 1
+call ori 7 xla x
+end
+ifeq s 2
+call emem xla x y 59
+end
+ret s x y
+end
+# a comparison as a value: 1 or 0 in the register of the left operand
+fn xcmpv o
+call xcmp as s x y
+ifz s
+if y
+call xrel x
+end
+end
+mul o 3 as p
+add p xopc as p
+add p 2 as p
+loadb p as c
+call esetcc xla c
+call xpush 7 xla 0 0
+end
+fn xop o
+call xpop2
+ifge o 10
+tail xcmpv o
+end
+iflt o 3
+if o
+tail xdiv o
+end
+end
+ifeq o 5
+tail xshift o
+end
+ifeq o 6
+tail xshift o
+end
+tail xarith o
+end
+# compute the nodes i up to h of ex, which are one expression: its value
+# is left on the stack
+fn xgen i h
 label a
 jge i h x
 call ochk
 mul i 32 as p
 add p ex as p
 load p as k
-ifne k 6
-set 0 as g
-if dp
-add i 1 as j
-iflt j h
-add p 32 as q
-load q as t
-ifeq t 6
-set 7 as g
-set 1 as rd
-end
-end
-ifz g
-call eb 80
-add pushed 8 as pushed
-end
-end
-call exload p g
-add dp 1 as dp
-add i 1 as i
-jmp a
-end
-ifz rd
-call mrr 7 0
-call eb 88
-sub pushed 8 as pushed
-end
-set 0 as rd
 add p 8 as q
-load q as o
-call exrow o
-sub dp 1 as dp
+load q as a
+add p 16 as q
+load q as b
+add p 24 as q
+load q as c
+ifeq k 6
+call xop a
+else
+ifeq k 1
+call xpush k a b c
+else
+# a variable, a var or an address: into a register now
+call xalloc as r
+call xld k a b c r
+call xpush 7 r 0 0
+end
+end
 add i 1 as i
 jmp a
 label x
 end
+# the value on top of the stack, the result, into register g
+fn xfin g
+sub nxs 1 as nxs
+mul nxs 40 as p
+add p exv as p
+load p as k
+add p 8 as q
+load q as a
+add p 16 as q
+load q as b
+add p 24 as q
+load q as c
+call xld k a b c g
+end
+# an empty stack, and m the registers that are free; g is the one to
+# prefer, 16 for none
+fn xinit m g
+set m as xfree
+set g as xpref
+set 0 as nxs
+set 0 as xspl
+end
 # the expression parsed last is the next value of the statement: compute it
 # into the register of its position, note what is known of it, count it.
-# The computation uses rax and rdi, rdx to divide and rcx to shift, so the
-# values of the statement that are in those are pushed around it.
+# The registers that hold earlier values of the statement are not free; a
+# division needs rax and rdx and a shift rcx, which are pushed around the
+# computation when they hold one.
 fn exarg
 call aidx as t
 call areg t as g
-ifeq nex 1
-call exload ex g
-jmp k
-end
+call opdp as p
+add exv 8 as q
+call cp4 q p
 set ai as n
 set 0 as s8
 add cur 2 as c
@@ -1620,56 +2114,54 @@ sub n 1 as n
 set exsh as s8
 end
 end
+set 0x0fc1 as m
+set 0 as j
+label a
+iflt j n
+iflt j 6
+call areg j as r
+shl 1 r as b
+or m b as m
+xor m b as m
+add j 1 as j
+jmp a
+end
+end
+set 0 as s0
 set 0 as s3
+if exdm
+ifge n 1
+set 1 as s0
+call epush 0
+or m 1 as m
+end
 ifge n 4
-set exdm as s3
+set 1 as s3
+call epush 2
 end
-ifge n 1
-call eb 80
-add pushed 8 as pushed
-end
-ifge n 2
-call eb 87
-add pushed 8 as pushed
-end
-if s3
-call eb 82
-add pushed 8 as pushed
 end
 if s8
-call eb 81
-add pushed 8 as pushed
+call epush 1
 end
-call exemit 0 nex
-if g
-call mrr g 0
-end
+call xinit m g
+call xgen 0 nex
+call xfin g
 if s8
-call eb 89
-sub pushed 8 as pushed
+call epop 1
 end
 if s3
-call eb 90
-sub pushed 8 as pushed
+call epop 2
 end
-ifge n 2
-call eb 95
-sub pushed 8 as pushed
+if s0
+call epop 0
 end
-ifge n 1
-call eb 88
-sub pushed 8 as pushed
-end
-label k
-call opdp as p
-add exv 8 as q
-call cp4 q p
 call anext
 end
 # A comparison that is the whole value of if, ifz, jz or jnz is not turned
 # into 1 or 0 and tested: the statement becomes the one that compares and
-# jumps (ifeq, jlt, ...), or its opposite for ifz and jz, with the two
-# sides of the comparison as its two values. 1 if that was done.
+# jumps (ifeq, jlt, ...), or its opposite for ifz and jz. The two sides are
+# compared here, where they are, and xskip makes eop leave out the cmp of
+# the row and copy only its jump. 1 if that was done.
 fn excond
 if ai
 ret 0
@@ -1739,20 +2231,12 @@ set r as cur
 add p 16 as q
 load q as e
 add e 1 as e
-call exemit 0 e
-sub h e as c
-ifeq c 1
-mul e 32 as q
-add q ex as q
-call exload q 7
-else
-call eb 80
-add pushed 8 as pushed
-call exemit e h
-call mrr 7 0
-call eb 88
-sub pushed 8 as pushed
-end
+call xinit 0x0fc1 16
+call xgen 0 e
+call xgen e h
+call xpop2
+call xcmp as s x y
+set 3 as xskip
 set 2 as ai
 ret 1
 end
@@ -1832,12 +2316,17 @@ ifne f -1
 call exred f
 end
 call eol
-ifeq nex 1
-call exload ex 0
-jmp s
-end
-call exemit 0 nex
-label s
+add exv 8 as q
+load q as k0
+add q 8 as q
+load q as k1
+add q 8 as q
+load q as k2
+add q 8 as q
+load q as k3
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
 set ts as ns
 set tl as nl
 call lbuf as r
@@ -1875,8 +2364,13 @@ shl 1 i as d
 or asg d as asg
 mul i 32 as d
 add d vk as d
-add exv 8 as q
-call cp4 q d
+store d k0
+add d 8 as d
+store d k1
+add d 8 as d
+store d k2
+add d 8 as d
+store d k3
 call vmov i 0 137
 end
 
@@ -2091,6 +2585,9 @@ shr g 3 as c
 shl c 2 as c
 or c 72 as c
 call eb c
+ifeq o 175
+call eb 15
+end
 call eb o
 and g 7 as g
 shl g 3 as g
@@ -2564,6 +3061,9 @@ label m
 add r 3 as c
 loadb c as c
 add r 4 as p
+add p xskip as p
+sub c xskip as c
+set 0 as xskip
 call cp p c
 label h
 and f 16 as f

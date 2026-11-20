@@ -90,8 +90,11 @@ Everything else is a function:
 | `opdp`, `opda`, `prop`, `clrvk`, `memchk`, `cp4` | the access check: note what is known of a value, carry it to the variable assigned, forget it, check or record a load or store; `cp4` copies an entry |
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
 | `excomp`, `exinit`, `exparse`, `exop`, `exprec`, `exname`, `exred`, `exfold` | [expressions](#expressions): is the token one; parse it into `ex`; read an operator; how tightly it binds; a name as a value; apply an operator to the two values on top; compute it for two numbers |
-| `exnode`, `exvpush`, `exspush`, `exspop`, `exload`, `exarg`, `movi`, `lear` | append a node; push a value; push and pop an operator; load a node into a register; make the expression the next value of the statement; `mov <register>, <number>` and `lea <register>, [rip+rel32]` for any register |
-| `exemit`, `exrow`, `excond`, `exasg`, `exasn`, `defv` | compute nodes of `ex` into `rax`; copy the instruction bytes of an operator; turn `if` or a jump on a comparison into the statement that compares and jumps; is the line an assignment; compile one; find or add the variable whose name was read last |
+| `exnode`, `exvpush`, `exspush`, `exspop`, `exarg`, `movi`, `lear` | append a node; push a value; push and pop an operator; make the expression the next value of the statement; `mov <register>, <number>` and `lea <register>, [rip+rel32]` for any register |
+| `excond`, `exasg`, `exasn`, `defv` | turn `if` or a jump on a comparison into the statement that compares and jumps; is the line an assignment; compile one; find or add the variable whose name was read last |
+| `xgen`, `xop`, `xarith`, `xshift`, `xdiv`, `xcmp`, `xcmpv`, `xfin`, `xinit` | the code of an expression: walk the nodes; an operator; its four kinds; compare two values; the result into a register; an empty stack and the free registers |
+| `xpush`, `xpop2`, `xalloc`, `xrel`, `xtake`, `xld`, `xsrc`, `xdst` | push a waiting value; take two operands off; a free register, pushing a value if none is; free one; take a certain one; load a value; how a value can be an operand; the register an operator computes in |
+| `rexw`, `modrr`, `orr`, `ori`, `epush`, `epop`, `esetcc` | REX and ModRM of two registers; `op reg, reg`; `op reg, imm`; `push` and `pop`, counted in `pushed`; `setcc` and `movzx` |
 
 Because `pk` returns 256 at the end of the input, "at the end?" and "which byte?" are one comparison.
 
@@ -290,24 +293,35 @@ An argument is an expression when its token starts with a parenthesis or has, af
 
 An entry of `exv` also carries what is [known](#known-addresses) of the value, four cells as in `opd`: a number, or a global name and a number. A variable brings its entry of `vk`, and `exred` carries the knowledge through `+` and `-` as `prop` does for `add` and `sub`. `exarg` copies it to `opd`, so a load or store through `b+8` is checked like one through a variable that was computed with `add`.
 
-What is left is computed by `exemit`, which walks `ex` once as a stack machine: the value on top is in `rax` and the values under it are pushed. A value is loaded by `exload` (`movi`, `vmov`, `emem`, or `lear` and a fixup, plus `lea reg, [reg+number]` for a name with a number). An operator finds its right operand in `rax` and its left one on the stack, moves the first to `rdi`, pops the second and copies the instruction bytes of the statement of the same meaning (`exrow` finds the row through the names in the table `exkw`), which take `rax` and `rdi` and leave `rax`. One case is better than that: a value that an operator follows at once is its right operand and is loaded into `rdi` directly, with no push. So `x+2*x` is
+What is left is computed by `xgen`, which walks `ex` once as a stack machine whose stack the compiler keeps: `exv`, free again once parsing is over, has an entry for every value that waits. A value that needs no instruction yet stays what its node was, and for now that is a number; a variable, a `var` or an address is loaded into a register when it is met (`xld`); a computed value is in a register, or pushed. So a number reaches its operator as a number, and the operator can take it as an immediate operand.
+
+Registers come from `xfree`, a set of the scratch registers that hold no value of the statement, taken in the order of the table `xord` after the preferred one (`xalloc`). `rcx` and `rdx` are never in it: a shift counts in `rcx` and a division needs `rdx`. When no register is free, the lowest waiting value that is in one is pushed and gives up its register; `xspl` is the entry below which none is in a register, so the pushed values are the lowest and `xpop2`, which takes the two operands of an operator off the stack, pops them back in order. Every push and pop moves `pushed`, since a variable in a stack slot is addressed from `rsp`.
+
+`xop` sends an operator to one of four routines. Each computes in the register of the left operand, or for an operator whose operands may change places in that of the right one, or loads the left operand into a new register (`xdst`); `xsrc` says how the right operand can stand in the instruction: as a register, as a number that fits 32 bits signed, or as memory. The table `xopc` has the opcodes of each operator.
+
+| Operator | Routine | Code |
+|---|---|---|
+| `+ - & ^ \|` | `xarith` | `op reg, reg`, `op reg, imm` (83 with one byte, 81 with four, the form without ModRM for `rax`), `op reg, [mem]` |
+| `*` | `xarith` | `imul reg, reg`, `imul reg, reg, imm` |
+| `<< >>` | `xshift` | by a number `shl reg, imm8` (`D1` for 1, nothing for 0), else the count goes to `rcx` and `shl reg, cl` |
+| `/ %` | `xdiv` | by a power of two `shr reg, n` or `and reg, n-1`; else the left operand goes to `rax` (`xtake` moves a waiting value out of it), `xor edx, edx`, `div reg` or `div [mem]`, and for `%` `mov rax, rdx` |
+| comparisons | `xcmpv` | `cmp` (`xcmp`), then `setcc` and `movzx` on the register of the left operand |
+
+A number that does not fit 32 bits is loaded into a register first. The encodings are the shortest ones, those an assembler writes, so the cases of `tests/insn.cases` can be written as instructions. With `x` in `rbx`, `x=(x^x>>13)*1664525+1013904223` is
 
 ```
-mov rax, rbx        ; x
-push rax
-mov eax, 2
-mov rdi, rbx        ; x, the right operand of *
-imul rax, rdi
-mov rdi, rax
-pop rax
-add rax, rdi
+mov  rax, rbx
+mov  rdi, rbx
+shr  rdi, 13
+xor  rax, rdi
+imul rax, rax, 1664525
+add  rax, 1013904223
+mov  rbx, rax
 ```
 
-Every push and pop moves `pushed`, since a variable in a stack slot is addressed from `rsp`. This is the first version of the code for expressions: correct, with the copies through `rax` and `rdi` that the statements always had.
+`xfin` moves the result to the register it is wanted in. `exarg` makes the expression the next value of the statement: it takes out of the free set the registers that hold earlier values of the statement, prefers the register of the position, and pushes around the computation `rax` and `rdx` when the expression divides (`exdm`) and they hold values, and `rcx` when it holds the address of a `callp` and the expression shifts (`exsh`).
 
-`exarg` makes the expression the next value of the statement. A single node is loaded into the register of its position. Otherwise the computation needs `rax` and `rdi`, `rdx` to divide and `rcx` to shift, which may hold earlier values of the same statement: those are pushed before and popped after, `rax` and `rdi` when the first or second position is loaded, `rdx` when the fourth is and the expression divides (`exdm`), `rcx` when it holds the address of a `callp` and the expression shifts (`exsh`); the result is moved from `rax` to its register in between.
-
-**Conditions.** A comparison as the whole value of `if`, `ifz`, `jz` or `jnz` is not turned into 1 or 0 and tested. `excond`, called from `earg` before `exarg`, recognises those four statements by their row (one operand, `test rax, rax` and a jump) and an expression whose last node is a comparison, and makes the statement the one that compares and jumps: `if a<b` becomes `iflt a b`, `jnz a<b l` becomes `jlt a b l`, and `ifz` and `jz` take the opposite comparison. It builds the name of that statement in `exnm`, finds its row with `kw`, points `cur` at it, computes the left side into `rax` and the right into `rdi`, and sets `ai` to 2; the statement then ends as if it had been written with two values. Both spellings give the same bytes. A comparison deeper in the value is still computed as 1 or 0.
+**Conditions.** A comparison as the whole value of `if`, `ifz`, `jz` or `jnz` is not turned into 1 or 0 and tested. `excond`, called from `earg` before `exarg`, recognises those four statements by their row (one operand, `test rax, rax` and a jump) and an expression whose last node is a comparison, and makes the statement the one that compares and jumps: `if a<b` becomes `iflt a b`, `jnz a<b l` becomes `jlt a b l`, and `ifz` and `jz` take the opposite comparison. It builds the name of that statement in `exnm`, finds its row with `kw` and points `cur` at it, computes the two sides, compares them where they are with `xcmp`, and sets `ai` to 2 and `xskip` to 3, which makes `eop` leave out the `cmp rax, rdi` of the row and copy only its jump. So `if x*3<100` is `mov rax, rbx` / `imul rax, rax, 3` / `cmp rax, 100` / `jae`. A comparison deeper in the value is still computed as 1 or 0.
 
 **Assignment.** `next` reads the name that starts a line and asks `exasg` whether `=` or an operator and `=` follows, before it looks for a statement of that name, so that an assignment is not mistaken for anything and a variable may carry the name of a statement. The state `asgn` calls `exasn`: for `x+=e` it pushes `x` as a value first, parses the right side on top of it and applies the operator, which also folds and carries knowledge as usual; then it computes into `rax` and stores as `capture` does for one name, into the cell of a `var` or into the variable, defined now if it is new (`defv`, the part of `defvar` after the name is read). A new variable of a function gets its first position one byte behind the line, after the last mention of every operand, so that `alloc` may give it the place of an operand that is done, as it does for the name after `as`.
 
@@ -445,7 +459,7 @@ The `program too big` check cannot fail while the 16-to-1 argument holds, so no 
 
 ## Read-only tables
 
-The tables are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` and `exkwl` (the statements whose bytes the operators of an expression use), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
+The tables are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` (the names of the comparisons), `xopc` (the opcodes of the operators of an expression) and `xord` (the order in which registers are taken), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
 
 The file is the definition of the tables. It was first printed from the bytes that the compiler in assembly assembled to; now a row is edited here. A row is decimal bytes, which no one reads as instructions, so two checks stand where the generator stood. `tests/tables.sh` checks the form: every length is that of its name or code, no statement or syscall name occurs twice, the flags are ones that exist, the two tables with rows end, the others have their size, and each syscall number is the one in a list of the script's own. `tests/insn.sh` checks the bytes: `tests/insn.cases` has a line for every row of the statement table and for the other tables, with a source, the code it must compile to in hex, and the same code as instructions. The hex is what GNU `as` writes for the instructions (`tests/insn.sh hex '<instructions>'` prints it and `tests/insn.sh asm` checks the two columns), so the expected bytes do not come from the compiler; the run in `make test` needs no assembler.
 

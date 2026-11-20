@@ -172,7 +172,13 @@ data argnum 0 7 6 2 10 8 9 11 1
 data varnum 3 5 12 13 14 15
 # mov eax,60 ; xor edi,edi ; syscall
 data exit0 184 60 0 0 0 49 255 15 5
-# the statements whose instruction bytes the operators of an expression
-# use, by operator number, three bytes each, and the lengths of the names
+# the names of the comparisons, by operator number, three bytes each: the
+# statements that compare and jump are named with them
 data exkw "muldivmodaddsubshlshrandxoror_eq_ne_lt_le_gt_ge_"
-data exkwl 3 3 3 3 3 3 3 3 3 2 2 2 2 2 2 2
+# per operator of an expression, three bytes: the opcode "r/m64, r64", the
+# opcode "r64, r/m64", and the digit of the instruction in the groups 81/83
+# (arithmetic) or C1/D3 (shifts), or for a comparison the byte of its setcc
+data xopc 0 175 0 0 0 0 0 0 0 1 3 0 41 43 5 0 0 4 0 0 5 33 35 4
+data 49 51 6 9 11 1 57 59 148 57 59 149 57 59 146 57 59 150 57 59 151 57 59 147
+# the order in which registers are taken for the values of an expression
+data xord 0 7 6 8 9 10 11 3 5 12 13 14 15

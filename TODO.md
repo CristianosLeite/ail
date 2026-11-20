@@ -132,7 +132,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Accept an expression as the condition of `if`.
 - [x] Add the `while` block.
 - [x] Check expressions against computed results in random programs.
-- [ ] Use immediate forms of instructions, and shifts and masks for division
+- [x] Use immediate forms of instructions, and shifts and masks for division
   and remainder by a power of two.
 - [ ] Use variables in place as operands.
 - [ ] Compute an assignment in the register of its target.
