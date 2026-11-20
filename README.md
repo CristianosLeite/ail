@@ -49,6 +49,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
 | `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
+| `var v w` | Global 64-bit cells, zero at start: read as a value, written by `as`, seen by every function |
+| `const k 60` | A name for a number, also usable as the syscall number and as a buffer size |
 | `data d "abc" 10` | Read-only bytes from strings and byte values; `d` is their address |
 | `len d as x` | Length in bytes of a buffer, of data or of a string |
 | `load p as x`, `loadb p as x` | Read the 64-bit value or the byte at address `p` |

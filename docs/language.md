@@ -37,7 +37,7 @@ sys n a b c d e f
 sys n a b c d e f as name
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be a decimal integer, not a string. The statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be a decimal integer or the name of a [`const`](#const), not a variable or a string. The statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -51,7 +51,7 @@ Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With 
 
 Registers for arguments you leave out are not set and keep whatever they held. Without `as`, the syscall's return value is lost.
 
-Syscall numbers are the kernel's own; the common ones are `0` read, `1` write, `60` exit.
+Syscall numbers are the kernel's own; the common ones are `0` read, `1` write, `60` exit. A `const` gives one a name: `const write 1` allows `sys write 1 "hi\n"`.
 
 ### `set` and arithmetic
 
@@ -175,14 +175,49 @@ Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `
 buf name size
 ```
 
-Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer of at least 1 and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
+Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
-A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables, buffers and data names share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
 
 ```
 buf line 4096
 sys 0 0 line 4096 as n     # read stdin into it
 sys 1 1 line n             # write what was read
+```
+
+### `var`
+
+```
+var name name ...
+```
+
+Declares global 64-bit cells, zero when the program starts. A `var` name is used like a variable: as an argument it passes the value of the cell, and `as name` stores a result in it. Unlike a variable it is visible in every function and takes none of the six registers of a scope, so it is the way to share state between functions.
+
+```
+var count
+fn tick
+add count 1 as count
+end
+call tick
+call tick
+sys 60 count            # exit(2)
+```
+
+A `var` must be declared on an earlier line than its uses, at top level or inside a function, and lives for the whole program either way. Its name cannot be that of a parameter, and it has no address: `len` does not take it. There is no limit on the number of vars.
+
+### `const`
+
+```
+const name number
+```
+
+Gives a number a name. The name is used wherever a value is accepted and passes the number; it is also accepted as the syscall number of `sys` and as the size of a `buf`, where a variable is not. A `const` costs nothing at run time and takes no register. It must be declared on an earlier line than its uses, and it cannot be the target of `as` or the name of a parameter.
+
+```
+const exit 60
+const size 4096
+buf line size
+sys exit 0
 ```
 
 ### `data`
@@ -200,7 +235,7 @@ len msg as n            # n = 6
 sys 1 1 msg n
 ```
 
-A data name is a constant like a buffer name: one value, its address, wherever a value is accepted, and it shares the name space of variables and buffers. There is no limit on the number of data statements.
+A data name is a constant like a buffer name: one value, its address, wherever a value is accepted, and it shares the name space of variables and the other global names. There is no limit on the number of data statements.
 
 `data` statements on consecutive lines are laid out one after the other with nothing between them, so a table can be written a row a line. The name is optional, since only the first row needs one; a name on a later row is the address of that row. A `label` or any statement that produces code ends the run.
 
@@ -220,7 +255,7 @@ len name as n
 len "text" as n
 ```
 
-Keeps the length in bytes of a buffer, a data name or a string in a variable: for a buffer the size as declared, before rounding; for a data name the bytes of its own statement, not of the rows after it. The operand cannot be a number or a variable.
+Keeps the length in bytes of a buffer, a data name or a string in a variable: for a buffer the size as declared, before rounding; for a data name the bytes of its own statement, not of the rows after it. The operand cannot be a number, a variable, a `var` or a `const`.
 
 ### `load` and `store`
 
@@ -289,6 +324,8 @@ A variable used as an argument passes its full 64-bit value and counts as one ar
 
 Statement keywords are only special at the start of a line, so `add` or `buf` are valid variable names.
 
+A variable belongs to the top level or to one function. State that several functions share goes into a [`var`](#var).
+
 The top level of a program can define at most 6 variables, and so can each [function](#functions), counting its parameters. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed within their scope. Syscalls and calls do not change these registers.
 
 Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), or one obtained at run time, for example from `mmap`:
@@ -310,13 +347,13 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter, `buf` or `data` defined it in this scope; the operand of `len` when it is not a buffer or data name |
+| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter, `buf`, `data`, `var` or `const` defined it in this scope; the operand of `len` when it is not a buffer or data name |
 | `ailc: too many variables` | 1 | a seventh variable name at top level or in one function, parameters included |
-| `ailc: duplicate name` | 1 | `buf` or `data` with a name already in use (inside a function, also by a top-level variable), `as` or a parameter with the name of a buffer or of data, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` with the name of a buffer, of data or of a `const`, a parameter with the name of any of the four, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
-| `ailc: too many buffers` | 1 | a seventeenth buffer, or buffers that together exceed about 3.7 GiB |
+| `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |
@@ -327,12 +364,14 @@ Causes of a syntax error:
 
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
-- `sys` not followed by a decimal syscall number
+- `sys` not followed by a decimal syscall number or the name of a `const`
 - the wrong number of operands: `set`, `len`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
-- `len` of a number
+- `len` of a number, a `var` or a `const`
+- `var` without a name, or with something that is not a name or is `as`
+- `const` without a name and a decimal integer, with the name `as`, or followed by anything but a comment
 - `data` without an item, with an item that is not a string or a decimal integer up to 255, with the name `as`, or followed by anything but a comment
-- `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
+- `buf` without a name and a size of at least 1 (a decimal integer or a `const`), with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
@@ -342,7 +381,7 @@ Causes of a syntax error:
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it
-- an argument that is not a decimal integer, a string, a variable name or a buffer or data name
+- an argument that is not a decimal integer, a string, a variable name or a global name
 - `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote

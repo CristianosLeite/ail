@@ -11,7 +11,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   outside `sys`. Today a string is inlined behind a jump and expands to two
   syscall arguments. Stage1 builds its constant tables at startup from decimal
   words. Preserve automatic byte lengths and support arbitrary byte data.
-- [ ] Lift the 16-buffer limit and add a compact way to declare shared scalars
+- [x] Lift the 16-buffer limit and add a compact way to declare shared scalars
   and constants. Stage1 uses all 16 slots and packs additional state into one
   buffer behind offset-based accessors.
 - [ ] Support forward references to buffers and data. A `buf` must precede every

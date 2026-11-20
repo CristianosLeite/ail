@@ -62,7 +62,6 @@ about the language.
 
 ## Open items
 - 2026-11-19: no constant data in the language; the tables are 131 lines of decimal words.
-- 2026-11-19: all sixteen buffers are used; a new global cell must go into `st`.
 - 2026-11-19: no 32-bit store, hence `e4` and `p4`.
 - 2026-11-19: the differential fuzz and the table generator are not in the repository.
 

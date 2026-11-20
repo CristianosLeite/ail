@@ -1,0 +1,10 @@
+# vars lie below the buffers and do not overlap them
+var a b
+buf x 16
+set 9 as a
+set 8 as b
+store x 0
+add x 8 as p
+store p 0
+add a b as r
+sys 60 r

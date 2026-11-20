@@ -16,8 +16,10 @@
 .equ INSZ,   0x10000
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 .equ NVARS,  6                  # size of the variable register pool
-.equ NBUFS,  16                 # most buffers a program may declare
-.equ NGLOB,  INSZ / 8 + 1       # "buf a 1\n" is 8 bytes: buffers and data together
+.equ NGLOB,  INSZ / 2 + 1       # "var a b c" declares a global name every 2 bytes
+.equ G_ADDR, 0                  # kinds of global name: a buffer or data, an address;
+.equ G_VAR,  1                  # a var, a cell read and written through its address;
+.equ G_CONST, 2                 # a const, a number
 .equ NLABELS, INSZ / 8 + 1      # "label a\n" is 8 bytes: the source cannot hold more
 .equ NFIX,   INSZ / 6 + 1       # "jmp a\n" is 6 bytes
 .equ NFUNCS, INSZ / 9 + 1       # "fn a\nend\n" is 9 bytes
@@ -36,11 +38,12 @@ inend:
 outbuf: .skip OUTSZ
 vars:   .skip 2 * NVARS * 16    # per variable: name address in inbuf, name length;
                                 # top level first, then the open function
-bufs:   .skip NGLOB * 16        # per buffer or data name: the same
-bufaddr: .skip NGLOB * 4        # per buffer or data name: its address
-bufsize: .skip NGLOB * 8        # per buffer or data name: its length in bytes
-nbufs:  .skip 4                 # number of buffers and data names defined so far
-nrbufs: .skip 4                 # number of those that are buffers
+bufs:   .skip NGLOB * 16        # per global name (buf, data, var, const): the same
+bufaddr: .skip NGLOB * 4        # per global name: its address
+bufsize: .skip NGLOB * 8        # its length in bytes, or the value of a const
+bufkind: .skip NGLOB            # its kind: G_ADDR, G_VAR or G_CONST
+nbufs:  .skip 4                 # number of global names defined so far
+nvars:  .skip 4                 # number of those that are vars
 dataend: .skip 8                # output cursor after the last data statement
 datarel: .skip 8                # rel32 of the jump over that data
 bsssz:  .skip 8                 # bytes reserved in the writable segment
@@ -223,7 +226,7 @@ m_vars:   .ascii "ailc: too many variables\n"
 .equ M_VARS_SZ, . - m_vars
 m_dup:    .ascii "ailc: duplicate name\n"
 .equ M_DUP_SZ, . - m_dup
-m_bufs:   .ascii "ailc: too many buffers\n"
+m_bufs:   .ascii "ailc: buffers too big\n"
 .equ M_BUFS_SZ, . - m_bufs
 m_label:  .ascii "ailc: undefined label\n"
 .equ M_LABEL_SZ, . - m_label
@@ -302,9 +305,13 @@ next:
     cmp byte ptr [r8+2], 'f'
     je bufdef
 4:  cmp word ptr [r8], 0x6e65   # "en"
-    jne 5f
+    jne 4f
     cmp byte ptr [r8+2], 'd'
     je fnend
+4:  cmp word ptr [r8], 0x6176   # "va"
+    jne 5f
+    cmp byte ptr [r8+2], 'r'
+    je vardef
 5:  cmp r9, 4
     jne 5f
     cmp dword ptr [r8], 0x61746164  # "data"
@@ -312,9 +319,13 @@ next:
 5:  cmp r9, 5
     jne 5f
     cmp dword ptr [r8], 0x6562616c  # "labe"
-    jne 5f
+    jne 4f
     cmp byte ptr [r8+4], 'l'
     je labdef
+4:  cmp dword ptr [r8], 0x736e6f63  # "cons"
+    jne 5f
+    cmp byte ptr [r8+4], 't'
+    je constdef
 5:  lea rdx, [rip+optab]
 6:  movzx ecx, byte ptr [rdx]   # length of this entry's name
     test ecx, ecx
@@ -362,13 +373,15 @@ next:
     jmp tokend
 4:  test byte ptr [rdx+1], IS_SYS
     jz arg
-    cmp rsi, r15                # sys: the syscall number must be a literal
+    cmp rsi, r15                # sys: the syscall number is a literal or a const
     jae err
     mov al, [rsi]
     sub al, '0'
     cmp al, 9
-    ja err
-    jmp num
+    jbe num
+    call constname
+    call emit_mov
+    jmp tokend
 1:  inc rsi
     jmp next
 2:  inc rsi                     # comment: skip to end of line
@@ -430,18 +443,8 @@ arg:
     jmp arg
 
 num:
-    xor eax, eax
-1:  cmp rsi, r15
-    jae 2f
-    movzx ecx, byte ptr [rsi]
-    sub ecx, '0'
-    cmp ecx, 9
-    ja 2f
-    imul eax, eax, 10
-    add eax, ecx
-    inc rsi
-    jmp 1b
-2:  mov rdx, [rip+curop]        # len takes a name or a string
+    call rdnum
+    mov rdx, [rip+curop]        # len takes a name or a string
     test byte ptr [rdx+1], IS_LEN
     jnz err
     call emit_mov
@@ -528,6 +531,48 @@ hexdig:
 1:  mov eax, edx
     ret
 
+# eax = the decimal number at rsi, modulo 2^32
+rdnum:
+    xor eax, eax
+1:  cmp rsi, r15
+    jae 2f
+    movzx ecx, byte ptr [rsi]
+    sub ecx, '0'
+    cmp ecx, 9
+    ja 2f
+    imul eax, eax, 10
+    add eax, ecx
+    inc rsi
+    jmp 1b
+2:  ret
+
+# rax = the value of the const whose name is at rsi
+constname:
+    call rdname
+    call lookup_buf
+    jc err
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_CONST
+    jne err
+    lea rcx, [rip+bufsize]
+    mov rax, [rcx+rax*8]
+    ret
+
+# read a name at rsi that starts with a letter and is not "as": r8, r9
+rdname:
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja err
+    call name
+    cmp r9, 2
+    jne 1f
+    cmp word ptr [r8], 0x7361   # "as" is reserved
+    je err
+1:  ret
+
 # a token must be followed by a space, tab, comment or end of line
 tokchk:
     cmp rsi, r15
@@ -564,6 +609,9 @@ ident:
     jz 4f
     call lookup_buf             # len: the length of a buffer or data name
     jc err_undef
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_ADDR
+    jne err
     lea rcx, [rip+bufsize]
     mov rax, [rcx+rax*8]
     call emit_mov
@@ -579,11 +627,43 @@ ident:
     call emit_mov_rr            # mov <arg reg>, <variable reg>
     inc ebx
     jmp tokend
-2:  call lookup_buf             # not a variable: a buffer or data name is its address
+2:  call lookup_buf             # not a variable: a global name
     jc err_undef
-    lea rcx, [rip+bufaddr]
+    lea rcx, [rip+bufkind]
+    movzx ecx, byte ptr [rcx+rax]
+    cmp ecx, G_VAR
+    je 6f
+    cmp ecx, G_CONST
+    jne 5f
+    lea rcx, [rip+bufsize]      # a const is its value
+    mov rax, [rcx+rax*8]
+    call emit_mov
+    jmp tokend
+5:  lea rcx, [rip+bufaddr]      # a buffer or data name is its address
     mov eax, [rcx+rax*4]
     call emit_mov
+    jmp tokend
+6:  cmp ebx, 7                  # a var is read from its cell:
+    jae err                     # mov <arg reg>, [abs32] = REX.W 8B /r SIB disp32
+    lea rcx, [rip+bufaddr]
+    mov r8d, [rcx+rax*4]
+    lea rcx, [rip+argnum]
+    movzx ecx, byte ptr [rcx+rbx]
+    mov eax, ecx
+    shr eax, 3
+    shl eax, 2                  # REX.R: the register is r8-r15
+    or eax, 0x48
+    stosb
+    mov al, 0x8B
+    stosb
+    and ecx, 7
+    lea eax, [rcx*8+4]          # ModRM: no base register, SIB follows
+    stosb
+    mov al, 0x25                # SIB: disp32 alone
+    stosb
+    mov eax, r8d
+    stosd
+    inc ebx
     jmp tokend
 
 # "as <name>" then end of line: emit the statement's code and keep rax in
@@ -593,6 +673,23 @@ capture:
     test byte ptr [rdx+1], AS_NONE
     jnz err
     call blanks
+    push rsi
+    call rdname
+    call lookup_buf
+    jc 1f
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_VAR
+    jne 1f
+    pop rcx                     # a var: store rax in its cell
+    lea rcx, [rip+bufaddr]
+    mov r8d, [rcx+rax*4]
+    call eol
+    call emit_op
+    mov dword ptr [rdi], 0x25048948  # mov [abs32], rax
+    mov [rdi+4], r8d
+    add rdi, 8
+    jmp next
+1:  pop rsi
     call defvar
     lea rcx, [rip+varnum]
     movzx r8d, byte ptr [rcx+rax]
@@ -606,18 +703,8 @@ capture:
 # read a variable name at rsi and find it in the pool of the current scope,
 # or add it: eax = its index
 defvar:
-    cmp rsi, r15
-    jae err
-    mov al, [rsi]
-    sub al, 'a'
-    cmp al, 'z' - 'a'
-    ja err
-    call name
-    cmp r9, 2
-    jne 1f
-    cmp word ptr [r8], 0x7361   # "as" is reserved
-    je err
-1:  call lookup_buf
+    call rdname
+    call lookup_buf
     jnc err_dup
     call lookup_var
     jnc 2f
@@ -633,36 +720,23 @@ defvar:
 # "buf <name> <size>": reserve zero-filled bytes in the writable segment
 bufdef:
     call blank1
-    cmp rsi, r15
-    jae err
-    mov al, [rsi]
-    sub al, 'a'
-    cmp al, 'z' - 'a'
-    ja err
-    call name
-    cmp r9, 2
-    jne 1f
-    cmp word ptr [r8], 0x7361   # "as" is reserved
-    je err
-1:  call lookup_var
-    jnc err_dup
-    call lookup_topvar          # a buffer is global: no top-level variable
-    jnc err_dup                 # may have its name either
-    call lookup_buf
-    jnc err_dup
-    cmp dword ptr [rip+nrbufs], NBUFS
-    jae err_bufs
-    mov [r10], r8
-    mov [r10+8], r9
+    call rdname
+    call newglob
     call blank1
+    mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
     cmp rsi, r15
     jae err
     movzx eax, byte ptr [rsi]
     sub eax, '0'
     cmp eax, 9
-    ja err
-    xor eax, eax
-    mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
+    jbe 1f
+    push rdx                    # not a number: the size is a const
+    call constname
+    pop rdx
+    cmp rax, rdx
+    ja err_bufs
+    jmp 3f
+1:  xor eax, eax
 2:  cmp rsi, r15
     jae 3f
     movzx ecx, byte ptr [rsi]
@@ -678,7 +752,9 @@ bufdef:
 3:  test rax, rax
     jz err
     push rax
+    push rdx
     call eol
+    pop rdx
     pop rax
     mov ecx, [rip+nbufs]
     lea r10, [rip+bufsize]
@@ -695,7 +771,75 @@ bufdef:
     lea r10, [rip+bufaddr]
     mov [r10+rax*4], ecx
     inc dword ptr [rip+nbufs]
-    inc dword ptr [rip+nrbufs]
+    jmp next
+
+# the name r8/r9 must not be in use at top level or in the open function:
+# enter it as the next global name, eax = its index (nbufs is not advanced)
+newglob:
+    call lookup_var
+    jnc err_dup
+    call lookup_topvar          # a global name outlives the function: no
+    jnc err_dup                 # top-level variable may have it either
+    call lookup_buf
+    jnc err_dup
+    mov [r10], r8
+    mov [r10+8], r9
+    mov eax, [rip+nbufs]
+    ret
+
+# "var <name>...": global 64-bit cells, zero at start. They lie below the
+# buffers, the first one highest, so their number need not be known
+vardef:
+    call blank1
+1:  call rdname
+    call newglob
+    lea rcx, [rip+bufkind]
+    mov byte ptr [rcx+rax], G_VAR
+    mov ecx, [rip+nvars]
+    inc ecx
+    mov [rip+nvars], ecx
+    shl ecx, 3
+    neg ecx
+    add ecx, BSS                # BSS - 8 * (its number, from 1)
+    lea rdx, [rip+bufaddr]
+    mov [rdx+rax*4], ecx
+    inc dword ptr [rip+nbufs]
+    call tokchk
+    call blanks
+    cmp rsi, r15
+    jae 2f
+    mov al, [rsi]
+    cmp al, 10
+    je 2f
+    cmp al, 13
+    je 2f
+    cmp al, '#'
+    jne 1b
+2:  call eol
+    jmp next
+
+# "const <name> <number>": a name for a number
+constdef:
+    call blank1
+    call rdname
+    call newglob
+    call blank1
+    cmp rsi, r15
+    jae err
+    movzx eax, byte ptr [rsi]
+    sub eax, '0'
+    cmp eax, 9
+    ja err
+    call rdnum
+    push rax
+    call eol
+    pop rax
+    mov ecx, [rip+nbufs]
+    lea rdx, [rip+bufsize]
+    mov [rdx+rcx*8], rax
+    lea rdx, [rip+bufkind]
+    mov byte ptr [rdx+rcx], G_CONST
+    inc dword ptr [rip+nbufs]
     jmp next
 
 # "data [<name>] <item>...": read-only bytes in the code stream behind a jmp;
@@ -710,19 +854,8 @@ datadef:
     sub al, 'a'
     cmp al, 'z' - 'a'
     ja 1f
-    call name
-    cmp r9, 2
-    jne 2f
-    cmp word ptr [r8], 0x7361   # "as" is reserved
-    je err
-2:  call lookup_var
-    jnc err_dup
-    call lookup_topvar
-    jnc err_dup
-    call lookup_buf
-    jnc err_dup
-    mov [r10], r8
-    mov [r10+8], r9
+    call rdname
+    call newglob
     call tokchk
     mov r13d, 1
 1:  cmp rdi, [rip+dataend]
@@ -1173,8 +1306,16 @@ fin:
     sub r13, r14                # file size
     mov [r14+64+32], r13
     mov [r14+64+40], r13
-    mov rax, [rip+bsssz]
-    mov [r14+64+56+40], rax     # memory size of the writable segment
+    mov eax, [rip+nvars]        # the writable segment starts a whole number of
+    shl rax, 3                  # pages below the buffers, to hold the vars
+    add rax, 4095
+    and rax, -4096
+    mov ecx, BSS
+    sub rcx, rax
+    mov [r14+64+56+16], rcx     # its address
+    mov [r14+64+56+24], rcx
+    add rax, [rip+bsssz]
+    mov [r14+64+56+40], rax     # its memory size
     mov r12, r14
 1:  mov eax, 1
     mov edi, 1

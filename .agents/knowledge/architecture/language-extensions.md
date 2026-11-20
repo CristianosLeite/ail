@@ -26,7 +26,28 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - The suite went from 220 to 258 tests. `tests/run.sh` now discards the stderr of the shell that
   runs a program, because `data_is_read_only` dies of `SIGSEGV` and the shell reported it.
 
+### Global scalars, constants and no buffer limit (2026-11-19)
+- `var a b c` declares global 64-bit cells: read as a value, written by `as`, seen by every
+  function. `const name number` names a number, also accepted as the `sys` number and as a `buf`
+  size. Both must be declared before use.
+- The limit of 16 buffers is gone; `too many buffers` became `buffers too big`, since only the
+  size cap is left. The table of global names holds 32769 entries (one per two source bytes).
+- Var cells grow downward from `0x10000000`; the writable segment starts whole pages lower.
+- Stage1 keeps all its state in vars: the one-cell buffers, the packed buffer `st` and its
+  accessors `g` and `s` are gone. A peephole pass folded 25 `set` lines into their users; about
+  130 `set <var> as <local>` copies remain and are correct but not needed.
+- The suite went from 258 to 308 tests.
+
 ## Why
+- **Cells below the buffers:** a var is read with an absolute 32-bit displacement, which the
+  processor sign-extends, so its address must stay below 2 GiB whatever the buffers take. Growing
+  downward needs no count in advance and leaves programs without vars byte-identical.
+- **`as` writes a var instead of shadowing it:** shared state is the purpose; a local that hid
+  it silently would be the worse surprise. A parameter with the name of a var is an error.
+- **`const` accepted as the syscall number:** it makes `sys write 1 "x"` possible without a
+  built-in table of names.
+- **`sys` with a name that is not a const stays a syntax error:** it kept the existing tests,
+  and "undefined variable" would be wrong for a name that is a variable.
 - **Inline behind a jump, not a data section:** the address is known at once, the output layout
   does not change and existing programs compile to the same bytes.
 - **Contiguous runs with an optional name:** a table of several hundred bytes on one line cannot
@@ -42,7 +63,9 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 ## How to apply
 - A statement that defines no code must clear `dataend` if a later jump can land on it, as `label`
   does; otherwise data after it is merged into the block before it.
-- A new kind of global name goes into `bufs`/`bufaddr`/`bufsize` (stage1: `globs`).
+- A new kind of global name goes into `bufs`/`bufaddr`/`bufsize`/`bufkind` through `newglob`
+  (stage1: an entry of `globs`).
+- In stage1, never use the name of a var for a local: `as` would write the global.
 - When a row of `optab` changes, change the matching `data` line of stage1.
 
 ## Open items
