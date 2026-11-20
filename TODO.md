@@ -139,7 +139,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Lower the arithmetic statements like expressions, so both spellings
   give the same bytes.
 - [x] Test the condition of `while` at the end of the loop.
-- [ ] Branch on the flags of the previous instruction.
+- [x] Branch on the flags of the previous instruction.
 - [ ] Record the measurements after instruction selection.
 - [ ] Write the examples and the library with expressions.
 - [ ] Add a tool that rewrites statements as expressions.

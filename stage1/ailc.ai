@@ -65,6 +65,9 @@ var xtr xlast xtin
 # the kind of the statement at hand if it is compiled like an expression
 # (else 0), and the operator of one that computes
 var xst xso
+# the register whose value the zero flag describes, if nothing was written
+# since the output stood at xflgpos
+var xflg xflgpos
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -1992,6 +1995,11 @@ if y
 call xrel x
 end
 end
+if o
+# the zero flag now says whether the result is zero
+set d as xflg
+set op as xflgpos
+end
 call xpush 7 d 0 0
 end
 # << and >>: by a number, or by the count moved to rcx
@@ -2008,11 +2016,13 @@ call rexw 0 d
 ifeq c 1
 call eb 209
 call modrr n d
-jmp f
-end
+else
 call eb 193
 call modrr n d
 call eb c
+end
+set d as xflg
+set op as xflgpos
 end
 jmp f
 end
@@ -2483,7 +2493,16 @@ ifeq r 16
 call xalloc as r
 call xld k a b c r
 end
+# no test if the instruction just written left the zero flag of this value
+set 1 as t
+ifeq xflg r
+ifeq xflgpos op
+set 0 as t
+end
+end
+if t
 call orr 133 r r
+end
 set 3 as xskip
 jmp x
 end
@@ -3612,38 +3631,18 @@ call sname as r
 call mov r
 jmp tokend
 
-# The line of a while is complete. Its value was read for its faults only:
-# the test stands at the end of the loop, and here is the jump to it.
-label wopen
-ifne ai 1
-call ecount
-end
-call eb 233
-mul nblk 40 as p
-add p blks as p
-store p op
-add p 8 as p
-store p asg
-add p 8 as p
-store p 0
-call z 4
-add p 8 as p
-store p op
-add p 8 as p
-store p wsrc
-set 0 as whead
-add nblk 1 as nblk
-jmp next
-
 # The value of a while has been read again, at the end of its loop, as the
 # value of a jnz: compare or test it, and jump back to the first line of
-# the loop while it holds.
+# the loop while it holds. The jump of the head, taken when the value does
+# not hold at first, lands behind.
 label wclose
 call xjcond
 call eop
 sub wbody op as r
 sub r 4 as r
 call e4 r
+call blktop as p
+sub nblk 1 as nblk
 set 0 as wend
 set wip as ip
 set wasg as asg
@@ -3792,7 +3791,6 @@ end
 call crlf
 label a1
 jnz wend wclose
-jnz whead wopen
 set cur as r
 add r 1 as f
 loadb f as f
@@ -3818,7 +3816,13 @@ store p asg
 add p 8 as p
 store p 0
 add p 8 as p
-store p whead
+ifz whead
+store p 0
+else
+# a while: its first line is behind this jump
+add op 4 as d
+store p d
+end
 add p 8 as p
 store p wsrc
 set 0 as whead
@@ -4342,6 +4346,7 @@ add p 8 as p
 store p ip
 call labasg
 call clrvk
+set 16 as xflg
 add p 8 as p
 store p asg
 call hadd 3 scope r
@@ -4597,9 +4602,9 @@ add p blks as p
 add p 24 as q
 load q as r
 if r
-# The end of a while: the jump at its head lands here, and here its value
-# is read again from the source, as the value of a jnz that leads back to
-# the first line of the loop (wclose). A round is thus one jump. The way
+# The end of a while: here its value is read again from the source, as the
+# value of a jnz that leads back to the first line of the loop (wclose),
+# and behind that the jump of the head lands. A round is thus one jump. The way
 # back must have assigned what was assigned at the head, like a jump back
 # to a label, and in the first pass over a function the loop is noted for
 # alloc. At the test and after the loop, what is assigned is what the head
@@ -4623,8 +4628,6 @@ add d 8 as d
 store d ip
 add nloops 1 as nloops
 end
-call blktop as p
-sub nblk 1 as nblk
 add p 8 as q
 load q as q
 set q as wasg
@@ -4675,6 +4678,7 @@ jmp be3
 end
 and asg q as asg
 label be3
+set 16 as xflg
 call clrvk
 set 0 as dataend
 jmp next
@@ -4716,8 +4720,8 @@ set 0 as dead
 call clrvk
 jmp next
 
-# "while <value>": a block whose value is read like that of an if, here
-# for its faults (wopen) and again at the end of the loop for its code. A
+# "while <value>": an if on the value, whose block ends with the value
+# read again and a jump back to its first line while it holds. A
 # jump reaches the loop, so what is known of the variables is forgotten, as
 # at a label.
 label whiledef

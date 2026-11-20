@@ -318,7 +318,7 @@ while i<10
 end
 ```
 
-`while a` runs the lines up to the matching `end` again and again, as long as `a` is not zero when it is reached; the value is computed before each round, so the lines may run no time at all. The value is one [argument](#arguments), usually an expression. The test is compiled at the end of the loop, after a jump to it, so a round costs one compare and one jump.
+`while a` runs the lines up to the matching `end` again and again, as long as `a` is not zero when it is reached; the value is computed before each round, so the lines may run no time at all. The value is one [argument](#arguments), usually an expression. The test is compiled at both ends of the loop, so a round costs one compare and one jump, and a loop that counts down to zero (`while i` ... `i-=1`) only the subtraction and the jump.
 
 A loop is a block: it nests with `if` blocks and other loops, `end` closes the innermost open one, and it must be closed in the function it was opened in. It has no `else`. Nothing leaves a loop but its value becoming zero, a `jmp` to a label, or a `ret`; there is no statement to end the round early, so put the rest of the round in an `if`.
 

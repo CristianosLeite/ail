@@ -58,7 +58,7 @@ The top level uses the six variables `c d r f p q`, which are the ones that get 
 | `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef` | the statements `buf`, `local`, `var`, `const`, `data` and `label` |
 | `jtarget` | the label name of a jump: call `eop`, leave room for the displacement and record a fixup |
 | `fndef`, `fnend` | `fn`: enter the function, emit the jump over it and its entry code, open its scope; `end`: close the innermost open block if there is one, else emit the default return, resolve the jumps and close the scope |
-| `blkend`, `elsedef`, `whiledef`, `wopen`, `wclose` | the `end` and the `else` of a block; `while`; the jump to its test when its line is complete; the test and the jump back, when its value has been read again at the end |
+| `blkend`, `elsedef`, `whiledef`, `wclose` | the `end` and the `else` of a block; `while`; the test and the jump back, when its value has been read again at the end |
 | `earg` | an argument that is an expression: parse it and compute it into the register of its position |
 | `xarg` | a value of a statement that is compiled like an expression: parse it, compute nothing yet |
 | `asgn` | `name=expression` and `name+=expression`: compute and store |
@@ -373,18 +373,22 @@ The `if` forms are rows flagged `IS_IF` whose bytes, like those of a jump, stop 
 
 `end` goes to `blkend` when a block is open (`nblk` above `blkbase`, the depth at which the function began), and only otherwise ends the function. `blktop` fills in the recorded jump. The variables assigned afterwards are those of both ways there: `asg` is and-ed with the recorded mask, or replaced by it when the block ended in `jmp` or `ret`. `else` emits a `jmp` past the rest, lets the jump of the `if` land behind it, and swaps the entry: it now holds the new `rel32`, the mask at the end of the first part and whether that part was dead, while `asg` goes back to what the `if` had. `end` then merges the two parts, and if both were dead the code after it is dead too. `end` and `else` call `clrvk`, and `end` clears `dataend`, as a label does.
 
-**Loops.** `while` is the last of the statements parsed on their own, row 11. A loop is compiled with its test at the end, so that a round is one jump:
+**Loops.** `while` is the last of the statements parsed on their own, row 11. A loop is compiled with a test at each end, so that a round is one jump:
 
 ```
-        jmp  test
+        <value>
+        jz   past        ; or the opposite jump of a comparison
 body:   ...
-test:   <value>
-        jnz  body        ; or the jump of a comparison
+        <value>
+        jnz  body        ; or the jump of the comparison
+past:
 ```
 
-The value stands in the source before the lines of the loop and in the code after them, and the compiler reads it twice rather than keep it. The state `whiledef` forgets what is known of the variables and clears `dataend`, as a label does, since a jump will reach this place; notes the place of the value in the source in `wsrc`; and makes the statement an `if`, so that its value is parsed by `arg` as any is. That first reading is for its faults only. When the line is complete, `arg` goes to `wopen` instead of ending an `if`: it emits the `jmp` and pushes an entry on `blks` with the address of its `rel32`, `asg`, the output cursor, which is the first line of the loop, and `wsrc`. An entry is 40 bytes, and those last two cells are zero for an `if`.
+The value stands once in the source, and the compiler has no tree to keep it in, so it reads it twice. The state `whiledef` forgets what is known of the variables and clears `dataend`, as a label does, since a jump will reach this place; notes the place of the value in the source in `wsrc` and sets `whead`; and makes the statement an `if`, so that the value is parsed and its test and jump written by the code that does it for `if`. When that statement ends, the entry pushed on `blks` takes along the output cursor behind the jump, which is the first line of the loop, and `wsrc`; an entry is 40 bytes, and those two cells are zero for an `if`.
 
-`blkend` finds them in the entry and ends a loop instead of a block. The jump back is a way to the head like a jump back to a label, so it must have assigned what was assigned there (`unassigned variable` otherwise), unless the line cannot be reached. In the first pass over a function the loop is added to `loops`, from the place before the value to the place after `end`, so that `alloc` keeps every variable that is alive in the loop in its place to the end of it. Then `blktop` makes the `jmp` of the head land here, `asg` becomes what it was at the head, and the source is read again from `wsrc`, with the statement now a `jnz`: `wend` is set, the cursor is kept in `wip`, and control goes to `arg`. At the end of the value `arg` goes to `wclose`, which lets `xjcond` and `eop` write the test and the jump, a comparison becoming the jump of its condition as in any `jnz`, fills in the distance back to the first line (`wbody`), and puts the cursor back after `end`. Reading a value twice mentions its variables twice, the second time at an earlier place, so `exname` never moves the last mention of a variable back. `else` refuses an entry of a loop.
+`blkend` finds them in the entry and ends a loop instead of a block. The jump back is a way to the head like a jump back to a label, so it must have assigned what was assigned there (`unassigned variable` otherwise), unless the line cannot be reached. In the first pass over a function the loop is added to `loops`, from the place before the value to the place after `end`, so that `alloc` keeps every variable that is alive in the loop in its place to the end of it. Then `asg` becomes what it was at the head, and the source is read again from `wsrc`, with the statement now a `jnz`: `wend` is set, the cursor is kept in `wip`, and control goes to `arg`. At the end of the value `arg` goes to `wclose`, which lets `xjcond` and `eop` write the test and the jump, fills in the distance back to the first line (`wbody`), lets the jump of the head land behind it (`blktop`), and puts the cursor back after `end`. Reading a value twice mentions its variables twice, the second time at an earlier place, so `exname` never moves the last mention of a variable back. `else` refuses an entry of a loop.
+
+**The zero flag.** `add`, `sub`, `and`, `or`, `xor` and a shift by a number leave the zero flag saying whether their result is zero, which is what `test reg, reg` would find out. `xarith` and `xshift` note the register of the result and the output cursor behind the instruction in `xflg` and `xflgpos`; `xjcond`, about to test a value in a register, leaves the `test` out when that register is the one noted and the cursor has not moved. So `i-=1` followed by the end of a `while i`, or by `jnz i top`, is `sub rbx, 1` / `jnz`. A place that control reaches from elsewhere without a byte being written there would break that, so a label and the end of a block forget the note; every other such place writes a jump first. That is also why a loop tests at its head instead of jumping to the test at its end: the test at the end is then reached only from the line before it.
 
 ## Functions
 

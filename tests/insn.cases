@@ -118,11 +118,12 @@ a=3 ; b=5 ; ifz a<b ; end | bb03000000bd050000004839eb0f8200000000 | mov ebx, 3 
 a=3 ; jnz a!=7 l ; label l | bb030000004883fb070f8500000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} jne 1f ; 1:
 a=3 ; jz a<=7 l ; label l | bb030000004883fb070f8700000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} ja 1f ; 1:
 a=3 ; if a>a+1 ; end | bb030000004889d84883c0014839c30f8600000000 | mov ebx, 3 ; mov rax, rbx ; add rax, 1 ; cmp rbx, rax ; {disp32} jbe 1f ; 1:
-a=3 ; if a&1 ; end | bb030000004889d84883e0014885c00f8400000000 | mov ebx, 3 ; mov rax, rbx ; and rax, 1 ; test rax, rax ; {disp32} jz 1f ; 1:
-# while: a jump to the test, which stands at the end of the loop and jumps
-# back to its first line
-i=3 ; while i ; i-=1 ; end | bb03000000e9040000004883eb014885db0f85f3ffffff | mov ebx, 3 ; {disp32} jmp 2f ; 1: sub rbx, 1 ; 2: test rbx, rbx ; {disp32} jnz 1b
-i=3 ; while i<9 ; end | bb03000000e9000000004883fb090f82f6ffffff | mov ebx, 3 ; {disp32} jmp 2f ; 1: 2: cmp rbx, 9 ; {disp32} jb 1b
+a=3 ; if a&1 ; end | bb030000004889d84883e0010f8400000000 | mov ebx, 3 ; mov rax, rbx ; and rax, 1 ; {disp32} jz 1f ; 1:
+# while: the test at the head jumps past the loop, and the test at its end
+# jumps back to its first line. A test of a value is left out behind the
+# instruction that computed it, whose zero flag says the same.
+i=3 ; while i ; i-=1 ; end | bb030000004885db0f840a0000004883eb010f85f6ffffff | mov ebx, 3 ; test rbx, rbx ; {disp32} jz 2f ; 1: sub rbx, 1 ; {disp32} jnz 1b ; 2:
+i=3 ; while i<9 ; end | bb030000004883fb090f830a0000004883fb090f82f6ffffff | mov ebx, 3 ; cmp rbx, 9 ; {disp32} jae 2f ; 1: cmp rbx, 9 ; {disp32} jb 1b ; 2:
 x=5 ; x=(x^x>>13)*1664525+1013904223 | bb050000004889d848c1e80d4831d84869c00d66190048055ff36e3c4889c3 | mov ebx, 5 ; mov rax, rbx ; shr rax, 13 ; xor rax, rbx ; imul rax, rax, 1664525 ; add rax, 1013904223 ; mov rbx, rax
 x=5 ; y=x/2+x%8 | bb050000004889dd48d1ed4889d84883e0074801c5 | mov ebx, 5 ; mov rbp, rbx ; shr rbp, 1 ; mov rax, rbx ; and rax, 7 ; add rbp, rax
 x=5 ; y=x/1+x%1 | bb050000004889dd4889d84883e0004801c5 | mov ebx, 5 ; mov rbp, rbx ; mov rax, rbx ; and rax, 0 ; add rbp, rax
@@ -202,7 +203,14 @@ a=7 ; b=3 ; shl a b as a | bb07000000bd030000004889e948d3e3 | mov ebx, 7 ; mov e
 a=7 ; b=3 ; lt a b as x | bb07000000bd030000004839eb410f92c4450fb6e4 | mov ebx, 7 ; mov ebp, 3 ; cmp rbx, rbp ; setb r12b ; movzx r12d, r12b
 a=7 ; b=3 ; jslt a b l ; label l | bb07000000bd030000004839eb0f8c00000000 | mov ebx, 7 ; mov ebp, 3 ; cmp rbx, rbp ; {disp32} jl 1f ; 1:
 a=7 ; b=3 ; ifge a+b b*2 ; end | bb07000000bd030000004889d84801e8486bfd024839f80f8200000000 | mov ebx, 7 ; mov ebp, 3 ; mov rax, rbx ; add rax, rbp ; imul rdi, rbp, 2 ; cmp rax, rdi ; {disp32} jb 1f ; 1:
-a=7 ; sub a 1 as a ; jnz a l ; label l | bb070000004883eb014885db0f8500000000 | mov ebx, 7 ; sub rbx, 1 ; test rbx, rbx ; {disp32} jnz 1f ; 1:
-a=7 ; if a-7 ; end | bb070000004889d84883e8074885c00f8400000000 | mov ebx, 7 ; mov rax, rbx ; sub rax, 7 ; test rax, rax ; {disp32} jz 1f ; 1:
-i=3 ; n=9 ; while i*2<n+1 ; i+=1 ; end | bb03000000bd09000000e9040000004883c301486bc3024889ef4883c7014839f80f82e8ffffff | mov ebx, 3 ; mov ebp, 9 ; {disp32} jmp 2f ; 1: add rbx, 1 ; 2: imul rax, rbx, 2 ; mov rdi, rbp ; add rdi, 1 ; cmp rax, rdi ; {disp32} jb 1b
-i=3 ; while i ; while i>1 ; i-=1 ; end ; i-=1 ; end | bb03000000e917000000e9040000004883eb014883fb010f87f2ffffff4883eb014885db0f85e0ffffff | mov ebx, 3 ; {disp32} jmp 4f ; 3: {disp32} jmp 2f ; 1: sub rbx, 1 ; 2: cmp rbx, 1 ; {disp32} ja 1b ; sub rbx, 1 ; 4: test rbx, rbx ; {disp32} jnz 3b
+a=7 ; sub a 1 as a ; jnz a l ; label l | bb070000004883eb010f8500000000 | mov ebx, 7 ; sub rbx, 1 ; {disp32} jnz 1f ; 1:
+a=7 ; if a-7 ; end | bb070000004889d84883e8070f8400000000 | mov ebx, 7 ; mov rax, rbx ; sub rax, 7 ; {disp32} jz 1f ; 1:
+i=3 ; n=9 ; while i*2<n+1 ; i+=1 ; end | bb03000000bd09000000486bc3024889ef4883c7014839f80f83180000004883c301486bc3024889ef4883c7014839f80f82e8ffffff | mov ebx, 3 ; mov ebp, 9 ; imul rax, rbx, 2 ; mov rdi, rbp ; add rdi, 1 ; cmp rax, rdi ; {disp32} jae 2f ; 1: add rbx, 1 ; imul rax, rbx, 2 ; mov rdi, rbp ; add rdi, 1 ; cmp rax, rdi ; {disp32} jb 1b ; 2:
+i=3 ; while i ; while i>1 ; i-=1 ; end ; i-=1 ; end | bb030000004885db0f84220000004883fb010f860e0000004883eb014883fb010f87f2ffffff4883eb010f85deffffff | mov ebx, 3 ; test rbx, rbx ; {disp32} jz 4f ; 3: cmp rbx, 1 ; {disp32} jbe 2f ; 1: sub rbx, 1 ; cmp rbx, 1 ; {disp32} ja 1b ; 2: sub rbx, 1 ; {disp32} jnz 3b ; 4:
+a=7 ; a-=1 ; label m ; jnz a l ; label l | bb070000004883eb014885db0f8500000000 | mov ebx, 7 ; sub rbx, 1 ; test rbx, rbx ; {disp32} jnz 1f ; 1:
+a=7 ; if a ; a-=1 ; end ; jnz a l ; label l | bb070000004885db0f84040000004883eb014885db0f8500000000 | mov ebx, 7 ; test rbx, rbx ; {disp32} jz 2f ; sub rbx, 1 ; 2: test rbx, rbx ; {disp32} jnz 1f ; 1:
+a=7 ; b=a*2 ; jz b l ; label l | bb07000000486beb024885ed0f8400000000 | mov ebx, 7 ; imul rbp, rbx, 2 ; test rbp, rbp ; {disp32} jz 1f ; 1:
+a=7 ; a>>=3 ; jz a l ; label l | bb0700000048c1eb030f8400000000 | mov ebx, 7 ; shr rbx, 3 ; {disp32} jz 1f ; 1:
+a=7 ; b=2 ; a>>=b ; jz a l ; label l | bb07000000bd020000004889e948d3eb4885db0f8400000000 | mov ebx, 7 ; mov ebp, 2 ; mov rcx, rbp ; shr rbx, cl ; test rbx, rbx ; {disp32} jz 1f ; 1:
+a=7 ; b=2 ; a-=1 ; jz b l ; label l | bb07000000bd020000004883eb014885ed0f8400000000 | mov ebx, 7 ; mov ebp, 2 ; sub rbx, 1 ; test rbp, rbp ; {disp32} jz 1f ; 1:
+a=7 ; a^=a ; ifz a ; end | bb070000004831db0f8500000000 | mov ebx, 7 ; xor rbx, rbx ; {disp32} jnz 1f ; 1:
