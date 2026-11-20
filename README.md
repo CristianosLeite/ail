@@ -12,7 +12,7 @@ It compiles to a 226-byte static, position-independent Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: in assembly (stage0) and written in AIL (stage1), which compiles itself to a byte-identical copy and is built from a released copy of itself. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
+Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler is written in AIL, compiles itself to a byte-identical copy and is built from a released copy of itself; the compiler in assembly that built it first is gone. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
 
 ## Quick start
 
@@ -83,15 +83,13 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 ## Documentation
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
-- [How the compiler works](docs/compiler.md): pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
-- [How the stage1 compiler works](docs/stage1.md): the compiler written in AIL, and what writing it showed about the language
+- [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
 - [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
 
 ## Layout
 
-- `stage0/ailc.s`: the compiler in assembly, the reference of the tests
-- `stage1/ailc.ai`: the compiler in AIL, built by the seed and then by itself
+- `stage1/ailc.ai`, `stage1/tables.ai`: the compiler, written in AIL, built by the seed and then by itself
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements

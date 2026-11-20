@@ -1,12 +1,12 @@
 ---
 title: Seed bootstrap
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, REDESIGN.md, seed/MANIFEST, docs/stage1.md]
+sources: [conversation 2026-11-20, REDESIGN.md, seed/MANIFEST, docs/compiler.md]
 status: current
 ---
 # Seed bootstrap
 
-**Summary.** The compiler written in AIL is to become the only compiler, built from a released
+**Summary.** The compiler written in AIL is the only compiler, built from a released
 copy of itself (a seed) instead of from `stage0/ailc.s`. `seed/MANIFEST` pins the seed by
 version, source revision and SHA-256; the file itself is a GitHub release asset.
 
@@ -17,7 +17,12 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
 - The build is `ailc0` (seed, by `tools/seed.sh`) → `ailc1` → `ailc` → `ailc2`, and the fixed
-  point is `ailc` = `ailc2`. Stage0 is `build/stage0` and only the tests use it.
+  point is `ailc` = `ailc2`.
+- Stage0 was removed on 2026-11-20, after a clean worktree without it, with an empty `build/`
+  and no local seed, fetched the seed, built and passed `make test` (1635 checks). Its last
+  revision is the parent of the commit that removes it; `docs/compiler.md` and `AGENTS.md` now
+  describe the compiler in AIL under its own names, and `docs/stage1.md` was merged into the
+  former.
 
 - `stage1/tables.ai` is its own source since 2026-11-20 (`tools/tables.sh` and `make tables` are
   gone). `tests/tables.sh` checks its form and `tests/insn.sh` its bytes against hex that GNU

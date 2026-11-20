@@ -1,7 +1,7 @@
 # Knowledge index
 
 ## architecture
-- [Stage0 design decisions](architecture/stage0-design-decisions.md) — why the syntax, the op table, direct ELF output, inline strings, buffers and jump fixups; review findings and known limits
+- [Stage0 design decisions](architecture/stage0-design-decisions.md) — (stage0 was removed 2026-11-20; reasons still hold) why the syntax, the op table, direct ELF output, inline strings, buffers and jump fixups; review findings and known limits
 - [Stage0 functions](architecture/stage0-functions.md) — callee-saved calling convention, one saved scope for labels and variables, separate call fixup list, mutation checks
 - [Stage1 self-hosting](architecture/stage1-self-hosting.md) — the compiler in AIL: decisions, differential and mutation checks, friction found in the language
 - [Seed bootstrap](architecture/seed-bootstrap.md) — the compiler in AIL built from a released copy of itself: the manifest, why a GitHub release, the rule for new syntax in the compiler source

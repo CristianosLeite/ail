@@ -4,6 +4,8 @@ last-verified: 2026-11-19
 sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
 status: current
 ---
+
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 design decisions
 
 **Summary.** Why the bootstrap compiler (`stage0/ailc.s`) and the first syntax look the way they do,

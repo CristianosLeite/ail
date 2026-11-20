@@ -4,6 +4,8 @@ last-verified: 2026-11-20
 sources: [stage1 review 2026-11-19 (REVIEW.md), control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
 status: current
 ---
+
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](../architecture/seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 test suite
 
 **Summary.** What the runner in `tests/run.sh` can and cannot prove, and the lessons from the

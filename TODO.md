@@ -1,9 +1,9 @@
 # TODO
 
 This backlog records current limits and the work needed to lift them. Favor
-changes that reduce the token cost of real AIL programs. Implement compiler
-behavior changes in both stages and keep byte-for-byte parity and the stage1
-bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
+changes that reduce the token cost of real AIL programs. The compiler is `stage1/ailc.ai` alone since 2026-11-20:
+keep its fixed point, and use in its source only what the pinned seed
+understands. See the [roadmap](docs/roadmap.md) for project history.
 
 ## Compiler self-hosting and language limits
 
@@ -101,6 +101,39 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
   assembly programs. Use the results to guide syntax choices.
 
+## Redesign
+
+From `REDESIGN.md`; one commit per item.
+
+- [x] Keep the arithmetic benchmark and its timing script in the repository.
+- [x] Add CPU-bound workloads to the corpus: `sieve`, `collatz`, `fnv`, `isort`.
+- [x] Record the first seed of the compiler in a manifest and release it.
+- [x] Build the compiler from the pinned seed, in three generations.
+- [x] Make `stage1/tables.ai` its own source, checked by form and by bytes.
+- [x] Check the one compiler without comparing it to stage0.
+- [x] Remove stage0.
+- [ ] Fix the expression syntax from token counts on the corpus.
+- [ ] Parse infix expressions as arguments.
+- [ ] Compile compound expressions and `name = expression`.
+- [ ] Accept an expression as the condition of `if`.
+- [ ] Add the `while` block.
+- [ ] Check expressions against computed results in random programs.
+- [ ] Use immediate forms of instructions, and shifts and masks for division
+  and remainder by a power of two.
+- [ ] Use variables in place as operands.
+- [ ] Compute an assignment in the register of its target.
+- [ ] Lower the arithmetic statements like expressions, so both spellings
+  give the same bytes.
+- [ ] Test the condition of `while` at the end of the loop.
+- [ ] Branch on the flags of the previous instruction.
+- [ ] Record the measurements after instruction selection.
+- [ ] Write the examples and the library with expressions.
+- [ ] Add a tool that rewrites statements as expressions.
+- [ ] Release and pin the second seed.
+- [ ] Write the compiler with expressions.
+- [ ] Report the redesign against its acceptance criteria.
+
 Keep the hardware-oriented syntax and use measured token cost to decide where
-to relax grammar rules. One statement per line, ASCII identifiers, explicit
-`as` captures and the lack of classes and objects are current design choices.
+to relax grammar rules. One statement per line, ASCII identifiers and the lack of classes and objects
+are current design choices; explicit `as` captures were one until the
+redesign, which adds expressions beside them.
