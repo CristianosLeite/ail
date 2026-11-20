@@ -382,6 +382,9 @@ def fold(lines, gvars):
                             made += 1
                             changed = True
                             break
+                        # too long for one line: the lines stay two, since
+                        # t=e+f below would be without the t*
+                        continue
                 t = a.target
                 if b.kind == "asg" and b.op and b.target == t and t not in names(b.tree) \
                         and not b.comment:
