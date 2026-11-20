@@ -204,7 +204,7 @@ its AIL replacement passes the corresponding checks.
   `--check` to report indentation violations without rewriting files, as the
   first lint rule. Verify that formatting is idempotent and that formatted
   examples compile to the same bytes.
-- [ ] Add a VS Code extension for `.ai` files with syntax highlighting, block
+- [x] Add a VS Code extension for `.ai` files with syntax highlighting, block
   folding and formatting through the same AIL formatter.
 - [ ] Apply the convention to the examples first. Reindent the compiler in a
   separate formatting commit and verify the bootstrap fixed point.
