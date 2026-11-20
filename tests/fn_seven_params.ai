@@ -1,2 +1,9 @@
+# the seventh value travels on the stack
 fn f a b c d e g h
+mul h 10 as h
+add h a as h
+add h g as h
+ret h
 end
+call f 1 2 3 4 5 6 7 as r
+sys 60 r

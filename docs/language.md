@@ -138,7 +138,7 @@ call name x y as result
 call name x y
 ```
 
-`fn` starts a function and `end` closes it. The names after the function name are its parameters; there may be none and at most six. A function cannot be defined inside another one. Where a function stands does not matter: top-level execution skips its body, and a `call` may come before or after the definition.
+`fn` starts a function and `end` closes it. The names after the function name are its parameters; there may be none and at most 64. A function cannot be defined inside another one. Where a function stands does not matter: top-level execution skips its body, and a `call` may come before or after the definition.
 
 `call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is any [argument](#arguments), and the number of values must equal the number of parameters; a string is two values, its address and its length, so that a function taking `p n` can be called with a literal.
 
@@ -160,14 +160,14 @@ sys 60 x                # exit(120)
 
 Each function has its own variables and its own labels:
 
-- The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most 64; it can have at most six parameters.
+- The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most 64.
 - A function sees none of the variables defined outside it, and its variables do not exist outside it. The same name can be used on both sides for different things. Values go in through the parameters and out through `ret`.
 - Every call gets fresh variables: the caller's variables, at top level or in another function, are unchanged when the call returns, also when a function calls itself.
 - Global names (`buf`, `data`, `var`, `const`) are visible in every function, and one declared inside a function is the same as one declared outside: its name may not be that of a top-level variable either. See [Names](#names) for what happens when a variable of a function has the name of a global.
 
 Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
-Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits, and the result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack, plus 8 for each of its variables that did not get a register, and recursion is limited only by the stack size.
+Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits; the caller pushes any further values on the stack, in order, and removes them after the call. The result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack, plus 8 for each value after the sixth and 8 for each variable of the function that did not get a register, and recursion is limited only by the stack size.
 
 ### `buf`
 
@@ -385,7 +385,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
 | `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
-| `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included; a seventh parameter |
+| `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included |
 | `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
@@ -415,7 +415,7 @@ Causes of a syntax error:
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
 - `end` outside a function, or followed by anything but a comment
 - `ret` outside a function, without exactly one value, or with `as`
-- `call` without a function name, or with more than six values (a string counts as two)
+- `call` without a function name
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it

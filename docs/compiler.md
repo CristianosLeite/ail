@@ -66,6 +66,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
+| `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
 | `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
@@ -145,7 +146,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`) and whether its operand is taken as a length (`len`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes up to six, checked against the function when the call is resolved.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`) and whether its operand is taken as a length (`len`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 
@@ -210,7 +211,7 @@ A name is only entered in the table when its `as` is reached, at the end of the 
 
 The table `bufs` has the same 16-byte entries as `vars` and holds every global name: buffers, data, vars and consts. `bufkind` says which (`G_ADDR`, `G_VAR`, `G_CONST`), `bufaddr` holds one 32-bit address per entry and `bufsize` its length for `len`, or the value of a const. The table is sized from the source limit, since `var a b c` declares a name every two bytes; `nvars` counts the vars. `buf` rounds the size up to 8 bytes, gives the buffer the address `0x10000000` plus the bytes reserved so far, and adds the size to the running total `bsssz`, which `fin` writes into the second program header. The total is kept below 4 GiB minus the base so that every address fits the `imm32` that `emit_mov` writes.
 
-`ident` looks a name up among the variables first and the global names second. A name in neither is taken for a buffer or data declared later: `ident` passes `mov r32, 0` and appends the name, the address of that `imm32` and whether the address or the length is wanted to `refs`. `fin` looks every entry up, reports `undefined variable` for a name that is still unknown or is a var or a const, and writes the value. Inside a function `defvar` accepts the name of a global other than a var, so that a variable hides it for the rest of the function; at top level it refuses. Every declaration of a global name refuses a name found in either table (`newglob`), and `as` refuses a global name unless it is a `var`, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
+`ident` looks a name up among the variables first and the global names second. A name in neither is taken for a buffer or data declared later: `ident` passes `mov r32, 0` and appends the name, the address of that `imm32` (which `emit_mov` leaves in `immpos`) and whether the address or the length is wanted to `refs`. `fin` looks every entry up, reports `undefined variable` for a name that is still unknown or is a var or a const, and writes the value. Inside a function `defvar` accepts the name of a global other than a var, so that a variable hides it for the rest of the function; at top level it refuses. Every declaration of a global name refuses a name found in either table (`newglob`), and `as` refuses a global name unless it is a `var`, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
 
 ## Labels and jumps
 
@@ -236,13 +237,13 @@ sub  rsp, 8 * slots                        ; only if a variable lives on the sta
 mov  <variable i>, <argument i>            ; one per parameter
 ```
 
-`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, and `emit_varmov` copies it from the argument position of the same index to its place. A seventh parameter is `too many variables`: there are six argument registers.
+`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, and `emit_varmov` copies it from the argument position of the same index to its place. From the seventh on the value is on the stack, above the slots, the six saved registers and the return address, the last one nearest; the entry code loads it into `r11` and stores it like the others. That distance needs the number of parameters, `fnnpar`, which the first pass over the function leaves behind.
 
 **Scope.** `fndef` saves `ebp` in `topvars`, clears it and sets `infn`, which makes `lookup_var` use the second half of `vars`. It also sets `labbase` and `fixbase` to the current ends of `labels` and `fixs`: the function's labels and jumps are stacked on top of the top-level ones collected so far. `fnend` calls `resolve` for exactly that part, then cuts both tables back to the bases and restores `ebp`. That is all that makes labels and variables local, and it is why functions do not nest: there is one saved scope.
 
 **Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, after `add rsp, 8 * slots` when the function has slots. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
 
-**Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores `rax` as after any statement.
+**Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. Every value after those is loaded into `r11`, row 7 of `regtab` and `argnum`, and pushed (`argidx`, `argnext`); `pushed` counts the bytes, `varplace` adds it to the distance of a stack slot, and `emit_op` emits `add rsp, pushed` after the `call`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores `rax` as after any statement.
 
 `fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, and otherwise the displacement is written like a jump's. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
@@ -270,7 +271,7 @@ f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx
 
 ## Limits
 
-- 64 variables at top level and in each function, the size of the variable table; 6 parameters, the number of argument registers.
+- 64 variables at top level and in each function, the size of the variable table; so at most 64 parameters.
 - Global names are limited only by the source size.
 - Jumps and calls always use a 32-bit displacement, 5 bytes for `jmp` and `call` and 9 for `jz` and `jnz`.
 - Every function saves and restores all six variable registers: 21 bytes of code per function and `ret`, and 56 bytes of stack per call, plus 8 per stack slot.

@@ -1,0 +1,25 @@
+# the caller reads its own stack variables while it pushes values: each
+# push moves them
+fn sum a b c d e g h i j
+add a b as a
+add a c as a
+add a d as a
+add a e as a
+add a g as a
+add a h as a
+add a i as a
+add a j as a
+ret a
+end
+fn f p q r s t u
+add p 10 as v
+add q 20 as w
+add r 30 as x
+call sum p q r s t u v w x as z
+add z v as z
+add z w as z
+add z x as z
+ret z
+end
+call f 1 2 3 4 5 6 as r
+sys 60 r

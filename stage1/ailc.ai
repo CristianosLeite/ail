@@ -16,6 +16,9 @@ var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
 var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
+# pushed = bytes of call values pushed so far in this statement; fnnpar =
+# parameters of the function; immpos = where mov wrote its last imm32
+var pushed fnnpar immpos
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -533,6 +536,7 @@ lt i 6 as c
 jnz c r
 mul i 8 as i
 sub i 32 as i
+add i pushed as i
 ret i
 end
 # the optab row of the name read last, at its operand count, or 0
@@ -666,11 +670,39 @@ or s d as s
 or s 192 as s
 call eb s
 end
+# the row of regtab and argnum for the next value of the statement: its
+# position, or 7 (r11) for a value of a call after the sixth
+fn aidx
+add cur 1 as c
+loadb c as c
+and c 16 as c
+jz c a
+lt ai 6 as c
+jnz c b
+ret 7
+label a
+lt ai 7 as c
+call ok c
+label b
+ret ai
+end
+# the value is in its register: push it if it goes on the stack, count it
+fn anext
+lt ai 6 as c
+jnz c x
+add cur 1 as c
+loadb c as c
+and c 16 as c
+jz c x
+call eb 65
+call eb 83
+add pushed 8 as pushed
+label x
+add ai 1 as ai
+end
 # mov <register of the next argument>, v, in its shortest form
 fn mov v
-set ai as i
-lt i 7 as c
-call ok c
+call aidx as i
 shr v 32 as c
 jnz c w
 mul i 2 as r
@@ -682,6 +714,7 @@ label n
 add r 1 as r
 loadb r as c
 call eb c
+set op as immpos
 call e4 v
 jmp x
 label w
@@ -703,7 +736,7 @@ call eb r
 store op v
 add op 8 as op
 label x
-add i 1 as ai
+call anext
 end
 # a 64-bit mov between the register g and memory at the place p (as vplace
 # gives it); o = 139 to load the register, 137 to store it
@@ -746,12 +779,10 @@ call emem g p o
 end
 # mov <register of the next argument>, [a]: read the cell of a var
 fn ldvar a
-set ai as i
-lt i 7 as c
-call ok c
+call aidx as i
 call areg i as r
 call emem r a 139
-add i 1 as ai
+call anext
 end
 # sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
 # function has stack slots
@@ -870,8 +901,6 @@ call cp r c
 and f 16 as f
 jz f x
 set ai as i
-lt i 7 as c
-call ok c
 set ncalls as n
 mul n 32 as p
 add p calls as p
@@ -886,8 +915,13 @@ store r c
 add p 24 as r
 store r i
 call z 4
-add n 1 as n
-set n as ncalls
+add n 1 as ncalls
+jz pushed x
+call eb 72
+call eb 129
+call eb 196
+call e4 pushed
+set 0 as pushed
 label x
 end
 # fill in the jumps of the current scope, now that its labels are known
@@ -1137,12 +1171,10 @@ jnz d i2
 mul r 8 as d
 add d vlast as d
 store d ip
-set ai as d
-lt d 7 as f
-call ok f
+call aidx as d
 call areg d as f
 call vmov r f 139
-add d 1 as ai
+call anext
 jmp tokend
 label i2
 call lbuf as r
@@ -1155,8 +1187,7 @@ mul nrefs 32 as p
 add p refs as p
 call putn p
 add p 16 as q
-sub op 4 as d
-store q d
+store q immpos
 add p 24 as q
 store q r
 add nrefs 1 as nrefs
@@ -1489,15 +1520,22 @@ ne nv q as d
 jnz d f3
 call edup
 label f3
-gt nv 6 as d
+lt r 6 as d
 jz d f4
-call evar
-label f4
 call areg r as f
 call vmov r f 137
 jmp f1
+label f4
+sub fnnpar r as d
+add d fnslots as d
+mul d 8 as d
+add d 64 as d
+call emem 11 d 139
+call vmov r 11 137
+jmp f1
 label f2
 call eol
+set nv as fnnpar
 set nv as q
 add p 8 as p
 store p q
@@ -1702,7 +1740,7 @@ data 5 "const" 7 128 0
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87
-data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185    # per argument: REX prefix or 0, mov opcode
-data argnum 0 7 6 2 10 8 9    # per argument: x86 register number
+data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185 65 187    # per argument: REX prefix or 0, mov opcode
+data argnum 0 7 6 2 10 8 9 11    # per argument: x86 register number
 data varnum 3 5 12 13 14 15    # per variable: x86 register number
 data exit0 184 60 0 0 0 49 255 15 5

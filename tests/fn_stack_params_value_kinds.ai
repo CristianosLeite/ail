@@ -1,0 +1,23 @@
+# stack values of every kind: number, wide number, variable, var, buffer
+# declared later, data and a string, which is two
+var gv
+set 3 as lv
+set 4 as gv
+fn f a b c d e g n w v x y z p q
+shr w 32 as w
+loadb z as z
+loadb p as p
+sub y later as y
+add n w as n
+add n v as n
+add n x as n
+add n y as n
+add n z as n
+add n p as n
+add n q as n
+ret n
+end
+data dd 6
+call f 0 0 0 0 0 0 1 0x200000000 lv gv later dd "\x07abc" as r
+sys 60 r
+buf later 8

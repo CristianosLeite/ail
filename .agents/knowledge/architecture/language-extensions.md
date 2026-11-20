@@ -76,7 +76,20 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   517 with stage1, and 400 sources compiled to the same bytes by both.
 - The suite went from 376 to 396 tests.
 
+### More than six parameters (2026-11-19)
+- A call loads each value after the sixth into `r11` and pushes it; the caller removes them with
+  `add rsp` after the call. The callee copies them from above its frame into ordinary variables.
+- The limit is the 64 variables of the callee. `sys` keeps the kernel's six arguments.
+- While values are being pushed, the caller's stack slots are further from `rsp`: `pushed` is
+  added to every slot distance (`call_stack_values_from_stack_variables`).
+- A forward name passed on the stack is patched through `immpos`, not "four bytes back".
+- The suite went from 396 to 408 tests.
+
 ## Why
+- **Caller pops:** the callee's `ret` stays one fixed sequence, and a wrong value count is still
+  found at compile time, so the stack cannot be left unbalanced.
+- **Copy stack parameters into variables at entry:** a parameter is then a variable like any
+  other and the allocation needs no special case; an unused one costs two instructions.
 - **64, not unlimited:** the planned check for reads that skipped their assignment keeps one
   64-bit mask per label; globals are unlimited, so 64 locals is not a practical limit.
 - **Two passes per function instead of a liveness analysis:** the first pass is the normal

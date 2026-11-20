@@ -30,7 +30,7 @@ What stage0 reaches with `call` is a function:
 | `ldvar` | the `mov` that reads the cell of a `var` |
 | `putn`, `getn` | write the name read last into a table entry, or read it back |
 | `defvar`, `kw` | find or add a variable; find the statement row of a keyword |
-| `areg` | x86 register number of an argument position |
+| `areg`, `aidx`, `anext` | x86 register number of an argument position; `argidx` and `argnext` of stage0 |
 | `vplace`, `vmov`, `emem`, `frame`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |

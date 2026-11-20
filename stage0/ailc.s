@@ -46,6 +46,9 @@ vlast:  .skip NVARS * 8         # defines it, and mentions it last
 fnloc:  .skip NVARS             # its place: a register 0-5, or 6 + a stack slot
 locfree: .skip (NREGS + NVARS) * 8  # per place: the last mention of its variable
 fnslots: .skip 4                # stack slots of the function
+pushed: .skip 4                 # bytes of call values pushed so far in this statement
+fnnpar: .skip 4                 # parameters of the function, known after pass 1
+immpos: .skip 8                 # where emit_mov wrote its last imm32
 pass:   .skip 4                 # 1 while a function is compiled to measure its
                                 # variables, 2 when it is compiled again for good
 loops:  .skip NFIX * 16         # per backward jump of the function: where the
@@ -236,9 +239,10 @@ regtab:
     .byte 0x41, 0xBA            # r10
     .byte 0x41, 0xB8            # r8
     .byte 0x41, 0xB9            # r9
+    .byte 0x41, 0xBB            # r11: a call value that goes on the stack
 
 # syscall arg index -> x86 register number, parallel to regtab
-argnum: .byte 0, 7, 6, 2, 10, 8, 9
+argnum: .byte 0, 7, 6, 2, 10, 8, 9, 11
 # variable index -> x86 register number: rbx rbp r12 r13 r14 r15
 varnum: .byte 3, 5, 12, 13, 14, 15
 
@@ -708,13 +712,12 @@ ident:
     jc 2f
     lea rcx, [rip+vlast]
     mov [rcx+rax*8], rsi
-    cmp ebx, 7
-    jae err
-    lea rcx, [rip+argnum]
-    movzx ecx, byte ptr [rcx+rbx]
+    call argidx
+    lea rdx, [rip+argnum]
+    movzx ecx, byte ptr [rdx+rcx]
     mov r9d, 0x8B
     call emit_varmov            # mov <arg reg>, <variable>
-    inc ebx
+    call argnext
     jmp tokend
 2:  call lookup_buf             # not a variable: a global name
     jc 7f
@@ -732,16 +735,16 @@ ident:
     mov eax, [rcx+rax*4]
     call emit_mov
     jmp tokend
-6:  cmp ebx, 7                  # a var is read from its cell
-    jae err
-    lea rcx, [rip+bufaddr]
-    mov ecx, [rcx+rax*4]
+6:  lea rcx, [rip+bufaddr]      # a var is read from its cell
+    mov r8d, [rcx+rax*4]
+    call argidx
     lea rdx, [rip+argnum]
-    movzx eax, byte ptr [rdx+rbx]
+    movzx eax, byte ptr [rdx+rcx]
+    mov ecx, r8d
     mov edx, 1
     mov r9d, 0x8B
     call emit_mem               # mov <arg reg>, [cell]
-    inc ebx
+    call argnext
     jmp tokend
 7:  xor eax, eax                # not declared yet: a buffer or data name that
     call emit_mov               # comes later; fin fills in the value
@@ -752,7 +755,7 @@ ident:
     add rdx, rcx
     mov [rdx], r8
     mov [rdx+8], r9
-    lea rcx, [rdi-4]
+    mov rcx, [rip+immpos]
     mov [rdx+16], rcx
     mov [rdx+24], eax
     inc dword ptr [rip+nrefs]
@@ -860,6 +863,7 @@ varplace:
     cmp eax, NREGS
     jb 0b
     lea ecx, [rax*8-NREGS*8]
+    add ecx, [rip+pushed]       # call values pushed since move the slots away
     mov edx, 2
     ret
 
@@ -1212,14 +1216,29 @@ fndef:
     pop rcx
     cmp ecx, ebp                # the pool did not grow: a repeated name
     je err_dup
-    cmp ebp, NREGS              # one argument register per parameter
-    ja err_vars
+    cmp eax, NREGS
+    jae 3f
     lea rdx, [rip+argnum]
     movzx ecx, byte ptr [rdx+rax]
     mov r9d, 0x89
     call emit_varmov            # mov <variable>, <argument reg>
     jmp 1b
+3:  push rax                    # from the seventh on the caller pushed them, the
+    mov ecx, [rip+fnnpar]       # last one nearest: above the slots, the six
+    sub ecx, eax                # saved registers and the return address
+    add ecx, [rip+fnslots]
+    lea ecx, [rcx*8+48]
+    mov eax, 11
+    mov edx, 2
+    mov r9d, 0x8B
+    call emit_mem               # mov r11, [rsp + distance]
+    pop rax
+    mov ecx, 11
+    mov r9d, 0x89
+    call emit_varmov            # mov <variable>, r11
+    jmp 1b
 2:  call eol
+    mov [rip+fnnpar], ebp
     mov eax, [rip+nfuncs]
     lea rcx, [rip+funargs]
     mov [rcx+rax], bpl
@@ -1526,8 +1545,6 @@ emit_op:
     pop rsi
     test byte ptr [rdx+1], IS_CALL
     jz 2f
-    cmp ebx, 6                  # a function has at most six parameters
-    ja err
     mov eax, [rip+ncalls]
     shl eax, 5
     lea rcx, [rip+calls]
@@ -1540,7 +1557,43 @@ emit_op:
     mov [rcx+24], ebx
     add rdi, 4
     inc dword ptr [rip+ncalls]
+    mov eax, [rip+pushed]       # drop the values that went on the stack
+    test eax, eax
+    jz 2f
+    mov word ptr [rdi], 0x8148  # add rsp, imm32
+    mov byte ptr [rdi+2], 0xC4
+    mov [rdi+3], eax
+    add rdi, 7
+    mov dword ptr [rip+pushed], 0
 2:  ret
+
+# ecx = the row of regtab and argnum for the next value of the statement:
+# its position, or 7 (r11) for a value of a call after the sixth
+argidx:
+    mov ecx, ebx
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_CALL
+    jz 1f
+    cmp ebx, 6
+    jb 2f
+    mov ecx, 7
+    ret
+1:  cmp ebx, 7
+    jae err
+2:  ret
+
+# the value is in its register: push it if it goes on the stack, count it
+argnext:
+    cmp ebx, 6
+    jb 1f
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_CALL
+    jz 1f
+    mov word ptr [rdi], 0x5341  # push r11
+    add rdi, 2
+    add dword ptr [rip+pushed], 8
+1:  inc ebx
+    ret
 
 # emit the 64-bit "mov <reg ecx>, <reg eax>" (x86 register numbers)
 emit_mov_rr:
@@ -1565,25 +1618,25 @@ emit_mov_rr:
 # emit "mov <arg reg ebx>, rax" in its shortest form and advance ebx.
 # Keeps r8 and r9.
 emit_mov:
-    cmp ebx, 7
-    jae err
+    call argidx
     mov rdx, rax
     shr rdx, 32
     jnz 2f
-    lea rcx, [rip+regtab]       # 32 bits: mov r32, imm32 clears the upper half
-    movzx edx, byte ptr [rcx+rbx*2]
+    lea r10, [rip+regtab]       # 32 bits: mov r32, imm32 clears the upper half
+    movzx edx, byte ptr [r10+rcx*2]
     test edx, edx
     jz 1f
     mov [rdi], dl
     inc rdi
-1:  mov dl, [rcx+rbx*2+1]
+1:  mov dl, [r10+rcx*2+1]
     mov [rdi], dl
     mov [rdi+1], eax
+    lea rdx, [rdi+1]
+    mov [rip+immpos], rdx       # for a value that is filled in later
     add rdi, 5
-    inc ebx
-    ret
-2:  lea rcx, [rip+argnum]
-    movzx ecx, byte ptr [rcx+rbx]
+    jmp argnext
+2:  lea r10, [rip+argnum]
+    movzx ecx, byte ptr [r10+rcx]
     mov edx, ecx
     shr edx, 3                  # REX.B: the register is r8-r15
     or edx, 0x48                # REX.W
@@ -1597,14 +1650,12 @@ emit_mov:
     mov [rdi+2], cl
     mov [rdi+3], eax
     add rdi, 7
-    inc ebx
-    ret
+    jmp argnext
 3:  or cl, 0xB8                 # mov r64, imm64
     mov [rdi+1], cl
     mov [rdi+2], rax
     add rdi, 10
-    inc ebx
-    ret
+    jmp argnext
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write ELF to stdout
 fin:

@@ -1,0 +1,18 @@
+# parameters and locals on the stack at once, read back after more work
+fn f a b c d e g h i
+add a b as t1
+add c d as t2
+add e g as t3
+add h i as t4
+add t1 t2 as u
+add t3 t4 as v
+add u v as w
+add w h as w
+add w i as w
+add w a as w
+add w t1 as w
+add w t4 as w
+ret w
+end
+call f 1 2 3 4 5 6 7 8 as r
+sys 60 r

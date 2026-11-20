@@ -26,7 +26,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Lift the six-variable limit at top level and in functions, including
   parameters. Registers are assigned for the entire scope. Reuse registers
   across disjoint lifetimes and spill to the stack when necessary.
-- [ ] Lift the six-parameter limit on AIL calls with stack arguments or another
+- [x] Lift the six-parameter limit on AIL calls with stack arguments or another
   extension to the internal calling convention. The raw Linux syscall ABI has
   its own six-argument limit.
 
