@@ -242,9 +242,37 @@ end
 end
 end
 
-# the lines of the n bytes at p
+# whether the line from p to e ends inside a string, s saying whether it
+# starts in one: a string may go on over the end of a line, a backslash
+# in it takes the next byte along, and a comment has no string
+fn strend p e s
+while p<e
+loadb p as c
+if s
+if c==92
+p+=1
+end
+if c==34
+s=0
+end
+else
+if c==35
+ret 0
+end
+if c==34
+s=1
+end
+end
+p+=1
+end
+ret s
+end
+
+# the lines of the n bytes at p; one that starts inside a string is the
+# text of the string and declares nothing
 fn decls p n
 e=p+n
+s=0
 while p<e
 q=p
 while q<e
@@ -253,7 +281,10 @@ jeq c 10 eol
 q+=1
 end
 label eol
+ifz s
 call declline p q
+end
+call strend p q s as s
 p=q+1
 end
 end

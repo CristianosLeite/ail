@@ -90,6 +90,9 @@ keeps() {
 }
 keeps var_after_tab '\tvar shared\n'
 keeps var_before_comment 'var other shared#set by the program\n'
+# a string that goes on over the end of a line is no use and no var, also
+# behind a backslash at the end of a line and after a quote in a comment
+keeps string_over_lines 'data s "a\\\nvar other\nuse \\"none.ai\\"" 0 # "\nvar shared\n'
 # and so is a var of a file named on the command line, for a source that
 # is itself named by that file: without it the write is folded away
 r=0
