@@ -885,6 +885,8 @@ call filewrite "copy" q r
 | `procwait pid ms` | waits until the child has ended, at most `ms` milliseconds (0: without limit), and returns how it ended |
 | `procenv` | the environment of this process: the address of the addresses of its `NAME=value` strings, with a 0 after the last |
 | `procvar p n` | two results, the address and length of the value of the variable named by the `n` bytes at `p`, or 0 and 0 |
+| `procnow` | the time of the clock that only goes forward (`CLOCK_MONOTONIC`), in nanoseconds |
+| `procpin cpu` | binds this thread, and the children it starts afterwards, to the processor `cpu`, or to the lowest it may run on if that is none of them; returns the processor, or a negative error number |
 
 ```
 use "lib/io.ai"

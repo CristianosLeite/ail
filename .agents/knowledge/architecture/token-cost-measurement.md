@@ -9,7 +9,7 @@ status: current
 **Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
 13% cheaper than C and 19% cheaper than Rust (it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
-`tools/perf.py` times the same programs.
+`tools/perf.ai` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
 
 ## Facts
 - With the examples rewritten in expressions and `while` (2026-11-20, later the same day): AIL

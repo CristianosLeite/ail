@@ -165,7 +165,7 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    Drain redirected output while the child runs, or use temporary files.
    Enforce the existing run timeout, kill timed-out children and reap them.
    Switch `make test` to the AIL runner for both function and top-level modes.
-4. [ ] Port `perf.py`. Reuse the process and file helpers. Keep benchmark inputs
+4. [x] Port `perf.py`. Reuse the process and file helpers. Keep benchmark inputs
    and expected results in tool-local data, and keep validation, timing and
    reporting in separate functions. Preserve CPU affinity, monotonic timing,
    warmups, shuffled run order, summary statistics and output checks. Keep

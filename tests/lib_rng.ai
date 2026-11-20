@@ -39,3 +39,32 @@ call putn x==0x010101010101
 call rngbelow s 1 as x
 call putn x
 call print "\n"
+# a shuffle keeps the numbers and is the same for the same seed
+buf a 80
+buf c 80
+i=0
+while i<10
+store a+i*8 i
+store c+i*8 i
+i+=1
+end
+call rngseed s 77
+call rngseed t 77
+call rngshuffle s a 10
+call rngshuffle t c 10
+i=0
+n=0
+m=0
+while i<10
+load a+i*8 as x
+load c+i*8 as y
+call putn x
+n+=1<<x
+m+=x==y
+i+=1
+end
+call print " "
+call putn n
+call print " "
+call putn m
+call print "\n"

@@ -35,3 +35,17 @@ call rngnext rngs as rngz
 jlt rngz rngt again
 ret rngz%rngn
 end
+
+# put the rngn numbers of 8 bytes at rnga in a random order, every order
+# as likely as the others: from the last place down, each place changes
+# its number with that of a place not above it (Fisher and Yates)
+fn rngshuffle rngs rnga rngn
+while rngn>1
+call rngbelow rngs rngn as rngj
+rngn-=1
+load rnga+rngn*8 as rngx
+load rnga+rngj*8 as rngy
+store rnga+rngn*8 rngy
+store rnga+rngj*8 rngx
+end
+end

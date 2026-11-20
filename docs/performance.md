@@ -1,20 +1,20 @@
 # Performance
 
-`tools/perf.py` times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`.
+`tools/perf.ai`, built as `build/tools/perf` by `make tools`, times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`.
 
 ```
-make
-python3 tools/perf.py              # every program
-python3 tools/perf.py compute      # some programs only
-python3 tools/perf.py --quick      # few rounds, to see that it runs
-python3 tools/perf.py --cpu 4      # another CPU than 2
+make all tools
+build/tools/perf              # every program
+build/tools/perf compute      # some programs only
+build/tools/perf --quick      # few rounds, to see that it runs
+build/tools/perf --cpu 4      # another CPU than 2
 ```
 
 ## Method
 
 - C is built with `gcc -O3`, Rust with `rustc -O`, assembly with `as` and `ld`; the AIL program is `build/<name>`, so run `make` first. A language without a source for a program is left out of its row.
 - Every executable must give the expected output and exit status for the input before anything is timed. Where the output is a computed value, all languages must give the same bytes as C.
-- A run is `posix_spawn` and `waitpid` with stdin from a file and stdout to `/dev/null`, the script pinned to one CPU. Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
+- A run is a child process of `lib/proc.ai` and the wait for it (`fork`, `dup2`, `execve`, `wait4`), timed with the monotonic clock, with stdin from a file and stdout to `/dev/null`, the tool pinned to one CPU. Until 2026-11-20 the tool was a Python script that started the child with `posix_spawn`; [the two are compared below](#the-measuring-tool-in-ail-2026-11-20). Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
 - The figure is the median, followed by the first and third quartile, which show the variation from run to run.
 - The input is read at run time, so no compiler can compute the result while compiling.
 
@@ -137,6 +137,25 @@ Where the work departed from the document:
 - **The seed is a release of a private repository**, so fetching it needs `gh` and a login, or a local copy; `curl` alone works once the repository is public.
 
 Not done: the comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer, which stays an open item.
+
+## The measuring tool in AIL, 2026-11-20
+
+The figures above were taken by `tools/perf.py`, a Python script. The tool is now `tools/perf.ai`, which checks, times and reports as the script did: the same programs, inputs and expected results, the same rounds, the median and quartiles of the same samples, the same tables. Two things differ, and one of them touches the figures.
+
+- **How a child is started.** The script called `posix_spawn` from the Python interpreter; the tool calls `procstart` of `lib/proc.ai`, which is `fork` and then `dup2` and `execve` in the child. The time of a run includes that start, and for the startup programs it is most of what is measured. Both tools were run one after the other, twice, on the same machine and CPU as above (median of 500 rounds, microseconds):
+
+| program | AIL, script | AIL, tool | C, script | C, tool |
+|---|---:|---:|---:|---:|
+| hello | 70.84, 72.69 | 71.78, 69.30 | 218.92, 227.86 | 223.00, 214.42 |
+| echo | 75.25, 76.79 | 74.16, 71.81 | 229.78, 231.85 | 223.72, 215.26 |
+| count | 76.64, 80.91 | 71.99, 70.31 | 226.71, 242.46 | 218.25, 211.25 |
+| fact | 72.75, 74.69 | 68.95, 67.40 | 229.67, 231.28 | 211.91, 206.97 |
+| loop | 78.93, 78.21 | 71.80, 70.44 | 235.43, 231.46 | 214.94, 209.74 |
+
+  Taking the two runs of each together, the tool's figures are lower than the script's: by 1 to 8 microseconds for AIL and by 5 to 21 for C, between 2 and 10 percent. For AIL that is within the quartiles of either tool, which lie 4 to 9 microseconds from the median; for C it is beyond them in three of the five programs. A `fork` of a process of a few pages costs less than a `posix_spawn` out of an interpreter, and a parent that runs no interpreter between two children leaves them warmer caches, which a program that loads a C library uses more of. The ratio between the languages is what it was, an AIL program starting in about a third of the time of the C one with either tool (`hello` 0.32 and 0.32, `count` 0.34 and 0.33). So startup figures taken by the tool are not to be mixed with the older tables above, only compared within a table; the CPU-bound figures, in milliseconds, do not see the difference. The script's start could have been matched with `clone` and `CLONE_VFORK`, but not its interpreter, so the plain `fork` stays and the figures are marked by date.
+- **The order of a round** is shuffled with splitmix64 (`tools/lib/rng.ai`) from the seed 77, where the script used Python's generator with that seed: other orders, drawn the same way.
+
+The geometric mean is the n-th root by Newton's steps in doubles, where Python used `pow`; on 20000 random products of up to ten ratios the two print the same three digits. A run of every program with the tool gave 1.000, 1.029, 1.126, 0.999 and 1.043 for the five CPU-bound programs and a geometric mean of 1.038.
 
 ## Tasks, 2026-11-20
 

@@ -10,6 +10,7 @@
 const procdup2 33
 const procpoll 7
 const procpidfd 434
+const procsetaff 203
 
 # the environment of this process as the kernel passed it: the address of
 # the addresses of its strings, "NAME=value" with a NUL byte at the end,
@@ -160,4 +161,60 @@ if procr&127
 ret 0-(procr&127)
 end
 ret procr>>8&255
+end
+
+# the time of the clock that only goes forward (CLOCK_MONOTONIC), in
+# nanoseconds since a moment that is the same for the whole run
+fn procnow
+local proct 16
+sys clock_gettime 1 proct
+load proct as procs
+load proct+8 as procn
+ret procs*1000000000+procn
+end
+
+# Let this thread, and the children it starts from now on, run only on
+# the processor proccpu, or on the lowest one it may run on if that is
+# not among them: the processor it is now bound to, or the error of the
+# kernel, negated. Processors are numbered from 0, below 1024.
+fn procpin proccpu
+local procm 128
+proci=0
+while proci<128
+store procm+proci 0
+proci+=8
+end
+sys sched_getaffinity 0 128 procm as procr
+ifslt procr 0
+ret procr
+end
+procc=0
+if proccpu<1024
+loadb procm+proccpu/8 as procc
+procc=procc>>(proccpu&7)&1
+end
+ifz procc
+proccpu=0
+label next
+if proccpu>=1024
+ret -22
+end
+loadb procm+proccpu/8 as procc
+procc=procc>>(proccpu&7)&1
+ifz procc
+proccpu+=1
+jmp next
+end
+end
+proci=0
+while proci<128
+store procm+proci 0
+proci+=8
+end
+storeb procm+proccpu/8 1<<(proccpu&7)
+sys procsetaff 0 128 procm as procr
+ifslt procr 0
+ret procr
+end
+ret proccpu
 end
