@@ -11,6 +11,12 @@ control-flow review about tests that pass for the wrong reason. `AGENTS.md` desc
 layout of a test; this page records why some fixtures look the way they do.
 
 ## Facts
+- `tests/make.sh` (since 2026-11-20) checks the recipe for examples in a scratch copy with the
+  compiler already built: a good example builds and runs; after its source is broken the build
+  fails twice, the old executable is byte for byte what it was and no temporary file remains;
+  a faulty example that was never built leaves no target; a repaired one builds. With the
+  recipe changed to write the target directly, two of its four checks fail. The target is made
+  older with `touch -d` instead of waiting for the clock.
 - `tests/fuzz.sh [count [seed]]` (since 2026-11-20) compares the two compilers on sources made
   by one to four random edits of a test, example or library source: a token from a dictionary
   put in, a span cut out, a byte replaced, the end cut off, a span repeated, a piece of another

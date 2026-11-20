@@ -97,7 +97,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Add differential fuzzing and independent checks of emitted bytes, including
   every displacement at fixup-table capacity. The existing parity suite checks
   both compilers against one another and checks the bootstrap fixed point.
-- [ ] Automate the check that a failed example build leaves no up-to-date target.
+- [x] Automate the check that a failed example build leaves no up-to-date target.
 - [x] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
   assembly programs. Use the results to guide syntax choices.
 

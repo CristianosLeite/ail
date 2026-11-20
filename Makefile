@@ -37,7 +37,7 @@ $(B)/ailc2: stage1/ailc.ai stage1/tables.ai $(B)/ailc1
 test: $(B)/ailc $(B)/ailc1 $(B)/ailc2
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
-	tests/tables.sh || f=1; tests/stage1.sh || f=1; \
+	tests/make.sh || f=1; tests/tables.sh || f=1; tests/stage1.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/fuzz.sh 300 1 || f=1; \
 	AILC=$(B)/ailc1 tests/run.sh || f=1; AILC=$(B)/ailc1 tests/io.sh || f=1; exit $$f
 else

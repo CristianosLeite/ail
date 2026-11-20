@@ -143,7 +143,6 @@ records the reasoning.
 ## Open items
 - 2026-11-19: self-hosting is done, see [Stage1 self-hosting](stage1-self-hosting.md); six variables per function were enough for it.
 - 2026-11-19: errors carry no line number.
-- 2026-11-19: the Makefile failed-build case has no automated test.
 
 ## Related
 - [Stage1 self-hosting](stage1-self-hosting.md)
