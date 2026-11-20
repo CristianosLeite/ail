@@ -14,8 +14,11 @@
 #   48  the next record of those that are done
 #   56  the task of the pool that runs it, 0 if it ran without one
 #   64  the event that awaits it, 0 once that was cancelled
-#   72  1 if it need not run any more
+#   72  0 until a worker begins it, then 1; 2 if it was cancelled before
+#       and is not to run. Set with cas, by the worker and by cancel.
 #   80  and 88 its last two values
+#   96  1 if the event was cancelled while the work ran: its result is
+#       -125 then
 # Only the thread that polls makes and frees records. A worker reads the
 # record it was given and writes 40 and 48.
 #
@@ -30,9 +33,9 @@ const asynceventfd 290
 # what a worker runs: the function, then the record to the list, and a
 # word to the polling thread if it sleeps
 fn asyncjob asyncj
-load asyncj+72 as asyncx
+cas asyncj+72 0 1 as asyncx
 asyncv=-125
-ifz asyncx
+if asyncx
 load asyncj as asyncf
 load asyncj+8 as asynca
 load asyncj+16 as asyncb
@@ -71,6 +74,10 @@ call join asynct
 load asyncj+64 as asynch
 if asynch
 load asyncj+40 as asyncv
+load asyncj+96 as asyncx
+if asyncx
+asyncv=-125
+end
 call asyncdisarm asynch
 load asyncq+112 as asyncx
 store asyncq+112 asyncx-1
@@ -103,15 +110,21 @@ call asyncdrain
 ret asyncr
 end
 
-# what asynccancel calls for the event of work: nobody waits for it any
-# more. Work that no worker has begun is not run; work that runs is left
-# to return, and its result dropped.
+# what asynccancel calls for the event of work. Work that no worker has
+# begun is not run, and the event ends now: 0. Work that a worker is
+# doing cannot be stopped, and may be using memory of whoever waits for
+# it: the event stays, and ends with -125 when the work has returned: 1.
 fn asyncjoboff asynch
 load asynch+64 as asyncj
+cas asyncj+72 0 2 as asyncx
+if asyncx
 store asyncj+64 0
-store asyncj+72 1
 load asyncq+112 as asyncx
 store asyncq+112 asyncx-1
+ret 0
+end
+store asyncj+96 1
+ret 1
 end
 
 # what asyncstop calls: give back the eventfd, then what the file of the
@@ -169,6 +182,7 @@ store asyncj+80 asyncc
 store asyncj+88 asyncd
 store asyncj+64 asynch
 store asyncj+72 0
+store asyncj+96 0
 ref asyncjob as asyncf
 call spawn asyncf asyncj 0 0 0 0 as asynct
 ifz asynct

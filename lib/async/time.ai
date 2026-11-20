@@ -183,27 +183,53 @@ call asyncsift asyncn asyncd+asyncms*1000000 asynce
 ret asynce
 end
 
-# the poll function of a limit: the task or event at 64 against the
-# timer at 72, each of which wakes this task when it is done
+# A limit is a task with the task or event it limits at 64, its timer
+# at 72, 0 once that is gone, and at 80 how it ends: 0 with the result
+# of what it limits, 1 with -62, the time being up, 2 with -125, being
+# cancelled. Each of the two wakes this task when it is done.
+#
+# What it limits is cancelled when the time is up or the limit is
+# cancelled. An event may refuse that for now (work of the pool that a
+# thread is doing, see asynccancel): then the limit goes on waiting for
+# it, and ends only when the event has, so that whoever awaits the limit
+# does not go on while the work still uses its memory.
 fn asynclimit asynct
+label asynctop
 load asynct+64 as asynch
 load asynct+72 as asynce
+load asynct+80 as asyncf
 load asynch+24 as asyncs
 if asyncs&4
 call asyncdisarm asynct
+if asynce
 call asynccancel asynce
 call await asynce 0
+end
 call await asynch 0 as asyncv
+if asyncf==1
+asyncv=-62
+end
+if asyncf==2
+asyncv=-125
+end
 store asynct+16 asyncv
 ret 1
 end
+if asyncf
+store asynch+40 asynct
+ret 0
+end
 load asynce+24 as asyncs
 if asyncs&4
-call asyncdisarm asynct
 call await asynce 0
-store asynch+40 0
-call asynccancel asynch
-call asyncdetach asynch
+store asynct+72 0
+store asynct+80 1
+call asynclimstop asynct as asyncr
+jeq asyncr 2 asynctop
+if asyncr
+ret 0
+end
+call asyncdisarm asynct
 store asynct+16 -62
 ret 1
 end
@@ -212,17 +238,44 @@ store asynce+40 asynct
 ret 0
 end
 
-# what asynccancel calls for a limit: its timer and what it limits are
-# cancelled with it
-fn asynclimitoff asynct
+# cancel what the limit limits: 0 if the limit may end now, a task,
+# which is told and left to itself; 2 if it is done, and its record
+# still there; 1 if it refused and the limit has to wait for it
+fn asynclimstop asynct
 load asynct+64 as asynch
-load asynct+72 as asynce
 store asynch+40 0
+call asynccancel asynch
+load asynch+24 as asyncs
+if asyncs&4
+ret 2
+end
+load asynch+56 as asyncp
+if asyncp
+store asynch+40 asynct
+ret 1
+end
+call asyncdetach asynch
+ret 0
+end
+
+# what asynccancel calls for a limit: its timer and what it limits are
+# cancelled with it. 1 if the limit cannot end yet.
+fn asynclimitoff asynct
+load asynct+72 as asynce
+if asynce
 store asynce+40 0
 call asynccancel asynce
 call asyncdetach asynce
-call asynccancel asynch
-call asyncdetach asynch
+store asynct+72 0
+end
+store asynct+80 2
+call asynclimstop asynct as asyncr
+if asyncr==2
+load asynct+64 as asynch
+call await asynch 0
+ret 0
+end
+ret asyncr
 end
 
 # "call asynctimeout h ms as g": a task whose result is that of h if h
@@ -243,6 +296,7 @@ ret 0
 end
 store asynct+64 asynch
 store asynct+72 asynce
+store asynct+80 0
 ref asynclimitoff as asyncp
 call asyncarm asynct asyncp
 ret asynct

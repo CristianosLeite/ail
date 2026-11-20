@@ -1,18 +1,21 @@
-# work that is cancelled: its event is -125 at once. Work that had begun
-# returns later, to nobody; work that had not begun is not run. Nothing
-# is waited for afterwards.
+# work that is cancelled. Work that no worker has begun is not run, and
+# its event is -125 at once. Work that a worker is doing cannot be
+# stopped: its event is -125 only when the work has returned, so that
+# memory it was given is not used after the event is done.
 use "lib/task.ai"
 use "lib/async/task.ai"
 use "lib/async/time.ai"
 use "lib/async/io.ai"
 use "lib/async/pool.ai"
 buf ran 8
+buf back 8
 fn nap ms b c d
 xadd ran 1 as x
 local ts 16
 store ts 0
 store ts+8 ms*1000000
 sys nanosleep ts 0
+xadd back 1 as x
 ret ms
 end
 call workers 1
@@ -23,13 +26,15 @@ call asyncblock p 100 0 0 0 as b
 await asyncsleep 20
 call asynccancel a as c
 call asynccancel b as d
-await a as x
 await b as y
-call asyncrun as n
 call asyncclock as t1
-ms=(t1-t0)/1000000
-# let the work that runs return, and the other be dropped
-await asyncsleep 150
-call asyncrun as m
+load back as back1
+await a as x
+call asyncclock as t2
+load back as back2
+call asyncrun as n
 load ran as ran1
-sys exit_group (ms>80)+(x!=-125)*2+(y!=-125)*4+n*8+m*16+c*32+d*64+ran1
+e=(t1-t0)/1000000>80
+e+=((t2-t0)/1000000<95)*2
+e+=(x!=-125)*4+(y!=-125)*8+n*16
+sys exit_group e*8+c+d*2+back1*4+(back2==1)*16+(ran1==1)*32

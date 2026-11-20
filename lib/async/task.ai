@@ -22,7 +22,8 @@
 #   16  result
 #   24  state: 1 in the queue, 2 being polled, 4 done, 8 cancelled, 16
 #       delivered while in the queue, so freed when it leaves it, 32
-#       nobody wants the result, 64 it was told that it is cancelled;
+#       nobody wants the result, 64 it was told that it is cancelled,
+#       128 asyncstop has cancelled it;
 #       from bit 8 on the class of its size
 #   32  next task of the queue, or next free record
 #   40  the task that awaits this one
@@ -331,6 +332,18 @@ store asyncs+48 0
 if asynch
 store asynch+40 0
 call asynccancel asynch
+load asynch+24 as asyncx
+load asynch+56 as asyncp
+ifz asyncx&4
+if asyncp
+# it refused, and still has its function: work that a thread is doing,
+# maybe with memory of this task, or a limit on such work. The task
+# waits until that has ended, and is told then.
+store asynch+40 asyncs
+store asyncs+48 asynch
+ret 0 0
+end
+end
 call asyncdetach asynch
 end
 if asyncf&64
@@ -369,7 +382,7 @@ end
 
 # "call asynccancel h": 1, or 0 if h was done. An event ends with the
 # result -125, after the function at 56 of its record has taken it from
-# where it waits. A task is not ended: it is marked, and woken, and the
+# where it waits, unless that function refuses. A task is not ended: it is marked, and woken, and the
 # await it is in, or its next one, gives it -125 (see await).
 fn asynccancel asynct
 load asynct+24 as asyncs
@@ -379,8 +392,14 @@ end
 load asynct+56 as asynch
 load asynct as asyncp
 if asynch
+# the function may refuse, with a result that is not 0: work that a
+# thread is doing cannot be taken from it. The record then stays as it
+# is, and ends when that function's file ends it.
+callp asynch asynct as asyncr
+if asyncr
+ret 1
+end
 call asyncdisarm asynct
-callp asynch asynct
 asyncp=0
 end
 ifz asyncp
@@ -401,14 +420,22 @@ fn asyncstop
 store asyncq+136 1
 asyncn=1
 while asyncn
-label asyncall
+# cancel every record of the list once: one that refuses stays in it,
+# marked, until the polling below has seen it end
+asyncn=0
 load asyncq+128 as asynct
-if asynct
+while asynct
+load asynct+24 as asyncs
+if asyncs&128
+load asynct+112 as asynct
+else
+store asynct+24 asyncs|128
 call asynccancel asynct
-jmp asyncall
+asyncn+=1
+load asyncq+128 as asynct
+end
 end
 call asyncrun
-load asyncq+128 as asyncn
 end
 load asyncq+144 as asyncf
 if asyncf

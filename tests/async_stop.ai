@@ -1,7 +1,8 @@
 # asyncstop with tasks alive: one that accepts in a loop, one that reads,
 # one that sleeps in a loop and never looks at a result, one that waits
 # for work of the pool, one in the queue. All are ended, none is left,
-# and the library works again afterwards.
+# and the library works again afterwards. The work of the pool is being
+# done and cannot be stopped, so asyncstop returns when it has returned.
 use "lib/io.ai"
 use "lib/task.ai"
 use "lib/async/task.ai"
@@ -40,7 +41,7 @@ sys nanosleep ts 0
 end
 async fn worker
 ref nap as p
-await asyncblock p 300 0 0 0 as r
+await asyncblock p 150 0 0 0 as r
 ret r
 end
 async fn fresh
@@ -63,7 +64,7 @@ call asyncstop as n
 call asyncclock as t1
 call putn n
 call putn closed
-call putn (t1-t0)/100000000
+call putn (t1-t0)/1000000>100
 call print " "
 # again, from nothing
 sys close c
