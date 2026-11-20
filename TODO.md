@@ -138,7 +138,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Compute an assignment in the register of its target.
 - [x] Lower the arithmetic statements like expressions, so both spellings
   give the same bytes.
-- [ ] Test the condition of `while` at the end of the loop.
+- [x] Test the condition of `while` at the end of the loop.
 - [ ] Branch on the flags of the previous instruction.
 - [ ] Record the measurements after instruction selection.
 - [ ] Write the examples and the library with expressions.

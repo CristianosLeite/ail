@@ -40,6 +40,10 @@ var fnres fntail ncap
 # nblk = open blocks; blkbase = those opened outside the open function;
 # topblk = blkbase of the top level, in a function
 var nblk blkbase topblk whead wsrc
+# while the value of a while is read again at the end of its loop: that
+# it is, where the source goes on, the first line of the loop in the
+# output, and what was assigned at the head
+var wend wip wbody wasg
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -94,8 +98,8 @@ buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes:
 buf runend 7456544    # per run of data statements: the address after its last byte
 buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
                     # the block, asg, and (4 bytes each) 1 for an else part and dead
-                    # at its end, and for a while the address of its head and its
-                    # place in the source, else 0
+                    # at its end, and for a while the address of its first line and
+                    # the place of its value in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
 buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
                     # yet defined, length, next node, scope, index in the table of
@@ -1009,9 +1013,14 @@ end
 fn exname
 call lvar as r
 ifne r -1
+# its last mention: never earlier than one already noted, since the value
+# of a while is read a second time from the end of its loop
 mul r 8 as d
 add d vlast as d
+load d as c
+ifgt ip c
 store d ip
+end
 shr asg r as d
 and d 1 as d
 ifz d
@@ -3603,6 +3612,44 @@ call sname as r
 call mov r
 jmp tokend
 
+# The line of a while is complete. Its value was read for its faults only:
+# the test stands at the end of the loop, and here is the jump to it.
+label wopen
+ifne ai 1
+call ecount
+end
+call eb 233
+mul nblk 40 as p
+add p blks as p
+store p op
+add p 8 as p
+store p asg
+add p 8 as p
+store p 0
+call z 4
+add p 8 as p
+store p op
+add p 8 as p
+store p wsrc
+set 0 as whead
+add nblk 1 as nblk
+jmp next
+
+# The value of a while has been read again, at the end of its loop, as the
+# value of a jnz: compare or test it, and jump back to the first line of
+# the loop while it holds.
+label wclose
+call xjcond
+call eop
+sub wbody op as r
+sub r 4 as r
+call e4 r
+set 0 as wend
+set wip as ip
+set wasg as asg
+set 0 as dead
+jmp be3
+
 # "<name>=<expression>" and "<name><operator>=<expression>"
 label asgn
 sub d 2 as d
@@ -3744,6 +3791,8 @@ call err
 end
 call crlf
 label a1
+jnz wend wclose
+jnz whead wopen
 set cur as r
 add r 1 as f
 loadb f as f
@@ -4548,10 +4597,13 @@ add p blks as p
 add p 24 as q
 load q as r
 if r
-# the end of a while: jump back to its head. That way there must have
-# assigned what the head had assigned, like a jump back to a label, and in
-# the first pass over a function the loop is noted for alloc. After the
-# loop, what is assigned is what the head had: the only way out is its test.
+# The end of a while: the jump at its head lands here, and here its value
+# is read again from the source, as the value of a jnz that leads back to
+# the first line of the loop (wclose). A round is thus one jump. The way
+# back must have assigned what was assigned at the head, like a jump back
+# to a label, and in the first pass over a function the loop is noted for
+# alloc. At the test and after the loop, what is assigned is what the head
+# had.
 ifz dead
 add p 8 as q
 load q as q
@@ -4571,17 +4623,39 @@ add d 8 as d
 store d ip
 add nloops 1 as nloops
 end
-call eb 233
-sub r op as r
-sub r 4 as r
-call e4 r
 call blktop as p
 sub nblk 1 as nblk
 add p 8 as q
 load q as q
+set q as wasg
 set q as asg
 set 0 as dead
-jmp be3
+set r as wbody
+add p 32 as q
+load q as q
+set ip as wip
+set q as ip
+set exnm as p
+store2 p 0x6e6a
+add p 2 as p
+storeb p 122
+set exnm as p
+set p as ns
+set 3 as nl
+call kw as r
+set r as cur
+set 0 as ai
+set 0 as ncap
+store opd 0
+add opd 32 as d
+store d 0
+call xclass as d
+set d as xst
+if d
+call exinit
+end
+set 1 as wend
+jmp arg
 end
 call blktop as p
 sub nblk 1 as nblk
@@ -4642,9 +4716,10 @@ set 0 as dead
 call clrvk
 jmp next
 
-# "while <value>": an "if <value>" whose block ends with a jump back to
-# here. The head is a place that a jump reaches, so what is known of the
-# variables is forgotten, as at a label.
+# "while <value>": a block whose value is read like that of an if, here
+# for its faults (wopen) and again at the end of the loop for its code. A
+# jump reaches the loop, so what is known of the variables is forgotten, as
+# at a label.
 label whiledef
 call blank1
 call clrvk
