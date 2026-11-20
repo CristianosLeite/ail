@@ -142,7 +142,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Branch on the flags of the previous instruction.
 - [x] Compile loads and stores with the address as base, index and number
   (added when the measurements showed where `isort` and `sieve` lost).
-- [ ] Record the measurements after instruction selection.
+- [x] Record the measurements after instruction selection.
 - [ ] Write the examples and the library with expressions.
 - [ ] Add a tool that rewrites statements as expressions.
 - [ ] Release and pin the second seed.
