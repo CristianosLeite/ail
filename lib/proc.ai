@@ -59,31 +59,71 @@ end
 end
 end
 
-# in the child: the descriptor procfd, or a copy of it at 3 or above if
-# it is 0, 1 or 2 and not the one it is to become; the copy is closed
-# when the program starts. Without a copy the child ends.
-fn prochigh procfd procto
-if procfd<3
-if procfd!=procto
-sys procfcntl procfd 1030 3 as procfd
-ifslt procfd 0
-sys exit 127
+# in the child: make the three descriptors given its 0, 1 and 2, or end
+# it. One that is 0, 1 or 2 itself must be read before another is put on
+# its number, so each round puts in place those whose number no other
+# still reads. When none is left to do so they read one another in a
+# ring, and only then one of them is copied to a number from 3 up, which
+# is closed when the program starts: without a ring no descriptor is
+# needed beyond the three.
+fn procmap procin procout procerr
+local procm 24
+store procm procin
+store procm+8 procout
+store procm+16 procerr
+proci=0
+while proci<3
+load procm+proci*8 as procs
+if procs==proci
+store procm+proci*8 -1
 end
+proci+=1
 end
+label round
+procn=0
+procd=0
+proci=0
+while proci<3
+load procm+proci*8 as procs
+if procs!=-1
+procn+=1
+procb=0
+procj=0
+while procj<3
+load procm+procj*8 as procx
+if procx==proci
+procb=1
 end
-ret procfd
+procj+=1
 end
-
-# in the child: make procfd its descriptor procto, or end it
-fn procput procfd procto
-if procfd!=-1
-if procfd!=procto
-sys procdup2 procfd procto as procr
+ifz procb
+sys procdup2 procs proci as procr
 ifslt procr 0
 sys exit 127
 end
+store procm+proci*8 -1
+procd=1
 end
 end
+proci+=1
+end
+ifz procn
+ret 0
+end
+jnz procd round
+proci=0
+label ring
+load procm+proci*8 as procs
+if procs==-1
+proci+=1
+jmp ring
+end
+sys procfcntl procs 1030 3 as procs
+ifslt procs 0
+sys exit 127
+end
+store procm+proci*8 procs
+jmp round
 end
 
 # Start a program as a child process: its number, or the error of fork,
@@ -108,14 +148,7 @@ end
 call procopen procin
 call procopen procout
 call procopen procerr
-# a descriptor that is one of the three and goes to another of them is
-# copied out of their way first, or the one before it would overwrite it
-call prochigh procin 0 as procin
-call prochigh procout 1 as procout
-call prochigh procerr 2 as procerr
-call procput procin 0
-call procput procout 1
-call procput procerr 2
+call procmap procin procout procerr
 load procargv as procp
 call strlen procp as procn
 proci=0
