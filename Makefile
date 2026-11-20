@@ -26,6 +26,23 @@ endef
 $(B)/%: examples/%.ai $(B)/ailc
 	$(call compile,$(B)/ailc)
 
+# The tools written in AIL: tools/<name>.ai is build/tools/<name>, compiled
+# by the compiler after the bootstrap, which needs none of them. A tool
+# names the files of its functions with use, paths from the directory make
+# runs in; each is a prerequisite in the line of the tool below, so that an
+# edit of a shared file builds its callers again (tests/tools.sh compares
+# those lines with the use statements). The source of the tool stays the
+# first prerequisite, the one the recipe compiles.
+TOOLS := $(patsubst tools/%.ai,$(B)/tools/%,$(wildcard tools/*.ai))
+
+tools: $(TOOLS)
+
+$(B)/tools/%: tools/%.ai $(B)/ailc
+	@mkdir -p $(@D)
+	$(call compile,$(B)/ailc)
+
+$(B)/tools/hashcol: lib/io.ai
+
 # The compiler, compiler/ailc.ai, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -47,13 +64,13 @@ $(B)/ailc2: $(SRC) $(B)/ailc
 
 # Each run names its compiler, so an AILC in the environment of make
 # changes nothing.
-test: $(B)/ailc $(B)/ailc2
+test: $(B)/ailc $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; \
-	tests/par.sh || f=1; \
+	tests/par.sh || f=1; tests/tools.sh || f=1; \
 	python3 tools/randvars.py $(B)/ailc 200 1 || f=1; \
 	python3 tools/randvars.py $(B)/ailc 200 2 top || f=1; exit $$f
 else
@@ -67,4 +84,4 @@ fuzz: $(B)/ailc
 clean:
 	rm -rf $(B)
 
-.PHONY: all test fuzz clean
+.PHONY: all tools test fuzz clean

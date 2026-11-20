@@ -474,7 +474,7 @@ Labels, functions and global names are found through one hash table; only the va
 - **Rollback.** The first pass over a function adds nodes that the second pass must not find. `fndef` saves the node count in the snapshot, and `hundo` takes the later nodes out again, last first, each being the first of its chain when its turn comes.
 - **Pending labels.** A jump to a label that is not defined yet finds or adds a pending node for the name and and-s `asg` into its mask. `labasg` reads that mask when the label is defined, instead of searching all jumps of the scope for the name.
 
-For two keys with the same name, a different kind or scope always gives a different bucket, because both are mixed in by exclusive or and the fold is linear over it. The comparisons of kind and scope in `hfind` can therefore never decide a lookup today; they stay so that a change of the hash cannot make names of different kinds meet. The comparison of lengths does decide: `tools/hashcol.py` finds a name and a longer one that starts with it in one bucket, and `tests/hash_collision_prefix` uses the pair.
+For two keys with the same name, a different kind or scope always gives a different bucket, because both are mixed in by exclusive or and the fold is linear over it. The comparisons of kind and scope in `hfind` can therefore never decide a lookup today; they stay so that a change of the hash cannot make names of different kinds meet. The comparison of lengths does decide: `tools/hashcol.ai` (`build/tools/hashcol` after `make tools`) finds a name and a longer one that starts with it in one bucket, and `tests/hash_collision_prefix` uses the pair.
 
 ## Errors
 

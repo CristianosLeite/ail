@@ -26,6 +26,7 @@ echo hi | build/count    # prints: 0003
 build/loop          # prints the digits 0 to 9, one per line
 build/fact; echo $? # prints: 120
 make test           # runs the tests in tests/ and the checks of the compiler against itself
+make tools          # builds the tools written in AIL, tools/<name>.ai, as build/tools/<name>
 make test T=hello   # runs one test
 ```
 
@@ -96,7 +97,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements; `bench/par/` has programs written without and with tasks, timed by `tools/par.py`
-- `tools/`: measurements (`tokens.sh`, `perf.py`, `bench.sh`), source rewriters (`infix.py`, `fuse.py`), random programs (`randvars.py`), the seed (`seed.sh`)
+- `tools/`: measurements (`tokens.sh`, `perf.py`, `bench.sh`), source rewriters (`infix.py`, `fuse.py`), random programs (`randvars.py`), the seed (`seed.sh`); a tool written in AIL is `tools/<name>.ai`, built as `build/tools/<name>` by `make tools` (`hashcol`, which finds two names in one bucket of the compiler's hash)
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents
