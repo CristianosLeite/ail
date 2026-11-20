@@ -236,7 +236,7 @@ architecture. Keep the runtime in AIL and expose its polling contract through
 a small internal interface for compiler-generated code.
 [Tokio runtime architecture](https://docs.rs/tokio/latest/tokio/runtime/index.html)
 
-1. [ ] Prototype the runtime in AIL with hand-written resumable tasks. Define
+1. [x] Prototype the runtime in AIL with hand-written resumable tasks. Define
    the task frame, poll and wake contract, result storage and task lifetime.
    Start with one executor thread, a ready queue and cooperative scheduling.
    Coalesce repeated wakeups and preserve wakeups that arrive during a poll.
