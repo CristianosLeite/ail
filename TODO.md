@@ -98,7 +98,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   every displacement at fixup-table capacity. The existing parity suite checks
   both compilers against one another and checks the bootstrap fixed point.
 - [ ] Automate the check that a failed example build leaves no up-to-date target.
-- [ ] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
+- [x] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
   assembly programs. Use the results to guide syntax choices.
 
 Keep the hardware-oriented syntax and use measured token cost to decide where

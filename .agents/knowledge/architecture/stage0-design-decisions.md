@@ -141,14 +141,13 @@ records the reasoning.
 - 64-bit or negative immediates need a `mov r64, imm64` (or sign-extended) path in `emit_mov`.
 
 ## Open items
-- 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
-  thumb only.
 - 2026-11-19: self-hosting is done, see [Stage1 self-hosting](stage1-self-hosting.md); six variables per function were enough for it.
 - 2026-11-19: errors carry no line number.
 - 2026-11-19: the Makefile failed-build case has no automated test.
 
 ## Related
 - [Stage1 self-hosting](stage1-self-hosting.md)
+- [Token cost measurement](token-cost-measurement.md)
 - [Stage0 functions](stage0-functions.md)
 - [Stage0 test suite](../testing/stage0-test-suite.md)
 - [Open items](../status/open-items.md)

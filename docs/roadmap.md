@@ -26,5 +26,5 @@ The language is now developed in stage1; stage0 stays in the repository as the b
 
 ## Supporting work
 
-- Measure token cost with a real tokenizer against equivalent C, Rust and assembly, and use the numbers to choose between syntax alternatives. So far the syntax follows a rule of thumb only.
+- Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 41% fewer tokens than assembly and about 20% more than C or Rust. Use `tools/tokens.sh` to choose between syntax alternatives.
 - Report a line number on compile errors, since the error message is what an AI uses to repair its program.

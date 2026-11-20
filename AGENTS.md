@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## What this is
 
-AIL is a proof-of-concept programming language whose design goal is low token consumption when an AI writes it. It is hardware-oriented (assembly-like, no classes or objects) and human readability is explicitly not a goal. When adding syntax, prefer short common words and bare spaces over punctuation and boilerplate, and let the compiler infer anything derivable (for example, a string literal supplies its own length).
+AIL is a proof-of-concept programming language whose design goal is low token consumption when an AI writes it. `docs/tokens.md` has the measured cost and what it decides: fewer lines matter more than shorter words, and a number costs more than a name. It is hardware-oriented (assembly-like, no classes or objects) and human readability is explicitly not a goal. When adding syntax, prefer short common words and bare spaces over punctuation and boilerplate, and let the compiler infer anything derivable (for example, a string literal supplies its own length).
 
 The compiler is bootstrapped: stage0 (`stage0/ailc.s`) is written in assembly, and stage1 (`stage1/ailc.ai`) is the same compiler written in AIL, built by stage0 and then by itself. The two must behave identically, byte for byte, so a change to the language goes into both.
 
@@ -23,6 +23,8 @@ make test       # run every test in tests/ and the I/O checks of tests/io.sh wit
 make test T=hello   # run one test, with both compilers
 make build/foo  # compile examples/foo.ai to build/foo
 make clean
+tools/tokens.sh  # token cost of examples/ against the C, Rust and assembly programs in bench/
+tools/bench.sh   # check that bench/ behaves like examples/ (needs gcc and rustc)
 ```
 
 The compiler reads source on stdin and writes the executable on stdout:
