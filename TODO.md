@@ -146,7 +146,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Write the examples and the library with expressions.
 - [x] Add a tool that rewrites statements as expressions.
 - [x] Release and pin the second seed.
-- [ ] Write the compiler with expressions.
+- [x] Write the compiler with expressions.
 - [ ] Report the redesign against its acceptance criteria.
 
 Keep the hardware-oriented syntax and use measured token cost to decide where

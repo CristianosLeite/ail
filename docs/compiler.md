@@ -1,6 +1,6 @@
 # How the compiler works
 
-`stage1/ailc.ai` is the AIL compiler, written in AIL, with its read-only tables in `stage1/tables.ai`: about 3000 lines together and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage1/ailc.ai` is the AIL compiler, written in AIL, with its read-only tables in `stage1/tables.ai`: about 4700 lines together, a tenth of them comments, and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It is the only compiler. It began as a translation, routine by routine, of a compiler in x86-64 assembly (`stage0/ailc.s`) that built it the first time; that one was removed on 2026-11-20 and is in the history of the repository. The directory is still called `stage1`.
 
@@ -502,7 +502,7 @@ The statement table has each row as its name length, its name as a string, the o
 
 ## How the source is written
 
-The states of the top level are labels and jump to each other. Inside a state and inside the functions, a test with its consequence is written as a block (`ifz d` ... `end`) and a comparison with its jump as one statement (`jeq c 10 n1`). `tools/fuse.py` made that change mechanically from the version with `eq`/`jnz` pairs: it fuses a pair only when the result of the comparison is not read on any path afterwards, turns a forward jump to a label that nothing else uses into a block when the region is short and nests, and leaves the state labels alone. It removed 138 lines and about 9% of the tokens.
+The states of the top level are labels and jump to each other. The source is written with expressions since seed 2 was pinned: `tools/infix.py` rewrote it on 2026-11-20, spelling 1849 statements as assignments, turning 12 label loops into `while` and folding 725 variables that were read once into the line that read them. That took it from 25635 tokens to 20172 without comments, 21% fewer, and from 4888 lines of code to 4140; the compiler it compiles to is 39217 bytes where the statement-written source gave 41784, since a folded value needs no variable to pass through. Inside a state and inside the functions, a test with its consequence is written as a block (`ifz d` ... `end`) and a comparison with its jump as one statement (`jeq c 10 n1`). `tools/fuse.py` made that change mechanically from the version with `eq`/`jnz` pairs: it fuses a pair only when the result of the comparison is not read on any path afterwards, turns a forward jump to a label that nothing else uses into a block when the region is short and nests, and leaves the state labels alone. It removed 138 lines and about 9% of the tokens.
 
 - A decimal literal is checked for overflow before the multiplication: `rdnum` refuses a value above 0x1999999999999999 (2^64 / 10, rounded down), or equal to it with a digit above 5.
 - A negative syscall result is tested unsigned: a `read` result above the buffer size is an error, and a `write` result is good when `result - 1` is below the bytes left.
