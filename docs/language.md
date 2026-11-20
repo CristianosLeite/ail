@@ -7,7 +7,7 @@ This describes exactly what the compilers accept today, stage0 and stage1 alike.
 AIL is written by AI, so the cost that matters is tokens, not keystrokes or human readability.
 
 - Short common words separated by spaces. No punctuation unless it carries information.
-- No boilerplate: no `main`, no imports, no statement terminators, no declarations that the compiler can derive.
+- No boilerplate: no `main`, no statement terminators, no declarations that the compiler can derive, and one short line to share a file.
 - Hardware-oriented: statements map directly onto machine operations. There are no classes or objects.
 
 ## Program structure
@@ -17,6 +17,26 @@ A program is a sequence of statements, one per line. Execution starts at the fir
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 
 Blank lines are ignored. Indentation is ignored.
+
+### `use`
+
+```
+use "path"
+```
+
+Compiles the file `path` at this place, as if its lines stood here: its functions, global names and top-level statements become part of the program, and its top-level statements run where the `use` stands. A program is thus split into files by listing them, and a file of functions and data is a library.
+
+```
+use "lib/io.ai"
+call print "hello\n"
+```
+
+- A path is compiled **once**: a later `use` of the same path, in any file, does nothing. Two files can therefore each name the library they need. Paths are compared as written, so write a file the same way everywhere.
+- The path is taken as it stands between the quotes, with no escapes, on one line, at most 4095 bytes. A relative path starts from the directory the compiler runs in, not from the file that has the `use`.
+- `use` is a statement of the top level: it cannot stand inside a function, and a function must end in the file that starts it.
+- Because functions, buffers and data may be [used before they are declared](#names), the place of a `use` matters only for the top-level statements of the file, for its `var` and `const` names, which must come before their uses, and for its top-level variables, which it shares with the rest of the top level.
+
+All files of a program together are subject to the [size limit](#errors) of the source.
 
 ## Separators
 
@@ -522,7 +542,8 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that; the locals of a function exceeding about 2 GiB |
-| `ailc: source too big` | 1 | source larger than 65536 bytes |
+| `ailc: source too big` | 1 | the source and the files it names with `use` are together larger than 65536 bytes |
+| `ailc: cannot read file` | 1 | the path of a `use` cannot be opened or read |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |
 
@@ -539,6 +560,7 @@ Causes of a syntax error:
 - `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment
 - `at` without a name of a buffer, data or local first, then exactly two values and `as`
 - `alloc` without exactly one value and `as`, `free` without exactly one value or with `as`
+- `use` without a path in quotes on the same line, with an empty path or one of more than 4095 bytes, inside a function, or followed by anything but a comment; a file that ends inside a function
 - `var` without a name, or with something that is not a name or is `as`
 - `const` without a name and an integer, with the name `as`, or followed by anything but a comment
 - `data` without an item, with an item that is not a string or an integer from 0 to 255, with the name `as`, or followed by anything but a comment

@@ -1,0 +1,3 @@
+use "tests/lib/crlf.ai"
+call crf as r
+sys 60 r

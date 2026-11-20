@@ -1,0 +1,7 @@
+use "tests/lib/twice.ai"
+fn six x
+call twice x as y
+add y x as y
+call twice y as y
+ret y
+end

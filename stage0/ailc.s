@@ -41,6 +41,8 @@
 .equ K_LIT,   3                 # or the bytes of a string
 .equ NCHKS,  INSZ / 8 + 1       # "load a as b\n" is longer than 8 bytes
 .equ NRUNS,  INSZ / 9 + 1       # "data a 1\n" is 9 bytes
+.equ NUSES,  INSZ / 7 + 1       # use "a" and its line end are 8 bytes
+.equ PATHSZ, 4096               # longest path of a use, with its NUL
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
@@ -79,6 +81,12 @@ nchks:  .skip 4
 bufrun: .skip NGLOB * 4         # per data name: 1 + its run of data statements
 runend: .skip NRUNS * 4         # per run: the address after its last byte
 nruns:  .skip 4
+srcend: .skip 8                 # end of all source read so far, in inbuf
+uses:   .skip NUSES * 16        # per file compiled through use: the path as
+nuses:  .skip 4                 # written (address in inbuf, length)
+ustack: .skip NUSES * 16        # per use being compiled: where its line ended
+nustk:  .skip 4                 # in the unit that has it, and that unit's end
+pathbuf: .skip PATHSZ           # the path of a use, with a NUL for open
 bufs:   .skip NGLOB * 16        # per global name (buf, data, var, const): the same
 bufaddr: .skip NGLOB * 4        # per global name: its address
 bufsize: .skip NGLOB * 8        # its length in bytes, or the value of a const
@@ -477,6 +485,8 @@ m_unasg:  .ascii "ailc: unassigned variable\n"
 .equ M_UNASG_SZ, . - m_unasg
 m_acc:    .ascii "ailc: invalid access\n"
 .equ M_ACC_SZ, . - m_acc
+m_use:    .ascii "ailc: cannot read file\n"
+.equ M_USE_SZ, . - m_use
 m_num:    .ascii "ailc: number too big\n"
 .equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
@@ -514,7 +524,7 @@ _start:
     jz 2f
     add r15, rax
     jmp 1b
-2:
+2:  mov [rip+srcend], r15
     # ---- header template
     lea r14, [rip+outbuf]
     mov rdi, r14
@@ -527,7 +537,7 @@ _start:
 # ---- statement
 next:
     cmp rsi, r15
-    jae fin
+    jae unitend
     mov al, [rsi]
     cmp al, ' '                 # indentation and blank lines
     je 1f
@@ -560,9 +570,13 @@ next:
     cmp byte ptr [r8+2], 'd'
     je fnend
 4:  cmp word ptr [r8], 0x6176   # "va"
-    jne 5f
+    jne 4f
     cmp byte ptr [r8+2], 'r'
     je vardef
+4:  cmp word ptr [r8], 0x7375   # "us"
+    jne 5f
+    cmp byte ptr [r8+2], 'e'
+    je usedef
 5:  cmp r9, 4
     jne 5f
     cmp dword ptr [r8], 0x61746164  # "data"
@@ -643,7 +657,7 @@ next:
     jmp next
 2:  inc rsi                     # comment: skip to end of line
     cmp rsi, r15
-    jae fin
+    jae unitend
     mov al, [rsi]
     cmp al, 10
     je next
@@ -651,6 +665,100 @@ next:
     jne 2b
     call crlf                   # even here a CR needs its LF
     jmp 2b
+
+# the end of a unit of source: go on after the use that named it, or finish
+unitend:
+    mov eax, [rip+nustk]
+    test eax, eax
+    jz fin
+    cmp dword ptr [rip+infn], 0 # a function ends in the unit it starts in
+    jne err
+    dec eax
+    mov [rip+nustk], eax
+    shl eax, 4
+    lea rcx, [rip+ustack]
+    mov rsi, [rcx+rax]
+    mov r15, [rcx+rax+8]
+    jmp next
+
+# "use "<path>"": read the file behind the source read so far and compile it
+# here, unless a use with the same path was compiled before
+usedef:
+    cmp dword ptr [rip+infn], 0
+    jne err
+    call blank1
+    cmp rsi, r15
+    jae err
+    cmp byte ptr [rsi], '"'
+    jne err
+    inc rsi
+    mov r8, rsi
+1:  cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    cmp al, '"'
+    je 2f
+    cmp al, 10                  # a path is on one line
+    je err
+    inc rsi
+    jmp 1b
+2:  mov r9, rsi
+    sub r9, r8
+    inc rsi
+    call eol
+    test r9, r9
+    jz err
+    cmp r9, PATHSZ - 1
+    ja err
+    lea r10, [rip+uses]
+    mov edx, [rip+nuses]
+    call lookup
+    jnc next                    # compiled before: nothing to do
+    mov [r10], r8
+    mov [r10+8], r9
+    inc dword ptr [rip+nuses]
+    push rsi
+    push rdi
+    mov rsi, r8
+    lea rdi, [rip+pathbuf]
+    mov rcx, r9
+    rep movsb
+    mov byte ptr [rdi], 0
+    mov eax, 2                  # open(path, O_RDONLY)
+    lea rdi, [rip+pathbuf]
+    xor esi, esi
+    xor edx, edx
+    syscall
+    test rax, rax
+    js err_use
+    mov r12, rax
+    mov r13, [rip+srcend]       # the unit starts here
+3:  xor eax, eax                # read(fd, srcend, room left)
+    mov rdi, r12
+    mov rsi, [rip+srcend]
+    lea rdx, [rip+inend]
+    sub rdx, rsi
+    jz err_big
+    syscall
+    test rax, rax
+    js err_use
+    jz 4f
+    add [rip+srcend], rax
+    jmp 3b
+4:  mov eax, 3                  # close(fd)
+    mov rdi, r12
+    syscall
+    pop rdi
+    pop rsi
+    mov eax, [rip+nustk]        # come back here at the end of the unit
+    shl eax, 4
+    lea rcx, [rip+ustack]
+    mov [rcx+rax], rsi
+    mov [rcx+rax+8], r15
+    inc dword ptr [rip+nustk]
+    mov rsi, r13
+    mov r15, [rip+srcend]
+    jmp next
 
 # a CR at rsi must be the first half of a CRLF line end
 crlf:
@@ -2529,6 +2637,11 @@ err_unasg:
 err_acc:
     lea rsi, [rip+m_acc]
     mov edx, M_ACC_SZ
+    mov ebx, 1
+    jmp die
+err_use:
+    lea rsi, [rip+m_use]
+    mov edx, M_USE_SZ
     mov ebx, 1
     jmp die
 err_bufs:

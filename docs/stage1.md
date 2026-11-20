@@ -1,9 +1,9 @@
 # How the stage1 compiler works
 
-`stage1/ailc.ai` is the AIL compiler written in AIL: about 2150 lines, 33 KiB. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
+`stage1/ailc.ai` is the AIL compiler written in AIL, with its tables in `stage1/tables.ai`: about 2500 lines and 40 KiB together. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
 
 ```
-build/ailc  < stage1/ailc.ai > build/ailc1     # stage1 built by stage0
+build/ailc  < stage1/ailc.ai > build/ailc1     # stage1 built by stage0, from the top of the repository
 build/ailc1 < stage1/ailc.ai > build/ailc2     # stage1 built by itself
 cmp build/ailc1 build/ailc2                    # the same file: a fixed point
 ```
@@ -12,13 +12,13 @@ cmp build/ailc1 build/ailc2                    # the same file: a fixed point
 
 ## Shape of the program
 
-Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
+Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `usedef`, `uend`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
 
 What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `euse`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `low`, `dig`, `blank` | character classes |
@@ -57,9 +57,9 @@ The counters and the saved scope of stage0 are `var`s too, under its names (`nbu
 
 ## Read-only tables
 
-The tables that stage0 keeps in `.rodata` are `data` statements at the end of the source, after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
+The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
-The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has eight more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`), so `next` finds every keyword with the one search `kw`.
+The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has nine more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`), so `next` finds every keyword with the one search `kw`.
 
 ## What the translation had to match
 

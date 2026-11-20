@@ -10,12 +10,18 @@ There is one pass over the top level and two over each function, and no intermed
 
 1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
-3. Scan the source. For each statement, append machine code directly to the output buffer.
+3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
 4. Append the code for `exit(0)`.
 5. Fill in the displacement of every top-level jump from the label table, of every call from the function table, and the value of every name used before its declaration from the table of global names.
 6. Patch the two segment sizes in the header, write the buffer to stdout, exit.
 
 Because code is emitted as it is read, an address that appears later in the source is not known yet. Jumps, calls and the names of buffers and data declared later each leave four empty bytes and an entry in a fixup list. The jumps of a function are filled in at its `end`, once all its labels are known, and the rest in step 5.
+
+## Units
+
+The input buffer holds the source from stdin and, behind it, every file named by a `use`, each read whole at `srcend` when its statement is met. Names are still kept as addresses into that buffer, and every table is sized for its 64 KiB, so the files of a program share the limit.
+
+`usedef` looks the path up in `uses`, where paths are kept as written; a hit means the file was compiled and the statement does nothing, which also ends any cycle. Otherwise it copies the path to `pathbuf` with a NUL, opens and reads the file, pushes the input cursor and the end of the current unit on `ustack`, and points both at the new bytes. `next` and the comment scanner go to `unitend` where they used to go to `fin`: it pops the stack, or finishes when it is empty. A function must end in its unit, which both the `use` and the end of a unit check, because the second pass over a function returns to a saved place in the input.
 
 ## Register conventions
 
@@ -40,6 +46,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 |---|---|
 | `_start` | ignore `SIGPIPE`, read stdin, copy the header template |
 | `next` | start of a statement: skip indentation, blank lines and comments, find the keyword in `optab`, and for `sys` require its syscall number, for `call` read the function name, for `ret` require an open function |
+| `usedef`, `unitend` | `use "<path>"`: unless the path was seen, read the file behind the source read so far, remember where to go on and scan it; at the end of a unit, go on after its `use`, or to `fin` |
 | `crlf` | check that a CR is followed by LF; called wherever a line may end, and for every CR in a comment |
 | `tokend`, `tokchk` | check that a token is followed by a space, tab, comment or line end; `tokend` then falls into `arg` |
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
@@ -72,7 +79,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -120,7 +127,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags (two bytes) and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags (two bytes) and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|

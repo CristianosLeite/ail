@@ -61,6 +61,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `store p a`, `store4`, `store2`, `storeb` | Write `a` as 64, 32 or 16 bits or as one byte at address `p` |
 | `label l` | Name this point of the program |
 | `jmp l`, `jz a l`, `jnz a l` | Jump to label `l`: always, if `a` is zero, if `a` is not zero |
+| `use "lib/io.ai"` | Compile another file here, once per path |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a` | Return `a` from the function; reaching `end` returns 0 |
 | `tail f a b` | Call `f` and return its result without growing the stack |

@@ -149,7 +149,28 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   entered a page at a time with a touch of each.
 - The suite went from 548 to 569 tests.
 
+### Multiple source units (2026-11-19)
+- `use "path"` compiles a file in place, once per path as written, at top level only. The file
+  is read into the input buffer behind everything read so far; all units share the 64 KiB.
+- A relative path starts from the directory the compiler runs in, since the main source comes
+  from stdin and has no path of its own.
+- Stage1's tables are `stage1/tables.ai`, used from the last line of `stage1/ailc.ai`; the
+  Makefile lists both as prerequisites and compiles from the top of the repository.
+- Fixtures for the tests are in `tests/lib/`. The suite went from 569 to 596 tests.
+- The mutation script now takes a third target, the tables file, and points the `use` of a
+  scratch copy of the main file at the mutated tables.
+
 ## Why
+- **Textual inclusion, not separate compilation:** functions, buffers and data can already be
+  used before they are declared, so one stream with a fixup at the end is a complete linker for
+  this language. Object files and symbols would add a format and a second tool.
+- **Once per path:** a library named by two files must not be a duplicate, and include guards
+  are boilerplate that costs tokens in every file.
+- **No escapes in the path:** nothing in a path needs them, and the bytes go to `open` as they
+  are.
+- **Two checks that a function ends in its unit** (at `use` and at the end of a unit) cover each
+  other: with either one removed the other, or the second pass over the function, still gives a
+  syntax error, so mutation checks cannot tell them apart. Both stay, as each states a rule.
 - **An explicit `tail`, not an optimisation of `call` + `ret`:** recognising the pair needs a
   look at the next line, and whether the stack grows is something the writer of a recursion
   must be able to rely on, not hope for.

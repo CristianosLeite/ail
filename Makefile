@@ -24,10 +24,12 @@ $(B)/%: examples/%.ai $(B)/ailc
 
 # stage1, the compiler written in AIL: built by stage0, then by itself.
 # tests/stage1.sh checks that the two are the same file.
-$(B)/ailc1: stage1/ailc.ai $(B)/ailc
+# stage1/ailc.ai names its tables with use "stage1/tables.ai", a path that
+# the compiler opens from the directory make runs in.
+$(B)/ailc1: stage1/ailc.ai stage1/tables.ai $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-$(B)/ailc2: stage1/ailc.ai $(B)/ailc1
+$(B)/ailc2: stage1/ailc.ai stage1/tables.ai $(B)/ailc1
 	$(call compile,$(B)/ailc1)
 
 # Each run names its compiler, so an AILC in the environment of make cannot
