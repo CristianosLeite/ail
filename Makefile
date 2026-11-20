@@ -47,6 +47,7 @@ $(B)/tools/hashcol: lib/io.ai
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.ai tools/lib/flow.ai
 $(B)/tools/randvars: $(TL) lib/proc.ai tools/lib/rng.ai
 $(B)/tools/perf: $(TL) lib/proc.ai tools/lib/rng.ai tools/lib/fmt.ai
+$(B)/tools/tokens: $(TL) tools/lib/fmt.ai tools/lib/o200k.ai
 
 # The compiler, compiler/ailc.ai, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
@@ -75,7 +76,7 @@ ifeq ($(T),)
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; \
-	tests/par.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; \
+	tests/par.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; exit $$f
 else

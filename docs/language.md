@@ -855,6 +855,7 @@ call print p n
 | `filemkdir p n mode` | makes the directory at the path, with the mode less the umask; returns 0 |
 | `fileunlink p n` | removes the file at the path; returns 0 |
 | `filermdir p n` | removes the empty directory at the path; returns 0 |
+| `filenames p n b` | adds the names in the directory at the path to the buffer `b`, each with a NUL byte after it, without `.` and `..`, in the order of the kernel; returns their number |
 
 ```
 use "lib/io.ai"

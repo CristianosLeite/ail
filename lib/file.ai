@@ -25,6 +25,9 @@ end
 storeb filez+filen 0
 end
 
+# a syscall without a name in the compiler
+const filegetdents 217
+
 # open the path with the flags and the mode of the open syscall, plus
 # close-on-exec: the descriptor, which the caller closes, or the error
 fn fileopen filep filen fileflags filemode
@@ -129,4 +132,51 @@ ifz filer
 sys rmdir filez as filer
 end
 ret filer
+end
+
+# add the names in the directory at the path to the buffer fileb, each
+# with a NUL byte after it, in the order the kernel gives them and
+# without "." and "..": their number, or the error
+fn filenames filep filen fileb
+local filed 4096
+call fileopen filep filen 0x10000 0 as filefd
+ifslt filefd 0
+ret filefd
+end
+filec=0
+label more
+sys filegetdents filefd filed 4096 as filer
+jeq filer -4 more
+ifsle filer 0
+sys close filefd
+ifslt filer 0
+ret filer
+end
+ret filec
+end
+filei=0
+while filei<filer
+# an entry: 16 bytes, its length in 2, its kind in 1, the name
+load2 filed+filei+16 as filel
+filez=filed+filei+19
+filei+=filel
+filel=0
+label len
+loadb filez+filel as filek
+if filek
+filel+=1
+jmp len
+end
+load2 filez as filek
+if ((filel==1)&(filek==46))|((filel==2)&(filek==0x2e2e))
+else
+call byadd fileb filez filel+1 as filek
+ifz filek
+sys close filefd
+ret -12
+end
+filec+=1
+end
+end
+jmp more
 end
