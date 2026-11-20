@@ -60,7 +60,7 @@ set a as name
 add a b as name
 ```
 
-`set` copies one value into a variable. The arithmetic statements take two values and keep the result in a variable. All of them need `as name`; an operand is an integer, a variable or a buffer name, never a string.
+`set` copies one value into a variable. The arithmetic statements take two values and keep the result in a variable. All of them need `as name`; an operand is any [argument](#arguments), and a string is its address.
 
 | Statement | Result |
 |---|---|
@@ -82,7 +82,7 @@ Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones. A shift uses onl
 lt a b as name
 ```
 
-A comparison takes two values like an arithmetic statement and keeps `1` in the variable if it holds, `0` if not. It needs `as name`; an operand is an integer, a variable or a buffer name, never a string.
+A comparison takes two values like an arithmetic statement and keeps `1` in the variable if it holds, `0` if not. It needs `as name`; an operand is any [argument](#arguments).
 
 | Statement | `1` when |
 |---|---|
@@ -109,7 +109,7 @@ jz a name
 jnz a name
 ```
 
-`label` names the point in the program where it stands; it emits no code. `jmp` continues execution at a label. `jz` jumps if the value `a` is zero and `jnz` if it is not, otherwise execution goes on with the next line. All 64 bits of the value are tested, so a comparison result can be used directly. The value is an integer, a variable or a buffer name, never a string.
+`label` names the point in the program where it stands; it emits no code. `jmp` continues execution at a label. `jz` jumps if the value `a` is zero and `jnz` if it is not, otherwise execution goes on with the next line. All 64 bits of the value are tested, so a comparison result can be used directly. The value is any [argument](#arguments).
 
 A label may be defined before or after the jumps that use it, and a label after the last statement stands at the appended `exit(0)`. Each label is defined once. Label names follow the rules of variable names but are a separate name space: a label may share its name with a variable or a buffer, and may be called `as`. There is no limit on the number of labels or jumps.
 
@@ -140,7 +140,7 @@ call name x y
 
 `fn` starts a function and `end` closes it. The names after the function name are its parameters; there may be none and at most six. A function cannot be defined inside another one. Where a function stands does not matter: top-level execution skips its body, and a `call` may come before or after the definition.
 
-`call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is an integer, a variable or a buffer name, never a string, and the number of values must equal the number of parameters.
+`call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is any [argument](#arguments), and the number of values must equal the number of parameters; a string is two values, its address and its length, so that a function taking `p n` can be called with a literal.
 
 `ret value` returns that one value to the caller and is only allowed inside a function. Reaching `end` returns `0`.
 
@@ -163,9 +163,9 @@ Each function has its own variables and its own labels:
 - The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most six.
 - A function sees none of the variables defined outside it, and its variables do not exist outside it. The same name can be used on both sides for different things. Values go in through the parameters and out through `ret`.
 - Every call gets fresh variables: the caller's variables, at top level or in another function, are unchanged when the call returns, also when a function calls itself.
-- Buffers are global. A function can use any buffer declared on an earlier line, and a `buf` written inside a function is the same as one written outside: its name may not be that of a top-level variable either.
+- Buffers and data are global. A function can use any buffer or data name declared on an earlier line, and a `buf` or `data` written inside a function is the same as one written outside: its name may not be that of a top-level variable either.
 
-Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
+Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
 Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits, and the result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack and recursion is limited only by the stack size.
 
@@ -177,13 +177,50 @@ buf name size
 
 Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer of at least 1 and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
-A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables and buffers share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables, buffers and data names share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
 
 ```
 buf line 4096
 sys 0 0 line 4096 as n     # read stdin into it
 sys 1 1 line n             # write what was read
 ```
+
+### `data`
+
+```
+data name item item ...
+data item item ...
+```
+
+Puts read-only bytes into the program and makes `name` their address. An item is a [string](#strings), which gives its bytes, or a decimal integer from 0 to 255, which gives one byte; there must be at least one item. Nothing is added: no terminator, no padding, no alignment.
+
+```
+data msg "hello" 10
+len msg as n            # n = 6
+sys 1 1 msg n
+```
+
+A data name is a constant like a buffer name: one value, its address, wherever a value is accepted, and it shares the name space of variables and buffers. There is no limit on the number of data statements.
+
+`data` statements on consecutive lines are laid out one after the other with nothing between them, so a table can be written a row a line. The name is optional, since only the first row needs one; a name on a later row is the address of that row. A `label` or any statement that produces code ends the run.
+
+```
+data days 31 28 31 30 31 30
+data 31 31 30 31 30 31
+add days 7 as p
+loadb p as n            # n = 31, the eighth byte
+```
+
+The bytes stand in the code where the statement is, and execution passes around them, so `data` may be written anywhere, also inside a function. They are read-only: a store to them kills the program with `SIGSEGV`.
+
+### `len`
+
+```
+len name as n
+len "text" as n
+```
+
+Keeps the length in bytes of a buffer, a data name or a string in a variable: for a buffer the size as declared, before rounding; for a data name the bytes of its own statement, not of the rows after it. The operand cannot be a number or a variable.
 
 ### `load` and `store`
 
@@ -194,7 +231,7 @@ store addr value        # write the 64 bits of value at addr
 storeb addr value       # write the low byte of value at addr
 ```
 
-`addr` is any value: a buffer name, a variable holding an address, or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. A string is not accepted as an operand. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
+`addr` is any value: a buffer or data name, a variable holding an address, a string or an integer. Loads need `as name`; stores do not take it. 64-bit values are little-endian in memory and need no alignment. Nothing is checked at run time: an address outside mapped memory or in read-only memory kills the program with `SIGSEGV`.
 
 ```
 buf b 8
@@ -216,11 +253,13 @@ Unsigned decimal, 0 to 4294967295. No sign, no hex, no separators. Larger values
 "text"
 ```
 
-A string literal counts as **two** arguments: the address of its bytes, then its length in bytes. This matches the `buf, count` pair that syscalls such as `write` take, so the length never has to be written out:
+In `sys` and `call` a string literal counts as **two** arguments: the address of its bytes, then its length in bytes. This matches the `buf, count` pair that syscalls such as `write` take, so the length never has to be written out:
 
 ```
 sys 1 1 "hello world\n"     # write(1, addr, 12)
 ```
+
+In every other statement a string is **one** value, the address of its bytes (`set "abc" as p`), except in [`len`](#len), where it is its length. Each literal has its own bytes, also when two are equal; use [`data`](#data) to name bytes that are used more than once.
 
 Strings are not NUL-terminated; add `\0` if the callee needs it (it then counts towards the length). String data is read-only at run time.
 
@@ -229,6 +268,7 @@ Strings are not NUL-terminated; add `\0` if the callee needs it (it then counts 
 | `\n` | 10, newline |
 | `\t` | 9, tab |
 | `\0` | 0 |
+| `\xHH` | the byte with the hexadecimal value `HH`, two digits, `a` to `f` in either case |
 | `\\` | backslash |
 | `\"` | double quote |
 
@@ -270,9 +310,9 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter or `buf` defined it in this scope |
+| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter, `buf` or `data` defined it in this scope; the operand of `len` when it is not a buffer or data name |
 | `ailc: too many variables` | 1 | a seventh variable name at top level or in one function, parameters included |
-| `ailc: duplicate name` | 1 | `buf` with a name already in use (inside a function, also by a top-level variable), `as` or a parameter with the name of a buffer, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `ailc: duplicate name` | 1 | `buf` or `data` with a name already in use (inside a function, also by a top-level variable), `as` or a parameter with the name of a buffer or of data, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
@@ -288,19 +328,21 @@ Causes of a syntax error:
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
 - `sys` not followed by a decimal syscall number
-- the wrong number of operands: `set`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
-- `set`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
+- the wrong number of operands: `set`, `len`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
+- `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
+- `len` of a number
+- `data` without an item, with an item that is not a string or a decimal integer up to 255, with the name `as`, or followed by anything but a comment
 - `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
 - `end` outside a function, or followed by anything but a comment
 - `ret` outside a function, without exactly one value, or with `as`
-- `call` without a function name, or with more than six values
+- `call` without a function name, or with more than six values (a string counts as two)
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
-- a string anywhere but in a `sys` statement
-- an argument that is not a decimal integer, a string, a variable name or a buffer name
+- `\x` in a string without two hexadecimal digits after it
+- an argument that is not a decimal integer, a string, a variable name or a buffer or data name
 - `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote
@@ -341,9 +383,7 @@ fn put p n
 sys 1 1 p n as r
 ret r
 end
-buf b 4
-store b 174877025       # "ail\n"
-call put b 4 as n
+call put "ail\n" as n   # a string is two values: address and length
 sys 60 n                # exit(4)
 ```
 

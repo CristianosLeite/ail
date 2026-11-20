@@ -1,6 +1,6 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 1100 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 1250 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It is the seed of the bootstrap: [stage1](stage1.md) is the same compiler written in AIL, stage0 builds it the first time, and what this page says about the output holds for both.
 
@@ -41,14 +41,16 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `_start` | ignore `SIGPIPE`, read stdin, copy the header template |
 | `next` | start of a statement: skip indentation, blank lines and comments, find the keyword in `optab`, and for `sys` require its syscall number, for `call` read the function name, for `ret` require an open function |
 | `crlf` | check that a CR is followed by LF; called wherever a line may end, and for every CR in a comment |
-| `tokend` | check that a token is followed by a space, tab, comment or line end, then fall into `arg` |
+| `tokend`, `tokchk` | check that a token is followed by a space, tab, comment or line end; `tokend` then falls into `arg` |
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
 | `num` | parse a decimal integer |
-| `str` | reject a string outside `sys`; copy the literal into the output and pass its address and length |
-| `ident` | a name as an argument: pass a variable or a buffer address, hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
+| `str` | copy the literal into the output and pass its address and length (`sys`, `call`), its length (`len`) or its address |
+| `strbytes`, `hexdig` | copy the bytes of a string up to its closing quote, decoding the escapes; read one hexadecimal digit |
+| `ident` | a name as an argument: pass a variable, the address of a buffer or of data, or for `len` its size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
 | `capture` | `as <name>`: define the variable if new, call `emit_op` and store `rax` in it |
 | `defvar` | read a variable name and find it in the pool of the current scope, or add it |
 | `bufdef` | `buf <name> <size>`: enter the buffer in its table and reserve its bytes |
+| `datadef` | `data [<name>] <item>...`: copy the bytes into the output behind a jump, or behind the jump of the data statement just before; enter the name |
 | `labdef` | `label <name>`: enter the label and the current output position in the label table |
 | `jtarget` | the label name of a jump: call `emit_op`, leave room for the displacement and record a fixup |
 | `fndef` | `fn <name> <parameter>...`: enter the function, emit the jump over it and its entry code, open its scope |
@@ -80,7 +82,7 @@ The second segment has a file size of zero and a memory size equal to the total 
 
 **Integer argument.** `mov r32, imm32` into the register for the current argument position, taken from `regtab`. It is 5 bytes, or 6 with a REX prefix for `r8`–`r10`. Writing a 32-bit register zero-extends into the 64-bit one, which is why integers are limited to unsigned 32 bits.
 
-**String argument.** The bytes are placed in the code stream and jumped over:
+**String argument.** The bytes are placed in the code stream and jumped over. `sys` and `call` get both `mov`s, `len` only the second and every other statement only the first:
 
 ```
 jmp  over          ; E9 + 32-bit length
@@ -94,7 +96,9 @@ The address is known as soon as the string is read, so no data section and no ba
 
 **Variable argument.** `mov r64, r64` from the variable's register into the argument register: `REX.W 89 /r`, 3 bytes. The x86 register numbers come from `argnum` (argument position) and `varnum` (variable index); bit 3 of each goes into the REX prefix and the low bits into the ModRM byte.
 
-**Buffer argument.** The buffer's address is a constant, so it is passed like an integer: `mov r32, imm32`.
+**Buffer or data argument.** The address is a constant, so it is passed like an integer: `mov r32, imm32`. So is the length that `len` passes.
+
+**Data.** `data` emits the same `jmp` and bytes as a string and no `mov`. If the output cursor still stands where the previous `data` statement ended (`dataend`), no code and no label came between: the bytes are appended and the displacement of that statement's jump (`datarel`) is written again, so the run is one block. `label` clears `dataend`, because a label after data must stay the address of code.
 
 **End of statement.** The instruction bytes of the statement, copied from its `optab` entry by `emit_op`; for `sys` that is `syscall` (`0F 05`). With `as`, they are followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
@@ -102,7 +106,7 @@ The address is known as soon as the string is read, so no data section and no ba
 
 ## Operations
 
-Every statement except `buf`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
+Every statement except `buf`, `data`, `label`, `fn` and `end` is one row of the table `optab`: keyword, operand count, flags and instruction bytes. The operands are parsed by the same code as syscall arguments, so the first lands in `rax` and the second in `rdi`, the registers of argument positions 0 and 1. The instruction bytes then compute the result into `rax`, where `as` picks it up exactly as it does after a syscall.
 
 | Statement | Emitted after the operands |
 |---|---|
@@ -114,6 +118,7 @@ Every statement except `buf`, `label`, `fn` and `end` is one row of the table `o
 | `mod` | `xor edx, edx` / `div rdi` / `mov rax, rdx` |
 | `shl` `shr` | `mov rcx, rdi` / `shl` or `shr rax, cl` |
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
+| `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
 | `store` | `mov [rax], rdi` |
@@ -127,7 +132,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`) and whether the statement needs an open function (`ret`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes up to six, checked against the function when the call is resolved.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`) and whether its operand is taken as a length (`len`). `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes up to six, checked against the function when the call is resolved.
 
 ## Worked example
 
@@ -180,9 +185,9 @@ A name is only entered in the table when its `as` is reached, at the end of the 
 
 ## Buffers
 
-The table `bufs` has the same 16-byte entries as `vars`, and `bufaddr` holds one 32-bit address per buffer. `buf` rounds the size up to 8 bytes, gives the buffer the address `0x10000000` plus the bytes reserved so far, and adds the size to the running total `bsssz`, which `fin` writes into the second program header. The total is kept below 4 GiB minus the base so that every address fits the `imm32` that `emit_mov` writes.
+The table `bufs` has the same 16-byte entries as `vars` and holds buffers and data names alike; `bufaddr` holds one 32-bit address per entry and `bufsize` its length for `len`. It is sized from the source limit like the label table, since a declaration takes at least 8 bytes; `nrbufs` counts the buffers among the entries for the limit of 16. `buf` rounds the size up to 8 bytes, gives the buffer the address `0x10000000` plus the bytes reserved so far, and adds the size to the running total `bsssz`, which `fin` writes into the second program header. The total is kept below 4 GiB minus the base so that every address fits the `imm32` that `emit_mov` writes.
 
-`ident` looks a name up among the variables first and the buffers second. `buf` refuses a name found in either table and `as` refuses a buffer name, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
+`ident` looks a name up among the variables first and the buffers second. `buf` and `data` refuse a name found in either table and `as` refuses a buffer or data name, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
 
 ## Labels and jumps
 
@@ -242,17 +247,17 @@ f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx
 ## Limits
 
 - 6 variables at top level and in each function, the size of the register pool; so at most 6 parameters.
-- 16 buffers, the size of the buffer table.
+- 16 buffers; data names are limited only by the source size.
 - Jumps and calls always use a 32-bit displacement, 5 bytes for `jmp` and `call` and 9 for `jz` and `jnz`.
 - Every function saves and restores all six variable registers: 21 bytes of code per function and `ret`, and 56 bytes of stack per call.
 - Functions do not nest.
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to fewer than four output bytes (`end` is the worst line: 4 bytes of source, 13 of code).
 - x86-64 Linux only.
-- Strings are read-only; the only writable memory is what `buf` reserves or the program maps itself.
+- Strings and data are read-only; the only writable memory is what `buf` reserves or the program maps itself.
 
 ## Adding a statement
 
-A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row in `optab`. Anything else, like `buf`, `label`, `fn` and `end`:
+A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row in `optab`. Anything else, like `buf`, `data`, `label`, `fn` and `end`:
 
 1. Add a keyword check in `next`, beside the ones for `buf` and `label`.
 2. Write the emitter, using `rdi` as the output cursor and leaving `rsi` after the statement. End its last token through `eol`.

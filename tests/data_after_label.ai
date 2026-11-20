@@ -1,0 +1,7 @@
+# a label ends a block: the jump over the first data lands on the second jmp
+jmp over
+data a 1
+label over
+data b 7
+loadb b as x
+sys 60 x

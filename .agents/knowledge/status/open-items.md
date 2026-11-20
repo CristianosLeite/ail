@@ -2,7 +2,7 @@
 
 - [x] 2026-11-19 — Measure token cost of AIL syntax with a real tokenizer against C, Rust and assembly ([page](../architecture/token-cost-measurement.md))
 - [x] 2026-11-19 — Self-hosting: stage1 in AIL builds itself to a byte-identical file, with no change to stage0 ([page](../architecture/stage1-self-hosting.md))
-- [ ] 2026-11-19 — Constant data: a string as a value outside `sys`, to replace the decimal tables of stage1; goes into both compilers ([page](../architecture/stage1-self-hosting.md))
+- [x] 2026-11-19 — Constant data: a string as a value outside `sys`, to replace the decimal tables of stage1; goes into both compilers ([page](../architecture/language-extensions.md))
 - [ ] 2026-11-19 — More global names: stage1 uses all sixteen buffers ([page](../architecture/stage1-self-hosting.md))
 - [ ] 2026-11-19 — Wider integers and a 32-bit store, if still wanted once constant data exists ([page](../architecture/stage1-self-hosting.md))
 - [ ] 2026-11-19 — Put a differential fuzz of the two compilers in the suite ([page](../architecture/stage1-self-hosting.md))

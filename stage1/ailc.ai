@@ -10,13 +10,13 @@
 # Top level uses the variables c d r f p q only.
 buf in 65537
 buf out 1048576
-buf ro 592          # read-only tables, filled in at start (see "tables")
-buf st 720          # cold state, read with g and written with s:
-#   0 nbufs    8 bsssz   16 nlabels  24 nfix     32 infn   40 topvars
-#   48 fnskip  56 labbase  64 fixbase  72 80 name of this call
-#   88 nfuncs  96 ncalls  104 sigaction
+buf st 360          # cold state, read with g and written with s:
+#   0 nbufs (buffers and data names)  8 bsssz   16 nlabels  24 nfix
+#   32 infn   40 topvars  48 fnskip  56 labbase  64 fixbase
+#   72 80 name of this call  88 nfuncs  96 ncalls  104 sigaction
 #   144 variables: 6 top level then 6 of the function, 16 bytes each: name, length
-#   336 buffers, 24 bytes each: name, length, address
+#   336 nrbufs (buffers only)  344 dataend  352 datarel
+buf globs 262176    # 8193 buffers and data names of 32 bytes: name, length, address, size
 buf labs 196632     # 8193 labels of 24 bytes: name, length, address in out
 buf fixs 262152     # 10923 jumps of 24 bytes: label name, length, rel32 address
 buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
@@ -29,6 +29,62 @@ buf nv 8
 buf cur 8
 buf ns 8
 buf nl 8
+
+# ---- read-only tables
+# the ELF header and the two program headers, as in stage0
+data hdr 127 69 76 70 2 1 1 0 0 0 0 0 0 0 0 0
+data 2 0 62 0 1 0 0 0 176 0 64 0 0 0 0 0
+data 64 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 64 0 56 0 2 0 64 0 0 0 0 0
+data 1 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 64 0 0 0 0 0 0 0 64 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 16 0 0 0 0 0 0 1 0 0 0 6 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 16 0 0 0 0
+data 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
+# statements: name length, name, operand count, flags, code length, code;
+# flag 128 is a statement parsed on its own, numbered by its operand count
+data optab 3 "sys" 0 4 2 15 5
+data 3 "set" 1 1 0
+data 3 "add" 2 1 3 72 1 248
+data 3 "sub" 2 1 3 72 41 248
+data 3 "mul" 2 1 4 72 15 175 199
+data 3 "div" 2 1 5 49 210 72 247 247
+data 3 "mod" 2 1 8 49 210 72 247 247 72 137 208
+data 3 "and" 2 1 3 72 33 248
+data 2 "or" 2 1 3 72 9 248
+data 3 "xor" 2 1 3 72 49 248
+data 3 "shl" 2 1 6 72 137 249 72 211 224
+data 3 "shr" 2 1 6 72 137 249 72 211 232
+data 2 "eq" 2 1 9 72 57 248 15 148 192 15 182 192
+data 2 "ne" 2 1 9 72 57 248 15 149 192 15 182 192
+data 2 "lt" 2 1 9 72 57 248 15 146 192 15 182 192
+data 2 "le" 2 1 9 72 57 248 15 150 192 15 182 192
+data 2 "gt" 2 1 9 72 57 248 15 151 192 15 182 192
+data 2 "ge" 2 1 9 72 57 248 15 147 192 15 182 192
+data 3 "len" 1 65 0
+data 4 "load" 1 1 3 72 139 0
+data 5 "loadb" 1 1 3 15 182 0
+data 5 "store" 2 2 3 72 137 56
+data 6 "storeb" 2 2 3 64 136 56
+data 3 "jmp" 0 10 1 233
+data 2 "jz" 1 10 5 72 133 192 15 132
+data 3 "jnz" 1 10 5 72 133 192 15 133
+data 4 "call" 0 16 1 232
+data 3 "ret" 1 34 11 65 95 65 94 65 93 65 92 93 91 195
+data 2 "fn" 1 128 0
+data 3 "buf" 2 128 0
+data 3 "end" 3 128 0
+data 5 "label" 4 128 0
+data 4 "data" 5 128 0
+data 0
+data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
+data fnpush 83 85 65 84 65 85 65 86 65 87
+data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185    # per argument: REX prefix or 0, mov opcode
+data argnum 0 7 6 2 10 8 9    # per argument: x86 register number
+data varnum 3 5 12 13 14 15    # per variable: x86 register number
+data exit0 184 60 0 0 0 49 255 15 5
 
 # ---- errors: source problems exit 1, I/O problems exit 2
 fn err
@@ -184,6 +240,21 @@ call ok d
 call crlf
 label k
 end
+# a token must be followed by a space, tab, comment or end of line
+fn tokchk
+call pk as c
+eq c 256 as d
+jnz d k
+call blank c as d
+jnz d k
+eq c 10 as d
+jnz d k
+eq c 13 as d
+jnz d k
+eq c 35 as d
+call ok d
+label k
+end
 # read a name [a-z0-9_]* into ns and nl
 fn name
 load ip as p
@@ -300,9 +371,8 @@ call look p n 16 as i
 ret i
 end
 fn lbuf
-add st 336 as p
 call g 0 as n
-call look p n 24 as i
+call look globs n 32 as i
 ret i
 end
 # a label of the current scope: the index counts from labbase
@@ -361,7 +431,7 @@ ret i
 end
 # the optab row of the name read last, at its operand count, or 0
 fn kw
-add ro 176 as r
+set optab as r
 load nl as n
 load ns as p
 label a
@@ -385,14 +455,12 @@ label x
 end
 # x86 register number of variable i, and of argument position i
 fn vreg i
-add i ro as i
-add i 562 as i
+add i varnum as i
 loadb i as i
 ret i
 end
 fn areg i
-add i ro as i
-add i 555 as i
+add i argnum as i
 loadb i as i
 ret i
 end
@@ -439,6 +507,82 @@ and v 4294967295 as v
 or o v as o
 store a o
 end
+# the value of the hexadecimal digit at the cursor, which is consumed
+fn hexd
+call pk as c
+eq c 256 as d
+call no d
+call adv
+call dig c as d
+jz d a
+sub c 48 as c
+ret c
+label a
+or c 32 as c
+sub c 97 as c
+lt c 6 as d
+call ok d
+add c 10 as c
+ret c
+end
+# copy the bytes of a string, whose opening quote is behind the cursor
+fn sbytes
+label a
+call pk as c
+eq c 256 as d
+call no d
+call adv
+eq c 34 as d
+jnz d x
+eq c 92 as d
+jz d k
+call pk as c
+eq c 256 as d
+call no d
+call adv
+eq c 110 as d
+jz d t
+set 10 as c
+jmp k
+label t
+eq c 116 as d
+jz d z
+set 9 as c
+jmp k
+label z
+eq c 48 as d
+jz d h
+set 0 as c
+jmp k
+label h
+eq c 120 as d
+jz d k
+call hexd as c
+shl c 4 as c
+call hexd as d
+or c d as c
+label k
+call eb c
+jmp a
+label x
+end
+# one byte of data written as a decimal number
+fn dnum
+set 0 as r
+label a
+call pk as c
+call dig c as d
+jz d x
+mul r 10 as r
+sub c 48 as c
+add r c as r
+gt r 255 as d
+call no d
+call adv
+jmp a
+label x
+call eb r
+end
 # mov <register d>, <register s>, 64-bit
 fn mrr d s
 shr s 3 as a
@@ -461,8 +605,7 @@ load ai as i
 lt i 7 as c
 call ok c
 mul i 2 as r
-add r ro as r
-add r 541 as r
+add r regtab as r
 loadb r as c
 jz c n
 call eb c
@@ -568,144 +711,8 @@ jmp rd
 label rd2
 store ie p
 store ip in
-# ---- tables, four bytes a line, low byte first: the ELF header (0), the
-# statements (176; per row name length, name, operand count, flags, code
-# length, code; flag 64 is a statement parsed on its own), then fnpush
-# (531), regtab (541), argnum (555), varnum (562) and exit0 (568)
-store op ro
-call e4 1179403647
-call e4 65794
-call z 8
-call e4 4063234
-call e4 1
-call e4 4194480
-call z 4
-call e4 64
-call z 16
-call e4 3670080
-call e4 4194306
-call z 4
-call e4 1
-call e4 5
-call z 8
-call e4 4194304
-call z 4
-call e4 4194304
-call z 20
-call e4 4096
-call z 4
-call e4 1
-call e4 6
-call z 8
-call e4 268435456
-call z 4
-call e4 268435456
-call z 20
-call e4 4096
-call z 4
-call e4 1937339139
-call e4 251790336
-call e4 1702036229
-call e4 65908
-call e4 1684300035
-call e4 1208156418
-call e4 1929639937
-call e4 16933493
-call e4 4163454979
-call e4 1819634947
-call e4 1208221954
-call e4 63418127
-call e4 41314660
-call e4 3526427905
-call e4 66582344
-call e4 40136557
-call e4 3526428673
-call e4 1224210248
-call e4 1627639945
-call e4 16933998
-call e4 4162930691
-call e4 41053954
-call e4 155714305
-call e4 1870136312
-call e4 50397810
-call e4 66597192
-call e4 40659059
-call e4 2303198721
-call e4 3771943161
-call e4 1919447811
-call e4 1208353026
-call e4 3544775049
-call e4 1902445288
-call e4 1208549634
-call e4 2484074553
-call e4 3233157056
-call e4 40201730
-call e4 961022209
-call e4 3230994424
-call e4 46183951
-call e4 16938092
-call e4 4164503561
-call e4 264278543
-call e4 1812119734
-call e4 151061093
-call e4 267925832
-call e4 3054485654
-call e4 1952907968
-call e4 1208549634
-call e4 2534406201
-call e4 3233157056
-call e4 40199938
-call e4 961022209
-call e4 3230863352
-call e4 79738383
-call e4 1684107116
-call e4 1208156417
-call e4 1812267147
-call e4 1650745711
-call e4 251855105
-call e4 1929707702
-call e4 1701998452
-call e4 1208156674
-call e4 1929787529
-call e4 1701998452
-call e4 50463330
-call e4 54036544
-call e4 7368042
-call e4 48824586
-call e4 167869034
-call e4 3229960197
-call e4 1778615311
-call e4 167869038
-call e4 3229960197
-call e4 1661240591
-call e4 7105633
-call e4 65536272
-call e4 24405362
-call e4 1598098210
-call e4 1564565057
-call e4 1532845121
-call e4 1852179139
-call e4 50348033
-call e4 40269154
-call e4 1694695488
-call e4 1073964142
-call e4 1634469120
-call e4 74212706
-call e4 1392508992
-call e4 1096040789
-call e4 1096171861
-call e4 12058711
-call e4 12452031
-call e4 1102725562
-call e4 12140984
-call e4 167904775
-call e4 84085000
-call e4 252579084
-call e4 15544
-call e4 268382464
-call e4 5
 store op out
-call cp ro 176
+call cp hdr 176
 
 # ---- statement
 label next
@@ -741,7 +748,7 @@ call kw as r
 call ok r
 add r 1 as f
 loadb f as f
-and f 64 as d
+and f 128 as d
 jz d n6
 loadb r as d
 eq d 1 as c
@@ -750,7 +757,9 @@ eq d 2 as c
 jnz c bufdef
 eq d 3 as c
 jnz c fnend
-jmp labdef
+eq d 4 as c
+jnz c labdef
+jmp datadef
 label n6
 store cur r
 store ai 0
@@ -782,17 +791,7 @@ jmp num
 # ---- arguments
 # every token must be followed by a space, tab, comment or end of line
 label tokend
-call pk as c
-eq c 256 as d
-jnz d arg
-call blank c as d
-jnz d arg
-eq c 10 as d
-jnz d arg
-eq c 13 as d
-jnz d arg
-eq c 35 as d
-call ok d
+call tokchk
 label arg
 call pk as c
 eq c 256 as d
@@ -839,57 +838,37 @@ and r 4294967295 as r
 call adv
 jmp nm1
 label nm2
+load cur as d
+add d 1 as d
+loadb d as d
+and d 64 as d
+call no d
 call mov r
 jmp tokend
 
-# string: the bytes go into the code behind a jmp, then address and length
+# string: the bytes go into the code behind a jmp. sys and call get two
+# values (address, length), len the length, the rest the address
 label str
-load cur as r
-add r 1 as r
-loadb r as r
-and r 4 as r
-call ok r
 call adv
 call eb 233
 load op as r
 call z 4
 load op as p
-label s1
-call pk as c
-eq c 256 as d
-call no d
-call adv
-eq c 34 as d
-jnz d s4
-eq c 92 as d
-jz d s3
-call pk as c
-eq c 256 as d
-call no d
-call adv
-eq c 110 as d
-jz d s5
-set 10 as c
-jmp s3
-label s5
-eq c 116 as d
-jz d s6
-set 9 as c
-jmp s3
-label s6
-eq c 48 as d
-jz d s3
-set 0 as c
-label s3
-call eb c
-jmp s1
-label s4
+call sbytes
 load op as q
 sub q p as q
 call p4 r q
+load cur as r
+add r 1 as r
+loadb r as r
+and r 64 as d
+jnz d s1
 sub p out as p
 add p 4194304 as p
 call mov p
+and r 20 as d
+jz d tokend
+label s1
 call mov q
 jmp tokend
 
@@ -908,6 +887,23 @@ jnz d jtarget
 label i3
 call isas as d
 jnz d capture
+load cur as r
+add r 1 as r
+loadb r as r
+and r 64 as d
+jz d i5
+call lbuf as r
+ne r 99999 as d
+jnz d i6
+call eund
+label i6
+mul r 32 as r
+add r globs as r
+add r 24 as r
+load r as r
+call mov r
+jmp tokend
+label i5
 call lvar as r
 eq r 99999 as d
 jnz d i2
@@ -926,9 +922,9 @@ ne r 99999 as d
 jnz d i4
 call eund
 label i4
-mul r 24 as r
-add r st as r
-add r 352 as r
+mul r 32 as r
+add r globs as r
+add r 16 as r
 load r as r
 call mov r
 jmp tokend
@@ -960,14 +956,14 @@ call ltop as r
 call nodup r
 call lbuf as r
 call nodup r
-call g 0 as r
+call g 336 as r
 lt r 16 as d
 jnz d b1
 call ebuf
 label b1
-mul r 24 as p
-add p st as p
-add p 336 as p
+call g 0 as r
+mul r 32 as p
+add p globs as p
 call putn p
 call blank1
 call pk as c
@@ -990,6 +986,8 @@ jmp b2
 label b3
 call ok r
 call eol
+add p 24 as q
+store q r
 add r 7 as r
 shr r 3 as r
 shl r 3 as r
@@ -1006,6 +1004,94 @@ store p q
 call g 0 as r
 add r 1 as r
 call s 0 r
+call g 336 as r
+add r 1 as r
+call s 336 r
+jmp next
+
+# "data [<name>] <item>...": bytes behind a jmp; data statements that
+# follow each other share the jmp, so their bytes are contiguous
+label datadef
+call blank1
+set 0 as f
+call pk as c
+eq c 256 as d
+call no d
+call low c as d
+jz d d1
+call name
+call isas as d
+call no d
+call lvar as r
+call nodup r
+call ltop as r
+call nodup r
+call lbuf as r
+call nodup r
+call g 0 as r
+mul r 32 as p
+add p globs as p
+call putn p
+call tokchk
+set 1 as f
+label d1
+load op as q
+call g 344 as d
+eq q d as d
+jnz d d2
+call eb 233
+load op as q
+call s 352 q
+call z 4
+label d2
+load op as q
+set 0 as r
+label d3
+call blanks
+call pk as c
+eq c 256 as d
+jnz d d6
+eq c 10 as d
+jnz d d6
+eq c 13 as d
+jnz d d6
+eq c 35 as d
+jnz d d6
+eq c 34 as d
+jz d d4
+call adv
+call sbytes
+jmp d5
+label d4
+call dig c as d
+call ok d
+call dnum
+label d5
+call tokchk
+add r 1 as r
+jmp d3
+label d6
+call ok r
+call eol
+jz f d7
+load op as c
+sub c q as c
+add p 24 as d
+store d c
+sub q out as c
+add c 4194304 as c
+add p 16 as d
+store d c
+call g 0 as c
+add c 1 as c
+call s 0 c
+label d7
+call g 352 as p
+load op as q
+sub q p as c
+sub c 4 as c
+call p4 p c
+call s 344 q
 jmp next
 
 # "label <name>"
@@ -1024,6 +1110,7 @@ load op as q
 store p q
 add r 1 as r
 call s 16 r
+call s 344 0
 jmp next
 
 # the label name of a jump: its rel32 is filled in by resolve
@@ -1062,8 +1149,7 @@ call z 4
 load op as q
 add p 16 as p
 store p q
-add ro 531 as q
-call cp q 10
+call cp fnpush 10
 load nv as q
 call s 40 q
 store nv 0
@@ -1111,8 +1197,7 @@ call ok d
 call eol
 call eb 49
 call eb 192
-add ro 490 as q
-call cp q 11
+call cp retc 11
 call resolve
 call g 64 as q
 call s 24 q
@@ -1134,8 +1219,7 @@ jmp next
 label fin
 call g 32 as d
 call no d
-add ro 568 as q
-call cp q 9
+call cp exit0 9
 call resolve
 set calls as p
 call g 96 as r

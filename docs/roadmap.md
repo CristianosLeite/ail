@@ -19,7 +19,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 
 The language is now developed in stage1; stage0 stays in the repository as the bootstrap seed. A new feature that stage1 itself is to use has to go into both, since stage0 must still build stage1. Writing stage1 needed no change to the language, and showed where it costs most ([details](stage1.md#friction-found)). In rough order of value:
 
-1. **Constant data**: a string as a value outside `sys`, so that tables need not be built from decimal numbers at run time.
+1. **Constant data** (done): `data` names read-only bytes, a string is a value in every statement and `len` gives a length. Stage1 keeps its tables that way.
 2. **More global names**: more than sixteen buffers, or a cheaper kind of global scalar.
 3. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses.
 4. **More than six variables per function**: not needed by stage1; only if a later program shows a need.

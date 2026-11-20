@@ -16,7 +16,8 @@
 .equ INSZ,   0x10000
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 .equ NVARS,  6                  # size of the variable register pool
-.equ NBUFS,  16                 # size of the buffer table
+.equ NBUFS,  16                 # most buffers a program may declare
+.equ NGLOB,  INSZ / 8 + 1       # "buf a 1\n" is 8 bytes: buffers and data together
 .equ NLABELS, INSZ / 8 + 1      # "label a\n" is 8 bytes: the source cannot hold more
 .equ NFIX,   INSZ / 6 + 1       # "jmp a\n" is 6 bytes
 .equ NFUNCS, INSZ / 9 + 1       # "fn a\nend\n" is 9 bytes
@@ -27,6 +28,7 @@
 .equ IS_JMP,  8                 # a label name follows the operands
 .equ IS_CALL, 16                # a function name precedes the operands
 .equ IS_RET,  32                # the statement is ret: only inside a function
+.equ IS_LEN,  64                # the operand is a buffer, data or string: its length
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
@@ -34,9 +36,13 @@ inend:
 outbuf: .skip OUTSZ
 vars:   .skip 2 * NVARS * 16    # per variable: name address in inbuf, name length;
                                 # top level first, then the open function
-bufs:   .skip NBUFS * 16        # per buffer: the same
-bufaddr: .skip NBUFS * 4        # per buffer: its address
-nbufs:  .skip 4                 # number of buffers defined so far
+bufs:   .skip NGLOB * 16        # per buffer or data name: the same
+bufaddr: .skip NGLOB * 4        # per buffer or data name: its address
+bufsize: .skip NGLOB * 8        # per buffer or data name: its length in bytes
+nbufs:  .skip 4                 # number of buffers and data names defined so far
+nrbufs: .skip 4                 # number of those that are buffers
+dataend: .skip 8                # output cursor after the last data statement
+datarel: .skip 8                # rel32 of the jump over that data
 bsssz:  .skip 8                 # bytes reserved in the writable segment
 curop:  .skip 8                 # optab entry (at its nargs byte) of this statement
 labels: .skip NLABELS * 16      # per label: name address in inbuf, name length
@@ -146,6 +152,9 @@ optab:
     .byte 2
     .ascii "ge"                                     # setae
     .byte 2, AS_REQ, 9,  0x48,0x39,0xF8, 0x0F,0x93,0xC0, 0x0F,0xB6,0xC0
+    .byte 3
+    .ascii "len"                                    # mov eax, <length>
+    .byte 1, AS_REQ | IS_LEN, 0
     .byte 4
     .ascii "load"
     .byte 1, AS_REQ, 3,  0x48,0x8B,0x00             # mov rax, [rax]
@@ -296,6 +305,10 @@ next:
     jne 5f
     cmp byte ptr [r8+2], 'd'
     je fnend
+5:  cmp r9, 4
+    jne 5f
+    cmp dword ptr [r8], 0x61746164  # "data"
+    je datadef
 5:  cmp r9, 5
     jne 5f
     cmp dword ptr [r8], 0x6562616c  # "labe"
@@ -381,19 +394,7 @@ crlf:
 # ---- arguments
 # every token must be followed by a space, tab, comment or end of line
 tokend:
-    cmp rsi, r15
-    jae arg
-    mov al, [rsi]
-    cmp al, ' '
-    je arg
-    cmp al, 9
-    je arg
-    cmp al, 10
-    je arg
-    cmp al, 13
-    je arg
-    cmp al, '#'
-    jne err
+    call tokchk
 
 arg:
     cmp rsi, r15
@@ -440,20 +441,41 @@ num:
     add eax, ecx
     inc rsi
     jmp 1b
-2:  call emit_mov
+2:  mov rdx, [rip+curop]        # len takes a name or a string
+    test byte ptr [rdx+1], IS_LEN
+    jnz err
+    call emit_mov
     jmp tokend
 
-# string: bytes are inlined in the code stream behind a jmp, then passed
-# as two args (address, length)
+# string: bytes are inlined in the code stream behind a jmp. sys and call
+# get two values (address, length), len the length, the rest the address
 str:
-    mov rdx, [rip+curop]        # only sys takes an address and length pair
-    test byte ptr [rdx+1], IS_SYS
-    jz err
     inc rsi
     mov byte ptr [rdi], 0xE9    # jmp rel32
     lea r12, [rdi+1]            # rel32 slot
     add rdi, 5
     mov r13, rdi                # string start
+    call strbytes
+    mov rax, rdi
+    sub rax, r13                # length
+    mov [r12], eax
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_LEN
+    jnz 1f
+    push rax
+    mov rax, r13
+    sub rax, r14
+    add rax, BASE
+    call emit_mov               # address
+    pop rax
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_SYS | IS_CALL
+    jz tokend
+1:  call emit_mov               # length
+    jmp tokend
+
+# copy the bytes of a string, whose opening quote is behind rsi, to rdi
+strbytes:
 1:  cmp rsi, r15
     jae err
     lodsb
@@ -473,21 +495,55 @@ str:
     mov al, 9
     jmp 3f
 2:  cmp al, '0'
-    jne 3f                      # anything else is literal: \\ \"
+    jne 2f
     xor eax, eax
+    jmp 3f
+2:  cmp al, 'x'
+    jne 3f                      # anything else is literal: \\ \"
+    call hexdig                 # \xHH: the byte with that value
+    shl eax, 4
+    push rax
+    call hexdig
+    pop rcx
+    or eax, ecx
 3:  stosb
     jmp 1b
-4:  mov rax, rdi
-    sub rax, r13                # length
-    mov [r12], eax
-    push rax
-    mov rax, r13
-    sub rax, r14
-    add rax, BASE
-    call emit_mov               # address
-    pop rax
-    call emit_mov               # length
-    jmp tokend
+4:  ret
+
+# eax = the value of the hexadecimal digit at rsi, which is consumed
+hexdig:
+    cmp rsi, r15
+    jae err
+    movzx eax, byte ptr [rsi]
+    inc rsi
+    mov edx, eax
+    sub edx, '0'
+    cmp edx, 9
+    jbe 1f
+    or eax, 0x20                # A-F as a-f
+    sub eax, 'a'
+    cmp eax, 5
+    ja err
+    lea edx, [rax+10]
+1:  mov eax, edx
+    ret
+
+# a token must be followed by a space, tab, comment or end of line
+tokchk:
+    cmp rsi, r15
+    jae 1f
+    mov al, [rsi]
+    cmp al, ' '
+    je 1f
+    cmp al, 9
+    je 1f
+    cmp al, 10
+    je 1f
+    cmp al, 13
+    je 1f
+    cmp al, '#'
+    jne err
+1:  ret
 
 # ---- variables
 # a name as an argument: either a variable to pass, or "as" ending the
@@ -503,7 +559,16 @@ ident:
     jne 1f
     cmp word ptr [r8], 0x7361   # "as"
     je capture
-1:  call lookup_var
+1:  mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_LEN
+    jz 4f
+    call lookup_buf             # len: the length of a buffer or data name
+    jc err_undef
+    lea rcx, [rip+bufsize]
+    mov rax, [rcx+rax*8]
+    call emit_mov
+    jmp tokend
+4:  call lookup_var
     jc 2f
     cmp ebx, 7
     jae err
@@ -514,7 +579,7 @@ ident:
     call emit_mov_rr            # mov <arg reg>, <variable reg>
     inc ebx
     jmp tokend
-2:  call lookup_buf             # not a variable: a buffer name is its address
+2:  call lookup_buf             # not a variable: a buffer or data name is its address
     jc err_undef
     lea rcx, [rip+bufaddr]
     mov eax, [rcx+rax*4]
@@ -585,7 +650,7 @@ bufdef:
     jnc err_dup                 # may have its name either
     call lookup_buf
     jnc err_dup
-    cmp dword ptr [rip+nbufs], NBUFS
+    cmp dword ptr [rip+nrbufs], NBUFS
     jae err_bufs
     mov [r10], r8
     mov [r10+8], r9
@@ -615,6 +680,9 @@ bufdef:
     push rax
     call eol
     pop rax
+    mov ecx, [rip+nbufs]
+    lea r10, [rip+bufsize]
+    mov [r10+rcx*8], rax        # len gives the size as declared
     add rax, 7                  # keep every buffer 8-byte aligned
     and rax, -8
     mov rcx, [rip+bsssz]
@@ -627,6 +695,101 @@ bufdef:
     lea r10, [rip+bufaddr]
     mov [r10+rax*4], ecx
     inc dword ptr [rip+nbufs]
+    inc dword ptr [rip+nrbufs]
+    jmp next
+
+# "data [<name>] <item>...": read-only bytes in the code stream behind a jmp;
+# an item is a string or a byte value. Data statements that follow each other
+# share one jmp, so their bytes are contiguous and a name is optional.
+datadef:
+    call blank1
+    xor r13d, r13d              # 1 if the statement has a name
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja 1f
+    call name
+    cmp r9, 2
+    jne 2f
+    cmp word ptr [r8], 0x7361   # "as" is reserved
+    je err
+2:  call lookup_var
+    jnc err_dup
+    call lookup_topvar
+    jnc err_dup
+    call lookup_buf
+    jnc err_dup
+    mov [r10], r8
+    mov [r10+8], r9
+    call tokchk
+    mov r13d, 1
+1:  cmp rdi, [rip+dataend]
+    je 2f
+    mov byte ptr [rdi], 0xE9    # jmp rel32 over the data
+    inc rdi
+    mov [rip+datarel], rdi
+    add rdi, 4
+2:  push rdi                    # the first byte of this statement
+    xor ebx, ebx                # number of items
+3:  call blanks
+    cmp rsi, r15
+    jae 6f
+    movzx eax, byte ptr [rsi]
+    cmp al, 10
+    je 6f
+    cmp al, 13
+    je 6f
+    cmp al, '#'
+    je 6f
+    cmp al, '"'
+    jne 4f
+    inc rsi
+    call strbytes
+    jmp 5f
+4:  sub eax, '0'
+    cmp eax, 9
+    ja err
+    xor eax, eax
+7:  cmp rsi, r15
+    jae 8f
+    movzx ecx, byte ptr [rsi]
+    sub ecx, '0'
+    cmp ecx, 9
+    ja 8f
+    imul eax, eax, 10
+    add eax, ecx
+    cmp eax, 255                # one byte
+    ja err
+    inc rsi
+    jmp 7b
+8:  stosb
+5:  call tokchk
+    inc ebx
+    jmp 3b
+6:  test ebx, ebx               # at least one item
+    jz err
+    call eol
+    pop rax
+    test r13d, r13d
+    jz 9f
+    mov ecx, [rip+nbufs]
+    mov rdx, rdi
+    sub rdx, rax
+    lea r10, [rip+bufsize]
+    mov [r10+rcx*8], rdx
+    sub rax, r14
+    add rax, BASE
+    lea r10, [rip+bufaddr]
+    mov [r10+rcx*4], eax
+    inc dword ptr [rip+nbufs]
+9:  mov rcx, [rip+datarel]
+    mov rax, rdi
+    sub rax, rcx
+    sub rax, 4
+    mov [rcx], eax
+    mov [rip+dataend], rdi
     jmp next
 
 # ---- labels and jumps
@@ -649,6 +812,7 @@ labdef:
     lea rcx, [rip+labaddr]
     mov [rcx+rax*8], rdi
     inc dword ptr [rip+nlabels]
+    mov qword ptr [rip+dataend], 0  # data after a label gets its own jmp
     jmp next
 
 # the label name r8/r9 ends a jump: emit the statement's code, leave room

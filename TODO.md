@@ -7,7 +7,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 
 ## Compiler self-hosting and language limits
 
-- [ ] Add named read-only data and make string addresses and byte lengths usable
+- [x] Add named read-only data and make string addresses and byte lengths usable
   outside `sys`. Today a string is inlined behind a jump and expands to two
   syscall arguments. Stage1 builds its constant tables at startup from decimal
   words. Preserve automatic byte lengths and support arbitrary byte data.

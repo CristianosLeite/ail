@@ -1,0 +1,3 @@
+# data lives in the code segment: a store faults
+data d 1
+storeb d 2
