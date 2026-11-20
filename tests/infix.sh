@@ -93,6 +93,16 @@ keeps var_before_comment 'var other shared#set by the program\n'
 # a string that goes on over the end of a line is no use and no var, also
 # behind a backslash at the end of a line and after a quote in a comment
 keeps string_over_lines 'data s "a\\\nvar other\nuse \\"none.ai\\"" 0 # "\nvar shared\n'
+# the path of a use has no escapes: one that ends with a backslash ends at
+# the quote behind it, its file is read, and the line after is a line
+r=0
+printf 'var other\n' > "$tmp/more\\"
+printf 'use "%s/more\\"\nvar shared\n' "$tmp" > "$tmp/back\\"
+printf 'use "%s/back\\"\nshared=42\nif shared\nsys exit 1\nend\n' "$tmp" > "$tmp/bs.ai"
+build/tools/infix "$tmp/bs.ai" "$tmp/bs.out.ai" 2> /dev/null &&
+    cmp -s "$tmp/bs.ai" "$tmp/bs.out.ai" &&
+    "$ailc" < "$tmp/bs.ai" > /dev/null 2>&1 || r=1
+say infix_use_path_ends_with_backslash $r
 # and so is a var of a file named on the command line, for a source that
 # is itself named by that file: without it the write is folded away
 r=0

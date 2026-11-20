@@ -174,7 +174,8 @@ end
 # for the files it names in turn, by the path as written, from the
 # directory the tool runs in, as the compiler does.
 #
-# the line from p to e: mark the names of a var, read the file of a use
+# the line from p to e: mark the names of a var, read the file of a use;
+# 1 if it is a use, whose path is no string that could go on
 fn declline p e
 while p<e
 loadb p as c
@@ -193,19 +194,27 @@ ret 0
 end
 call sceq p "use" as r
 if r
+# the path stands between two quotes as it is: a backslash in it is a
+# byte of the path, and the quote after one ends it
 p+=3
 while p<e
 loadb p as c
 if c==34
-call scstr p e as q
-if q
-call declfile p+1 q-p-2
+p+=1
+q=p
+while q<e
+loadb q as c
+if c==34
+call declfile p q-p
+ret 1
 end
-ret 0
+q+=1
+end
+ret 1
 end
 p+=1
 end
-ret 0
+ret 1
 end
 call sceq p "var" as r
 ifz r
@@ -281,10 +290,13 @@ jeq c 10 eol
 q+=1
 end
 label eol
+u=0
 ifz s
-call declline p q
+call declline p q as u
 end
+ifz u
 call strend p q s as s
+end
 p=q+1
 end
 end
