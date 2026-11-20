@@ -48,6 +48,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `set a as x` | `x = a` |
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
 | `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |
+| `sdiv smod sar`, `slt sle sgt sge` | Division, remainder, right shift and ordering of signed values |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
 | `local b 64` | 64 bytes in the frame of the current function; `b` is their address until it returns |
 | `alloc n as p`, `free p` | `n` zero-filled bytes from the kernel at run time (0 if refused), and their release |

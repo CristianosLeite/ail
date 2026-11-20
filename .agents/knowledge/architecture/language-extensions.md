@@ -130,7 +130,21 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   have one more number each.
 - The suite went from 504 to 534 tests.
 
+### Signed operations (2026-11-19)
+- Seven rows: `sdiv`, `smod`, `sar`, `slt`, `sle`, `sgt`, `sge`. Everything else is the same for
+  signed and unsigned values.
+- Decided not to add checked arithmetic, checked shifts or a handler for division by zero:
+  overflow wraps, a shift uses six bits, and a zero divisor or `-2^63 / -1` is `SIGFPE`.
+- The first tests of `sle`, `sge` and `sar` passed with the unsigned opcodes, because their
+  operands agreed in both orders or in the low byte of the result; mutation checks showed it.
+- The suite went from 534 to 548 tests.
+
 ## Why
+- **Prefix `s`:** at most two tokens each (`sle` and `sar` are one), and the unsigned names
+  stay the short ones because addresses and sizes are the common case.
+- **No checked forms:** a checked add needs a second result or a trap; the first costs a line at
+  every use, the second ends the program where a wrap is often intended (hashes, masks). A
+  divisor is tested with one `jz` where it matters.
 - **No borrow or ownership checking:** an address is an integer that can be stored in memory,
   computed and handed to a syscall. Tracking it needs types for values and for memory, which is
   the opposite of a language whose statements are machine operations. It would also cost tokens

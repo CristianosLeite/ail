@@ -243,6 +243,42 @@ optab:
     .byte 2
     .word AS_REQ
     .byte 9,  0x48,0x39,0xF8, 0x0F,0x93,0xC0, 0x0F,0xB6,0xC0
+    # signed: cqo ; idiv rdi -- and cmp with the signed conditions
+    .byte 4
+    .ascii "sdiv"
+    .byte 2
+    .word AS_REQ
+    .byte 5,  0x48,0x99, 0x48,0xF7,0xFF
+    .byte 4
+    .ascii "smod"                                   # ... ; mov rax, rdx
+    .byte 2
+    .word AS_REQ
+    .byte 8,  0x48,0x99, 0x48,0xF7,0xFF, 0x48,0x89,0xD0
+    .byte 3
+    .ascii "sar"                                    # mov rcx, rdi ; sar rax, cl
+    .byte 2
+    .word AS_REQ
+    .byte 6,  0x48,0x89,0xF9, 0x48,0xD3,0xF8
+    .byte 3
+    .ascii "slt"                                    # setl
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x9C,0xC0, 0x0F,0xB6,0xC0
+    .byte 3
+    .ascii "sle"                                    # setle
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x9E,0xC0, 0x0F,0xB6,0xC0
+    .byte 3
+    .ascii "sgt"                                    # setg
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x9F,0xC0, 0x0F,0xB6,0xC0
+    .byte 3
+    .ascii "sge"                                    # setge
+    .byte 2
+    .word AS_REQ
+    .byte 9,  0x48,0x39,0xF8, 0x0F,0x9D,0xC0, 0x0F,0xB6,0xC0
     .byte 3
     .ascii "len"                                    # mov eax, <length>
     .byte 1

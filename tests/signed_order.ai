@@ -1,0 +1,25 @@
+# -1 is below 1 in signed order and above it in unsigned order
+slt -1 1 as a
+lt -1 1 as b
+sle -1 -1 as c
+sgt 1 -1 as d
+sge -2 -1 as e
+sgt -1 -1 as f
+slt 1 -1 as g
+sge -1 -1 as h
+shl a 0 as x
+shl b 1 as t
+or x t as x
+shl c 2 as t
+or x t as x
+shl d 3 as t
+or x t as x
+shl e 4 as t
+or x t as x
+shl f 5 as t
+or x t as x
+shl g 6 as t
+or x t as x
+shl h 7 as t
+or x t as x
+sys 60 x

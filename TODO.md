@@ -46,7 +46,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Evaluate checked memory operations for dynamic bounds and lifetime or
   alias tracking for managed allocations. Define how pointers cross function and
   syscall boundaries before deciding whether borrow checking fits AIL.
-- [ ] Add signed division, remainder, ordering and arithmetic right shift.
+- [x] Add signed division, remainder, ordering and arithmetic right shift.
   Existing operations use unsigned semantics. Consider checked arithmetic for
   overflow and invalid shifts, and a way to handle division by zero, which
   currently raises `SIGFPE`.

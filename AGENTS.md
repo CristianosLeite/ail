@@ -53,6 +53,7 @@ Compiler errors are one line on stderr with no location: `ailc: syntax error`, `
 - `sys n a b ...`: raw Linux syscall, up to 6 arguments; `n` must be a decimal number or a `const`.
 - `set a as x`, and `add sub mul div mod and or xor shl shr` as `op a b as x`: 64-bit, wrapping, unsigned division and shift.
 - `eq ne lt le gt ge` as `op a b as x`: 64-bit comparison, unsigned order, result `1` or `0`.
+- `sdiv smod sar` and `slt sle sgt sge`: the signed forms of `div mod shr` and of the four orderings. Nothing is checked: overflow wraps, a zero divisor is `SIGFPE`.
 - `buf name size`: reserves zero-filled writable bytes (rounded up to 8); the name is a constant address. The size is a number or a `const` and may be 0.
 - `local name size`: bytes in the frame of the function it stands in, not zero-filled, gone at return; the name is one of the function's variables but cannot be assigned.
 - `alloc n as p`, `free p`: run-time storage, one `mmap` per call with a 16-byte length header; zero-filled, 16-byte aligned, `p` is 0 if the kernel refuses.

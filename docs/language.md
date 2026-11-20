@@ -73,8 +73,13 @@ add a b as name
 | `and a b`, `or a b`, `xor a b` | bitwise |
 | `shl a b` | `a` shifted left by `b` bits |
 | `shr a b` | `a` shifted right by `b` bits, zero-filled |
+| `sdiv a b` | `a / b`, signed, rounded toward zero |
+| `smod a b` | remainder of the signed division, with the sign of `a` |
+| `sar a b` | `a` shifted right by `b` bits, filled with its sign bit |
 
-Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones. A shift uses only the low 6 bits of `b`. Dividing by zero kills the program with `SIGFPE`. The result may go into one of the operands: `add i 1 as i`.
+Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones, which is `-1`. Addition, subtraction, multiplication and `shl` give the same bits for signed and unsigned numbers; only division, remainder, the shift to the right and ordering come in two forms, and the forms with `s` read both values as two's complement. A shift uses only the low 6 bits of `b`.
+
+Nothing is checked: an overflow wraps, and dividing by zero kills the program with `SIGFPE` (exit status 136 in a shell), as does the one signed quotient that does not fit, -9223372036854775808 by -1. Test the divisor with `jz` where it can be zero. The result may go into one of the operands: `add i 1 as i`.
 
 ### Comparisons
 
@@ -92,8 +97,9 @@ A comparison takes two values like an arithmetic statement and keeps `1` in the 
 | `le a b` | `a` is below or equals `b` |
 | `gt a b` | `a` is above `b` |
 | `ge a b` | `a` is above or equals `b` |
+| `slt a b`, `sle a b`, `sgt a b`, `sge a b` | the same four orderings with both values read as signed |
 
-All 64 bits of both values are compared and the result is a full 64-bit `1` or `0`. Ordering is unsigned, like `div` and `mod`: the result of `sub 0 1` is the largest value, not a negative one, so `lt 1 x` is `1` for it. A comparison only produces a value; [`jz` and `jnz`](#control-flow) act on it.
+All 64 bits of both values are compared and the result is a full 64-bit `1` or `0`. Ordering is unsigned for `lt`, `le`, `gt` and `ge`, like `div` and `mod`: the result of `sub 0 1` is the largest value, so `lt 1 x` is `1` for it. `slt`, `sle`, `sgt` and `sge` order the same bits as signed numbers, where it is `-1` and below 1. `eq` and `ne` need no signed form. A comparison only produces a value; [`jz` and `jnz`](#control-flow) act on it.
 
 ```
 sub 0 1 as m
@@ -502,7 +508,7 @@ Causes of a syntax error:
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
 - `sys` not followed by an integer or the name of a `const`
-- the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons take two
+- the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons, signed ones included, take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
 - `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment

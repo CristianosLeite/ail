@@ -130,8 +130,11 @@ Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and
 | `mul` | `imul rax, rdi` |
 | `div` | `xor edx, edx` / `div rdi` |
 | `mod` | `xor edx, edx` / `div rdi` / `mov rax, rdx` |
-| `shl` `shr` | `mov rcx, rdi` / `shl` or `shr rax, cl` |
+| `shl` `shr` `sar` | `mov rcx, rdi` / `shl`, `shr` or `sar rax, cl` |
+| `sdiv` | `cqo` / `idiv rdi` |
+| `smod` | `cqo` / `idiv rdi` / `mov rax, rdx` |
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
+| `slt` `sle` `sgt` `sge` | the same with `setl` `setle` `setg` or `setge` |
 | `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
 | `load4` | `mov eax, [rax]` |
