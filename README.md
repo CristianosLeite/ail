@@ -50,6 +50,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
 | `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |
 | `sdiv smod sar`, `slt sle sgt sge` | Division, remainder, right shift and ordering of signed values |
+| `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq` | Arithmetic, conversion and comparison of doubles, kept as their 64 bits |
+| `xadd p v as x`, `cas p old new as x` | Atomic add and compare-and-swap on the 64 bits at `p` |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
 | `local b 64` | 64 bytes in the frame of the current function; `b` is their address until it returns |
 | `alloc n as p`, `free p` | `n` zero-filled bytes from the kernel at run time (0 if refused), and their release |

@@ -68,7 +68,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   IDs, returns raw error values and leaves omitted argument registers untouched.
   Evaluate named ABI constants and reusable helpers for process arguments,
   environment and common I/O.
-- [ ] Evaluate additional machine operations using representative programs.
+- [x] Evaluate additional machine operations using representative programs.
   Floating-point, vector and atomic operations currently have no language forms.
 
 ## Compiler scale, output and tooling

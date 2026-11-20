@@ -151,6 +151,42 @@ Arithmetic is 64-bit and wraps silently: `sub 0 1` is all ones, which is `-1`. A
 
 Nothing is checked: an overflow wraps, and dividing by zero kills the program with `SIGFPE` (exit status 136 in a shell), as does the one signed quotient that does not fit, -9223372036854775808 by -1. Test the divisor with `jz` where it can be zero. The result may go into one of the operands: `add i 1 as i`.
 
+### Floating point
+
+```
+itof 3 as a
+fdiv a b as x
+```
+
+A floating-point number is an IEEE 754 double, and a variable holds its 64 bits like any other value: nothing marks it as a number of that kind. These statements read their values as doubles:
+
+| Statement | Result |
+|---|---|
+| `itof a` | the signed integer `a` as a double |
+| `ftoi a` | the double `a` as a signed integer, rounded toward zero |
+| `fadd a b`, `fsub a b`, `fmul a b`, `fdiv a b` | sum, difference, product, quotient |
+| `fsqrt a` | square root |
+| `flt a b`, `fle a b`, `feq a b` | `1` if `a` is below, below or equal to, equal to `b`, else `0` |
+
+A comparison with a value that is not a number is `0`, also `feq` of it with itself. For "above", swap the values. There are no floating-point literals: make a constant from integers (`itof 1` and `itof 3`, then `fdiv`), or write its bits (`0x3ff8000000000000` is 1.5). The integer statements work on the bits: `add` of two doubles is not their sum, and `lt` orders negative doubles the wrong way round.
+
+```
+itof 2 as two
+fsqrt two as r
+itof 1000 as k
+fmul r k as r
+ftoi r as n             # n = 1414
+```
+
+### Atomic operations
+
+```
+xadd p v as old
+cas p old new as ok
+```
+
+`xadd` adds `v` to the 64 bits at address `p` and keeps what was there before; `cas` stores `new` at `p` only if the 64 bits there equal `old`, and keeps `1` if it stored and `0` if not. Each happens as one step that no other thread or process sharing the memory can come between, where a `load`, an `add` and a `store` can lose an update. Both need `as`.
+
 ### Comparisons
 
 ```
@@ -706,7 +742,7 @@ Causes of a syntax error:
 - a keyword not followed by a space or tab
 - `sys` not followed by an integer, the name of a `const` or a syscall name
 - `args` inside a function, with a value or without `as`
-- the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons, signed ones included, take two
+- the wrong number of operands: `set`, `len`, the loads, `itof`, `ftoi` and `fsqrt` take one, the stores, the arithmetic statements, the comparisons and `xadd` take two, signed and floating-point ones included, and `cas` takes three
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
 - `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment

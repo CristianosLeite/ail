@@ -194,7 +194,27 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   Registers of omitted arguments stay unset; the reference now says what that means.
 - Stage1 names its own syscalls. The suite went from 675 to 700 tests.
 
+### Floating point and atomic operations; no vectors (2026-11-20)
+- Evaluated with programs written as tests: Newton's method for a cube root, a square root
+  scaled to an integer, and two processes adding to one counter in shared memory.
+- Added ten double-precision rows (`fadd fsub fmul fdiv fsqrt itof ftoi flt fle feq`) and two
+  atomic rows (`xadd`, `cas`). A double is the 64 bits in an ordinary variable; `xmm0` and
+  `xmm1` are scratch inside a statement. All twelve are table rows.
+- With `xadd` replaced by a plain load, add and store, the two-process test loses updates and
+  fails, so the test does exercise the lock.
+- No float literals, no single precision, no vectors. The suite went from 700 to 717 tests.
+
 ## Why
+- **Doubles as bit patterns in integer variables:** no second kind of variable, no second
+  register pool, and the allocation is untouched. The cost is that the language cannot stop
+  `add` on two doubles; the reference says so.
+- **No float literals:** converting a decimal fraction to the nearest double correctly is a
+  large algorithm to write twice, in assembly and in AIL; `itof` and `fdiv`, or the bits in hex,
+  cover constants.
+- **No vector operations:** they need values wider than a variable, so a register class and a
+  memory layout of their own; nothing measured asks for them.
+- **Only `flt`, `fle`, `feq`:** the other orderings are the same statement with the values
+  swapped.
 - **Names only in the number position:** as global constants they would take `read`, `write`,
   `open`, `exit` away from the programmer; in one position they cost nothing.
 - **A table in the compiler, not a library of consts:** a `use` and a const per call would cost

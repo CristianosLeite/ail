@@ -355,6 +355,141 @@ optab:
     .byte 2
     .word AS_NONE | IS_MEM
     .byte 2, 0x89,0x38                  # mov [rax], edi
+    # double precision: a value is the 64 bits of an IEEE double, and goes
+    # through xmm0 and xmm1. The comparisons are 0 if either value is a NaN.
+    # Then the atomic operations: add to memory and give the old value;
+    # store rsi if memory holds rdi, and say whether it did
+    .byte 4
+    .ascii "fadd"
+    .byte 2
+    .word AS_REQ
+    .byte fadd_end - fadd_code
+fadd_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    addsd xmm0, xmm1
+    movq rax, xmm0
+fadd_end:
+    .byte 4
+    .ascii "fsub"
+    .byte 2
+    .word AS_REQ
+    .byte fsub_end - fsub_code
+fsub_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    subsd xmm0, xmm1
+    movq rax, xmm0
+fsub_end:
+    .byte 4
+    .ascii "fmul"
+    .byte 2
+    .word AS_REQ
+    .byte fmul_end - fmul_code
+fmul_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    mulsd xmm0, xmm1
+    movq rax, xmm0
+fmul_end:
+    .byte 4
+    .ascii "fdiv"
+    .byte 2
+    .word AS_REQ
+    .byte fdiv_end - fdiv_code
+fdiv_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    divsd xmm0, xmm1
+    movq rax, xmm0
+fdiv_end:
+    .byte 5
+    .ascii "fsqrt"
+    .byte 1
+    .word AS_REQ
+    .byte fsqrt_end - fsqrt_code
+fsqrt_code:
+    movq xmm0, rax
+    sqrtsd xmm0, xmm0
+    movq rax, xmm0
+fsqrt_end:
+    .byte 4
+    .ascii "itof"
+    .byte 1
+    .word AS_REQ
+    .byte itof_end - itof_code
+itof_code:
+    cvtsi2sd xmm0, rax
+    movq rax, xmm0
+itof_end:
+    .byte 4
+    .ascii "ftoi"
+    .byte 1
+    .word AS_REQ
+    .byte ftoi_end - ftoi_code
+ftoi_code:
+    movq xmm0, rax
+    cvttsd2si rax, xmm0
+ftoi_end:
+    .byte 3
+    .ascii "flt"
+    .byte 2
+    .word AS_REQ
+    .byte flt_end - flt_code
+flt_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    ucomisd xmm1, xmm0
+    seta al
+    movzx eax, al
+flt_end:
+    .byte 3
+    .ascii "fle"
+    .byte 2
+    .word AS_REQ
+    .byte fle_end - fle_code
+fle_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    ucomisd xmm1, xmm0
+    setae al
+    movzx eax, al
+fle_end:
+    .byte 3
+    .ascii "feq"
+    .byte 2
+    .word AS_REQ
+    .byte feq_end - feq_code
+feq_code:
+    movq xmm0, rax
+    movq xmm1, rdi
+    ucomisd xmm0, xmm1
+    setnp cl
+    sete al
+    and al, cl
+    movzx eax, al
+feq_end:
+    .byte 4
+    .ascii "xadd"
+    .byte 2
+    .word AS_REQ | IS_MEM
+    .byte xadd_end - xadd_code
+xadd_code:
+    lock xadd [rax], rdi
+    mov rax, rdi
+xadd_end:
+    .byte 3
+    .ascii "cas"
+    .byte 3
+    .word AS_REQ | IS_MEM
+    .byte cas_end - cas_code
+cas_code:
+    mov rcx, rax
+    mov rax, rdi
+    lock cmpxchg [rcx], rsi
+    sete al
+    movzx eax, al
+cas_end:
     # at: rax = address and rdi = size of the name, rsi = offset, rdx = count.
     # The address of the offset, or a trap if offset + count leaves the size
     .byte 2

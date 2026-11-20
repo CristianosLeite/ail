@@ -150,6 +150,11 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `load2` | `movzx eax, word ptr [rax]` |
 | `loadb` | `movzx eax, byte ptr [rax]` |
 | `at` | `add rdx, rsi` / `jc trap` / `cmp rdx, rdi` / `ja trap` / `add rax, rsi` / `jmp over` / `ud2` |
+| `fadd` `fsub` `fmul` `fdiv` | `movq xmm0, rax` / `movq xmm1, rdi` / the `sd` instruction / `movq rax, xmm0` |
+| `fsqrt` `itof` `ftoi` | `sqrtsd`, `cvtsi2sd`, `cvttsd2si` between `rax` and `xmm0` |
+| `flt` `fle` `feq` | `ucomisd` / `seta`, `setae`, or `sete` and not parity / `movzx eax, al` |
+| `xadd` | `lock xadd [rax], rdi` / `mov rax, rdi` |
+| `cas` | `mov rcx, rax` / `mov rax, rdi` / `lock cmpxchg [rcx], rsi` / `sete al` / `movzx eax, al` |
 | `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
 | `free` | `munmap` of the mapping whose length lies 16 bytes before the address, unless it is 0: 19 bytes |
 | `store` | `mov [rax], rdi` |
@@ -167,7 +172,7 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret`, without the pops of registers the function does not use |
 | `tail` | the same pops, then `jmp rel32` |
 
-The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers. So `add x 1 as x` with `x` in `rbx` is `mov rax, rbx` / `mov edi, 1` / `add rax, rdi` / `mov rbx, rax`: 14 bytes, with no attempt to use shorter forms.
+The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers, and no variable is ever in `xmm0` or `xmm1`: a double lives in a general register or in memory as 64 bits and only passes through the vector registers inside one statement. So `add x 1 as x` with `x` in `rbx` is `mov rax, rbx` / `mov edi, 1` / `add rax, rdi` / `mov rbx, rax`: 14 bytes, with no attempt to use shorter forms.
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 

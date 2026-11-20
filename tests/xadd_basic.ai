@@ -1,0 +1,8 @@
+# add to memory and get what was there
+buf c 8
+xadd c 5 as a
+xadd c 7 as b
+load c as v
+add a b as a
+add a v as a
+sys exit a
