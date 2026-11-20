@@ -130,9 +130,9 @@ buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
                     # variables assigned at the jump
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
-buf calls 41297792    # 1290556 calls of 32 bytes: name, length, rel32 address, then two
+buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
                     # 4-byte counts: values (all ones for ref) and names after "as";
-                    # the shortest line is "spawn a as b", 13 bytes for two entries
+                    # the shortest line is "await a", 8 bytes for two entries
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
 buf exs 8388609      # and as many operators or open parentheses, a byte each
