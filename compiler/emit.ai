@@ -442,14 +442,17 @@ n=fnnpar
 if pass==1
 n=0
 end
-i=0
-while i<n
+# pushed last to first, so that they are stored first to last: a
+# parameter that is never mentioned shares its slot with a later one,
+# whose value must be the one that stays
+i=n
+while i
+i-=1
 call areg i as r
 if r>=8
 call eb 65
 end
 call eb (r&7)+80
-i+=1
 end
 call movi 0 fnslots*8+fnlocal+64
 call lear 7
@@ -471,10 +474,10 @@ ncalls=k+1
 if n
 call cp asytst 5
 storeb op-1 n*8+1
-i=n
-while i
-i-=1
+i=0
+while i<n
 loadb i+fnloc as j
+i+=1
 call eb 89
 call eb 72
 call eb 137
