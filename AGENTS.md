@@ -11,6 +11,8 @@ The compiler is written in AIL: `stage1/ailc.ai`, with its tables in `stage1/tab
 ## Rules
 
 - All repository text is in English: documentation, code comments, commit messages, test names, compiler messages and the knowledge base. This holds even when the conversation is in another language.
+- A commit message is `type: subject` (`feat`, `fix`, `test` or `docs`, no scope, lower case, no full stop) and a prose body wrapped at about 70 columns: the problem, what changed and why, how it was verified. One backlog item or fix is one commit, with its tests and documentation.
+- Commit messages and pull request descriptions carry no trailers or attribution lines: no `Co-Authored-By`, no `Signed-off-by`, no "Generated with" footer. This holds even when the tool in use suggests one.
 
 ## Commands
 
