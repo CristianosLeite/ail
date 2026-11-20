@@ -10,10 +10,9 @@
 # Every variable and parameter of this file has a name that starts with
 # "file"; a program has no var of such a name (see lib/io.ai).
 
-# open the path with the flags and the mode of the open syscall, plus
-# close-on-exec: the descriptor, which the caller closes, or the error
-fn fileopen filep filen fileflags filemode
-local filez 4096
+# the path as the kernel takes it, with a NUL byte at its end, into the
+# 4096 bytes at filez: 0, or -36 if it does not fit
+fn filepath filep filen filez
 if filen>4095
 ret -36
 end
@@ -24,9 +23,18 @@ storeb filez+filei filec
 filei+=1
 end
 storeb filez+filen 0
+end
+
+# open the path with the flags and the mode of the open syscall, plus
+# close-on-exec: the descriptor, which the caller closes, or the error
+fn fileopen filep filen fileflags filemode
+local filez 4096
+call filepath filep filen filez as filefd
+jnz filefd bad
 label again
 sys open filez fileflags|0x80000 filemode as filefd
 jeq filefd -4 again
+label bad
 ret filefd
 end
 
@@ -92,5 +100,33 @@ filed+=filer
 filedn-=filer
 end
 sys close filefd as filer
+ret filer
+end
+
+# make the directory at the path with the mode filemode less the umask,
+# remove the file at the path, remove the empty directory at the path:
+# 0, or the error (-17 the directory is there already, -39 not empty)
+fn filemkdir filep filen filemode
+local filez 4096
+call filepath filep filen filez as filer
+ifz filer
+sys mkdir filez filemode as filer
+end
+ret filer
+end
+fn fileunlink filep filen
+local filez 4096
+call filepath filep filen filez as filer
+ifz filer
+sys unlink filez as filer
+end
+ret filer
+end
+fn filermdir filep filen
+local filez 4096
+call filepath filep filen filez as filer
+ifz filer
+sys rmdir filez as filer
+end
 ret filer
 end

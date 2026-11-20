@@ -1,0 +1,41 @@
+# splitmix64: the first numbers of the seed 1234567 are the published
+# ones, numbers below a limit are below it and all occur, and the same
+# seed gives the same numbers again
+use "lib/io.ai"
+use "tools/lib/rng.ai"
+buf s 8
+buf t 8
+buf seen 8
+call rngseed s 1234567
+i=0
+while i<3
+call rngnext s as x
+call putn x
+call print "\n"
+i+=1
+end
+call rngseed s 42
+call rngseed t 42
+i=0
+n=0
+while i<100000
+call rngbelow s 6 as x
+call rngbelow t 6 as y
+n+=x
+ok=x==y
+if x>5
+ok=0
+end
+ifz ok
+sys exit 1
+end
+storeb seen+x 1
+i+=1
+end
+call putn n
+call print " "
+load seen as x
+call putn x==0x010101010101
+call rngbelow s 1 as x
+call putn x
+call print "\n"
