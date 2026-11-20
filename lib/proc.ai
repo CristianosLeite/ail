@@ -47,6 +47,18 @@ proce+=8
 jmp next
 end
 
+# in the child: end it unless procfd is -1 or an open descriptor. Asked
+# of all three before any copy is made, since a copy may take the number
+# of a descriptor that was not open and so pass for it.
+fn procopen procfd
+if procfd!=-1
+sys procfcntl procfd 1 as procr
+ifslt procr 0
+sys exit 127
+end
+end
+end
+
 # in the child: the descriptor procfd, or a copy of it at 3 or above if
 # it is 0, 1 or 2 and not the one it is to become; the copy is closed
 # when the program starts. Without a copy the child ends.
@@ -93,6 +105,9 @@ if procpid
 ret procpid
 end
 # the child: nothing here returns
+call procopen procin
+call procopen procout
+call procopen procerr
 # a descriptor that is one of the three and goes to another of them is
 # copied out of their way first, or the one before it would overwrite it
 call prochigh procin 0 as procin
