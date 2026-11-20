@@ -30,7 +30,7 @@ and their C, Rust and assembly equivalents in `bench/`. AIL is 41% cheaper than 
   Python and network access once, the behaviour check `gcc` and `rustc`.
 
 ## How to apply
-- Before choosing between two spellings, tokenize both (`build/venv/bin/python` with `tiktoken`).
+- Before choosing between two spellings, tokenize both (`.venv/bin/python` with `tiktoken`).
 - Prefer a statement that removes a line over one that shortens a word.
 - Replace numbers by names where the language can: constants, named data, global scalars.
 - After changing an example, change its three equivalents in `bench/`, run `tools/bench.sh` and

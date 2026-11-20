@@ -1,6 +1,6 @@
 # Token cost
 
-AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed. It uses `tiktoken` with the `o200k_base` encoding, installed into `build/venv` on first use (that step needs network access). The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
+AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed. It uses `tiktoken` with the `o200k_base` encoding, installed into `.venv` on first use (that step needs network access). The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
 
 ```
 tools/tokens.sh             # the table below
