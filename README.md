@@ -86,13 +86,15 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
 - [How the compiler works](docs/compiler.md): pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
 - [How the stage1 compiler works](docs/stage1.md): the compiler written in AIL, and what writing it showed about the language
+- [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
 
 ## Layout
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
 - `stage1/ailc.ai`: the compiler in AIL, built by stage0 and then by itself
-- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function)
+- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), `compute` (an arithmetic loop, the CPU-bound benchmark)
+- `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/stage1.sh` compares the two compilers
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents

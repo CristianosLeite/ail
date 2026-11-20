@@ -1,0 +1,18 @@
+buf b 8
+sys read 0 b 8 as n
+jne n 8 fail
+load b as x
+set 100000000 as i
+label step
+shr x 13 as t
+xor x t as x
+mul x 1664525 as x
+add x 1013904223 as x
+sub i 1 as i
+jnz i step
+store b x
+sys write 1 b 8 as n
+jne n 8 fail
+sys exit 0
+label fail
+sys exit 1

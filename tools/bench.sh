@@ -1,6 +1,7 @@
 #!/bin/sh
 # Check that every program in bench/ behaves like the example it mirrors:
-# same output and exit status for the same input. Needs gcc and rustc
+# same output and exit status for the same input: none, three bytes and
+# eight bytes, which is what `compute` reads. Needs gcc and rustc
 # besides as and ld, so it is not part of `make test`.
 set -u
 cd "$(dirname "$0")/.."
@@ -14,10 +15,10 @@ for src in examples/*.ai; do
         rustc -O -o "$t/$n.rs.bin" "bench/$n.rs" 2>/dev/null &&
         as -o "$t/$n.o" "bench/$n.s" && ld -o "$t/$n.s.bin" "$t/$n.o" ||
         { echo "FAIL $n: build"; f=1; continue; }
-    for input in '' 'hi\n'; do
-        printf "$input" | "build/$n" > "$t/ref"; r=$?
+    for input in '' 'hi\n' '12345678'; do
+        printf "$input" | "build/$n" > "$t/ref" 2>/dev/null; r=$?
         for l in c rs s; do
-            printf "$input" | "$t/$n.$l.bin" > "$t/got"; g=$?
+            printf "$input" | "$t/$n.$l.bin" > "$t/got" 2>/dev/null; g=$?
             if cmp -s "$t/ref" "$t/got" && [ "$r" = "$g" ]; then
                 echo "ok   $n.$l"
             else

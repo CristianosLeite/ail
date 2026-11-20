@@ -6,21 +6,23 @@ AIL exists to be cheap in tokens, so syntax choices are decided by measurement. 
 tools/tokens.sh             # the table below
 tools/tokens.sh hello fact  # some programs only
 tools/bench.sh              # check that bench/ behaves like examples/ (needs gcc and rustc)
+python3 tools/perf.py       # time the same programs, see performance.md
 ```
 
 ## Result
 
 | program | AIL | C | Rust | asm |
 |---|---:|---:|---:|---:|
+| compute | 114 | 106 | 120 | 229 |
 | count | 189 | 141 | 102 | 232 |
 | echo | 56 | 58 | 86 | 150 |
 | fact | 52 | 44 | 55 | 101 |
 | hello | 23 | 29 | 45 | 78 |
 | loop | 62 | 70 | 56 | 135 |
-| total | 382 | 342 | 344 | 696 |
-| relative to AIL | 1.00 | 0.90 | 0.90 | 1.82 |
+| total | 496 | 448 | 464 | 925 |
+| relative to AIL | 1.00 | 0.90 | 0.94 | 1.86 |
 
-AIL costs 45% fewer tokens than assembly that does the same, and about 10% more than C or Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes (`count`, where C writes one expression per digit and Rust one `format!`).
+AIL costs 46% fewer tokens than assembly that does the same, 10% more than C and 6% more than Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes (`count`, where C writes one expression per digit and Rust one `format!`). `compute` is the arithmetic benchmark, a hundred million steps of a 64-bit recurrence; without it the five short programs total 382 for AIL against 342 for C and 344 for Rust.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 

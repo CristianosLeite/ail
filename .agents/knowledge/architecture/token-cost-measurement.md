@@ -1,24 +1,36 @@
 ---
 title: Token cost measurement
-last-verified: 2026-11-19
-sources: [conversation 2026-11-19, tools/tokens.sh, docs/tokens.md]
+last-verified: 2026-11-20
+sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.py, docs/tokens.md, docs/performance.md]
 status: current
 ---
 # Token cost measurement
 
-**Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the five examples
-and their C, Rust and assembly equivalents in `bench/`. AIL is 41% cheaper than assembly and about
-20% dearer than C or Rust. Lines and numbers are what cost; keywords do not.
+**Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the six examples
+and their C, Rust and assembly equivalents in `bench/`. AIL is 46% cheaper than assembly, 10%
+dearer than C and 6% dearer than Rust. Lines and numbers are what cost; keywords do not.
+`tools/perf.py` times the same programs.
 
 ## Facts
-- Totals without comments: AIL 411, C 342, Rust 344, assembly 696. AIL wins only on `hello`.
+- Totals without comments on 2026-11-20, six programs: AIL 496, C 448, Rust 464, assembly 925.
+  The five short ones alone: AIL 382, C 342, Rust 344, assembly 696 (AIL was 411 at the first
+  measurement, before compare-and-jump statements and syscall names). AIL wins on `hello` and
+  `echo`.
+- `compute` (2026-11-20) is the arithmetic benchmark: a hundred million steps of a 64-bit
+  recurrence on a value read from stdin. It and its timing script were first written in a
+  temporary directory outside the repository and nearly lost; they are now `examples/compute.ai`,
+  `bench/compute.*` and `tools/perf.py`.
+- Timing on an i7-12700H: an AIL program starts in about 75 microseconds, C in 230, Rust in 320.
+  `compute` takes 134.5 ms in AIL against 132.1 in C at `-O3`, although its loop is 22
+  instructions against 7: the steps are one dependency chain, so the extra moves cost little.
 - `stage1/ailc.ai` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
 - A number after a space is two tokens or more, a name one. `4294967295` is four tokens,
   `0xffffffff` two. `jz` and `jnz` are two tokens each; `load4` and `loadb` are two, `load` one.
 - A comparison plus its conditional jump is twelve tokens; one compare-and-branch line would be
   seven. Stage1 has 55 such pairs.
 - `tools/bench.sh` builds `bench/` with `gcc`, `rustc`, `as` and `ld` and checks output and exit
-  status against the examples for empty input and for `hi`; all 30 comparisons pass.
+  status against the examples for empty input, for `hi` and for eight bytes; all 54 comparisons
+  pass.
 
 ## Why
 - **tiktoken in a virtual environment (chosen by the user):** no tokenizer was installed, and this

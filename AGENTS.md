@@ -30,6 +30,7 @@ make tables      # write stage1/tables.ai again from the tables of stage0/ailc.s
 make clean
 tools/tokens.sh  # token cost of examples/ against the C, Rust and assembly programs in bench/
 tools/bench.sh   # check that bench/ behaves like examples/ (needs gcc and rustc)
+python3 tools/perf.py   # time examples/ against bench/ built with gcc -O3 and rustc -O; docs/performance.md
 python3 tools/fuse.py in.ai out.ai  # rewrite a source with compare-and-jump statements and if blocks
 python3 tools/randvars.py build/ailc 300 1      # random programs against a computed result:
 python3 tools/randvars.py build/ailc 300 2 top  # run after touching variable allocation
