@@ -924,6 +924,7 @@ call procwait p 10000 as r
 | `await h s` | two results: the result of the task `h` and 1, or 0 and 0 if `h` is not done, after which the task `s` is woken when it is. With `s` 0, for code that is no task, it polls tasks until `h` is done |
 | `asyncwake h` | puts the task in the queue, to be polled again |
 | `asyncfinish h v` | ends the task or event `h` with the result `v` and wakes the task that awaits it; returns 1, or 0 if it was done already |
+| `asyncdetach h` | says that nobody will await `h`: its record is released when it is done |
 | `asynccancel h` | ends the event `h` with the result -125; returns 1, or 0 if it was done |
 | `asyncrun` | polls tasks until nothing can happen any more; returns the number of tasks that are not done |
 | `asyncstep` | polls one task; returns 1, or 0 if nothing can happen |
@@ -951,7 +952,7 @@ call await h 0 as x     # 42
 - **A task** is a record and its handle the address of it: the poll function at 0, a cell at 8 that belongs to the poll function (where it goes on), the result at 16, the state at 24, cells of the library up to 64, and from 64 the values of the task, as many as the size given to `async` has room for. The values are not zero: the code that makes the task stores them, which it can do before anything is polled, since `async` polls nothing.
 - **The poll function** is called with the handle. It returns 0 when the task has to wait, having arranged for a wake (an `await`, or an `asyncwake` by whoever knows), and 1 when the task is done, having stored its result at 16. It is called again from its first line every time; what must survive is in the values of the task.
 - **Wakes**: a task that is woken is polled once, however often it was woken before the poll; a wake of a task that is done, or of an event, does nothing. A task woken while it is being polled is polled again afterwards, so nothing that happens during a poll is lost, and a task that wakes itself and returns 0 lets the others run.
-- **`await`** gives the result once, to one asker, and releases the task; its handle means nothing afterwards, and a task that is never awaited keeps its record. One task awaits a task at a time. `await` of 0 gives 0 and 1.
+- **`await`** gives the result once, to one asker, and releases the task; its handle means nothing afterwards. A task that is neither awaited nor detached keeps its record; after `asyncdetach` the handle means nothing either. One task awaits a task at a time. `await` of 0 gives 0 and 1.
 - **Outside a task** (`s` 0) `await` runs the queue until `h` is done. If nothing can happen any more before that, the result is -35 and 1, and `h` stays as it was; the same if it is called so from inside a poll, where it would poll tasks within a task.
 - **Errors**: a task has no failure of its own; what it reports, it reports in its result, by convention a negative number as the kernel's are.
 - **Order**: tasks are polled in the order in which they were made or woken. Nothing runs at the same time as anything else, so tasks share memory without `xadd` and `cas`; the functions of this library are for one thread, the one that polls.

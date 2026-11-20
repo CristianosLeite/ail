@@ -87,10 +87,7 @@ label asyncnext
 load asyncr+asynco as asynch
 if asynch
 call asynctry asynch as asyncd
-if asyncd==1
-call asyncunlist asynch
-jmp asyncnext
-end
+jeq asyncd 1 asyncnext
 end
 end
 
@@ -135,9 +132,9 @@ end
 end
 
 # ask the kernel to do the work of the event: 0 if the kernel said "not
-# now", else the event is done, with the result of the kernel: 1, or 2
-# if it was also taken out of its list and its file closed, a socket
-# that could not connect
+# now", else the event is done, with the result of the kernel, and out
+# of the list it waited in: 1, or 2 if its file is closed as well, a
+# socket that could not connect. The event may be free afterwards.
 fn asynctry asynch
 asyncx=-22
 load asynch+64 as asyncr
@@ -191,13 +188,17 @@ call asyncunlist asynch
 end
 call asyncclose asyncfd
 call asyncfinish asynch asyncx
-ret 1+(asyncd!=0)
+ret 2
 end
 asyncx=asyncfd
 end
 label asyncout
 if asyncx==-11
 ret 0
+end
+load asynch+56 as asyncd
+if asyncd
+call asyncunlist asynch
 end
 call asyncfinish asynch asyncx
 ret 1

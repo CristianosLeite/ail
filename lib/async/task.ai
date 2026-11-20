@@ -21,8 +21,8 @@
 #       a poll function written by hand keeps there what it likes
 #   16  result
 #   24  state: 1 in the queue, 2 being polled, 4 done, 8 cancelled, 16
-#       delivered while in the queue, so freed when it leaves it; from
-#       bit 8 on the class of its size
+#       delivered while in the queue, so freed when it leaves it, 32
+#       nobody wants the result; from bit 8 on the class of its size
 #   32  next task of the queue, or next free record
 #   40  the task that awaits this one
 #   48  the task this one awaits
@@ -175,7 +175,33 @@ load asynct+40 as asyncw
 if asyncw
 call asyncwake asyncw
 end
+if asyncs&32
+call asyncdrop asynct
+end
 ret 1
+end
+
+# the record of a task that is done is free, now or, if the task is in
+# the queue, when it leaves it
+fn asyncdrop asynct
+load asynct+24 as asyncs
+if asyncs&1
+store asynct+24 asyncs|16
+ret 0
+end
+tail asyncfree asynct
+end
+
+# "call asyncdetach h": nobody will await the task h: its record is free
+# when it is done, and its handle means nothing from now on
+fn asyncdetach asynct
+if asynct
+load asynct+24 as asyncs
+if asyncs&4
+tail asyncdrop asynct
+end
+store asynct+24 asyncs|32
+end
 end
 
 # poll the first task of the queue: 1 if one was polled. With an empty
@@ -253,11 +279,7 @@ label asyncagain
 load asynch+24 as asyncf
 if asyncf&4
 load asynch+16 as asyncv
-if asyncf&1
-store asynch+24 asyncf|16
-else
-call asyncfree asynch
-end
+call asyncdrop asynch
 if asyncs
 store asyncs+48 0
 end
