@@ -24,7 +24,7 @@ ten-program corpus in eight spellings: 975 tokens against 1313 before, 1118 for 
   as numbers, variables or registers, and the statements that say the same as an expression
   (`add a b as x`, `jlt a b l`, loads and stores) go the same way and give the same bytes.
   Final figures: corpus 970 tokens (C 1118, Rust 1191), time 1.039 times `gcc -O3` in the
-  geometric mean, compiler source 21% fewer tokens after `tools/infix.py`.
+  geometric mean, compiler source 21% fewer tokens after `tools/infix.py` (now `tools/infix.ai`).
 - Faults that only random programs or rewriting the examples found: the register of an
   assignment's target handed out again as a scratch register; the address of a store left in
   `rax` while its value divided. Both have a case in `tests/insn.cases` now.

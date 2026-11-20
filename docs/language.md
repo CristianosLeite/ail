@@ -811,6 +811,109 @@ call print "\n"
 
 A string literal is the two values that `print` takes. The library defines the var `ioargp` besides its functions, and no other global name. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, and no variable named `ioargp`, which would write the library's.
 
+## The bytes library
+
+`lib/bytes.ai` is a buffer of bytes that grows as bytes are added, for text whose length is not known when the program is written. The buffer is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the bytes, their number, and the room at that address. All zero is an empty buffer, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes.
+
+| Function | Does |
+|---|---|
+| `byadd b p n` | adds the `n` bytes at `p`, which are not bytes of the buffer itself |
+| `byaddb b c` | adds the byte `c` |
+| `byaddn b v` | adds `v` as an unsigned decimal number |
+| `byneed b n` | makes room for `n` more bytes |
+| `bycut b n` | keeps the first `n` bytes, not more than there are |
+| `byfree b` | gives the bytes back to the kernel; the buffer is empty and may be used again |
+| `bycopy d s n` | copies `n` bytes from `s` to `d`, which do not overlap; any memory, not only a buffer |
+
+```
+use "lib/io.ai"
+use "lib/bytes.ai"
+buf b 24
+call byadd b "total "
+call byaddn b 42
+call byaddb b 10
+load b as p
+load b+8 as n
+call print p n
+```
+
+- **Growth**: `byadd`, `byaddb`, `byaddn` and `byneed` may move the bytes: when the room is used up they take twice as much with `alloc` (at least 4096 bytes), copy, and `free` the old. An address into the bytes is therefore only good until the next of those four calls; a place that must survive them is kept as an offset from the start. After `byneed b n` the next `n` bytes added move nothing.
+- **Errors**: the four return 1, or 0 when the kernel has no memory or the new length would not fit in 64 bits; the buffer is then as it was. Nothing else can fail and nothing is checked: `bycut` beyond the length and a buffer that is not 24 bytes of the caller's are faults of the program.
+- **Ownership**: the caller owns the 24 bytes and ends the buffer with `byfree`; a buffer in a `local` is freed before its function returns. The bytes are read at the address in the first 8 bytes, with the length in the next 8.
+- **Names**: the library owns every name that starts with `by`; a program has no `var` of such a name.
+
+## The file library
+
+`lib/file.ai` reads a whole file into a buffer of the bytes library and writes one from memory; a program that uses it has `use "lib/bytes.ai"` before it. A path is an address and a length, as a string literal and the two results of `argv` are, without a NUL byte and shorter than 4096 bytes.
+
+| Function | Does |
+|---|---|
+| `fileread p n b` | adds the bytes of the file at the path to the buffer `b`; returns their number |
+| `filereadfd fd b` | the same from an open descriptor, up to the end of the file; the descriptor stays open |
+| `filewrite p n d dn` | makes the file at the path hold the `dn` bytes at `d` and nothing else, creating it with mode 0666 less the umask; returns 0 |
+| `fileopen p n flags mode` | opens the path with the flags and mode of the `open` syscall, plus close-on-exec; returns the descriptor, which the caller closes |
+| `filemkdir p n mode` | makes the directory at the path, with the mode less the umask; returns 0 |
+| `fileunlink p n` | removes the file at the path; returns 0 |
+| `filermdir p n` | removes the empty directory at the path; returns 0 |
+| `filenames p n b` | adds the names in the directory at the path to the buffer `b`, each with a NUL byte after it, without `.` and `..`, in the order of the kernel; returns their number |
+
+```
+use "lib/io.ai"
+use "lib/bytes.ai"
+use "lib/file.ai"
+buf b 24
+call argv 1 as p n
+call fileread p n b as r
+ifslt r 0
+call die "cannot read\n"
+end
+load b as q
+call filewrite "copy" q r
+```
+
+- **Errors**: a result below zero is the error number of the kernel, negated: -2 no such file, -13 not allowed, -21 a directory, -17 there already, -39 a directory that is not empty, -12 no memory, -36 a path of 4096 bytes or more. Test it with a signed comparison (`ifslt r 0`). After a failed `fileread` the buffer holds what was read until then; after a failed `filewrite` the file may hold a part. A call interrupted by a signal is repeated.
+- **Descriptors**: `fileread` and `filewrite` close what they open, on every way out. `fileopen` and `filereadfd` leave that to the caller.
+- **Growth**: `fileread` and `filereadfd` grow the buffer as `byadd` does, 64 KiB of room at a time, so an address into it is not good afterwards.
+- **Names**: the library owns every name that starts with `file`; a program has no `var` of such a name.
+
+## The process library
+
+`lib/proc.ai` starts another program as a child process and waits for it; a program that uses it has `use "lib/io.ai"` before it, which knows where the arguments and the environment are.
+
+| Function | Does |
+|---|---|
+| `procstart argv in out err` | starts the program `argv` names, with the descriptors `in`, `out` and `err` as its 0, 1 and 2; returns the number of the child |
+| `procwait pid ms` | waits until the child has ended, at most `ms` milliseconds (0: without limit), and returns how it ended |
+| `procenv` | the environment of this process: the address of the addresses of its `NAME=value` strings, with a 0 after the last |
+| `procvar p n` | two results, the address and length of the value of the variable named by the `n` bytes at `p`, or 0 and 0 |
+| `procnow` | the time of the clock that only goes forward (`CLOCK_MONOTONIC`), in nanoseconds |
+| `procpin cpu` | binds this thread, and the children it starts afterwards, to the processor `cpu`, or to the lowest it may run on if that is none of them; returns the processor, or a negative error number |
+
+```
+use "lib/io.ai"
+use "lib/bytes.ai"
+use "lib/file.ai"
+use "lib/proc.ai"
+data sh "/bin/sh" 0
+data c "-c" 0
+data s "ls | wc -l" 0
+buf av 32
+store av sh
+store av+8 c
+store av+16 s
+call fileopen "count.txt" 0x241 420 as o
+call procstart av -1 o -1 as p
+sys close o
+call procwait p 10000 as r
+```
+
+- **Arguments**: `argv` is the address of the addresses of the arguments, strings with a NUL byte at the end, with a 0 after the last: what the kernel takes, and what `data` lines and a `buf` build. The first is the program: a path if it has a slash, else a name that is looked for in the directories of `PATH` (`/usr/bin:/bin` without one).
+- **Descriptors**: -1 for `in`, `out` or `err` leaves the child the descriptor of this process. Any other descriptor stays open in this process, whose business it is to close it; one opened by `fileopen` is closed in the child by itself. A child whose output goes to a pipe that nobody reads stops when the pipe is full, so send output that is wanted to a file and read the file after `procwait`.
+- **The child** has the environment of this process. It is another process (`fork`): it shares no memory with this one, and of a program with tasks only the thread that called is in it.
+- **Errors**: `procstart` returns a negative number when the kernel refuses a process (the error of `fork`, negated). A program that cannot be started is a child that ends with status 127.
+- **The result of `procwait`** is the exit status, 0 to 255; or the number of the signal that ended the child, negated (-9, -11); or -1000 if the child still ran when the time was up, in which case it was killed (`SIGKILL`) before the return; or -1001 if there is no such child. Every child is waited for exactly once, which takes it from the kernel; after that its number means nothing. Only the child itself is killed, not what it started.
+- **Names**: the library owns every name that starts with `proc`; a program has no `var` of such a name.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.

@@ -1,0 +1,22 @@
+# a child that runs past the limit is killed and taken: no process of
+# its number is left; one that ends within the limit gives its status
+use "lib/io.ai"
+use "lib/proc.ai"
+data sleep "/bin/sleep" 0
+data t30 "30" 0
+data t0 "0.05" 0
+buf av 32
+store av sleep
+store av+8 t30
+call procstart av -1 -1 -1 as p
+call procwait p 200 as r
+sys kill p 0 as k
+call putn 0-r
+call print " "
+call putn 0-k
+call print " "
+store av+8 t0
+call procstart av -1 -1 -1 as p
+call procwait p 5000 as r
+call putn r
+call print "\n"

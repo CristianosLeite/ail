@@ -1,3 +1,5 @@
 build/
 .venv/
 seed/ailc-*
+tools/pins/*
+!tools/pins/MANIFEST

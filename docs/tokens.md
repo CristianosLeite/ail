@@ -1,12 +1,12 @@
 # Token cost
 
-AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed. It uses `tiktoken` with the `o200k_base` encoding, installed into `.venv` on first use (that step needs network access). The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
+AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed. It counts with `build/tools/tokens`, a tokenizer of the `o200k_base` encoding written in AIL (`tools/tokens.ai`, `tools/lib/o200k.ai`), which gives the token numbers that `tiktoken` gives: it was compared with it on every character of Unicode in ten forms, on the text files of the repository and on random texts, and `tests/tokens.sh` keeps ten texts with the numbers `tiktoken` gave. It reads the tokens of the encoding and the character categories of Unicode 16.0.0 from two files that `tools/pins/MANIFEST` pins by checksum; `tools/tokens.sh` fetches them on first use (that step needs network access). `build/tools/tokens -c '#' file ...` counts single files without their comments, and `--ids file` prints the token numbers of a file. Until 2026-11-20 the count was `tiktoken` itself in a Python environment; the tables below are the same with either. The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
 
 ```
 tools/tokens.sh             # the table below
 tools/tokens.sh hello fact  # some programs only
 tools/bench.sh              # check that bench/ behaves like examples/ (needs gcc and rustc)
-python3 tools/perf.py       # time the same programs, see performance.md
+build/tools/perf               # time the same programs, see performance.md
 ```
 
 ## Result
@@ -51,7 +51,7 @@ Measured on the first `compiler/ailc.ai` without comments: 6181 tokens in 1107 l
 
 Run the script again after a change of syntax and update the table when an example changes.
 
-`tools/infix.py` rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `compiler/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
+`tools/infix.ai` (`build/tools/infix in.ai out.ai`) rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `compiler/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
 
 ## Control flow, measured on 2026-11-20
 
@@ -62,7 +62,7 @@ Before choosing new forms of control flow, the cost of the existing ones was cou
 - 152 of the 242 labels were the target of a single forward conditional jump, the shape of an `if`. A block that needs no label name saves 602 tokens: 4.5% of all, 15% of the control flow.
 - 31 labels were the target of a single backward jump, the shape of a loop. A loop statement would save little, since a loop still needs its test and often a second exit.
 
-So the compare-and-jump statements and the `if` blocks were added, and no loop statement then. `while` came with expressions (below): on programs that compute, a loop with its test in one line is worth more than it was in the compiler source, where most loops have a second exit. After rewriting stage1 with `tools/fuse.py`, `compiler/ailc.ai` went from 13483 to 12305 tokens.
+So the compare-and-jump statements and the `if` blocks were added, and no loop statement then. `while` came with expressions (below): on programs that compute, a loop with its test in one line is worth more than it was in the compiler source, where most loops have a second exit. After rewriting stage1 with `tools/fuse.py` (now `tools/fuse.ai`), `compiler/ailc.ai` went from 13483 to 12305 tokens.
 
 ## Expressions, measured on 2026-11-20
 

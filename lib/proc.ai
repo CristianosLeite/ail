@@ -1,0 +1,220 @@
+# lib/proc.ai -- child processes: start a program with its three standard
+# descriptors where the caller wants them, and wait for it with a limit.
+# A program that uses it uses lib/io.ai first, which knows where the
+# arguments and the environment of the process are.
+#
+# Every name of this file starts with "proc"; a program has no var of such
+# a name (see lib/io.ai).
+
+# syscalls without a name in the compiler
+const procdup2 33
+const procpoll 7
+const procpidfd 434
+const procsetaff 203
+
+# the environment of this process as the kernel passed it: the address of
+# the addresses of its strings, "NAME=value" with a NUL byte at the end,
+# with a 0 after the last
+fn procenv
+load ioargp as procn
+ret ioargp+16+procn*8
+end
+
+# the value of the variable of the environment whose name is the procn
+# bytes at procp: its address and length, or 0 and 0 if there is none
+fn procvar procp procn
+call procenv as proce
+label next
+load proce as procs
+ifz procs
+ret 0 0
+end
+proci=0
+while proci<procn
+loadb procs+proci as procc
+loadb procp+proci as procd
+jne procc procd no
+proci+=1
+end
+loadb procs+procn as procc
+jne procc 61 no
+procs+=procn+1
+call strlen procs as procl
+ret procs procl
+label no
+proce+=8
+jmp next
+end
+
+# Start a program as a child process: its number, or the error of fork,
+# negated. procargv is the address of the addresses of its arguments,
+# strings with a NUL byte at the end, with a 0 after the last; the first
+# is the program, a path if it has a slash and else a name looked for in
+# the directories of PATH. The child gets the environment of this
+# process, and procin, procout and procerr as its descriptors 0, 1 and 2;
+# -1 leaves the one of this process. The caller keeps and closes the
+# descriptors it passed, and ends the child with procwait. A program that
+# cannot be started is a child that ends with status 127.
+fn procstart procargv procin procout procerr
+local procz 4096
+call procenv as proce
+sys fork as procpid
+if procpid
+ret procpid
+end
+# the child: nothing here returns
+if procin!=-1
+sys procdup2 procin 0
+end
+if procout!=-1
+sys procdup2 procout 1
+end
+if procerr!=-1
+sys procdup2 procerr 2
+end
+load procargv as procp
+call strlen procp as procn
+proci=0
+while proci<procn
+loadb procp+proci as procc
+if procc==47
+sys execve procp procargv proce
+sys exit 127
+end
+proci+=1
+end
+call procvar "PATH" as procs procl
+ifz procs
+set "/usr/bin:/bin" as procs
+procl=13
+end
+procl+=procs
+# each directory of the list, an empty one being this directory
+while procs<=procl
+procq=procs
+while procq<procl
+loadb procq as procc
+jeq procc 58 cut
+procq+=1
+end
+label cut
+procd=procq-procs
+if procd+procn<4094
+proci=0
+while proci<procd
+loadb procs+proci as procc
+storeb procz+proci procc
+proci+=1
+end
+if procd
+storeb procz+procd 47
+procd+=1
+end
+proci=0
+while proci<=procn
+loadb procp+proci as procc
+storeb procz+procd+proci procc
+proci+=1
+end
+sys execve procz procargv proce
+end
+procs=procq+1
+end
+sys exit 127
+end
+
+# Wait for the child procpid to end and take it from the kernel: its exit
+# status, 0 to 255; or the signal that ended it, negated; or -1000 if it
+# still ran after procms milliseconds, in which case it was killed
+# (SIGKILL) and taken; or -1001 if there is no such child. procms 0 waits
+# without limit.
+fn procwait procpid procms
+local procst 8
+local procpf 8
+if procms
+sys procpidfd procpid 0 as procfd
+ifsge procfd 0
+store4 procpf procfd
+store4 procpf+4 1
+label again
+sys procpoll procpf 1 procms as procr
+jeq procr -4 again
+sys close procfd
+ifz procr
+sys kill procpid 9
+label gone
+sys wait4 procpid 0 0 0 as procr
+jeq procr -4 gone
+ret -1000
+end
+end
+end
+label reap
+store procst 0
+sys wait4 procpid procst 0 0 as procr
+jeq procr -4 reap
+ifslt procr 0
+ret -1001
+end
+load4 procst as procr
+if procr&127
+ret 0-(procr&127)
+end
+ret procr>>8&255
+end
+
+# the time of the clock that only goes forward (CLOCK_MONOTONIC), in
+# nanoseconds since a moment that is the same for the whole run
+fn procnow
+local proct 16
+sys clock_gettime 1 proct
+load proct as procs
+load proct+8 as procn
+ret procs*1000000000+procn
+end
+
+# Let this thread, and the children it starts from now on, run only on
+# the processor proccpu, or on the lowest one it may run on if that is
+# not among them: the processor it is now bound to, or the error of the
+# kernel, negated. Processors are numbered from 0, below 1024.
+fn procpin proccpu
+local procm 128
+proci=0
+while proci<128
+store procm+proci 0
+proci+=8
+end
+sys sched_getaffinity 0 128 procm as procr
+ifslt procr 0
+ret procr
+end
+procc=0
+if proccpu<1024
+loadb procm+proccpu/8 as procc
+procc=procc>>(proccpu&7)&1
+end
+ifz procc
+proccpu=0
+label next
+if proccpu>=1024
+ret -22
+end
+loadb procm+proccpu/8 as procc
+procc=procc>>(proccpu&7)&1
+ifz procc
+proccpu+=1
+jmp next
+end
+end
+proci=0
+while proci<128
+store procm+proci 0
+proci+=8
+end
+storeb procm+proccpu/8 1<<(proccpu&7)
+sys procsetaff 0 128 procm as procr
+ifslt procr 0
+ret procr
+end
+ret proccpu
+end

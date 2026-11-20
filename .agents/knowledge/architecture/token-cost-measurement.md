@@ -9,7 +9,7 @@ status: current
 **Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
 13% cheaper than C and 19% cheaper than Rust (it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
-`tools/perf.py` times the same programs.
+`tools/perf.ai` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
 
 ## Facts
 - With the examples rewritten in expressions and `while` (2026-11-20, later the same day): AIL
@@ -54,7 +54,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   Python and network access once, the behaviour check `gcc` and `rustc`.
 
 ## How to apply
-- Before choosing between two spellings, tokenize both (`.venv/bin/python` with `tiktoken`).
+- Before choosing between two spellings, tokenize both (`build/tools/tokens --ids file`, or `-c '#' file` for a count; since 2026-11-20 the tokenizer is `tools/lib/o200k.ai`, which gives the numbers of `tiktoken`; `.venv` with `tiktoken` is no longer needed by any tool).
 - Prefer a statement that removes a line over one that shortens a word.
 - Replace numbers by names where the language can: constants, named data, global scalars.
 - After changing an example, change its three equivalents in `bench/`, run `tools/bench.sh` and

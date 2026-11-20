@@ -1,0 +1,26 @@
+# after byneed the bytes that were asked for move nothing, and a buffer in
+# a local works once it is zero
+use "lib/io.ai"
+use "lib/bytes.ai"
+fn f
+local b 24
+store b 0
+store b+8 0
+store b+16 0
+call byadd b "x"
+call byneed b 100000 as r
+load b as p
+i=0
+while i<100000
+call byaddb b 65+i%26
+i+=1
+end
+load b as q
+load b+8 as n
+loadb q as c
+loadb q+100000 as d
+call byfree b
+ret r+(p==q)+(n==100001)+(c==120)+(d==65+99999%26)
+end
+call f as x
+sys exit x

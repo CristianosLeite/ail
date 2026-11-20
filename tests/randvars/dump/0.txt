@@ -1,0 +1,1275 @@
+fn f 
+sub 9 4 as t1
+shl 4096 t1 as v9
+add v9 -1 as t0
+sub v9 v9 as t1
+or v9 1 as t3
+div v9 t3 as t2
+add t1 t2 as t1
+shl t0 t1 as v0
+lt v0 v0 as t0
+le v9 v9 as t1
+and t1 3 as t1
+shl t0 t1 as v0
+jz v9 l1
+jne 0x100000000 v0 l2
+add v0 v0 as t1
+or v9 1 as t2
+mod t1 t2 as t1
+shl v0 t1 as v8
+jmp l3
+label l2
+jge v0 v9 l4
+shl v0 1 as t0
+le t0 v0 as t0
+and v0 v0 as t1
+sub v0 v9 as t2
+xor t1 t2 as t1
+shr t0 t1 as v1
+set 0xffffffffffffffff as v2
+jmp l5
+label l4
+set v9 as v6
+label l5
+mul v0 v9 as t2
+or 64 t2 as t1
+or v0 t1 as v3
+label l3
+set 3 as c0
+label l6
+set 1 as c1
+label l7
+and v9 v9 as v5
+ge v5 v9 as t0
+sub t0 v5 as t0
+or v9 1 as t1
+mod t0 t1 as v1
+xor 64 v9 as v7
+shl v0 v9 as t0
+or v7 1 as t1
+mod t0 t1 as v6
+xor v6 v7 as v11
+sub c1 1 as c1
+jnz c1 l7
+sub v0 v0 as t0
+or v0 1 as t1
+div t0 t1 as t0
+or v0 v0 as t1
+or v0 1 as t2
+div t1 t2 as t1
+or t0 t1 as v10
+xor v0 v10 as t0
+or t0 v0 as v7
+shr v7 v10 as v8
+sub c0 1 as c0
+jnz c0 l6
+label l1
+set v0 as v1
+set 3 as c2
+label l8
+or v9 1 as t1
+div v1 t1 as v1
+set v9 as v2
+set v1 as v9
+or v9 1 as t1
+div v1 t1 as t0
+and v0 v2 as t1
+or 0x100000000 1 as t2
+div t1 t2 as t1
+or t1 1 as t1
+mod t0 t1 as v9
+xor v2 5 as t0
+xor 63 v2 as t1
+shr t0 t1 as t0
+shr t0 v1 as v8
+sub c2 1 as c2
+jnz c2 l8
+set v9 as v0
+set v1 as v11
+eq 9 v1 as t1
+shl v0 t1 as t0
+or v9 1 as t1
+mod t0 t1 as v4
+set v11 as v3
+set 3 as c3
+label l9
+add v3 -1 as t1
+eq 3 t1 as t0
+shr v3 v9 as t1
+and t0 t1 as v2
+shr v0 v0 as t2
+or v0 t2 as t1
+add v1 t1 as v1
+set 2 as c4
+label l10
+set 1 as v11
+set v0 as v5
+sub c4 1 as c4
+jnz c4 l10
+add v9 v3 as t2
+and v11 t2 as t1
+xor v11 t1 as v11
+sub c3 1 as c3
+jnz c3 l9
+or v4 v4 as t1
+or v0 t1 as t0
+jz t0 l11
+set v11 as v1
+set v11 as v7
+label l11
+jeq v4 v4 l12
+jeq v4 v4 l13
+set 3 as c5
+label l14
+set v0 as v6
+shl v1 v11 as v5
+sub c5 1 as c5
+jnz c5 l14
+set 2 as c6
+label l15
+set v4 as v3
+sub c6 1 as c6
+jnz c6 l15
+jmp l16
+label l13
+set 2 as c7
+label l17
+shr v4 v1 as v4
+set v0 as v9
+or v9 v3 as t0
+sub 0x100000000 v11 as t1
+and t0 t1 as t0
+xor t0 v3 as v10
+shl 64 v10 as v10
+set v3 as v10
+or v9 255 as t0
+or v1 v11 as t1
+or t0 t1 as t0
+sub v11 v10 as t1
+or v4 1 as t3
+div v11 t3 as t2
+shr t1 t2 as t1
+and t0 t1 as v8
+sub c7 1 as c7
+jnz c7 l17
+label l16
+jge v3 v0 l18
+add v4 v4 as t2
+le v3 t2 as t1
+le v11 t1 as v9
+set v1 as v3
+label l18
+ge 5 v0 as v10
+set v10 as v11
+jmp l19
+label l12
+gt 4096 v0 as v7
+and v4 v0 as t1
+shl v7 t1 as t0
+or v3 1 as t2
+div v9 t2 as t1
+or t1 v4 as t1
+and t0 t1 as v5
+label l19
+sub 2 v1 as t1
+shr v4 t1 as t0
+shr 4 v0 as t2
+lt v9 t2 as t1
+and t0 t1 as v5
+and 7 v0 as t2
+mul v11 t2 as t1
+sub 255 t1 as v7
+set v5 as v7
+or v11 1 as t2
+mod v0 t2 as t1
+or t1 1 as t1
+div v4 t1 as v4
+and v1 v1 as v1
+shr -1 v5 as t1
+shl 4 t1 as v9
+set v4 as v4
+mul v7 v7 as t1
+shl v7 t1 as t0
+or 5 v7 as t1
+and t1 9 as t1
+sub t0 t1 as v7
+jgt v1 v0 l20
+set 2 as c8
+label l21
+set 1 as c9
+label l22
+gt 4 v5 as t2
+lt v3 t2 as t1
+or v9 t1 as v9
+eq v3 v3 as t0
+or v11 1 as t2
+mod v11 t2 as t1
+gt t0 t1 as t0
+add v11 v3 as t1
+mul v5 v1 as t2
+or t2 1 as t2
+div t1 t2 as t1
+shl t0 t1 as v1
+and v1 v7 as t1
+or t1 4096 as t1
+shr v0 t1 as v0
+xor v3 v5 as t1
+or t1 1 as t1
+div v3 t1 as v2
+sub c9 1 as c9
+jnz c9 l22
+ne v3 v11 as t2
+sub v0 t2 as t1
+eq v0 t1 as v9
+set 1 as c10
+label l23
+set v7 as v1
+sub c10 1 as c10
+jnz c10 l23
+or v4 1 as t2
+div v3 t2 as t1
+or v5 1 as t2
+div t1 t2 as t1
+sub v1 t1 as v1
+jle v5 v0 l24
+sub v5 v5 as v5
+sub 7 v0 as t0
+add t0 v9 as t0
+shr v3 v4 as t2
+sub 63 t2 as t1
+sub t0 t1 as v10
+ge v10 v11 as v9
+label l24
+sub c8 1 as c8
+jnz c8 l21
+set 2 as c11
+label l25
+set 2 as c12
+label l26
+set v0 as v6
+xor v3 v1 as t1
+or v11 1 as t2
+mod t1 t2 as t1
+add v11 t1 as v11
+add v6 v7 as t1
+or t1 1 as t1
+div v3 t1 as t0
+shl v5 v0 as t1
+sub v0 5 as t2
+mul t1 t2 as t1
+add t0 t1 as v6
+sub c12 1 as c12
+jnz c12 l26
+and v5 v5 as t0
+or 0xffffffffffffffff v0 as t1
+or t1 1 as t1
+mod t0 t1 as t0
+sub t0 v11 as v4
+sub c11 1 as c11
+jnz c11 l25
+set 3 as c13
+label l27
+set -1 as v10
+gt v5 v11 as t0
+shr 5 v3 as t1
+le t0 t1 as t0
+add t0 v5 as v5
+or v7 v1 as t0
+or t0 v10 as t0
+jz t0 l28
+mul v9 v11 as t1
+or 255 1 as t3
+div v1 t3 as t2
+le t1 t2 as t1
+add v4 t1 as v0
+jmp l29
+label l28
+set v5 as v7
+label l29
+sub c13 1 as c13
+jnz c13 l27
+lt 8 0xffffffffffffffff as t1
+sub v11 v7 as t2
+ge t1 t2 as t1
+le v3 t1 as v3
+label l20
+set 0xffffffffffffffff as v9
+or v0 1 as t1
+div 0 t1 as v2
+set 2 as c14
+label l30
+ne v9 v9 as t0
+add t0 v4 as v11
+set 1 as c15
+label l31
+mul v7 63 as v1
+set v3 as v9
+shl v0 v3 as v11
+jne v2 v2 l32
+sub v7 v11 as t0
+shl v7 v1 as t1
+or t1 1 as t1
+div t0 t1 as t0
+and v2 v7 as t1
+and t1 v2 as t1
+shl t0 t1 as v2
+label l32
+sub c15 1 as c15
+jnz c15 l31
+set 2 as c16
+label l33
+or 8 1 as t1
+mod v7 t1 as t0
+gt v3 v4 as t1
+or t1 1 as t1
+mod t0 t1 as t0
+jz t0 l34
+shr v4 v3 as t1
+shr v1 t1 as t0
+sub t0 v7 as v7
+jmp l35
+label l34
+mul v5 9 as t1
+shr v0 t1 as t0
+xor t0 v5 as v2
+set v1 as v8
+label l35
+set 1 as c17
+label l36
+sub v2 v1 as t0
+or 64 v0 as t1
+xor t0 t1 as v2
+sub c17 1 as c17
+jnz c17 l36
+shr v0 v2 as v0
+set 7 as v1
+mul v5 v9 as t2
+or t2 1 as t2
+div v1 t2 as t1
+add v1 t1 as v10
+set 4 as v11
+sub c16 1 as c16
+jnz c16 l33
+sub c14 1 as c14
+jnz c14 l30
+or v7 1 as t2
+mod v4 t2 as t1
+and v3 t1 as t0
+sub t0 v5 as v7
+set 1 as c18
+label l37
+set v4 as v9
+set 2 as c19
+label l38
+set v0 as v10
+or v9 1 as t2
+mod v11 t2 as t1
+and t1 v3 as t1
+sub 0x100000000 t1 as v3
+set v5 as v3
+set 3 as c20
+label l39
+shl v7 255 as v6
+mul v1 v0 as t1
+or t1 1 as t1
+mod 63 t1 as t0
+xor t0 v4 as v6
+set v2 as v2
+mul v11 2 as v8
+xor 6 v0 as v8
+set v6 as v3
+sub c20 1 as c20
+jnz c20 l39
+set v2 as v7
+sub v3 v9 as t1
+shr v1 t1 as v9
+sub c19 1 as c19
+jnz c19 l38
+set v3 as v5
+sub c18 1 as c18
+jnz c18 l37
+set v11 as v5
+mul v2 63 as t1
+lt t1 0x100000000 as t1
+or v1 t1 as v1
+set v7 as v2
+set v3 as v9
+set 2 as c21
+label l40
+set v1 as v2
+eq v9 v0 as v9
+sub v0 v1 as t0
+shl v2 v11 as t1
+or t0 t1 as t0
+shl t0 v9 as v3
+or v5 1 as t1
+div v4 t1 as v8
+set 3 as c22
+label l41
+mul 255 6 as t1
+xor t1 v9 as t1
+ge v3 t1 as v4
+sub c22 1 as c22
+jnz c22 l41
+sub c21 1 as c21
+jnz c21 l40
+set v11 as v10
+shr v1 v9 as v1
+jge v11 v3 l42
+jle v9 v5 l43
+set 3 as c23
+label l44
+set v7 as v9
+set v4 as v7
+le v10 v9 as t1
+add t1 v10 as t1
+lt v9 t1 as v9
+sub c23 1 as c23
+jnz c23 l44
+label l43
+and v5 v0 as t1
+and v2 v9 as t2
+or t2 1 as t2
+div t1 t2 as t1
+or t1 1 as t1
+div 0xffffffffffffffff t1 as v8
+shl v1 v1 as t1
+or v5 1 as t3
+mod v11 t3 as t2
+or t2 1 as t2
+mod t1 t2 as t1
+shr v3 t1 as v3
+jle v5 v9 l45
+xor v9 v1 as t1
+shl t1 v2 as t1
+or t1 1 as t1
+div v8 t1 as v8
+jmp l46
+label l45
+set 2 as c24
+label l47
+set v2 as v9
+or v1 1 as t2
+div v2 t2 as t1
+shl v11 v3 as t2
+sub t1 t2 as t1
+or t1 1 as t1
+mod v5 t1 as v2
+mul v3 v5 as t1
+or t1 v2 as t1
+or v5 t1 as v5
+set v10 as v0
+sub c24 1 as c24
+jnz c24 l47
+lt v11 v7 as t2
+shr v10 t2 as t1
+xor v7 t1 as v5
+eq v2 v3 as t1
+shl v0 v2 as t2
+lt t1 t2 as t1
+shr v9 t1 as v9
+label l46
+jmp l48
+label l42
+add v2 v4 as v6
+mul 4096 v3 as t0
+shl v4 v7 as t1
+and t0 t1 as t0
+or 63 1 as t2
+div v6 t2 as t1
+or t1 v9 as t1
+or t1 1 as t1
+div t0 t1 as v10
+label l48
+set 0 as h
+add h v0 as h
+add h v1 as h
+add h v10 as h
+add h v11 as h
+add h v2 as h
+add h v3 as h
+add h v4 as h
+add h v5 as h
+add h v7 as h
+add h v9 as h
+mod h 251 as h
+ret h
+end
+call f  as r
+sys 60 r
+--
+fn f 
+t1=9-4
+v9=4096<<t1
+t0=v9+-1
+t1=v9-v9
+t3=v9|1
+t2=v9/t3
+t1+=t2
+v0=t0<<t1
+t0=v0<v0
+t1=v9<=v9
+t1&=3
+v0=t0<<t1
+jz v9 l1
+jz 0x100000000==v0 l2
+t1=v0+v0
+t2=v9|1
+t1%=t2
+v8=v0<<t1
+jmp l3
+label l2
+jz v0<v9 l4
+t0=v0<<1
+t0=t0<=v0
+t1=v0&v0
+t2=v0-v9
+t1^=t2
+v1=t0>>t1
+v2=0xffffffffffffffff
+jmp l5
+label l4
+v6=v9
+label l5
+t2=v0*v9
+t1=64|t2
+v3=v0|t1
+label l3
+c0=3
+label l6
+c1=1
+label l7
+v5=v9&v9
+t0=v5>=v9
+t0-=v5
+t1=v9|1
+v1=t0%t1
+v7=64^v9
+t0=v0<<v9
+t1=v7|1
+v6=t0%t1
+v11=v6^v7
+c1-=1
+jnz c1 l7
+t0=v0-v0
+t1=v0|1
+t0/=t1
+t1=v0|v0
+t2=v0|1
+t1/=t2
+v10=t0|t1
+t0=v0^v10
+v7=t0|v0
+v8=v7>>v10
+c0-=1
+jnz c0 l6
+label l1
+v1=v0
+c2=3
+label l8
+t1=v9|1
+v1/=t1
+v2=v9
+v9=v1
+t1=v9|1
+t0=v1/t1
+t1=v0&v2
+t2=0x100000000|1
+t1/=t2
+t1|=1
+v9=t0%t1
+t0=v2^5
+t1=63^v2
+t0>>=t1
+v8=t0>>v1
+c2-=1
+jnz c2 l8
+v0=v9
+v11=v1
+t1=9==v1
+t0=v0<<t1
+t1=v9|1
+v4=t0%t1
+v3=v11
+c3=3
+label l9
+t1=v3+-1
+t0=3==t1
+t1=v3>>v9
+v2=t0&t1
+t2=v0>>v0
+t1=v0|t2
+v1+=t1
+c4=2
+label l10
+v11=1
+v5=v0
+c4-=1
+jnz c4 l10
+t2=v9+v3
+t1=v11&t2
+v11^=t1
+c3-=1
+jnz c3 l9
+t1=v4|v4
+t0=v0|t1
+jz t0 l11
+v1=v11
+v7=v11
+label l11
+jz v4!=v4 l12
+jz v4!=v4 l13
+c5=3
+label l14
+v6=v0
+v5=v1<<v11
+c5-=1
+jnz c5 l14
+c6=2
+label l15
+v3=v4
+c6-=1
+jnz c6 l15
+jmp l16
+label l13
+c7=2
+label l17
+v4>>=v1
+v9=v0
+t0=v9|v3
+t1=0x100000000-v11
+t0&=t1
+v10=t0^v3
+v10=64<<v10
+v10=v3
+t0=v9|255
+t1=v1|v11
+t0|=t1
+t1=v11-v10
+t3=v4|1
+t2=v11/t3
+t1>>=t2
+v8=t0&t1
+c7-=1
+jnz c7 l17
+label l16
+jz v3<v0 l18
+t2=v4+v4
+t1=v3<=t2
+v9=v11<=t1
+v3=v1
+label l18
+v10=5>=v0
+v11=v10
+jmp l19
+label l12
+v7=4096>v0
+t1=v4&v0
+t0=v7<<t1
+t2=v3|1
+t1=v9/t2
+t1|=v4
+v5=t0&t1
+label l19
+t1=2-v1
+t0=v4>>t1
+t2=4>>v0
+t1=v9<t2
+v5=t0&t1
+t2=7&v0
+t1=v11*t2
+v7=255-t1
+v7=v5
+t2=v11|1
+t1=v0%t2
+t1|=1
+v4/=t1
+v1&=v1
+t1=-1>>v5
+v9=4<<t1
+v4=v4
+t1=v7*v7
+t0=v7<<t1
+t1=5|v7
+t1&=9
+v7=t0-t1
+jz v1<=v0 l20
+c8=2
+label l21
+c9=1
+label l22
+t2=4>v5
+t1=v3<t2
+v9|=t1
+t0=v3==v3
+t2=v11|1
+t1=v11%t2
+t0=t0>t1
+t1=v11+v3
+t2=v5*v1
+t2|=1
+t1/=t2
+v1=t0<<t1
+t1=v1&v7
+t1|=4096
+v0>>=t1
+t1=v3^v5
+t1|=1
+v2=v3/t1
+c9-=1
+jnz c9 l22
+t2=v3!=v11
+t1=v0-t2
+v9=v0==t1
+c10=1
+label l23
+v1=v7
+c10-=1
+jnz c10 l23
+t2=v4|1
+t1=v3/t2
+t2=v5|1
+t1/=t2
+v1-=t1
+jz v5>v0 l24
+v5-=v5
+t0=7-v0
+t0+=v9
+t2=v3>>v4
+t1=63-t2
+v10=t0-t1
+v9=v10>=v11
+label l24
+c8-=1
+jnz c8 l21
+c11=2
+label l25
+c12=2
+label l26
+v6=v0
+t1=v3^v1
+t2=v11|1
+t1%=t2
+v11+=t1
+t1=v6+v7
+t1|=1
+t0=v3/t1
+t1=v5<<v0
+t2=v0-5
+t1*=t2
+v6=t0+t1
+c12-=1
+jnz c12 l26
+t0=v5&v5
+t1=0xffffffffffffffff|v0
+t1|=1
+t0%=t1
+v4=t0-v11
+c11-=1
+jnz c11 l25
+c13=3
+label l27
+v10=-1
+t0=v5>v11
+t1=5>>v3
+t0=t0<=t1
+v5=t0+v5
+t0=v7|v1
+t0|=v10
+jz t0 l28
+t1=v9*v11
+t3=255|1
+t2=v1/t3
+t1=t1<=t2
+v0=v4+t1
+jmp l29
+label l28
+v7=v5
+label l29
+c13-=1
+jnz c13 l27
+t1=8<0xffffffffffffffff
+t2=v11-v7
+t1=t1>=t2
+v3=v3<=t1
+label l20
+v9=0xffffffffffffffff
+t1=v0|1
+v2=0/t1
+c14=2
+label l30
+t0=v9!=v9
+v11=t0+v4
+c15=1
+label l31
+v1=v7*63
+v9=v3
+v11=v0<<v3
+jz v2==v2 l32
+t0=v7-v11
+t1=v7<<v1
+t1|=1
+t0/=t1
+t1=v2&v7
+t1&=v2
+v2=t0<<t1
+label l32
+c15-=1
+jnz c15 l31
+c16=2
+label l33
+t1=8|1
+t0=v7%t1
+t1=v3>v4
+t1|=1
+t0%=t1
+jz t0 l34
+t1=v4>>v3
+t0=v1>>t1
+v7=t0-v7
+jmp l35
+label l34
+t1=v5*9
+t0=v0>>t1
+v2=t0^v5
+v8=v1
+label l35
+c17=1
+label l36
+t0=v2-v1
+t1=64|v0
+v2=t0^t1
+c17-=1
+jnz c17 l36
+v0>>=v2
+v1=7
+t2=v5*v9
+t2|=1
+t1=v1/t2
+v10=v1+t1
+v11=4
+c16-=1
+jnz c16 l33
+c14-=1
+jnz c14 l30
+t2=v7|1
+t1=v4%t2
+t0=v3&t1
+v7=t0-v5
+c18=1
+label l37
+v9=v4
+c19=2
+label l38
+v10=v0
+t2=v9|1
+t1=v11%t2
+t1&=v3
+v3=0x100000000-t1
+v3=v5
+c20=3
+label l39
+v6=v7<<255
+t1=v1*v0
+t1|=1
+t0=63%t1
+v6=t0^v4
+v2=v2
+v8=v11*2
+v8=6^v0
+v3=v6
+c20-=1
+jnz c20 l39
+v7=v2
+t1=v3-v9
+v9=v1>>t1
+c19-=1
+jnz c19 l38
+v5=v3
+c18-=1
+jnz c18 l37
+v5=v11
+t1=v2*63
+t1=t1<0x100000000
+v1|=t1
+v2=v7
+v9=v3
+c21=2
+label l40
+v2=v1
+v9=v9==v0
+t0=v0-v1
+t1=v2<<v11
+t0|=t1
+v3=t0<<v9
+t1=v5|1
+v8=v4/t1
+c22=3
+label l41
+t1=255*6
+t1^=v9
+v4=v3>=t1
+c22-=1
+jnz c22 l41
+c21-=1
+jnz c21 l40
+v10=v11
+v1>>=v9
+jz v11<v3 l42
+jz v9>v5 l43
+c23=3
+label l44
+v9=v7
+v7=v4
+t1=v10<=v9
+t1+=v10
+v9=v9<t1
+c23-=1
+jnz c23 l44
+label l43
+t1=v5&v0
+t2=v2&v9
+t2|=1
+t1/=t2
+t1|=1
+v8=0xffffffffffffffff/t1
+t1=v1<<v1
+t3=v5|1
+t2=v11%t3
+t2|=1
+t1%=t2
+v3>>=t1
+jz v5>v9 l45
+t1=v9^v1
+t1<<=v2
+t1|=1
+v8/=t1
+jmp l46
+label l45
+c24=2
+label l47
+v9=v2
+t2=v1|1
+t1=v2/t2
+t2=v11<<v3
+t1-=t2
+t1|=1
+v2=v5%t1
+t1=v3*v5
+t1|=v2
+v5|=t1
+v0=v10
+c24-=1
+jnz c24 l47
+t2=v11<v7
+t1=v10>>t2
+v5=v7^t1
+t1=v2==v3
+t2=v0<<v2
+t1=t1<t2
+v9>>=t1
+label l46
+jmp l48
+label l42
+v6=v2+v4
+t0=4096*v3
+t1=v4<<v7
+t0&=t1
+t2=63|1
+t1=v6/t2
+t1|=v9
+t1|=1
+v10=t0/t1
+label l48
+h=0
+h+=v0
+h+=v1
+h+=v10
+h+=v11
+h+=v2
+h+=v3
+h+=v4
+h+=v5
+h+=v7
+h+=v9
+h%=251
+ret h
+end
+call f  as r
+sys 60 r
+--
+fn f 
+v9=4096<<9-4
+v0=v9+-1<<(v9-v9+v9/(v9|1))
+v0=(v0<v0)<<((v9<=v9)&3)
+if v9
+if 0x100000000==v0
+v8=v0<<(v0+v0)%(v9|1)
+else
+if v0<v9
+v1=(v0<<1<=v0)>>(v0&v0^v0-v9)
+v2=0xffffffffffffffff
+else
+v6=v9
+end
+v3=(v0|(64|v0*v9))
+end
+c0=3
+while c0
+c1=1
+while c1
+v5=v9&v9
+v1=((v5>=v9)-v5)%(v9|1)
+v7=64^v9
+v6=(v0<<v9)%(v7|1)
+v11=(v6^v7)
+c1-=1
+end
+v10=(v0-v0)/(v0|1)|(v0|v0)/(v0|1)
+v7=v0^v10|v0
+v8=v7>>v10
+c0-=1
+end
+end
+v1=v0
+c2=3
+while c2
+v1/=v9|1
+v2=v9
+v9=v1
+v9=v1/(v9|1)%((v0&v2)/(0x100000000|1)|1)
+v8=(v2^5)>>(63^v2)>>v1
+c2-=1
+end
+v0=v9
+v11=v1
+v4=((v0<<(9==v1))%(v9|1))
+v3=v11
+c3=3
+while c3
+v2=(3==v3+-1)&(v3>>v9)
+v1+=(v0|v0>>v0)
+c4=2
+while c4
+v11=1
+v5=v0
+c4-=1
+end
+v11=v11^(v11&v9+v3)
+c3-=1
+end
+if v0|(v4|v4)
+v1=v11
+v7=v11
+end
+if (v4!=v4)
+if (v4!=v4)
+c5=3
+while c5
+v6=v0
+v5=v1<<v11
+c5-=1
+end
+c6=2
+while c6
+v3=v4
+c6-=1
+end
+else
+c7=2
+while c7
+v4>>=v1
+v9=v0
+v10=(v9|v3)&(0x100000000-v11)^v3
+v10=64<<v10
+v10=v3
+v8=((v9|255|(v1|v11))&v11-v10>>v11/(v4|1))
+c7-=1
+end
+end
+if v3<v0
+v9=v11<=(v3<=v4+v4)
+v3=v1
+end
+v10=(5>=v0)
+v11=v10
+else
+v7=4096>v0
+v5=v7<<(v4&v0)&(v9/(v3|1)|v4)
+end
+v5=v4>>2-v1&(v9<4>>v0)
+v7=255-v11*(7&v0)
+v7=v5
+v4/=v0%(v11|1)|1
+v1&=v1
+v9=4<<(-1>>v5)
+v4=v4
+v7=(v7<<v7*v7)-((5|v7)&9)
+if v1<=v0
+c8=2
+while c8
+c9=1
+while c9
+v9|=v3<(4>v5)
+v1=((v3==v3>v11%(v11|1))<<((v11+v3)/((v5*v1)|1)))
+v0>>=v1&v7|4096
+v2=v3/(v3^v5|1)
+c9-=1
+end
+v9=(v0==v0-(v3!=v11))
+c10=1
+while c10
+v1=v7
+c10-=1
+end
+v1-=v3/(v4|1)/(v5|1)
+if v5>v0
+v5-=v5
+v10=(7-v0+v9-(63-(v3>>v4)))
+v9=v10>=v11
+end
+c8-=1
+end
+c11=2
+while c11
+c12=2
+while c12
+v6=v0
+v11+=(v3^v1)%(v11|1)
+v6=v3/(v6+v7|1)+((v5<<v0)*(v0-5))
+c12-=1
+end
+v4=(v5&v5)%(0xffffffffffffffff|v0|1)-v11
+c11-=1
+end
+c13=3
+while c13
+v10=-1
+v5=(v5>v11<=5>>v3)+v5
+if (v7|v1)|v10
+v0=v4+(v9*v11<=v1/(255|1))
+else
+v7=v5
+end
+c13-=1
+end
+v3=(v3<=(8<0xffffffffffffffff>=v11-v7))
+end
+v9=0xffffffffffffffff
+v2=(0/(v0|1))
+c14=2
+while c14
+v11=(v9!=v9)+v4
+c15=1
+while c15
+v1=(v7*63)
+v9=v3
+v11=v0<<v3
+if v2==v2
+v2=((v7-v11)/(v7<<v1|1))<<((v2&v7)&v2)
+end
+c15-=1
+end
+c16=2
+while c16
+if v7%(8|1)%((v3>v4)|1)
+v7=(v1>>(v4>>v3))-v7
+else
+v2=(v0>>v5*9)^v5
+v8=v1
+end
+c17=1
+while c17
+v2=v2-v1^(64|v0)
+c17-=1
+end
+v0>>=v2
+v1=7
+v10=(v1+v1/(v5*v9|1))
+v11=4
+c16-=1
+end
+c14-=1
+end
+v7=(v3&v4%(v7|1))-v5
+c18=1
+while c18
+v9=v4
+c19=2
+while c19
+v10=v0
+v3=0x100000000-(v11%(v9|1)&v3)
+v3=v5
+c20=3
+while c20
+v6=v7<<255
+v6=63%(v1*v0|1)^v4
+v2=v2
+v8=v11*2
+v8=6^v0
+v3=v6
+c20-=1
+end
+v7=v2
+v9=v1>>v3-v9
+c19-=1
+end
+v5=v3
+c18-=1
+end
+v5=v11
+v1=v1|(v2*63<0x100000000)
+v2=v7
+v9=v3
+c21=2
+while c21
+v2=v1
+v9=(v9==v0)
+v3=(v0-v1|v2<<v11)<<v9
+v8=v4/(v5|1)
+c22=3
+while c22
+v4=v3>=(255*6)^v9
+c22-=1
+end
+c21-=1
+end
+v10=v11
+v1>>=v9
+if v11<v3
+if v9>v5
+c23=3
+while c23
+v9=v7
+v7=v4
+v9=v9<(v10<=v9)+v10
+c23-=1
+end
+end
+v8=0xffffffffffffffff/((v5&v0)/((v2&v9)|1)|1)
+v3>>=(v1<<v1)%(v11%(v5|1)|1)
+if v5>v9
+v8/=(v9^v1)<<v2|1
+else
+c24=2
+while c24
+v9=v2
+v2=v5%(v2/(v1|1)-(v11<<v3)|1)
+v5|=((v3*v5)|v2)
+v0=v10
+c24-=1
+end
+v5=v7^v10>>(v11<v7)
+v9>>=(v2==v3)<v0<<v2
+end
+else
+v6=v2+v4
+v10=(4096*v3&v4<<v7)/(v6/(63|1)|v9|1)
+end
+h=(v0+v1+v10+v11+v2+v3+v4+v5+v7+v9)%251
+ret h
+end
+call f  as r
+sys 60 r
+--
+226 42

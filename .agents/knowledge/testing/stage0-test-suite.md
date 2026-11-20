@@ -17,7 +17,7 @@ layout of a test; this page records why some fixtures look the way they do.
   stage0. What replaced the comparison of the two compilers: `tests/self.sh` and `tests/fuzz.sh`
   compare `build/ailc1` (the source compiled by the seed) with `build/ailc` (compiled by that),
   one program in two translations; the fuzz also requires a proper end (status 0 with output
-  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` runs
+  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` (since ported to AIL as `tools/randvars.ai`) runs
   in `make test` (200 programs in a function, 200 at top level) against results computed in
   Python; `tests/insn.sh` checks instruction bytes against an assembler's. `make test` went
   from 2485 checks to 1635, since every test ran twice before.

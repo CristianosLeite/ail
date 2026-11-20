@@ -144,10 +144,10 @@ owned by the caller. Document who frees allocations and closes descriptors,
 which calls may grow a buffer, and how errors are returned. Prefix new shared
 symbols by file purpose because `use` brings names into one program-wide scope.
 
-1. [ ] Port `hashcol.py`. Use existing arithmetic and byte operations to
+1. [x] Port `hashcol.py`. Use existing arithmetic and byte operations to
    enumerate names and compute the 32-bit hash. Check the reported pair against
    the current script and the `hash_collision_prefix` fixture.
-2. [ ] Port `fuse.py`, then `infix.py`. Add shared file and buffer helpers and a
+2. [x] Port `fuse.py`, then `infix.py`. Add shared file and buffer helpers and a
    byte-oriented source scanner that preserves strings, comments and line
    endings. Share label lookup and control-flow traversal where the passes
    need the same semantics. Keep expression trees and their printer in
@@ -155,7 +155,7 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    tools on representative sources. Retain the byte-for-byte, idempotence
    and compiled-behavior checks in `tests/infix.sh` and switch it to the AIL
    executable after it passes them.
-3. [ ] Port `randvars.py`. Use a documented deterministic PRNG and keep the
+3. [x] Port `randvars.py`. Use a documented deterministic PRNG and keep the
    evaluator independent of the compiler and source emitters. Retain the
    three source forms, the byte comparison of the first two, expected exit
    statuses, and saved failure sources. Replay selected Python-generated
@@ -165,14 +165,14 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    Drain redirected output while the child runs, or use temporary files.
    Enforce the existing run timeout, kill timed-out children and reap them.
    Switch `make test` to the AIL runner for both function and top-level modes.
-4. [ ] Port `perf.py`. Reuse the process and file helpers. Keep benchmark inputs
+4. [x] Port `perf.py`. Reuse the process and file helpers. Keep benchmark inputs
    and expected results in tool-local data, and keep validation, timing and
    reporting in separate functions. Preserve CPU affinity, monotonic timing,
    warmups, shuffled run order, summary statistics and output checks. Keep
    `gcc`, `rustc`, `as` and `ld` as external commands. Document the launch
    method and compare it against the current `posix_spawn` path before mixing
    new startup measurements with historical results.
-5. [ ] Port `tokens.py`. Keep corpus selection, comment stripping and table
+5. [x] Port `tokens.py`. Keep corpus selection, comment stripping and table
    output in the tool. Put `o200k_base` segmentation and byte-pair encoding
    in a dedicated AIL source file. Load the official merge ranks as a data
    file pinned by checksum. Compare the full table with `tiktoken` on the
@@ -180,6 +180,11 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    A compatible external tokenizer can serve during the transition. Switch
    `tools/tokens.sh` to the AIL executable and remove its Python environment
    setup once the AIL tokenizer matches the reference.
+
+6. [x] Port `par.py`, which the list above left out: the check of
+   `tests/par.sh` and the three tables, with the process helpers and the
+   token counts of `build/tools/tokens`. With it `make test` needs no
+   Python.
 
 Use the Python scripts as references during each port. Preserve the current
 command arguments, exit statuses and output formats where callers rely on

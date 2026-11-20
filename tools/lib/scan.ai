@@ -1,0 +1,194 @@
+# tools/lib/scan.ai -- reading AIL source as bytes, for the tools: the
+# classes of bytes, string literals, and a table of the words met.
+# A program that uses it uses lib/bytes.ai first.
+#
+# The table gives every different word a number from 1 up, in the order
+# the words were first given to scintern, so that a word is compared and
+# looked up as a number; the words a tool names itself come first and
+# have numbers it knows. The table keeps its own copy of the bytes and is
+# never emptied.
+#
+# Every name of this file starts with "sc"; a program has no var of such
+# a name (see lib/io.ai).
+
+# 65536 buckets, each the number of its first word or 0
+buf scbkt 524288
+# a word is 24 bytes here: where its bytes start in scbytes, how many
+# they are, and the next word of its bucket
+buf scwords 24
+buf scbytes 24
+
+# 1 if the byte separates words: what str.split of Python takes for white
+# space in a text read as Latin-1 (tab to CR, 28 to space, 0x85, 0xa0)
+fn scspace scc
+ret (scc-9<5)|(scc-28<5)|(scc==133)|(scc==160)
+end
+
+# 1 if the byte is a letter, a digit or the underscore
+fn scword scc
+ret (scc-48<10)|((scc|32)-97<26)|(scc==95)
+end
+
+# 1 if every one of the scn bytes at scp is such a byte, and scn is not 0
+fn scwords1 scp scn
+ifz scn
+ret 0
+end
+while scn
+loadb scp as scc
+call scword scc as scr
+ifz scr
+ret 0
+end
+scp+=1
+scn-=1
+end
+ret 1
+end
+
+# 1 if the scn bytes at scp are a name: a small letter, then small
+# letters, digits and underscores
+fn scname scp scn
+ifz scn
+ret 0
+end
+loadb scp as scc
+if scc-97>=26
+ret 0
+end
+while scn
+loadb scp as scc
+if ((scc-97<26)|(scc-48<10)|(scc==95))==0
+ret 0
+end
+scp+=1
+scn-=1
+end
+ret 1
+end
+
+# scp is at a double quote in a line that ends at sce: the address after
+# the quote that closes the string, where a backslash takes the byte
+# after it along, or 0 if the line has no such quote
+fn scstr scp sce
+scp+=1
+while scp<sce
+loadb scp as scc
+if scc==34
+ret scp+1
+end
+if scc==92
+scp+=1
+end
+scp+=1
+end
+end
+
+# 1 if the scn bytes at scp and at scq are the same
+fn sceq scp scq scn
+while scn
+loadb scp as scc
+loadb scq as scd
+if scc!=scd
+ret 0
+end
+scp+=1
+scq+=1
+scn-=1
+end
+ret 1
+end
+
+fn schash scp scn
+sch=2166136261
+while scn
+loadb scp as scc
+sch=(sch^scc)*16777619&0xffffffff
+scp+=1
+scn-=1
+end
+ret (sch^sch>>16)&65535
+end
+
+# the number of the word of scn bytes at scp, or 0 if it is not in the table
+fn scfind scp scn
+call schash scp scn as sch
+load scbkt+sch*8 as sci
+load scwords as scw
+load scbytes as scb
+while sci
+scq=scw+sci*24-24
+load scq+8 as scl
+if scl==scn
+load scq as sco
+call sceq scb+sco scp scn as scr
+if scr
+ret sci
+end
+end
+load scq+16 as sci
+end
+end
+
+# the number of the word of scn bytes at scp, which is added to the table
+# if it is new; 0 if the kernel has no memory for it
+fn scintern scp scn
+call scfind scp scn as sci
+if sci
+ret sci
+end
+call byneed scwords 24 as scr
+ifz scr
+ret 0
+end
+load scbytes+8 as sco
+call byadd scbytes scp scn as scr
+ifz scr
+ret 0
+end
+call schash scp scn as sch
+load scwords as scw
+load scwords+8 as scl
+scq=scw+scl
+sci=scl/24+1
+load scbkt+sch*8 as scr
+store scq sco
+store scq+8 scn
+store scq+16 scr
+store scwords+8 scl+24
+store scbkt+sch*8 sci
+ret sci
+end
+
+# the bytes of the word with the number sci, as address and length; the
+# address is good until the next scintern
+fn scatom sci
+load scwords as scw
+load scbytes as scb
+scq=scw+sci*24-24
+load scq as sco
+load scq+8 as scl
+ret scb+sco scl
+end
+
+# the number of words in the table, which is the highest number
+fn sccount
+load scwords+8 as scl
+ret scl/24
+end
+
+# enter the words of a list in the table: each is its length in a byte
+# and then its bytes, and a length of 0 ends the list. 1, or 0 without
+# memory
+fn sclist scp
+loadb scp as scn
+while scn
+call scintern scp+1 scn as scr
+ifz scr
+ret 0
+end
+scp+=scn+1
+loadb scp as scn
+end
+ret 1
+end
