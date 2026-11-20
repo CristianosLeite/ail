@@ -1,2 +1,5 @@
-load b as v
+# a buffer may be used before the line that declares it
+storeb b 7
+loadb b as v
 buf b 8
+sys 60 v

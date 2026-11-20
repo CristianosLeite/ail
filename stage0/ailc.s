@@ -17,6 +17,7 @@
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
 .equ NVARS,  6                  # size of the variable register pool
 .equ NGLOB,  INSZ / 2 + 1       # "var a b c" declares a global name every 2 bytes
+.equ NREFS,  INSZ / 2 + 1       # a name used as a value takes 2 bytes at least
 .equ G_ADDR, 0                  # kinds of global name: a buffer or data, an address;
 .equ G_VAR,  1                  # a var, a cell read and written through its address;
 .equ G_CONST, 2                 # a const, a number
@@ -67,6 +68,10 @@ nfuncs: .skip 4                 # number of functions defined so far
 calls:  .skip NCALLS * 32       # per call: function name address and length,
                                 # address of its rel32 in outbuf, value count
 ncalls: .skip 4                 # number of calls emitted so far
+refs:   .skip NREFS * 32        # per use of a name not declared yet: name address
+                                # and length, address of its imm32 in outbuf,
+                                # 0 for the address of the name or 1 for its length
+nrefs:  .skip 4                 # number of such uses so far
 
 .section .rodata
 ignore: .quad 1, 0, 0, 0        # struct sigaction: SIG_IGN, no flags, restorer or mask
@@ -608,7 +613,7 @@ ident:
     test byte ptr [rdx+1], IS_LEN
     jz 4f
     call lookup_buf             # len: the length of a buffer or data name
-    jc err_undef
+    jc 9f
     lea rcx, [rip+bufkind]
     cmp byte ptr [rcx+rax], G_ADDR
     jne err
@@ -628,7 +633,7 @@ ident:
     inc ebx
     jmp tokend
 2:  call lookup_buf             # not a variable: a global name
-    jc err_undef
+    jc 7f
     lea rcx, [rip+bufkind]
     movzx ecx, byte ptr [rcx+rax]
     cmp ecx, G_VAR
@@ -665,6 +670,24 @@ ident:
     stosd
     inc ebx
     jmp tokend
+7:  xor eax, eax                # not declared yet: a buffer or data name that
+    call emit_mov               # comes later; fin fills in the value
+    xor eax, eax
+8:  mov ecx, [rip+nrefs]
+    shl ecx, 5
+    lea rdx, [rip+refs]
+    add rdx, rcx
+    mov [rdx], r8
+    mov [rdx+8], r9
+    lea rcx, [rdi-4]
+    mov [rdx+16], rcx
+    mov [rdx+24], eax
+    inc dword ptr [rip+nrefs]
+    jmp tokend
+9:  xor eax, eax                # the same for len
+    call emit_mov
+    mov eax, 1
+    jmp 8b
 
 # "as <name>" then end of line: emit the statement's code and keep rax in
 # the variable
@@ -705,8 +728,13 @@ capture:
 defvar:
     call rdname
     call lookup_buf
-    jnc err_dup
-    call lookup_var
+    jc 3f
+    cmp dword ptr [rip+infn], 0 # at top level a global name is taken; in a
+    je err_dup                  # function the variable hides it, except a var
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_VAR
+    je err_dup
+3:  call lookup_var
     jnc 2f
     cmp ebp, NVARS              # new name: take the next register of the pool
     jae err_vars
@@ -1298,6 +1326,28 @@ fin:
     sub rax, rcx
     sub rax, 4                  # relative to the end of the rel32
     mov [rcx], eax
+    add rbx, 32
+    dec ebp
+    jmp 1b
+2:  lea rbx, [rip+refs]         # every global name is known now: fill in the
+    mov ebp, [rip+nrefs]        # uses that came before their declaration
+1:  test ebp, ebp
+    jz 2f
+    mov r8, [rbx]
+    mov r9, [rbx+8]
+    call lookup_buf
+    jc err_undef
+    lea rcx, [rip+bufkind]      # a var or a const must be declared first
+    cmp byte ptr [rcx+rax], G_ADDR
+    jne err_undef
+    lea rcx, [rip+bufaddr]
+    mov ecx, [rcx+rax*4]
+    cmp dword ptr [rbx+24], 0
+    je 3f
+    lea rcx, [rip+bufsize]
+    mov ecx, [rcx+rax*8]
+3:  mov rax, [rbx+16]
+    mov [rax], ecx
     add rbx, 32
     dec ebp
     jmp 1b

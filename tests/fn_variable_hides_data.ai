@@ -1,0 +1,9 @@
+data d 7
+fn f d
+add d 1 as d
+ret d
+end
+call f 1 as x
+loadb d as y
+add x y as x
+sys 60 x

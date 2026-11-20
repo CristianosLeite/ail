@@ -49,11 +49,11 @@ A function sees no top-level variable, so the fixed registers of stage0 are glob
 | `cur` | `curop` | statement row, at its operand count |
 | `ns`, `nl` | `r8`, `r9` | start and length of the name read last |
 
-The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs` and `calls`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
+The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs`, `calls` and `refs`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
 
 ## Read-only tables
 
-The tables that stage0 keeps in `.rodata` are `data` statements at the top of the source, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
+The tables that stage0 keeps in `.rodata` are `data` statements at the end of the source, after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
 The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the flags, the code length and the code. It has seven more rows with the flag 128 for the statements parsed on their own: the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`), so `next` finds every keyword with the one search `kw`.
 

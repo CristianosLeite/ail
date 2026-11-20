@@ -38,7 +38,24 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   130 `set <var> as <local>` copies remain and are correct but not needed.
 - The suite went from 258 to 308 tests.
 
+### Forward references to buffers and data (2026-11-19)
+- A name that is neither a variable of its scope nor a global declared earlier is recorded in
+  `refs` with a zero `imm32`; `fin` fills in the address or the length. `undefined variable` is
+  therefore reported at the end of the source, after any other error.
+- A var or a const must still be declared before its uses: they change which instruction is
+  emitted, not only a value.
+- Inside a function a parameter or variable may have the name of a buffer, data or const and
+  hides it from its definition on. At top level a name still means one thing.
+- `jz_undefined_variable` (`label a` / `jz a`) is now a syntax error: the name is accepted as a
+  value and the label is missing. Stage1 keeps its tables at the end of the source.
+- The suite went from 308 to 329 tests.
+
 ## Why
+- **Hide instead of refusing in functions:** with declarations allowed after uses, a function
+  compiled before a later `buf` cannot know the name is taken, so refusing would depend on the
+  order of the source. Hiding is the same whatever the order.
+- **A fixup with a fixed-size `mov`:** a second pass over the source would have to parse strings
+  and comments to find the declarations; the fixup list reuses what jumps and calls already do.
 - **Cells below the buffers:** a var is read with an absolute 32-bit displacement, which the
   processor sign-extends, so its address must stay below 2 GiB whatever the buffers take. Growing
   downward needs no count in advance and leaves programs without vars byte-identical.
@@ -66,6 +83,7 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - A new kind of global name goes into `bufs`/`bufaddr`/`bufsize`/`bufkind` through `newglob`
   (stage1: an entry of `globs`).
 - In stage1, never use the name of a var for a local: `as` would write the global.
+- Anything that saves and restores the compiler state for a scope must include `nrefs`.
 - When a row of `optab` changes, change the matching `data` line of stage1.
 
 ## Open items

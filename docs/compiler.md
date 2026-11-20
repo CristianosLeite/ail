@@ -12,10 +12,10 @@ There is one pass and no intermediate representation.
 2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer.
 4. Append the code for `exit(0)`.
-5. Fill in the displacement of every top-level jump from the label table, and of every call from the function table.
+5. Fill in the displacement of every top-level jump from the label table, of every call from the function table, and the value of every name used before its declaration from the table of global names.
 6. Patch the two segment sizes in the header, write the buffer to stdout, exit.
 
-Because code is emitted as it is read, a statement cannot use an address that appears later in the source. Jumps and calls are the exceptions: each leaves four empty bytes and an entry in a fixup list. The jumps of a function are filled in at its `end`, once all its labels are known, and the rest in step 5.
+Because code is emitted as it is read, an address that appears later in the source is not known yet. Jumps, calls and the names of buffers and data declared later each leave four empty bytes and an entry in a fixup list. The jumps of a function are filled in at its `end`, once all its labels are known, and the rest in step 5.
 
 ## Register conventions
 
@@ -64,7 +64,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
-| `fin` | emit `exit(0)`, patch the top-level jumps, the calls and the sizes, write the output |
+| `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
 | `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
@@ -194,7 +194,7 @@ A name is only entered in the table when its `as` is reached, at the end of the 
 
 The table `bufs` has the same 16-byte entries as `vars` and holds every global name: buffers, data, vars and consts. `bufkind` says which (`G_ADDR`, `G_VAR`, `G_CONST`), `bufaddr` holds one 32-bit address per entry and `bufsize` its length for `len`, or the value of a const. The table is sized from the source limit, since `var a b c` declares a name every two bytes; `nvars` counts the vars. `buf` rounds the size up to 8 bytes, gives the buffer the address `0x10000000` plus the bytes reserved so far, and adds the size to the running total `bsssz`, which `fin` writes into the second program header. The total is kept below 4 GiB minus the base so that every address fits the `imm32` that `emit_mov` writes.
 
-`ident` looks a name up among the variables first and the buffers second. Every declaration of a global name refuses a name found in either table (`newglob`), and `as` refuses a global name unless it is a `var`, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
+`ident` looks a name up among the variables first and the global names second. A name in neither is taken for a buffer or data declared later: `ident` passes `mov r32, 0` and appends the name, the address of that `imm32` and whether the address or the length is wanted to `refs`. `fin` looks every entry up, reports `undefined variable` for a name that is still unknown or is a var or a const, and writes the value. Inside a function `defvar` accepts the name of a global other than a var, so that a variable hides it for the rest of the function; at top level it refuses. Every declaration of a global name refuses a name found in either table (`newglob`), and `as` refuses a global name unless it is a `var`, so a name always means one thing. A buffer outlives the function it is declared in, so inside a function `buf` also searches the top-level half of `vars` (`lookup_topvar`); otherwise the buffer would be hidden by, or block, a top-level variable of the same name.
 
 ## Labels and jumps
 

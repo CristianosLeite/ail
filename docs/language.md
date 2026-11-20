@@ -163,7 +163,7 @@ Each function has its own variables and its own labels:
 - The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most six.
 - A function sees none of the variables defined outside it, and its variables do not exist outside it. The same name can be used on both sides for different things. Values go in through the parameters and out through `ret`.
 - Every call gets fresh variables: the caller's variables, at top level or in another function, are unchanged when the call returns, also when a function calls itself.
-- Buffers and data are global. A function can use any buffer or data name declared on an earlier line, and a `buf` or `data` written inside a function is the same as one written outside: its name may not be that of a top-level variable either.
+- Global names (`buf`, `data`, `var`, `const`) are visible in every function, and one declared inside a function is the same as one declared outside: its name may not be that of a top-level variable either. See [Names](#names) for what happens when a variable of a function has the name of a global.
 
 Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
@@ -177,7 +177,7 @@ buf name size
 
 Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
-A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
 
 ```
 buf line 4096
@@ -211,7 +211,7 @@ A `var` must be declared on an earlier line than its uses, at top level or insid
 const name number
 ```
 
-Gives a number a name. The name is used wherever a value is accepted and passes the number; it is also accepted as the syscall number of `sys` and as the size of a `buf`, where a variable is not. A `const` costs nothing at run time and takes no register. It must be declared on an earlier line than its uses, and it cannot be the target of `as` or the name of a parameter.
+Gives a number a name. The name is used wherever a value is accepted and passes the number; it is also accepted as the syscall number of `sys` and as the size of a `buf`, where a variable is not. A `const` costs nothing at run time and takes no register. It must be declared on an earlier line than its uses, and at top level it cannot be the target of `as`.
 
 ```
 const exit 60
@@ -235,7 +235,7 @@ len msg as n            # n = 6
 sys 1 1 msg n
 ```
 
-A data name is a constant like a buffer name: one value, its address, wherever a value is accepted, and it shares the name space of variables and the other global names. There is no limit on the number of data statements.
+A data name is a constant like a buffer name: one value, its address, wherever a value is accepted, and it may be declared after the lines that use it. There is no limit on the number of data statements.
 
 `data` statements on consecutive lines are laid out one after the other with nothing between them, so a table can be written a row a line. The name is optional, since only the first row needs one; a name on a later row is the address of that row. A `label` or any statement that produces code ends the run.
 
@@ -336,6 +336,26 @@ sys 0 0 p 4096 as n           # read stdin into it
 sys 1 1 p n                   # write what was read
 ```
 
+### Names
+
+A name used as a value is looked up in this order:
+
+1. a variable of the current scope (the top level, or the function the line is in) that an earlier line defined with `as` or as a parameter;
+2. a global name declared on an earlier line: a `buf`, `data`, `var` or `const`;
+3. otherwise it is taken as the address of a `buf` or `data` declared on a later line. If the source ends without one, that is `undefined variable`. A `var` or a `const` must come before its uses.
+
+At top level a name means one thing: a variable and a global name cannot share a name, whichever comes first. Inside a function, a parameter or a variable may have the name of a `buf`, `data` or `const`; from its definition to the `end` of the function the name means the variable, and the global is untouched. A `var` is never hidden: `as` with its name writes the cell, and a parameter with its name is an error.
+
+```
+buf b 8
+fn f b                  # this b is the parameter
+ret b
+end
+call f 9 as x           # x = 9
+storeb t x              # t is declared below
+buf t 8
+```
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
@@ -347,9 +367,9 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter, `buf`, `data`, `var` or `const` defined it in this scope; the operand of `len` when it is not a buffer or data name |
+| `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
 | `ailc: too many variables` | 1 | a seventh variable name at top level or in one function, parameters included |
-| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` with the name of a buffer, of data or of a `const`, a parameter with the name of any of the four, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |

@@ -14,7 +14,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Lift the 16-buffer limit and add a compact way to declare shared scalars
   and constants. Stage1 uses all 16 slots and packs additional state into one
   buffer behind offset-based accessors.
-- [ ] Support forward references to buffers and data. A `buf` must precede every
+- [x] Support forward references to buffers and data. A `buf` must precede every
   use today, including uses inside functions. Give the new global names clear
   collision and shadowing rules for function locals and top-level variables.
 - [ ] Support full-width 64-bit immediates, negative literals and compact hex

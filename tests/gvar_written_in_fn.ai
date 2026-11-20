@@ -1,0 +1,7 @@
+# as on a var writes the global also in a function
+var v
+fn f
+set 8 as v
+end
+call f
+sys 60 v
