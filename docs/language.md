@@ -420,7 +420,7 @@ join h as x             # 42
 
 The two statements are calls of the functions `spawn` and `join` of the program, which `lib/task.ai` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
 
-- **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 64 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
+- **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 80 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
 - **The result** is the first value the function returns, 0 if it reaches its `end`. Further results are lost; a task with more to give writes it to memory it was passed.
 - **When it runs** is not defined: at some time between its `spawn` and the return of its `join`, on another thread or inside `join` itself. A program must be right in every such order.
 - **Memory**: a task shares all memory with the rest of the program, `var` cells and buffers included. What a task wrote is there for the code after its `join`. Before that, a cell that the task and other code both touch, one of them writing, is only safe through [`xadd` and `cas`](#atomic-operations). Memory whose address is passed to a task must stay valid until its `join` has returned: a `buf` always is, an `alloc` until its `free`, and a `local` if the function that owns it joins the task before it returns.
@@ -438,7 +438,7 @@ call workers 4
 - `join` of a task that is still in the queue runs it on the joining thread; `join` of a task that a worker took sleeps until it is done. So at most the limit plus the joining threads run tasks at once, a task may spawn and join tasks of its own with any limit, and a program is correct with no worker at all. A task never moves between threads once it has started.
 - A worker has a stack of 8 MiB with a closed page below it: a task that needs more is a fault (`SIGSEGV`), which ends the program. A task run by `join` uses the stack of the joining thread.
 - If the kernel refuses a thread or its stack, the task stays in the queue for another worker or its `join`.
-- The costs: a task is 80 bytes, used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
+- The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
 - The library owns the names `spawn`, `join`, `workers`, the functions and the buffer whose names start with `task`. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
 #### Recursion and the stack

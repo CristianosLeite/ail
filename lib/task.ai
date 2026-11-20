@@ -21,13 +21,19 @@
 #   40  workers asleep
 #   48  workers started
 #   56  the most workers there may be, valid when 64 is not zero
-#   72  free records
+#   72  free records, which come in blocks and are never given back
 buf taskq 80
 
-# take the lock: asleep in the kernel while another thread holds it
+# take the lock: after a few tries, asleep in the kernel while another
+# thread holds it. The lock is held for a few instructions, so a try
+# mostly succeeds where a sleep would cost two system calls.
 fn tasklock
+n=100
+while n
 cas taskq 0 1 as k
 jnz k x
+n-=1
+end
 label a
 cas taskq 1 2 as k
 sys futex taskq 128 2 0
@@ -158,11 +164,29 @@ sys mprotect s-16 4096 0
 ret 1
 end
 
+# 819 free records in one block of 64 KiB from alloc, linked; 0 if there
+# is no memory. A task of its own mapping would be a page and a system
+# call for 80 bytes.
+fn taskmore
+alloc 65520 as t
+ifz t
+ret 0
+end
+p=t
+n=818
+while n
+store p+64 p+80
+p+=80
+n-=1
+end
+store p+64 0
+ret t
+end
+
 # put the task t at the end of the queue; 1 if an idle worker is to be
 # woken, 2 if a worker is to be started: when more tasks wait than workers
-# sleep and the limit allows one more
+# sleep and the limit allows one more. The caller holds the lock.
 fn taskput t
-call tasklock
 store t+64 0
 load taskq+24 as n
 store t+72 n
@@ -193,7 +217,6 @@ store taskq+48 k+1
 w=2
 end
 end
-call taskunlock
 ret w
 end
 
@@ -202,17 +225,15 @@ end
 fn spawn p a b c d e
 call tasklock
 load taskq+72 as t
-if t
-load t+64 as n
-store taskq+72 n
-end
+ifz t
+call taskmore as t
+ifz t
 call taskunlock
-ifz t
-alloc 80 as t
-ifz t
 ret 0
 end
 end
+load t+64 as n
+store taskq+72 n
 store t 0
 store t+16 p
 store t+24 a
@@ -221,6 +242,7 @@ store t+40 c
 store t+48 d
 store t+56 e
 call taskput t as w
+call taskunlock
 if w==1
 sys futex taskq+8 129 1
 end
