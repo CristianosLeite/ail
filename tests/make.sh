@@ -16,13 +16,17 @@ say() {
 }
 # the files that the build of an example could leave behind, besides the target
 leftovers() {
-    ls "$d/build" | grep -v -e '^ailc$' -e '^good$' -e '^good\.saved$' | wc -l
+    ls "$d/build" | grep -v -e '^ailc[01]\{0,1\}$' -e '^good$' -e '^good\.saved$' | wc -l
 }
 
-mkdir "$d/stage0" "$d/examples" "$d/build"
+mkdir "$d/stage1" "$d/seed" "$d/tools" "$d/examples" "$d/build"
 cp -p Makefile "$d/"
-cp -p stage0/ailc.s "$d/stage0/"
-cp -p build/ailc "$d/build/"            # newer than its source, so make keeps it
+cp -p stage1/ailc.ai stage1/tables.ai "$d/stage1/"
+cp -p seed/MANIFEST "$d/seed/"
+cp -p tools/seed.sh "$d/tools/"
+# the seed and the compilers built from it, each newer than what it is
+# made from, so make keeps them
+cp -p build/ailc0 build/ailc1 build/ailc "$d/build/"
 
 # a good example builds and runs
 printf 'sys exit 7\n' > "$d/examples/good.ai"

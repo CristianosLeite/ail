@@ -3,18 +3,24 @@
 `stage1/ailc.ai` is the AIL compiler written in AIL, with its tables in `stage1/tables.ai`: about 2500 lines and 40 KiB together. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
 
 ```
-build/ailc  < stage1/ailc.ai > build/ailc1     # stage1 built by stage0, from the top of the repository
-build/ailc1 < stage1/ailc.ai > build/ailc2     # stage1 built by itself
-cmp build/ailc1 build/ailc2                    # the same file: a fixed point
+tools/seed.sh build/ailc0                      # the pinned seed, checked against its SHA-256
+build/ailc0 < stage1/ailc.ai > build/ailc1     # stage1 built by the seed, from the top of the repository
+build/ailc1 < stage1/ailc.ai > build/ailc      # stage1 built by that: the compiler
+build/ailc  < stage1/ailc.ai > build/ailc2     # stage1 built by itself
+cmp build/ailc build/ailc2                     # the same file: a fixed point
 ```
 
-`make` builds `build/ailc1`, and `make test` builds `build/ailc2` and checks the fixed point.
+`make` builds `build/ailc`, and `make test` builds `build/ailc2` and checks the fixed point. Three generations are needed because the seed may be an older compiler: it understands the source but may write other code for it, so `build/ailc1` behaves like the current compiler without being the same file. `build/ailc` and `build/ailc2` are both written by a compiler that behaves like the current one, and must be equal. `make test` also assembles stage0 as `build/stage0` and compares the two compilers.
 
 ## Seeds
 
-That fixed point is what makes stage1 able to stand without stage0: a released copy of `build/ailc1` compiles the source it came from to itself. Such a copy is a seed. `seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `stage1/ailc.ai` and `stage1/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores.
+That fixed point is what makes stage1 able to stand without stage0: a released copy of the compiler compiles the source it came from to itself. Such a copy is a seed. `seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `stage1/ailc.ai` and `stage1/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores.
 
-Seed 1 is stage1 as stage0 built it on 2026-11-20, 30796 bytes, the same file when built again by itself. The build does not use it yet.
+Seed 1 is stage1 as stage0 built it on 2026-11-20, 30796 bytes, the same file when built again by itself.
+
+`tools/seed.sh` writes the pinned seed to `build/ailc0`. It uses the local copy when there is one and otherwise fetches it there, with `curl`, or with `gh release download` when the release needs a login, as that of a private repository does. A copy whose checksum is not the manifest's is refused and the build stops; a fetched one is then removed.
+
+The source of the compiler may only use what the pinned seed understands. A new statement is first implemented in the old language; then a seed is released and pinned; from then on the source may use the statement.
 
 ## Shape of the program
 

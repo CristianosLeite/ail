@@ -16,6 +16,8 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
 - The manifest keeps one line per seed, the last one pinned; a local copy is `seed/ailc-<n>`,
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
+- The build is `ailc0` (seed, by `tools/seed.sh`) → `ailc1` → `ailc` → `ailc2`, and the fixed
+  point is `ailc` = `ailc2`. Stage0 is `build/stage0` and only the tests use it.
 
 ## Why
 - **A GitHub release, not a binary in the repository (chosen by the user on 2026-11-20):** the
@@ -24,6 +26,9 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
 - **The repository is private (chosen by the user):** a release asset of a private repository
   cannot be fetched with plain `curl`; it needs `gh release download` or a token, or the local
   copy.
+- **Three generations, not two:** once the compiler writes other code than the seed did, the
+  compiler built by the seed and the one built by itself differ in bytes, though not in what
+  they do. Comparing the seed's output with anything would then fail for no fault.
 - **The revision in the manifest is the commit of the source, not of the manifest:** the
   manifest can only be written after the seed exists, so it is always one commit later.
 

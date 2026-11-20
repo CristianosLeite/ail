@@ -12,14 +12,14 @@ It compiles to a 226-byte static, position-independent Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: the bootstrap version in assembly (stage0) and the same compiler written in AIL (stage1), which compiles itself to a byte-identical copy. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
+Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: in assembly (stage0) and written in AIL (stage1), which compiles itself to a byte-identical copy and is built from a released copy of itself. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
 
 ## Quick start
 
-Requires x86-64 Linux with GNU `as` and `ld` (binutils) and `make`.
+Requires x86-64 Linux with GNU `as` and `ld` (binutils) and `make`. The build starts from a released executable of the compiler, the seed that `seed/MANIFEST` pins: put it at `seed/ailc-<version>`, or let `make` fetch it with `curl` or `gh`; a file with another checksum is refused.
 
 ```
-make                # builds build/ailc, the examples and build/ailc1 (the compiler in AIL)
+make                # builds build/ailc (the compiler in AIL, from the seed) and the examples
 build/hello         # prints: hello world
 echo hi | build/echo     # prints: hi
 echo hi | build/count    # prints: 0003
@@ -37,7 +37,7 @@ To compile your own program, give the compiler source on stdin and take the exec
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-`build/ailc1` is used the same way and writes the same file.
+`build/stage0`, the compiler in assembly that `make test` builds, is used the same way and writes the same file.
 
 Or put it in `examples/foo.ai` and run `make build/foo`.
 
@@ -91,8 +91,9 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 ## Layout
 
-- `stage0/ailc.s`: bootstrap compiler in assembly
-- `stage1/ailc.ai`: the compiler in AIL, built by stage0 and then by itself
+- `stage0/ailc.s`: the compiler in assembly, the reference of the tests
+- `stage1/ailc.ai`: the compiler in AIL, built by the seed and then by itself
+- `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/stage1.sh` compares the two compilers

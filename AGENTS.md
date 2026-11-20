@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 AIL is a proof-of-concept programming language whose design goal is low token consumption when an AI writes it. `docs/tokens.md` has the measured cost and what it decides: fewer lines matter more than shorter words, and a number costs more than a name. Write a test and its consequence as a block and a comparison with its jump as one statement; `tools/fuse.py` does both to an existing source. It is hardware-oriented (assembly-like, no classes or objects) and human readability is explicitly not a goal. When adding syntax, prefer short common words and bare spaces over punctuation and boilerplate, and let the compiler infer anything derivable (for example, a string literal supplies its own length).
 
-The compiler is bootstrapped: stage0 (`stage0/ailc.s`) is written in assembly, and stage1 (`stage1/ailc.ai`) is the same compiler written in AIL, built by stage0 and then by itself. The two must behave identically, byte for byte, so a change to the language goes into both.
+The compiler exists twice: stage0 (`stage0/ailc.s`) is written in assembly, and stage1 (`stage1/ailc.ai`) is the same compiler written in AIL. `build/ailc` is stage1: the build starts from a seed, a released executable of stage1 that `seed/MANIFEST` pins by version, source revision and SHA-256 (`tools/seed.sh` takes it from `seed/ailc-<version>` or fetches it with `curl` or `gh`), and compiles the source in three generations, `build/ailc1` by the seed, `build/ailc` by that and `build/ailc2` by `build/ailc`; the last two must be the same file. `stage1/ailc.ai` may therefore use only what the pinned seed understands. Stage0 is built as `build/stage0` and is the reference the tests compare with: the two must behave identically, byte for byte, so a change to the language goes into both.
 
 ## Rules
 
@@ -14,11 +14,11 @@ The compiler is bootstrapped: stage0 (`stage0/ailc.s`) is written in assembly, a
 
 ## Commands
 
-Requires GNU `as` and `ld` on x86-64 Linux.
+Requires GNU `as` and `ld` on x86-64 Linux, and the seed: a local `seed/ailc-<version>`, or `curl` or `gh` and network to fetch it once.
 
 ```
-make            # build build/ailc, every example in examples/ and build/ailc1 (stage1)
-make test       # run every test in tests/ and the I/O checks of tests/io.sh with stage0,
+make            # build build/ailc (stage1, from the seed) and every example in examples/
+make test       # build build/stage0; run every test in tests/ and the I/O checks of tests/io.sh with it,
                 # check a failed example build (tests/make.sh) and the generated
                 # tables, compare the compilers (tests/stage1.sh),
                 # check emitted bytes (tests/bytes.sh), fuzz both compilers against
@@ -42,14 +42,14 @@ The compiler reads source on stdin and writes the executable on stdout. A `use "
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-`build/ailc1` is used the same way. Files that tests name with `use` are in `tests/lib/`. A test is a set of files `tests/<name>.*`, run by `tests/run.sh` (with the compiler named by `AILC`, default `build/ailc`):
+`build/stage0` is used the same way. Files that tests name with `use` are in `tests/lib/`. A test is a set of files `tests/<name>.*`, run by `tests/run.sh` (with the compiler named by `AILC`, default `build/ailc`):
 
 - `.ai`: the program, or `.ai.sh`, a script that prints it (used for generated sources such as the size-limit tests)
 - `.out`: expected stdout of the compiled program
 - `.code`: expected exit status of the compiled program, default 0
 - `.err`: expected compiler stderr; the compiler must then exit 1
 
-A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a compiler or a program after 10 seconds, with `SIGKILL` to its whole process group, and fails the test, so a loop that never ends cannot hang the suite or outlive it. The compiler's I/O errors do not fit that form and are checked by `tests/io.sh`, which `make test` runs after the suite when no `T` is given: closed stdin, output to `/dev/full`, output to a pipe whose reader is gone, and a short write (a non-blocking pipe that takes 4096 bytes: the compiler must write that prefix, then report the error). `make test` names the compiler of every run itself, so an `AILC` in its environment changes nothing. `tests/stage1.sh` gives the source of every test and example to both compilers and requires the same stdout, stderr and exit status, then requires `build/ailc1` (stage1 built by stage0) and `build/ailc2` (stage1 built by itself) to be the same file. `tests/fuzz.sh` does the same comparison on sources made by random edits of the tests, examples and libraries (300 in `make test`, from a fixed seed; it never runs what it compiles). `tests/bytes.sh` is the one check that does not take a compiler's word for the output: for six programs that fill a fixup table to its capacity it computes the whole expected file in awk, header and every displacement, and compares; a second compiler must then give the same file. `tests/make.sh` runs `make` in a scratch copy to check what the Makefile does when an example fails to compile: the build fails each time it is tried, an executable from an earlier build stays as it was, and no temporary file is left.
+A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a compiler or a program after 10 seconds, with `SIGKILL` to its whole process group, and fails the test, so a loop that never ends cannot hang the suite or outlive it. The compiler's I/O errors do not fit that form and are checked by `tests/io.sh`, which `make test` runs after the suite when no `T` is given: closed stdin, output to `/dev/full`, output to a pipe whose reader is gone, and a short write (a non-blocking pipe that takes 4096 bytes: the compiler must write that prefix, then report the error). `make test` names the compiler of every run itself, so an `AILC` in its environment changes nothing. `tests/stage1.sh` gives the source of every test and example to both compilers and requires the same stdout, stderr and exit status, then requires `build/ailc` and `build/ailc2` (the source compiled by `build/ailc`) to be the same file. `tests/fuzz.sh` does the same comparison on sources made by random edits of the tests, examples and libraries (300 in `make test`, from a fixed seed; it never runs what it compiles). `tests/bytes.sh` is the one check that does not take a compiler's word for the output: for six programs that fill a fixup table to its capacity it computes the whole expected file in awk, header and every displacement, and compares; a second compiler must then give the same file. `tests/make.sh` runs `make` in a scratch copy to check what the Makefile does when an example fails to compile: the build fails each time it is tried, an executable from an earlier build stays as it was, and no temporary file is left.
 
 Compiler errors are one line on stderr, `ailc: <place>: <message> <name>`, where the place is the line number, with `<path>:` in front for a line of a file named by `use`, and the name is given for the messages about one. The messages are `syntax error`, the more specific `unknown statement`, `not allowed here`, `missing end`, `missing as`, `unexpected as`, `missing label`, `wrong operand count`, `unterminated string` and `expected a name`, and `undefined variable`, `unassigned variable`, `too many variables`, `duplicate name`, `invalid access`, `number too big`, `buffers too big`, `undefined label`, `undefined function`, `wrong argument count`, `wrong result count` and `cannot read file`, all with exit status 1. `source too big` and `program too big` (status 1) and `read error` and `write error` (status 2) have no place. `docs/language.md` has the table of causes; a test's `.err` file holds the whole line.
 

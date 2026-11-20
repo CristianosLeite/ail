@@ -10,8 +10,8 @@ set -u
 cd "$(dirname "$0")/.."
 count=${1:-300}
 seed=${2:-1}
-a=${FUZZ_A:-build/ailc}
-b=${FUZZ_B:-build/ailc1}
+a=${FUZZ_A:-build/stage0}
+b=${FUZZ_B:-build/ailc}
 limit=10
 mkdir -p build/fuzz
 out=$(mktemp -d build/fuzz/run.XXXXXX) || exit 1
