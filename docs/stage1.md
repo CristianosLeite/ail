@@ -10,6 +10,12 @@ cmp build/ailc1 build/ailc2                    # the same file: a fixed point
 
 `make` builds `build/ailc1`, and `make test` builds `build/ailc2` and checks the fixed point.
 
+## Seeds
+
+That fixed point is what makes stage1 able to stand without stage0: a released copy of `build/ailc1` compiles the source it came from to itself. Such a copy is a seed. `seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `stage1/ailc.ai` and `stage1/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores.
+
+Seed 1 is stage1 as stage0 built it on 2026-11-20, 30796 bytes, the same file when built again by itself. The build does not use it yet.
+
 ## Shape of the program
 
 Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `usedef`, `uend`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `blkend`, `elsedef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
