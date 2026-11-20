@@ -115,7 +115,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Fix the expression syntax from token counts on the corpus.
 - [x] Parse infix expressions as arguments.
 - [x] Compile compound expressions and `name = expression`.
-- [ ] Accept an expression as the condition of `if`.
+- [x] Accept an expression as the condition of `if`.
 - [ ] Add the `while` block.
 - [ ] Check expressions against computed results in random programs.
 - [ ] Use immediate forms of instructions, and shifts and masks for division

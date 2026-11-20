@@ -105,6 +105,7 @@ buf calls 38347936    # 1198373 calls of 32 bytes: name, length, rel32 address, 
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
 buf exs 8388609      # and as many operators or open parentheses, a byte each
+buf exnm 8           # the name of a statement that compares and jumps
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
 buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
                     # imm32 address, 0 for its address or 1 for its length
@@ -1546,15 +1547,15 @@ loadb p as n
 add r 4 as r
 call cp r n
 end
-# compute the expression in ex into rax, as a stack machine: the value on
-# top is in rax and those under it are pushed. A value that an operator
-# follows at once is its right operand and goes to rdi directly.
-fn exemit
-set 0 as i
+# compute the nodes i up to h of ex, which are one expression, into rax, as
+# a stack machine: the value on top is in rax and those under it are
+# pushed. A value that an operator follows at once is its right operand and
+# goes to rdi directly.
+fn exemit i h
 set 0 as dp
 set 0 as rd
 label a
-jge i nex x
+jge i h x
 call ochk
 mul i 32 as p
 add p ex as p
@@ -1563,7 +1564,7 @@ ifne k 6
 set 0 as g
 if dp
 add i 1 as j
-iflt j nex
+iflt j h
 add p 32 as q
 load q as t
 ifeq t 6
@@ -1637,7 +1638,7 @@ if s8
 call eb 81
 add pushed 8 as pushed
 end
-call exemit
+call exemit 0 nex
 if g
 call mrr g 0
 end
@@ -1662,6 +1663,96 @@ call opdp as p
 add exv 8 as q
 call cp4 q p
 call anext
+end
+# A comparison that is the whole value of if, ifz, jz or jnz is not turned
+# into 1 or 0 and tested: the statement becomes the one that compares and
+# jumps (ifeq, jlt, ...), or its opposite for ifz and jz, with the two
+# sides of the comparison as its two values. 1 if that was done.
+fn excond
+if ai
+ret 0
+end
+iflt nex 2
+ret 0
+end
+sub nex 1 as h
+mul h 32 as p
+add p ex as p
+add p 8 as q
+load q as o
+iflt o 10
+ret 0
+end
+loadb cur as c
+ifne c 1
+ret 0
+end
+add cur 3 as q
+loadb q as c
+ifne c 5
+ret 0
+end
+add cur 4 as q
+load4 q as c
+ifne c 0x0fc08548
+ret 0
+end
+# test rax, rax and a jump: 132 if it is taken on zero
+add cur 8 as q
+loadb q as b
+add cur 2 as q
+loadb q as f
+and f 8 as f
+eq b 133 as t
+if f
+eq b 132 as t
+end
+ifz t
+iflt o 12
+xor o 1 as o
+else
+sub 27 o as o
+end
+end
+set exnm as q
+if f
+storeb q 105
+add q 1 as q
+storeb q 102
+else
+storeb q 106
+end
+add q 1 as q
+mul o 3 as c
+add c exkw as c
+load2 c as c
+store2 q c
+add q 2 as q
+set exnm as c
+set c as ns
+sub q c as c
+set c as nl
+call kw as r
+set r as cur
+add p 16 as q
+load q as e
+add e 1 as e
+call exemit 0 e
+sub h e as c
+ifeq c 1
+mul e 32 as q
+add q ex as q
+call exload q 7
+else
+call eb 80
+add pushed 8 as pushed
+call exemit e h
+call mrr 7 0
+call eb 88
+sub pushed 8 as pushed
+end
+set 2 as ai
+ret 1
 end
 # after the name that starts a line: 0, or 1 for "=", or 2 + an operator
 # for the operator and "=", with the cursor behind the "="
@@ -1743,7 +1834,7 @@ ifeq nex 1
 call exload ex 0
 jmp s
 end
-call exemit
+call exemit 0 nex
 label s
 set ts as ns
 set tl as nl
@@ -2850,6 +2941,8 @@ end
 end
 call exinit
 call exparse 0
+call excond as d
+jnz d tokend
 call exarg
 jmp tokend
 

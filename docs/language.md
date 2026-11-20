@@ -720,6 +720,8 @@ A value in an expression is a number, a `const`, a variable, a `var`, or the nam
 
 The compiler computes what it can: an expression of numbers and consts is the number, and a buffer or data name plus or minus a number is one address, checked like any [address](#addresses) the compiler knows: with `buf b 8`, `storeb b+8 0` is `invalid access`. A division by a constant zero is not computed; it fails when it runs.
 
+A comparison that is the whole value of `if`, `ifz`, `jz` or `jnz` costs nothing extra: `if a<b` compiles to what `iflt a b` compiles to, and so `if`, `jz` and `jnz` with an expression replace the twelve unsigned statements that compare and jump or open a block; the signed ones have no operator.
+
 The rest is computed when the program runs, the operands of an operator from left to right. Nothing in an expression can fail except a division or a remainder by zero, which kills the program with `SIGFPE` as `div` and `mod` do.
 
 ## The io library
