@@ -147,7 +147,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Add a tool that rewrites statements as expressions.
 - [x] Release and pin the second seed.
 - [x] Write the compiler with expressions.
-- [ ] Report the redesign against its acceptance criteria.
+- [x] Report the redesign against its acceptance criteria.
 
 Keep the hardware-oriented syntax and use measured token cost to decide where
 to relax grammar rules. One statement per line, ASCII identifiers and the lack of classes and objects

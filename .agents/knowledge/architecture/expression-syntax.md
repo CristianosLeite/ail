@@ -20,6 +20,15 @@ ten-program corpus in eight spellings: 975 tokens against 1313 before, 1118 for 
 - Not in expressions: strings (whole argument only), loads, calls, signed, float and atomic
   operations. `v=[p-8]` costs the same 6 tokens as `load p-8 as v`.
 
+- Code for expressions (2026-11-20): the compiler keeps the evaluation stack itself, values wait
+  as numbers, variables or registers, and the statements that say the same as an expression
+  (`add a b as x`, `jlt a b l`, loads and stores) go the same way and give the same bytes.
+  Final figures: corpus 970 tokens (C 1118, Rust 1191), time 1.039 times `gcc -O3` in the
+  geometric mean, compiler source 21% fewer tokens after `tools/infix.py`.
+- Faults that only random programs or rewriting the examples found: the register of an
+  assignment's target handed out again as a scratch register; the address of a store left in
+  `rax` while its value divided. Both have a case in `tests/insn.cases` now.
+
 ## Why
 - **This reverses a recorded decision.** Infix was rejected on 2026-11-19 as adding punctuation
   and a second parser path, and `docs/tokens.md` found a loop statement not worth it (31

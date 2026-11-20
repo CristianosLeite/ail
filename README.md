@@ -12,7 +12,7 @@ It compiles to a 226-byte static, position-independent Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler is written in AIL, compiles itself to a byte-identical copy and is built from a released copy of itself; the compiler in assembly that built it first is gone. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
+Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic and comparisons as statements or as infix expressions, byte to 64-bit memory access, labels and jumps, `if` and `while` blocks, and functions with recursion. On ten programs it costs 13% fewer tokens than C and 19% fewer than Rust, and its CPU-bound programs run within 4% of C at `-O3` in the geometric mean ([performance](docs/performance.md)). The compiler is written in AIL, compiles itself to a byte-identical copy and is built from a released copy of itself; the compiler in assembly that built it first is gone. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
 
 ## Quick start
 
