@@ -189,10 +189,11 @@ end
 # cancelled. Each of the two wakes this task when it is done.
 #
 # What it limits is cancelled when the time is up or the limit is
-# cancelled. An event may refuse that for now (work of the pool that a
-# thread is doing, see asynccancel): then the limit goes on waiting for
-# it, and ends only when the event has, so that whoever awaits the limit
-# does not go on while the work still uses its memory.
+# cancelled. An event mostly ends at that; a task is only told, and
+# work of the pool that a thread is doing cannot be stopped. The limit
+# goes on waiting for those, and ends only when they have, so that
+# whoever awaits the limit does not go on while they still use its
+# memory.
 fn asynclimit asynct
 label asynctop
 load asynct+64 as asynch
@@ -226,21 +227,16 @@ store asynct+72 0
 store asynct+80 1
 call asynclimstop asynct as asyncr
 jeq asyncr 2 asynctop
-if asyncr
 ret 0
-end
-call asyncdisarm asynct
-store asynct+16 -62
-ret 1
 end
 store asynch+40 asynct
 store asynce+40 asynct
 ret 0
 end
 
-# cancel what the limit limits: 0 if the limit may end now, a task,
-# which is told and left to itself; 2 if it is done, and its record
-# still there; 1 if it refused and the limit has to wait for it
+# cancel what the limit limits: 2 if it is done then, its record still
+# there; 1 if not, a task, which is told and ends when it likes, or work
+# that a thread is doing: the limit waits for it
 fn asynclimstop asynct
 load asynct+64 as asynch
 store asynch+40 0
@@ -249,20 +245,15 @@ load asynch+24 as asyncs
 if asyncs&4
 ret 2
 end
-load asynch+56 as asyncp
-if asyncp
 store asynch+40 asynct
 ret 1
 end
-call asyncdetach asynch
-ret 0
-end
 
 # what asynccancel calls for a limit: its timer and what it limits are
-# cancelled with it. 1 if the limit cannot end yet.
+# cancelled with it. 1 if the limit cannot end yet: what it limits has
+# to end first, or is done already, and the limit is about to have its
+# result, which is not thrown away.
 fn asynclimitoff asynct
-# what it limits is done: the limit is about to have that result, which
-# is not thrown away, so it is not cancelled any more
 load asynct+64 as asynch
 load asynch+24 as asyncs
 if asyncs&4

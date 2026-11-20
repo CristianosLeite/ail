@@ -320,49 +320,53 @@ end
 # a task asks so, which would poll tasks inside a poll, the result is
 # -35 and h stays. The result of no task is 0.
 fn await asynch asyncs
+# the cell at 48 of a task that has cancelled what it awaits holds the
+# handle plus 1, and the code the compiler writes passes what is there
+asynch-=asynch&1
 if asyncs
+if asynch
 load asyncs+24 as asyncf
-load asyncq+136 as asyncc
-asyncx=0
-if asynch
+load asyncs+48 as asyncw
+if asyncw==asynch+1
+# this task cancelled h at an earlier poll and waits for its end
 load asynch+24 as asyncx
+ifz asyncx&4
+ret 0 0
 end
-asyncc|=asyncf&8
-if asyncx&4
-# what it asks for is done: it has the result as always, which may be
-# something only it can give back, a descriptor for one. A cancelled
-# task is told at an await that would wait.
-asyncc=0
+jmp asyncover
 end
-if asyncc
-# the task that asks is cancelled. Nobody will have the result of h,
-# which is cancelled too. The task is told once, with -125 in the place
-# of the result: its chance to give back what it holds. A task that was
-# told and awaits again is ended here, and not polled any more.
-store asyncs+48 0
-if asynch
+load asyncq+136 as asyncc
+if asyncf&8|asyncc
+# The task that asks is cancelled. If h is done, it has the result as
+# always, which may be something to give back, a descriptor for one;
+# it is told at an await that would wait. There h is cancelled, and
+# the task waits for it to end, which for an event is at once and for
+# a task or for work that a thread is doing is later: until then they
+# may use memory of this task. Then the task is told, once, with -125
+# in the place of the result: its chance to give back what it holds.
+# A task that was told and comes here again is ended instead, and not
+# polled any more.
+load asynch+24 as asyncx
+ifz asyncx&4
 store asynch+40 0
 call asynccancel asynch
 load asynch+24 as asyncx
-load asynch+56 as asyncp
 ifz asyncx&4
-if asyncp
-# it refused, and still has its function: work that a thread is doing,
-# maybe with memory of this task, or a limit on such work. The task
-# waits until that has ended, and is told then.
 store asynch+40 asyncs
-store asyncs+48 asynch
+store asyncs+48 asynch+1
 ret 0 0
 end
-end
+label asyncover
+store asyncs+48 0
 call asyncdetach asynch
-end
 if asyncf&64
 call asyncfinish asyncs -125
 ret 0 0
 end
 store asyncs+24 asyncf|72
 ret -125 1
+end
+end
 end
 end
 ifz asynch
