@@ -8,8 +8,8 @@ It is the seed of the bootstrap: [stage1](stage1.md) is the same compiler writte
 
 There is one pass over the top level and two over each function, and no intermediate representation.
 
-1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
-2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
+1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
+2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
 4. Append the code for `exit(0)`.
 5. Fill in the displacement of every top-level jump from the label table, of every call from the function table, and the value of every name used before its declaration from the table of global names.
@@ -19,7 +19,7 @@ Because code is emitted as it is read, an address that appears later in the sour
 
 ## Units
 
-The input buffer holds the source from stdin and, behind it, every file named by a `use`, each read whole at `srcend` when its statement is met. Names are still kept as addresses into that buffer, and every table is sized for its 64 KiB, so the files of a program share the limit.
+The input buffer holds the source from stdin and, behind it, every file named by a `use`, each read whole at `srcend` when its statement is met. Names are still kept as addresses into that buffer, and every table is sized for its 8 MiB, so the files of a program share the limit.
 
 `usedef` looks the path up in `uses`, where paths are kept as written; a hit means the file was compiled and the statement does nothing, which also ends any cycle. Otherwise it copies the path to `pathbuf` with a NUL, opens and reads the file, pushes the input cursor and the end of the current unit on `ustack`, and points both at the new bytes. `next` and the comment scanner go to `unitend` where they used to go to `fin`: it pops the stack, or finishes when it is empty. A function must end in its unit, which both the `use` and the end of a unit check, because the second pass over a function returns to a saved place in the input.
 
@@ -75,12 +75,13 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
 | `blanks`, `blank1`, `eol`, `name` | skip spaces and tabs; require at least one; check that the line ends; read a name |
 | `lookup_var`, `lookup_buf`, `lookup_label`, `lookup_fn` | find a name among the variables or the labels of the current scope, the buffers or the functions |
+| `outchk` | report `program too big` unless the output buffer has room for what is emitted before the next check |
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_res`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_res`, `err_prog`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -269,7 +270,7 @@ A jump is an `optab` row whose instruction bytes stop just before the 32-bit dis
 
 No jump is resolved while scanning, not even a backward one. `resolve` walks `fixs` from the entry `fixbase` on, looks each name up in `labels` and writes the label address minus the address of the byte after the displacement. A name that is not found is the `undefined label` error. One path for both directions keeps the code small; the price is a linear search per jump. `fin` calls `resolve` for the top level after the `exit(0)` code is in place, and `end` calls it for a function.
 
-Neither table can overflow: the shortest `label` line is 8 bytes and the shortest jump line is 6, so the tables are sized for a 64 KiB source made only of those.
+Neither table can overflow: the shortest `label` line is 8 bytes and the shortest jump line is 6, so the tables are sized for a source of the largest size made only of those.
 
 ## Blocks
 
@@ -337,10 +338,21 @@ ff:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
 - A call uses 8 bytes of stack for the return address and 8 for each register the function uses, plus 8 per stack slot and the bytes of its locals.
 - A function is compiled twice, so compiling takes up to twice as long.
 - Functions do not nest.
-- Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to fewer than four output bytes (`end` is the worst line: 4 bytes of source, 13 of code).
+- Input 8 MiB (8388608 bytes, inclusive), all units together; see [Capacity](#capacity).
 - x86-64 Linux only.
 - Strings and data are read-only; writable memory is what `buf`, `local` and `alloc` give, or what the program maps itself.
 - `alloc` is one mapping per call: at least a page and two system calls for every allocation and release.
+
+## Capacity
+
+Nothing in the compiler grows: every buffer has the size that the largest source needs, and the kernel only gives memory to the pages that are touched. The compiler therefore has about 700 MiB of zero-filled address space and uses a few hundred kilobytes for a small program; it does not start under a limit on address space below that (`ulimit -v`).
+
+- **Source.** `INSZ` is 8 MiB. The read loops of stdin and of `use` stop with `source too big` when the buffer is full.
+- **Tables.** Each is sized for a source of `INSZ` bytes made only of the shortest line that adds an entry, as the comments beside the `.equ` lines say, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `call a` 7, a name used as a value 2.
+- **Output.** `OUTSZ` is 16 times `INSZ`. No line produces 16 bytes of code for each of its own: the worst are `fn a` with a frame of a page (51 bytes for 5) and the `end` of a function with six results (32 for 4). Because that is an argument and not a structure, the buffer is also checked: `outchk` reports `program too big` when fewer than `OUTGAP` (4096) bytes are left, and it runs at every statement, every value, every item of `data` and every byte of a string, between which no more than a few hundred bytes are emitted.
+- **Layout.** `fin` checks that the code ends below the cells of the vars, where the writable segment begins, before it writes the header.
+
+The two `program too big` checks cannot fail while the 16-to-1 argument holds, so no test reaches them.
 
 ## Adding a statement
 

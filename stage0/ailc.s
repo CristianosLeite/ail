@@ -13,8 +13,12 @@
 .equ BASE,   0x400000
 .equ BSS,    0x10000000         # address of the writable segment (buffers)
 .equ HDRSZ,  176                # ELF header (64) + two program headers (56 each)
-.equ INSZ,   0x10000
-.equ OUTSZ,  0x100000           # worst case expansion is ~3x input
+.equ INSZ,   0x800000           # most source bytes, all units together: 8 MiB
+.equ OUTSZ,  INSZ * 16          # no line gives 16 bytes of code for each of its
+                                # own: "fn a" with a frame of a page gives 51 for
+                                # 5, "end" of a function with six results 32 for 4
+.equ OUTGAP, 4096               # room that every check of the output leaves: more
+                                # than any statement emits between two checks
 .equ NVARS,  64                 # most variables in one scope
 .equ NREGS,  6                  # size of the variable register pool
 .equ NGLOB,  INSZ / 2 + 1       # "var a b c" declares a global name every 2 bytes
@@ -891,6 +895,8 @@ m_use:    .ascii "ailc: cannot read file\n"
 .equ M_USE_SZ, . - m_use
 m_res:    .ascii "ailc: wrong result count\n"
 .equ M_RES_SZ, . - m_res
+m_prog:   .ascii "ailc: program too big\n"
+.equ M_PROG_SZ, . - m_prog
 m_num:    .ascii "ailc: number too big\n"
 .equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
@@ -940,6 +946,7 @@ _start:
 
 # ---- statement
 next:
+    call outchk
     cmp rsi, r15
     jae unitend
     mov al, [rsi]
@@ -1186,6 +1193,7 @@ tokend:
     call tokchk
 
 arg:
+    call outchk                 # a statement may have any number of values
     cmp rsi, r15
     jae 1f
     mov al, [rsi]
@@ -1331,8 +1339,16 @@ strbytes:
     pop rcx
     or eax, ecx
 3:  stosb
+    call outchk                 # a string may be as long as the source
     jmp 1b
 4:  ret
+
+# the output buffer must have room left for what comes before the next check
+outchk:
+    lea rcx, [rip+outbuf+OUTSZ-OUTGAP]
+    cmp rdi, rcx
+    ja err_prog
+    ret
 
 # eax = the value of the hexadecimal digit at rsi, which is consumed
 hexdig:
@@ -2162,7 +2178,8 @@ datadef:
     inc dword ptr [rip+nruns]   # a new run of data statements
 2:  push rdi                    # the first byte of this statement
     xor ebx, ebx                # number of items
-3:  call blanks
+3:  call outchk
+    call blanks
     cmp rsi, r15
     jae 6f
     movzx eax, byte ptr [rsi]
@@ -3220,6 +3237,9 @@ fin:
     sub rcx, rax
     mov [r14+64+56+16], rcx     # its address
     mov [r14+64+56+24], rcx
+    lea rdx, [r13+BASE]         # the code must end below the writable segment
+    cmp rdx, rcx
+    ja err_prog
     add rax, [rip+bsssz]
     mov [r14+64+56+40], rax     # its memory size
     mov r12, r14
@@ -3286,6 +3306,11 @@ err_use:
 err_res:
     lea rsi, [rip+m_res]
     mov edx, M_RES_SZ
+    mov ebx, 1
+    jmp die
+err_prog:
+    lea rsi, [rip+m_prog]
+    mov edx, M_PROG_SZ
     mov ebx, 1
     jmp die
 err_bufs:

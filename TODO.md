@@ -73,7 +73,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 
 ## Compiler scale, output and tooling
 
-- [ ] Lift the 65,536-byte source cap. Both compilers read all input before
+- [x] Lift the 65,536-byte source cap. Both compilers read all input before
   parsing, allocate a fixed 1 MiB emission buffer and size the jump, label, call
   and function tables from the source cap. Grow storage as needed and check
   capacity where bytes and entries are appended.

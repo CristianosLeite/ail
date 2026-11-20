@@ -204,7 +204,24 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   fails, so the test does exercise the lock.
 - No float literals, no single precision, no vectors. The suite went from 700 to 717 tests.
 
+### Source limit of 8 MiB (2026-11-20)
+- `INSZ` went from 64 KiB to 8 MiB, 128 times as much. Nothing grows at run time: the buffers
+  are sized for the largest source (about 700 MiB of address space) and the kernel backs only
+  the pages touched. A megabyte of statements compiles in 10 ms with stage0.
+- The output buffer is 16 times the source and is checked (`outchk`) at every statement, value,
+  data item and string byte; `fin` checks that code and writable segment do not meet. Both
+  report `program too big` and cannot fail while the 16-to-1 bound holds, so they are untested.
+- 8 MiB is what the fixed layout allows with that bound: 128 MiB of code fits below the
+  writable segment at 0x10000000; twice as much would not.
+- The suite went from 717 to 722 tests.
+
 ## Why
+- **Sized once instead of grown:** growing a buffer moves it, and the compiler keeps addresses
+  into the input (every name) and into the output (labels, fixups, the snapshot of a function).
+  Turning all of them into offsets touches most of both compilers for a limit nobody will meet.
+- **Lazy pages make the big buffers free:** resident memory for `hello` stayed at 392 KB.
+- **The compiler does not start under a small address-space limit:** the price of the above; a
+  `ulimit -v` below about 800 MiB kills it at load. Accepted and documented.
 - **Doubles as bit patterns in integer variables:** no second kind of variable, no second
   register pool, and the allocation is untouched. The cost is that the language cannot stop
   `add` on two doubles; the reference says so.

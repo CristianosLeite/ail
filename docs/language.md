@@ -729,7 +729,8 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that; the locals of a function exceeding about 2 GiB |
-| `ailc: source too big` | 1 | the source and the files it names with `use` are together larger than 65536 bytes |
+| `ailc: source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes) |
+| `ailc: program too big` | 1 | the compiled code does not fit; with the source limit this cannot happen, and the message exists so that a mistake in that reckoning is an error and not a damaged program |
 | `ailc: cannot read file` | 1 | the path of a `use` cannot be opened or read |
 | `ailc: read error` | 2 | reading stdin failed |
 | `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |

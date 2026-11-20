@@ -40,8 +40,12 @@ var fnres fntail ncap
 # nblk = open blocks; blkbase = those opened outside the open function;
 # topblk = blkbase of the top level, in a function
 var nblk blkbase topblk
-buf in 65537
-buf out 1048576
+# the source limit of 8 MiB is in the sizes below: in holds one byte more,
+# out 16 times as much (see OUTSZ in stage0), and each table one entry for
+# every shortest line that makes one
+const inmax 8388609
+buf in inmax
+buf out 134217728
 buf sig 32          # struct sigaction
 buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
 buf topcell 512     # per top-level variable after the sixth: the address of its cell
@@ -51,32 +55,32 @@ buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
 buf vlocal 512      # per variable of the function that is a local: 1 + its offset
 buf vlocsz 512      # per local: its size as declared
 buf locfree 560     # per place: the last mention of its variable
-buf loops 174768    # 10923 backward jumps of the function: where the source has
+buf loops 22369632    # 1398102 backward jumps of the function: where the source has
                     # the label, and the jump
-buf globs 1572912   # 32769 global names of 48 bytes: name, length, address, size or
+buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
                     # value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
 buf opd 96          # what is known of the first two values of the statement, 32 bytes
                     # each: kind (1 number, 2 name plus number, 3 string), then the
                     # number, or name, length and number; a third entry is scratch
 buf vk 2048         # the same per variable of the current scope
-buf chks 262176     # 8193 loads and stores through a known name, 32 bytes: name,
+buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
                     # length, offset, width + 256 for a store
-buf runend 58256    # per run of data statements: the address after its last byte
-buf blks 314592     # 13108 open blocks of 24 bytes: address of the rel32 that jumps past
+buf runend 7456544    # per run of data statements: the address after its last byte
+buf blks 40265328     # 1677722 open blocks of 24 bytes: address of the rel32 that jumps past
                     # the block, asg, and (4 bytes each) 1 for an else part and dead
-buf uses 149808     # 9363 files compiled through use, 16 bytes: path as written, length
-buf ustack 149808   # per use being compiled: where its line ended, and the end of
+buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
+buf ustack 19173968   # per use being compiled: where its line ended, and the end of
                     # the unit that has it
 buf pathbuf 4096    # the path of a use, with a NUL for open
-buf labs 327720     # 8193 labels of 40 bytes: name, length, address in out, place in the
+buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
                     # source, variables assigned on every way to it
-buf fixs 349536     # 10923 jumps of 32 bytes: label name, length, rel32 address,
+buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
                     # variables assigned at the jump
-buf funs 291280     # 7282 functions of 40 bytes: name, length, entry, parameters, results
-buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, then two
+buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
+buf calls 38347936    # 1198373 calls of 32 bytes: name, length, rel32 address, then two
                     # 4-byte counts: values (all ones for ref) and names after "as"
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
-buf refs 1048608    # 32769 uses of a name not declared yet, 32 bytes: name, length,
+buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
                     # imm32 address, 0 for its address or 1 for its length
 
 # ---- errors: source problems exit 1, I/O problems exit 2
@@ -120,6 +124,10 @@ fn eres
 sys write 2 "ailc: wrong result count\n"
 sys exit 1
 end
+fn eprog
+sys write 2 "ailc: program too big\n"
+sys exit 1
+end
 fn ebuf
 sys write 2 "ailc: buffers too big\n"
 sys exit 1
@@ -161,6 +169,15 @@ fn nodup i
 eq i 99999 as i
 ifz i
 call edup
+end
+end
+
+# the output buffer must have room left for what comes before the next
+# check: 4096 bytes, more than any statement emits between two checks
+fn ochk
+sub op out as c
+ifgt c 134213632
+call eprog
 end
 end
 
@@ -716,6 +733,7 @@ call hexd as d
 or c d as c
 label k
 call eb c
+call ochk
 jmp a
 label x
 end
@@ -1371,7 +1389,7 @@ end
 store sig 1
 sys rt_sigaction 13 sig 0 8
 set in as p
-add in 65537 as q
+add in inmax as q
 label rd
 sub q p as r
 ifz r
@@ -1379,7 +1397,7 @@ call ebig
 end
 sys read 0 p r as r
 if r
-ifgt r 65537
+ifgt r inmax
 call erd
 end
 add p r as p
@@ -1393,6 +1411,7 @@ call cp hdr 176
 
 # ---- statement
 label next
+call ochk
 call pk as c
 jeq c 256 uend
 call blank c as d
@@ -1533,7 +1552,7 @@ call euse
 end
 set srcend as r
 label u4
-add in 65537 as q
+add in inmax as q
 sub q srcend as q
 ifz q
 call ebig
@@ -1562,6 +1581,7 @@ jmp next
 label tokend
 call tokchk
 label arg
+call ochk
 call pk as c
 jeq c 256 a1
 jeq c 10 a1
@@ -2010,6 +2030,7 @@ end
 set op as q
 set 0 as r
 label d3
+call ochk
 call blanks
 call pk as c
 jeq c 256 d6
@@ -2505,6 +2526,10 @@ add c 4095 as c
 shr c 12 as c
 shl c 12 as c
 sub 0x10000000 c as d
+add q 0x400000 as f
+ifgt f d
+call eprog
+end
 add out 136 as p
 store p d
 add out 144 as p
