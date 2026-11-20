@@ -131,6 +131,7 @@ end
 fn procwait procpid procms
 local procst 8
 local procpf 8
+local procts 16
 if procms
 sys procpidfd procpid 0 as procfd
 ifsge procfd 0
@@ -140,19 +141,29 @@ label again
 sys procpoll procpf 1 procms as procr
 jeq procr -4 again
 sys close procfd
-ifz procr
-sys kill procpid 9
-label gone
-sys wait4 procpid 0 0 0 as procr
-jeq procr -4 gone
-ret -1000
-end
+jz procr late
+else
+# no descriptor to be had for the child (the limit of the process, or of
+# the system): ask every millisecond whether it has ended
+call procnow as proct
+label ask
+store procst 0
+sys wait4 procpid procst 1 0 as procr
+jeq procr -4 ask
+jnz procr took
+call procnow as procn
+jge (procn-proct)/1000000 procms late
+store procts 0
+store procts+8 1000000
+sys nanosleep procts 0
+jmp ask
 end
 end
 label reap
 store procst 0
 sys wait4 procpid procst 0 0 as procr
 jeq procr -4 reap
+label took
 ifslt procr 0
 ret -1001
 end
@@ -161,6 +172,12 @@ if procr&127
 ret 0-(procr&127)
 end
 ret procr>>8&255
+label late
+sys kill procpid 9
+label gone
+sys wait4 procpid 0 0 0 as procr
+jeq procr -4 gone
+ret -1000
 end
 
 # the time of the clock that only goes forward (CLOCK_MONOTONIC), in
