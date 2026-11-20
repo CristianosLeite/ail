@@ -91,7 +91,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Report source locations and specific causes for compile errors, including
   the original use site of unresolved names. Today diagnostics are one line
   without a location. Evaluate source maps or debug metadata for runtime faults.
-- [ ] Generate common compiler tables from a single definition. Stage0 declares
+- [x] Generate common compiler tables from a single definition. Stage0 declares
   the ELF template, opcode rows and register data in assembly. Stage1 recreates
   them with decimal words and manually maintained offsets.
 - [ ] Add differential fuzzing and independent checks of emitted bytes, including

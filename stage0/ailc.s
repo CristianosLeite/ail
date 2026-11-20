@@ -743,6 +743,61 @@ retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
     .byte 0
     .word AS_NONE | IS_CALL | IS_RET
     .byte 11,  0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xE9
+    # the statements that are parsed on their own. This compiler never gets
+    # here for them, since next checks their keywords before it searches the
+    # table; the rows are for stage1, whose tables are generated from these
+    # bytes (tools/tables.sh) and which finds every keyword by one search.
+    # Flags 255 mark such a row, and its operand count says which it is.
+    .byte 2
+    .ascii "fn"
+    .byte 1
+    .word 255
+    .byte 0
+    .byte 3
+    .ascii "buf"
+    .byte 2
+    .word 255
+    .byte 0
+    .byte 3
+    .ascii "end"
+    .byte 3
+    .word 255
+    .byte 0
+    .byte 5
+    .ascii "label"
+    .byte 4
+    .word 255
+    .byte 0
+    .byte 4
+    .ascii "data"
+    .byte 5
+    .word 255
+    .byte 0
+    .byte 3
+    .ascii "var"
+    .byte 6
+    .word 255
+    .byte 0
+    .byte 5
+    .ascii "const"
+    .byte 7
+    .word 255
+    .byte 0
+    .byte 5
+    .ascii "local"
+    .byte 8
+    .word 255
+    .byte 0
+    .byte 3
+    .ascii "use"
+    .byte 9
+    .word 255
+    .byte 0
+    .byte 4
+    .ascii "else"
+    .byte 10
+    .word 255
+    .byte 0
     .byte 0
 
 # names that sys accepts for a syscall number, unless the program has a

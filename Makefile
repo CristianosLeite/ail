@@ -37,14 +37,19 @@ $(B)/ailc2: stage1/ailc.ai stage1/tables.ai $(B)/ailc1
 test: $(B)/ailc $(B)/ailc1 $(B)/ailc2
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
-	tests/stage1.sh || f=1; \
+	tests/tables.sh || f=1; tests/stage1.sh || f=1; \
 	AILC=$(B)/ailc1 tests/run.sh || f=1; AILC=$(B)/ailc1 tests/io.sh || f=1; exit $$f
 else
 	@f=0; AILC=$(B)/ailc tests/run.sh $(T) || f=1; tests/stage1.sh $(T) || f=1; \
 	AILC=$(B)/ailc1 tests/run.sh $(T) || f=1; exit $$f
 endif
 
+# stage1/tables.ai is generated from the tables of stage0, their one
+# definition; tests/tables.sh fails when it is out of date.
+tables:
+	tools/tables.sh > stage1/tables.ai.tmp && mv stage1/tables.ai.tmp stage1/tables.ai
+
 clean:
 	rm -rf $(B)
 
-.PHONY: all test clean
+.PHONY: all test tables clean
