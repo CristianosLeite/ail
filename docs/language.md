@@ -1,6 +1,6 @@
 # AIL language reference
 
-This describes exactly what the compilers accept today, stage0 and stage1 alike. The language is deliberately tiny; see the [roadmap](roadmap.md) for what comes next.
+This describes exactly what the compiler accepts today. The language is deliberately tiny; see the [roadmap](roadmap.md) for what comes next.
 
 ## Design rules
 
@@ -12,7 +12,7 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 ## Program structure
 
-A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`.
+A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the syscall `exit_group` with status 0, which ends the whole process. A `sys exit` written in the program ends only the thread that runs it, which is the process when there is one thread; a program with other threads ends with `sys exit_group`.
 
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 
@@ -84,11 +84,11 @@ In the place of the number, and only there, `sys` accepts these names for the ke
 | `mprotect` 10 | `munmap` 11 | `brk` 12 | `rt_sigaction` 13 |
 | `ioctl` 16 | `pipe` 22 | `nanosleep` 35 | `getpid` 39 |
 | `socket` 41 | `connect` 42 | `accept` 43 | `bind` 49 |
-| `listen` 50 | `fork` 57 | `execve` 59 | `exit` 60 |
-| `wait4` 61 | `kill` 62 | `rename` 82 | `mkdir` 83 |
-| `rmdir` 84 | `unlink` 87 | `chmod` 90 | `gettimeofday` 96 |
-| `getuid` 102 | `clock_gettime` 228 | `exit_group` 231 | `openat` 257 |
-| `getrandom` 318 | | | |
+| `listen` 50 | `clone` 56 | `fork` 57 | `execve` 59 |
+| `exit` 60 | `wait4` 61 | `kill` 62 | `rename` 82 |
+| `mkdir` 83 | `rmdir` 84 | `unlink` 87 | `chmod` 90 |
+| `gettimeofday` 96 | `getuid` 102 | `futex` 202 | `sched_getaffinity` 204 |
+| `clock_gettime` 228 | `exit_group` 231 | `openat` 257 | `getrandom` 318 |
 
 ```
 sys write 1 "hello\n"
@@ -398,6 +398,48 @@ callp f 10 as x         # the same as: call inc 10 as x
 ```
 
 Nothing is known about the function at a `callp`: the number of values is not checked against its parameters, nor the names after `as` against its results, and an address that is not a function's is a fault at run time. Otherwise `callp` is a `call`: it has an optional `as` with one name per result wanted, and a string counts as two values.
+
+#### Tasks
+
+```
+use "lib/task.ai"
+spawn name x y as h
+join h as result
+```
+
+`spawn` submits the function `name` with up to five values as a task and keeps a handle of it; `join` waits until the task has run and keeps the first result of the function. Tasks are independent pieces of work that may run at the same time as the code that spawned them:
+
+```
+use "lib/task.ai"
+fn work a b
+ret a*b
+end
+spawn work 6 7 as h
+join h as x             # 42
+```
+
+The two statements are calls of the functions `spawn` and `join` of the program, which `lib/task.ai` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
+
+- **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 80 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
+- **The result** is the first value the function returns, 0 if it reaches its `end`. Further results are lost; a task with more to give writes it to memory it was passed.
+- **When it runs** is not defined: at some time between its `spawn` and the return of its `join`, on another thread or inside `join` itself. A program must be right in every such order.
+- **Memory**: a task shares all memory with the rest of the program, `var` cells and buffers included. What a task wrote is there for the code after its `join`. Before that, a cell that the task and other code both touch, one of them writing, is only safe through [`xadd` and `cas`](#atomic-operations). Memory whose address is passed to a task must stay valid until its `join` has returned: a `buf` always is, an `alloc` until its `free`, and a `local` if the function that owns it joins the task before it returns.
+- **Errors**: a task has no failure of its own. What it reports, it reports in its result. A fault in a task (a trap of `at`, a division by zero, a bad address) ends the whole program, as anywhere else.
+- **The end of the program**: reaching the last line ends the program with every task, run or not. So does `sys exit_group`; `sys exit` ends only the thread that runs it.
+
+**The pool.** Tasks are run by worker threads that `lib/task.ai` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
+
+```
+call workers 4
+```
+
+- `spawn` puts the task in a queue. If a worker is asleep it wakes one; if more tasks wait than workers sleep, and fewer workers exist than the limit, it starts one. A worker runs task after task and sleeps in the kernel when the queue is empty. Workers never end before the program does.
+- The limit is the value of the last `call workers n`, or, if the program never calls it, the number of processors the process may run on (`sched_getaffinity`), found at the first `spawn`. `workers 0` starts no thread. Workers already started stay when the limit is lowered.
+- `join` of a task that is still in the queue runs it on the joining thread; `join` of a task that a worker took sleeps until it is done. So at most the limit plus the joining threads run tasks at once, a task may spawn and join tasks of its own with any limit, and a program is correct with no worker at all. A task never moves between threads once it has started.
+- A worker has a stack of 8 MiB with a closed page below it: a task that needs more is a fault (`SIGSEGV`), which ends the program. A task run by `join` uses the stack of the joining thread.
+- If the kernel refuses a thread or its stack, the task stays in the queue for another worker or its `join`.
+- The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
+- The library owns the names `spawn`, `join`, `workers` and every name that starts with `task`: its other functions, its buffer and all its variables. A program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, the library's included. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
 #### Recursion and the stack
 
@@ -750,7 +792,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 | `print p n` | writes the `n` bytes at `p` to stdout, repeating the write until all are out; returns 1, or 0 after an error |
 | `eprint p n` | the same to stderr |
 | `fdwrite fd p n` | the same to the file `fd` |
-| `die p n` | writes the bytes to stderr and ends the program with status 1 |
+| `die p n` | writes the bytes to stderr and ends the program with status 1, with every thread (`exit_group`) |
 | `putn n` | prints `n` as an unsigned decimal number; returns like `print` |
 | `strlen p` | the length of the NUL-terminated string at `p` |
 | `argc` | the number of arguments, the program's name included |
@@ -767,7 +809,7 @@ call print p n
 call print "\n"
 ```
 
-A string literal is the two values that `print` takes. The library defines the var `argp` besides its functions, and no other global name.
+A string literal is the two values that `print` takes. The library defines the var `ioargp` besides its functions, and no other global name. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, and no variable named `ioargp`, which would write the library's.
 
 ## Comments
 
@@ -797,7 +839,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; `spawn` with more than five values; more than seven values after `sys` |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -806,8 +848,8 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `undefined function` *name* | 1 | a `call`, `tail` or `ref` of a function that the program never defines |
-| `wrong argument count` *name* | 1 | a `call` or `tail` whose number of values differs from the number of parameters of the function named |
+| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
+| `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; with the name of the function, a `call` with more names after `as` than it has results |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |

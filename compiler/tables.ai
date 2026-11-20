@@ -1,4 +1,4 @@
-# ailc stage1 -- the read-only tables of stage1/ailc.ai, which compiles this
+# ailc -- the read-only tables of compiler/ailc.ai, which compiles this
 # file in place with use. This file is their definition: a row is edited
 # here, one row a line. tests/tables.sh checks its form and tests/insn.sh
 # the instruction bytes, against bytes written by an assembler; a new or
@@ -98,6 +98,9 @@ data 3 "ref" 0 17 2 3 72 141 5
 data 5 "callp" 0 0 4 2 255 209
 data 3 "ret" 1 34 0 11 65 95 65 94 65 93 65 92 93 91 195
 data 4 "tail" 0 50 0 11 65 95 65 94 65 93 65 92 93 91 233
+# spawn and join call the function of the program that has their name
+data 5 "spawn" 0 17 34 3 72 141 5
+data 4 "join" 0 16 32 1 232
 data 2 "fn" 1 255 0 0
 data 3 "buf" 2 255 0 0
 data 3 "end" 3 255 0 0
@@ -133,6 +136,7 @@ data 7 "connect" 42 0
 data 6 "accept" 43 0
 data 4 "bind" 49 0
 data 6 "listen" 50 0
+data 5 "clone" 56 0
 data 4 "fork" 57 0
 data 6 "execve" 59 0
 data 4 "exit" 60 0
@@ -145,6 +149,8 @@ data 6 "unlink" 87 0
 data 5 "chmod" 90 0
 data 12 "gettimeofday" 96 0
 data 6 "getuid" 102 0
+data 5 "futex" 202 0
+data 17 "sched_getaffinity" 204 0
 data 13 "clock_gettime" 228 0
 data 10 "exit_group" 231 0
 data 6 "openat" 1 1
@@ -170,8 +176,8 @@ data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185 65 187 0 185
 data argnum 0 7 6 2 10 8 9 11 1
 # per variable: x86 register number
 data varnum 3 5 12 13 14 15
-# mov eax,60 ; xor edi,edi ; syscall
-data exit0 184 60 0 0 0 49 255 15 5
+# mov eax,231 ; xor edi,edi ; syscall: exit_group, which ends every thread
+data exit0 184 231 0 0 0 49 255 15 5
 # the names of the comparisons, by operator number, three bytes each: the
 # statements that compare and jump are named with them
 data exkw "muldivmodaddsubshlshrandxoror_eq_ne_lt_le_gt_ge_"

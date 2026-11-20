@@ -138,3 +138,65 @@ Where the work departed from the document:
 
 Not done: the comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer, which stays an open item.
 
+## Tasks, 2026-11-20
+
+`tools/par.py` times the programs of `bench/par/`, each written twice: `<name>_seq.ai` does the work in one call, `<name>_par.ai` cuts it into tasks with `spawn` and `join` (`lib/task.ai`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
+
+```
+make
+python3 tools/par.py              # the three tables below
+python3 tools/par.py --check      # small sizes, outputs only: part of make test
+python3 tools/par.py --runs 3 collatz
+```
+
+| program | what it does | why it is here |
+|---|---|---|
+| `collatz` | adds up the lengths of the Collatz sequences from 1 to 3000000 | even work, no memory |
+| `primes` | counts the primes below 3000000 by trial division | the work grows along the range, so equal pieces are unequal work |
+| `memsum` | fills 16777216 words (128 MiB) and adds them up sixteen times | bound by memory: page faults, then reading |
+
+- The sequential program reads its size from stdin; the task program reads the size, the number of threads and the number of tasks. Every timed run must print what the sequential program printed.
+- "Threads" is the number of threads that run tasks: the program calls `workers` with one less, because the main thread runs tasks in its joins. It joins the tasks last spawned first, which are the ones most likely still in the queue. At 1 thread there is no worker and every task runs inside its `join`.
+- A run is a new process, timed from outside, on all processors; the figure is the median of 7 runs.
+- The machine has 20 hardware threads on 14 cores: 6 performance cores with two threads each and 8 efficiency cores. Beyond 6 threads a further thread is a slower core or the second thread of a core, so 20 threads cannot give 20 times.
+
+12th Gen Intel Core i7-12700H, Linux 7.0. Elapsed milliseconds with the work cut into 160 tasks, and below each row the sequential time divided by it:
+
+| program | sequential | 1 | 2 | 4 | 8 | 14 | 20 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| collatz | 556.8 | 593.3 | 299.6 | 164.9 | 95.9 | 69.4 | 62.1 |
+| | | 0.94 | 1.86 | 3.38 | 5.81 | 8.02 | 8.97 |
+| primes | 697.6 | 700.8 | 352.6 | 189.3 | 104.0 | 68.7 | 64.2 |
+| | | 1.00 | 1.98 | 3.68 | 6.71 | 10.16 | 10.87 |
+| memsum | 201.7 | 201.1 | 122.3 | 83.5 | 69.2 | 62.7 | 61.5 |
+| | | 1.00 | 1.65 | 2.41 | 2.92 | 3.22 | 3.28 |
+
+- `collatz` and `primes` gain 1.9 to 2.0 times at 2 threads, 3.4 to 3.7 at 4, 5.8 to 6.7 at 8 and 9 to 11 at 20. The gain per thread falls after the six performance cores are taken, as the machine leads one to expect.
+- `memsum` reaches 2.4 times at 4 threads and only 3.3 at 20: its limit is memory, not processors.
+- At 1 thread the cost of 160 tasks is not measurable. `collatz` is 6% slower there for another reason: its loop stands at another address in the two programs. The sequential program with `lib/task.ai` merely compiled in, and no task, takes 580 to 600 ms.
+
+Elapsed milliseconds by the number of tasks the same work is cut into (`memsum` has that many in each of its 17 passes):
+
+| program | threads | sequential | 20 | 200 | 2000 | 20000 | 200000 | 1000000 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| collatz | 1 | 556.8 | 584.5 | 589.1 | 610.1 | 619.9 | 628.4 | 681.7 |
+| collatz | 20 | 556.8 | 60.8 | 60.2 | 58.8 | 62.8 | 225.4 | 1190.6 |
+| primes | 1 | 697.6 | 691.6 | 694.6 | 702.5 | 700.5 | 717.8 | 750.3 |
+| primes | 20 | 697.6 | 80.8 | 73.2 | 69.3 | 62.2 | 195.0 | 1176.3 |
+| memsum | 1 | 201.7 | 208.8 | 205.3 | 213.7 | 257.6 | 400.4 | 926.2 |
+| memsum | 20 | 201.7 | 63.2 | 62.5 | 64.0 | 351.6 | 3389.7 | 16825.1 |
+
+- **A task costs about 0.1 microseconds on one thread**: a million tasks add 97 ms to `collatz` and 59 ms to `primes`. That is `spawn` and `join` with no worker: a record from the free list, the queue, a lock taken three times, no system call.
+- **With 20 threads a task costs about 1.2 microseconds** once tasks are so small that the threads meet at the lock: a million tasks take 1.2 s in both programs, about twice the sequential time, for work of 0.6 to 0.7 microseconds a task.
+- **Where it turns**: tasks of about 30 microseconds and more (20000 tasks) run at full speed, 9 to 11 times. Tasks of 3 microseconds (200000) still gain 2.5 to 3.6 times. Below about 1 microsecond a task the program is slower than without tasks. `memsum` turns earlier, since its 20000 tasks a pass are 0.6 microseconds each.
+- The rule that follows: cut the work into some tens of tasks per thread, not into its smallest pieces. A hundred or a thousand tasks cost nothing and even out unequal work.
+
+Source tokens (`o200k_base`), comments left out:
+
+| program | sequential | tasks | lines added |
+|---|---:|---:|---:|
+| collatz | 98 | 213 | 24 |
+| primes | 103 | 218 | 24 |
+| memsum | 142 | 249 | 22 |
+
+The task form of a program is 107 to 115 tokens and 22 to 24 lines longer. In `collatz`, 90 of the 115 are the two loops that cut the range into pieces, keep the handles and add up the results, `spawn` and `join` being 12 of those; the `use` is 6, `call workers` 6, and the rest declares the buffer of handles and reads the two numbers. [The token page](tokens.md#tasks-measured-on-2026-11-20) has the count of the forms.

@@ -1,11 +1,11 @@
 ---
 title: Stage0 functions
 last-verified: 2026-11-19
-sources: [TODO.md functions item 2026-11-19, functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, stage0/ailc.s, tests/fn_*, tests/call_*, tests/buf_*fn*]
+sources: [docs/TODO.md functions item 2026-11-19, functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, stage0/ailc.s, tests/fn_*, tests/call_*, tests/buf_*fn*]
 status: current
 ---
 
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 functions
 
 **Summary.** Why `fn` / `end` / `call` / `ret` in `stage0/ailc.s` work the way they do, what was

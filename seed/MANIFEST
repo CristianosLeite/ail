@@ -1,13 +1,13 @@
-# The seeds of the compiler: released executables of stage1/ailc.ai for
+# The seeds of the compiler: released executables of the source in compiler/ for
 # x86-64 Linux, one a line, the last line the one the build is pinned to.
 #
 #   version revision sha256 url
 #
 # version   number of the seed; the release is tagged seed-<version> and
 #           the file is named ailc-<version>
-# revision  the commit whose stage1/ailc.ai and stage1/tables.ai it was
-#           built from; built again from that source by itself it gives
-#           the same file
+# revision  the commit whose source in compiler/ it was
+#           built from (in the directory stage1/ up to seed 2); built
+#           again from that source by itself it gives the same file
 # sha256    of the file; a copy with another checksum is refused
 # url       where the release keeps it
 #

@@ -71,6 +71,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a b` | Return one to six values from the function; reaching `end` returns 0 |
 | `ref f as p`, `callp p a b as x` | The address of a function, and a call through an address |
+| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/task.ai"`) |
 | `tail f a b` | Call `f` and return its result without growing the stack |
 | `call f a b as x y` | Call `f` with as many values as it has parameters; `as` names a variable per result and is optional |
 | `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |
@@ -78,7 +79,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
 | `# ...` | Comment to end of line |
 
-One statement per line. The program starts at the first line and `exit(0)` is appended at the end.
+One statement per line. The program starts at the first line and `exit(0)` is appended at the end (the syscall `exit_group`, which ends every thread).
 
 ## Documentation
 
@@ -86,13 +87,15 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
 - [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
+- [Backlog](docs/TODO.md): the limits of the compiler and the work to lift them, item by item
+- [Redesign](docs/REDESIGN.md): the goals that brought expressions, `while` and the seed-built compiler
 
 ## Layout
 
-- `stage1/ailc.ai`, `stage1/tables.ai`: the compiler, written in AIL, built by the seed and then by itself
+- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.ai` is its first file and names the others (`diag.ai`, `lex.ai`, `names.ai`, `expr.ai`, `emit.ai`, `tables.ai`) with `use`
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
-- `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements
+- `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements; `bench/par/` has programs written without and with tasks, timed by `tools/par.py`
 - `tools/`: measurements (`tokens.sh`, `perf.py`, `bench.sh`), source rewriters (`infix.py`, `fuse.py`), random programs (`randvars.py`), the seed (`seed.sh`)
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output
 - `docs/`: documentation

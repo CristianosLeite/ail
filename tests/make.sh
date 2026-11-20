@@ -19,9 +19,9 @@ leftovers() {
     ls "$d/build" | grep -v -e '^ailc[01]\{0,1\}$' -e '^good$' -e '^good\.saved$' | wc -l
 }
 
-mkdir "$d/stage1" "$d/seed" "$d/tools" "$d/examples" "$d/build"
+mkdir "$d/compiler" "$d/seed" "$d/tools" "$d/examples" "$d/build"
 cp -p Makefile "$d/"
-cp -p stage1/ailc.ai stage1/tables.ai "$d/stage1/"
+cp -p compiler/*.ai "$d/compiler/"
 cp -p seed/MANIFEST "$d/seed/"
 cp -p tools/seed.sh "$d/tools/"
 # the seed and the compilers built from it, each newer than what it is

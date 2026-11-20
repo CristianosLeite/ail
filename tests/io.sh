@@ -46,7 +46,7 @@ expect io_closed_stdin "ailc: read error"
 # its stdout sets both properties; they belong to the open pipe, so they
 # outlast it. The compiler must write the first 4096 bytes of an executable
 # larger than that, then fail on the rest.
-src=stage1/ailc.ai
+src=compiler/ailc.ai
 mkfifo $tmp/short
 exec 4<> $tmp/short
 $ailc > $tmp/setup << 'EOF2'

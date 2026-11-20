@@ -1,0 +1,36 @@
+use "lib/task.ai"
+# eight tasks that sleep, three workers: at most four run at once (the
+# joining thread runs one that waits), at least two, and no fourth worker
+buf cur 8
+buf peak 8
+buf hs 64
+fn work
+local ts 16
+xadd cur 1 as c
+c+=1
+label m
+load peak as p
+if c>p
+cas peak p c as k
+jz k m
+end
+store ts 0
+store ts+8 20000000
+sys nanosleep ts 0
+xadd cur -1 as c
+end
+call workers 3
+i=0
+while i<8
+spawn work as h
+store hs+i*8 h
+i+=1
+end
+while i
+i-=1
+load hs+i*8 as h
+join h
+end
+load peak as p
+load taskq+48 as w
+sys exit_group (p>=2)+(p<=4)*2+(w<=3)*4+(w>=1)*8

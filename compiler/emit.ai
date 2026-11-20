@@ -1,0 +1,636 @@
+# ---- output
+fn eb v
+storeb op v
+op+=1
+end
+fn e4 v
+store4 op v
+op+=4
+end
+fn z n
+op+=n
+end
+fn cp a n
+p=op
+label l
+if n
+loadb a as c
+storeb p c
+a+=1
+p+=1
+n-=1
+jmp l
+end
+op=p
+end
+# the value of the hexadecimal digit at the cursor, which is consumed
+fn hexd
+call pk as c
+call no c==256
+call adv
+call dig c as d
+if d
+ret c-48
+end
+c=(c|32)-97
+call ok c<6
+ret c+10
+end
+# copy the bytes of a string, whose opening quote is behind the cursor
+fn sbytes
+label a
+call pk as c
+if c==256
+call estr
+end
+call adv
+jeq c 34 x
+jne c 92 k
+call pk as c
+if c==256
+call estr
+end
+call adv
+if c==110
+c=10
+jmp k
+end
+if c==116
+c=9
+jmp k
+end
+if c==48
+c=0
+jmp k
+end
+jne c 120 k
+call hexd as c
+c<<=4
+call hexd as d
+c|=d
+label k
+call eb c
+call ochk
+jmp a
+label x
+end
+# mov <register d>, <register s>, 64-bit
+fn mrr d s
+call eb s>>3<<2|d>>3|72
+call eb 137
+call eb (s&7)<<3|d&7|192
+end
+# the row of regtab and argnum for the next value of the statement: its
+# position, or 7 (r11) for a value of a call after the sixth. For callp the
+# first value, the address, takes row 8 (rcx) and the rest are those of a call
+fn aidx
+loadb cur+2 as c
+if c&4
+ifz ai
+ret 8
+end
+i=ai-1
+jmp g
+end
+i=ai
+loadb cur+1 as c
+if c&16
+label g
+jlt i 6 b
+ret 7
+end
+if ai>=7
+call ecount
+end
+label b
+ret i
+end
+# the value is in its register: push it if it goes on the stack, count it
+fn anext
+i=ai
+loadb cur+2 as c
+if c&4
+i-=1
+jmp b
+end
+loadb cur+1 as c
+jz c&16 x
+label b
+jslt i 6 x
+call eb 65
+call eb 83
+pushed+=8
+label x
+ai+=1
+end
+# mov <register of the next argument>, v, in its shortest form
+fn mov v
+call aidx as i
+ifz v>>32
+r=i*2+regtab
+loadb r as c
+if c
+call eb c
+end
+loadb r+1 as c
+call eb c
+immpos=op
+call e4 v
+jmp x
+end
+call areg i as r
+call eb r>>3|72
+r&=7
+if v>=0xffffffff80000000
+call eb 199
+call eb r|192
+call e4 v
+jmp x
+end
+call eb r|184
+store op v
+op+=8
+label x
+call anext
+end
+# lea <register of the next argument>, [rip+rel32], with the rel32 zero and
+# its address in immpos
+fn elea
+call aidx as i
+call areg i as r
+call eb r>>3<<2|72
+call eb 141
+call eb (r&7)<<3|5
+immpos=op
+call e4 0
+call anext
+end
+# a 64-bit mov between the register g and memory: the cell number p (k = 1,
+# rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
+# register, 137 to store it
+fn emem g k p o
+call eb g>>3<<2|72
+if o==175
+call eb 15
+end
+call eb o
+g=(g&7)<<3
+if k==1
+call eb g|5
+c=nrefs*32+refs
+store c p
+store c+8 0
+store c+16 op
+store c+24 3
+nrefs+=1
+call e4 0
+ret 0
+end
+call eb g|132
+call eb 36
+call e4 p
+end
+# the same between the register g and variable i of the current scope; a
+# local is not stored to, and loading it gives its address (lea, 141)
+fn vmov i g o
+call vplace i as k p
+ifz k
+if o==139
+call mrr g p
+ret 0
+end
+call mrr p g
+ret 0
+end
+if k==3
+call emem g 2 p 141
+ret 0
+end
+call emem g k p o
+end
+# mov <register of the next argument>, [a]: read the cell of a var
+fn ldvar a
+call aidx as i
+call areg i as r
+call emem r 1 a 139
+call anext
+end
+# 1 if the statement is at and this is its first value, which must be a name
+fn atfirst
+ifz ai
+loadb cur+2 as c
+ret c&1
+end
+end
+# record that the imm32 just written stands for the name read last: k = 0
+# its address, 1 its length, 2 the bytes from it to the end of its object
+fn addref k
+p=nrefs*32+refs
+call putn p
+store p+16 immpos
+store p+24 k
+nrefs+=1
+end
+# the innermost open block, which the statement at hand closes or continues;
+# the jump recorded for it lands here
+fn blktop
+p=(nblk-1)*40+blks
+load p as d
+store4 d op-d-4
+ret p
+end
+# where to note what is known of the next value of the statement
+fn opdp
+i=ai
+if i>=2
+i=2
+end
+ret i*32+opd
+end
+# note that the next value is the address of the global name read last
+fn opda
+call opdp as p
+store p 2
+p+=8
+store p ns
+p+=8
+store p nl
+store p+8 0
+end
+# copy the four cells at a to b
+fn cp4 a b
+n=4
+label l
+load a as c
+store b c
+a+=8
+b+=8
+n-=1
+jnz n l
+end
+# forget what is known of the variables: at a label and at the end of a
+# function (the first pass over the next one may see stale knowledge, but
+# its checks are dropped)
+fn clrvk
+p=vk
+n=64
+label a
+store p 0
+p+=32
+n-=1
+jnz n a
+end
+# the statement assigns variable i: note what is known of the new value.
+# Only set, add and sub carry knowledge
+fn prop i
+k=i*32+vk
+store k 0
+load2 cur+1 as c
+jnz c!=1 x
+loadb cur+3 as n
+ifz n
+load opd as c
+jnz c==3 x
+d=0
+jmp e
+end
+jne n 3 x
+load4 cur+4 as c
+c&=0xffffff
+q=opd+32
+load q as t
+load q+8 as u
+if c!=0xf80148
+jne c 0xf82948 x
+jne t 1 x
+d=0-u
+jmp e
+end
+jne t 1 f
+d=u
+label e
+load opd as c
+jeq c 1 g
+jne c 2 x
+store k 2
+load opd+8 as c
+store k+8 c
+load opd+16 as c
+store k+16 c
+load opd+24 as c
+store k+24 c+d
+ret 0
+label g
+store k 1
+load opd+8 as c
+store k+8 c+d
+ret 0
+label f
+load opd as c
+jnz c!=1 x
+jne t 2 x
+load opd+8 as d
+store k 2
+store k+8 u
+load opd+48 as c
+store k+16 c
+load opd+56 as c
+store k+24 c+d
+label x
+end
+# a load or store, r = its row: check an access through a string now, and
+# note one through a global name plus a number for the end
+fn memchk r
+loadb r-1 as c
+w=8
+if c==98
+w=1
+end
+if c==50
+w=2
+end
+if c==52
+w=4
+end
+loadb r+1 as c
+if c&2
+w|=256
+end
+load opd as c
+if c==3
+if w&256
+call eaccl
+end
+d=w&255
+load opd+8 as c
+jz d>c x
+call eaccl
+end
+jne c 2 x
+p=nchks*32+chks
+load opd+8 as c
+store p c
+load opd+16 as c
+p+=8
+store p c
+load opd+24 as c
+p+=8
+store p c
+p+=8
+store4 p w
+store4 p+4 ip-in
+nchks+=1
+label x
+end
+# no way leads to the code that follows, until a label: remember what was
+# assigned and take everything as assigned
+fn godead
+ifz dead
+jmask=asg
+dead=1
+asg=-1
+end
+end
+# the label read last is being defined: asg becomes what is assigned on
+# every way to it, the line before and each jump seen so far; a label that
+# only later jumps reach starts from jmask
+fn labasg
+call hfind 4 scope as p
+jz p n
+load p+8 as m
+asg&=m
+jmp x
+label n
+jz dead x
+asg=jmask
+label x
+dead=0
+end
+# sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
+# function has stack slots
+fn frame o
+c=fnslots*8+fnlocal
+if c
+jne o 236 s
+jlt c 4096 s
+call cp probe 36
+store4 op-34 c
+ret 0
+label s
+call eb 72
+call eb 129
+call eb o
+call e4 c
+end
+end
+# how many bytes of the six pops to leave out: those of the registers that
+# the function does not use and so did not save
+fn popskip
+loadb fnregs+pushlen as c
+ret 10-c
+end
+# no variable is a local: where a function starts and ends
+fn clrloc
+p=vlocal
+n=64
+label a
+store p 0
+p+=8
+n-=1
+jnz n a
+end
+# give each of the nv variables of the function a place. A variable is in
+# use from its definition to its last mention; if that range meets a loop,
+# to the end of the loop. A place is free for a variable defined after the
+# last mention of the one that had it.
+fn alloc
+label a
+g=0
+n=nloops
+b=loops
+while n
+load b as lo
+load b+8 as hi
+i=0
+label v
+if i<nv
+k=i*8
+load k+vfirst as t
+jnz t>hi s
+k+=vlast
+load k as t
+jlt t lo s
+jge t hi s
+store k hi
+g=1
+label s
+i+=1
+jmp v
+end
+b+=16
+n-=1
+end
+jnz g a
+i=0
+label z
+store i*8+locfree 0
+i+=1
+jlt i 70 z
+fnslots=0
+fnregs=0
+i=0
+while i<nv
+k=i*8
+load k+vlocal as t
+jnz t c
+load k+vfirst as lo
+load k+vlast as hi
+j=0
+label q
+t=j*8+locfree
+load t as u
+ifz u<lo
+j+=1
+jmp q
+end
+store t hi
+storeb i+fnloc j
+if j<6
+jlt j fnregs c
+fnregs=j+1
+jmp c
+end
+j-=5
+jle j fnslots c
+fnslots=j
+label c
+i+=1
+end
+end
+# the code of the statement, after checking its operand count; a call
+# also leaves room for its rel32 and is recorded
+fn eop
+r=cur
+loadb r+1 as f
+jnz f&20 k
+loadb r+2 as c
+if c&4
+ifz ai
+call ecount
+end
+jmp k
+end
+if f&32
+ifz ai
+call ecount
+end
+if ai>6
+call ecount
+end
+ifz fnres
+fnres=ai
+end
+jeq fnres ai k
+call eres
+end
+loadb r as c
+if c!=ai
+call ecount
+end
+label k
+if f&128
+call memchk r
+end
+jz f&32 m
+if f&16
+if ai>6
+call ecount
+end
+fntail=1
+end
+call frame 196
+call godead
+call popskip as n
+loadb r+3 as c
+call cp r+4+n c-n
+jmp h
+label m
+loadb r+3 as c
+p=r+4+xskip
+c-=xskip
+xskip=0
+call cp p c
+label h
+jz f&16 w
+i=ai
+loadb cur+2 as c
+if c&32
+if c&2
+# spawn: the row was lea rax, [rip+rel32] for the function, recorded with
+# the count of the values so that it is checked; then the call
+if ai>6
+call ecount
+end
+call ok ncap==1
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai-1
+store4 p+28 0
+call z 4
+ncalls=n+1
+call eb 232
+i=0xffffffff
+end
+cn=kwn
+cl=kwl
+jmp g
+end
+if c&2
+if ai
+call ecount
+end
+call ok ncap==1
+i=0xffffffff
+end
+label g
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 i
+store4 p+28 ncap
+call z 4
+ncalls=n+1
+label w
+if pushed
+call eb 72
+call eb 129
+call eb 196
+call e4 pushed
+pushed=0
+end
+end
+# fill in the jumps of the current scope, now that its labels are known
+fn resolve
+i=fixbase
+n=nfix-i
+p=i*32+fixs
+while n
+call getn p
+epos=ns
+call llab as c
+if c==-1
+call elab
+end
+load (c+labbase)*40+labs+16 as c
+load p+16 as i
+store4 i c-i-4
+p+=32
+n-=1
+end
+epos=0
+end

@@ -41,7 +41,7 @@ check() {
     fi
     size=$(wc -c < "$out/bin")
     LC_ALL=C awk -v size="$size" "$lib $2 BEGIN { init(); rw = int((size + 4095) / 4096) * 4096
-        header(MEM); code(); b(\"184 60 0 0 0 49 255 15 5\") }" > "$out/want"
+        header(MEM); code(); b(\"184 231 0 0 0 49 255 15 5\") }" > "$out/want"
     ok=1
     cmp -s "$out/want" "$out/bin" || ok=0
     if [ -n "${AILC2:-}" ]; then

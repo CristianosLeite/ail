@@ -1,0 +1,321 @@
+# ---- tables of names
+# 1 if the n bytes at a and b are equal
+fn eqn a b n
+label l
+jz n y
+loadb a as c
+loadb b as d
+ifz c!=d
+a+=1
+b+=1
+n-=1
+jmp l
+label y
+ret 1
+end
+end
+# 1 if the table entry q holds the name read last
+fn same q
+load q+8 as t
+n=nl
+ifz t!=n
+load q as q
+call eqn q ns n as t
+ret t
+end
+end
+# index of the name read last among n entries of z bytes at b, or -1
+fn look b n z
+i=0
+label a
+if i<n
+call same b as t
+ifz t
+b+=z
+i+=1
+jmp a
+end
+ret i
+end
+ret -1
+end
+# the variable pool of the current scope
+fn vbase
+p=vars
+if infn
+p+=1024
+end
+ret p
+end
+fn lvar
+call vbase as p
+call look p nv 16 as i
+ret i
+end
+# the top-level variables, also from inside a function
+fn ltop
+p=vars
+n=nv
+if infn
+n=topvars
+end
+call look p n 16 as i
+ret i
+end
+# labels, functions and global names are found through one hash table with
+# chains. Nodes are never removed, except those of the first pass over a
+# function; the labels of a finished function match nothing afterwards,
+# since every function has a scope number of its own.
+# the bucket of the name read last with the kind k in the scope sc
+fn hhash k sc
+m=sc*0x9e3779b1+k&0xffffffff
+h=2166136261
+p=ns
+n=nl
+while n
+loadb p as c
+h=(h^c)*16777619&0xffffffff
+p+=1
+n-=1
+end
+h^=m
+h=(h^h>>15)&1048575
+hbkt=h
+ret h
+end
+# the node of the name read last with the kind k in the scope sc, or 0
+fn hfind k sc
+call hhash k sc as b
+load b*8+buckets as i
+while i
+p=i*64+hnodes-64
+load p+56 as c
+jne c k t
+load p+32 as c
+jne c sc t
+load p+16 as c
+jne c nl t
+load p as q
+call eqn q ns nl as c
+jz c t
+ret p
+label t
+load p+24 as i
+end
+end
+# add a node for the name read last with the kind k in the scope sc and the
+# value v, in front of its bucket, and return it
+fn hadd k sc v
+call hhash k sc as b
+nhn+=1
+p=nhn*64+hnodes-64
+store p ns
+store p+8 0
+store p+16 nl
+store p+32 sc
+store p+40 v
+store p+48 b
+store p+56 k
+b=b*8+buckets
+load b as c
+store p+24 c
+store b nhn
+ret p
+end
+# remove the nodes added after the first n, last first: each is then the
+# first of its bucket
+fn hundo n
+while nhn>n
+p=nhn*64+hnodes-64
+load p+48 as b
+load p+24 as c
+store b*8+buckets c
+nhn-=1
+end
+end
+# the index that the node p holds, or -1 for no node
+fn hval p
+ifz p
+ret -1
+end
+load p+40 as p
+ret p
+end
+fn lbuf
+call hfind 1 0 as p
+tail hval p
+end
+# the entry of global name i
+fn gent i
+ret i*48+globs
+end
+# the name read last must not be in use at top level or in the open
+# function: enter it as the next global name and return its entry
+fn newglob
+call lvar as c
+call nodup c
+call ltop as c
+call nodup c
+call lbuf as c
+call nodup c
+call gent nbufs as p
+call putn p
+ret p
+end
+# the syscall number named at the cursor: a const of the program, or else
+# one of the names in sysnames
+fn sname
+call rdname
+call lbuf as i
+if i!=-1
+call gent i as p
+load p+32 as c
+call ok c==2
+load p+24 as p
+ret p
+end
+r=sysnames
+label a
+loadb r as l
+call ok l
+r+=1
+jne l nl t
+call eqn r ns l as c
+jz c t
+load2 r+l as r
+ret r
+label t
+r=r+l+2
+jmp a
+end
+# the value of the const whose name is at the cursor
+fn cname
+call rdname
+call lbuf as i
+call ok i!=-1
+call gent i as p
+load p+32 as c
+call ok c==2
+load p+24 as p
+ret p
+end
+# a label of the current scope: the index counts from labbase
+fn llab
+call hfind 3 scope as p
+ifz p
+ret -1
+end
+load p+40 as p
+ret p-labbase
+end
+fn lfn
+call hfind 2 0 as p
+tail hval p
+end
+# the global name whose entry newglob wrote is complete: from here on it is
+# found
+fn globdone
+call gent nbufs as p
+call getn p
+call hadd 1 0 nbufs
+nbufs+=1
+end
+# write the name read last into the table entry p, or read it back from it
+fn putn p
+store p ns
+store p+8 nl
+end
+fn getn p
+load p as c
+ns=c
+load p+8 as c
+nl=c
+end
+# read a variable name and find it in the pool of the scope, or add it
+fn defvar
+call rdname
+tail defv
+end
+# the same for the name read last
+fn defv
+call lbuf as c
+jeq c -1 v
+ifz infn
+call edup
+end
+call gent c as c
+load c+32 as c
+jz c==1 v
+call edup
+label v
+call lvar as i
+jne i -1 x
+i=nv
+if i>=64
+call evar
+end
+call vbase as p
+call putn p+i*16
+nv=i+1
+ifz infn
+if i>=6
+ngv+=1
+store i*8+topcell ngv
+end
+ret i
+end
+store i*8+vfirst ip
+label x
+store i*8+vlast ip
+ret i
+end
+# where variable i of the current scope lives, as two results: 0 and its
+# x86 register, 1 and the address of its cell, 2 and its distance from rsp,
+# or for a local 3 and the distance of its bytes from rsp
+fn vplace i
+ifz infn
+if i<6
+label r
+loadb i+varnum as i
+ret 0 i
+end
+load i*8+topcell as i
+ret 1 i
+end
+load i*8+vlocal as c
+if c
+ret 3 fnslots*8+c-1+pushed
+end
+if pass==1
+i=0
+jmp r
+end
+loadb i+fnloc as i
+jlt i 6 r
+ret 2 i*8-48+pushed
+end
+# the optab row of the name read last, at its operand count, or 0
+fn kw
+r=optab
+n=nl
+p=ns
+label a
+loadb r as l
+if l
+r+=1
+jne l n t
+call eqn r p n as c
+jz c t
+ret r+l
+label t
+r+=l
+loadb r+3 as c
+r=r+4+c
+jmp a
+end
+end
+# x86 register number of argument position i
+fn areg i
+loadb i+argnum as i
+ret i
+end

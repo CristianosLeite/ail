@@ -35,7 +35,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   before concluding anything about generated code.
 - The CPU-bound examples are written at top level with at most six variables, because the
   seventh top-level variable lives in a memory cell.
-- `stage1/ailc.ai` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
+- `compiler/ailc.ai` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
 - A number after a space is two tokens or more, a name one. `4294967295` is four tokens,
   `0xffffffff` two. `jz` and `jnz` are two tokens each; `load4` and `loadb` are two, `load` one.
 - A comparison plus its conditional jump is twelve tokens; one compare-and-branch line would be

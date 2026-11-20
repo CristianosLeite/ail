@@ -1,8 +1,8 @@
 # How the compiler works
 
-`stage1/ailc.ai` is the AIL compiler, written in AIL, with its read-only tables in `stage1/tables.ai`: about 4700 lines together, a tenth of them comments, and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`compiler/ailc.ai` is the AIL compiler, written in AIL. It holds the declarations and the top level and names the other files with `use`: its functions in `compiler/diag.ai` (errors), `compiler/lex.ai` (input), `compiler/names.ai` (tables of names), `compiler/expr.ai` (expressions and their code) and `compiler/emit.ai` (output), and its read-only tables in `compiler/tables.ai`: about 4700 lines together, a tenth of them comments, and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
-It is the only compiler. It began as a translation, routine by routine, of a compiler in x86-64 assembly (`stage0/ailc.s`) that built it the first time; that one was removed on 2026-11-20 and is in the history of the repository. The directory is still called `stage1`.
+It is the only compiler. It began as a translation, routine by routine, of a compiler in x86-64 assembly (`stage0/ailc.s`) that built it the first time; that one was removed on 2026-11-20 and is in the history of the repository. The directory was called `stage1` until 2026-11-20; the seeds of `seed/MANIFEST` were built from it under that name.
 
 ## Building it
 
@@ -10,15 +10,15 @@ The compiler is built by a released copy of itself, a seed, and then by itself:
 
 ```
 tools/seed.sh build/ailc0                      # the pinned seed, checked against its SHA-256
-build/ailc0 < stage1/ailc.ai > build/ailc1     # built by the seed, from the top of the repository
-build/ailc1 < stage1/ailc.ai > build/ailc      # built by that: the compiler
-build/ailc  < stage1/ailc.ai > build/ailc2     # built by itself
+build/ailc0 < compiler/ailc.ai > build/ailc1     # built by the seed, from the top of the repository
+build/ailc1 < compiler/ailc.ai > build/ailc      # built by that: the compiler
+build/ailc  < compiler/ailc.ai > build/ailc2     # built by itself
 cmp build/ailc build/ailc2                     # the same file: a fixed point
 ```
 
 `make` builds `build/ailc`, and `make test` builds `build/ailc2` and checks the fixed point. Three generations are needed because the seed may be an older compiler: it understands the source but may write other code for it, so `build/ailc1` behaves like the current compiler without being the same file. `build/ailc` and `build/ailc2` are both written by a compiler that behaves like the current one, and must be equal.
 
-`seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `stage1/ailc.ai` and `stage1/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores. `tools/seed.sh` writes the pinned seed to `build/ailc0`: it uses the local copy when there is one and otherwise fetches it there, with `curl`, or with `gh release download` when the release needs a login, as that of a private repository does. A copy whose checksum is not the manifest's is refused and the build stops; a fetched one is then removed. Seed 1 is the compiler as the one in assembly built it on 2026-11-20, 30796 bytes, the same file when built again by itself. Seed 2, of the same day, is the fixed point of the build that started from seed 1, 41784 bytes: the first compiler that understands expressions, `name=expression` and `while`, and that compiles the statements which only compute, compare or access memory like expressions. It is pinned so that the source of the compiler may use those forms.
+`seed/MANIFEST` lists the seeds, one a line: the version, the commit whose source in `compiler/` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores. `tools/seed.sh` writes the pinned seed to `build/ailc0`: it uses the local copy when there is one and otherwise fetches it there, with `curl`, or with `gh release download` when the release needs a login, as that of a private repository does. A copy whose checksum is not the manifest's is refused and the build stops; a fetched one is then removed. Seed 1 is the compiler as the one in assembly built it on 2026-11-20, 30796 bytes, the same file when built again by itself. Seed 2, of the same day, is the fixed point of the build that started from seed 1, 41784 bytes: the first compiler that understands expressions, `name=expression` and `while`, and that compiles the statements which only compute, compare or access memory like expressions. It is pinned so that the source of the compiler may use those forms.
 
 The source of the compiler may only use what the pinned seed understands. A new statement is first implemented in the old language; then a seed is released and pinned; from then on the source may use the statement.
 
@@ -29,7 +29,7 @@ There is one pass over the top level and two over each function, and no intermed
 1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
-4. Append the code for `exit(0)`.
+4. Append the code for `exit_group(0)`.
 5. Fill in the displacement of every top-level jump from the label table and of every call from the function table. Place the writable segment on the page after the code and fill in the distance to every buffer, data name and var cell, and the lengths of names used before their declaration.
 6. Patch the segment sizes and the address of the second segment in the header, write the buffer to stdout, exit.
 
@@ -42,6 +42,8 @@ The input buffer holds the source from stdin and, behind it, every file named by
 `usedef` looks the path up in `uses`, where paths are kept as written; a hit means the file was compiled and the statement does nothing, which also ends any cycle. Otherwise it copies the path to `pathbuf` with a NUL, opens and reads the file, pushes the input cursor and the end of the current unit on `ustack`, and points both at the new bytes. `next` and the comment scanner go to `uend` at the end of the input they scan: it pops the stack, or finishes when it is empty. A function must end in its unit, which both the `use` and the end of a unit check, because the second pass over a function returns to a saved place in the input.
 
 ## Shape of the program
+
+The source is seven files, joined by `use`. `compiler/ailc.ai` is the one given to the compiler: the declarations of every `var`, `const` and `buf`, then a `use` for each file of functions, then the top level, then the `use` of the tables. A used file is compiled where its `use` stands and shares every global name, so the split changes nothing in the compiled program: the functions stand in `build/ailc` in the order of the five lines, `compiler/diag.ai` (the errors), `compiler/lex.ai` (reading the input), `compiler/names.ai` (the tables of names), `compiler/expr.ai` (expressions, their code, loads and stores, and the statements compiled like expressions) and `compiler/emit.ai` (output, the checks of accesses and assignments, frames and the fixups of jumps). A function is whole in one file, because a function may not span units, and the top level stays in one file, because its states share labels and variables. Each path is written the same way everywhere, since a `use` is done once per path as written, and all of them are opened from the top of the repository.
 
 Parsing is a state machine whose states jump to each other. Labels are local to a function in AIL, so the states are the top level of the program: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `usedef`, `uend`, `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef`, `blkend`, `elsedef`, `jtarget`, `fndef`, `fnend` and `fin`.
 
@@ -62,7 +64,7 @@ The top level uses the six variables `c d r f p q`, which are the ones that get 
 | `earg` | an argument that is an expression: parse it and compute it into the register of its position |
 | `xarg` | a value of a statement that is compiled like an expression: parse it, compute nothing yet |
 | `asgn` | `name=expression` and `name+=expression`: compute and store |
-| `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
+| `fin` | emit `exit_group(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
 
 Everything else is a function:
 
@@ -160,7 +162,7 @@ The bytes lie just behind the `lea`, at a distance that is known as soon as the 
 
 **End of statement.** The instruction bytes of the statement, copied from its `optab` entry by `eop`; for `sys` that is `syscall` (`0F 05`). With `as`, they are followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
-**End of program.** `mov eax, 60` / `xor edi, edi` / `syscall`.
+**End of program.** `mov eax, 231` / `xor edi, edi` / `syscall`: `exit_group(0)`, which ends every thread of the process, where `exit` (60) would end only the one that reached the last line and leave a program with other threads running.
 
 ## Operations
 
@@ -207,6 +209,8 @@ That is the general way, and what the table below shows. The statements that onl
 | `call` | `call rel32` |
 | `ref` | `lea rax, [rip+rel32]`, the address of the function |
 | `callp` | `call rcx` |
+| `spawn` | `lea rax, [rip+rel32]` (the function), then `call rel32` (the function `spawn`) |
+| `join` | `call rel32` (the function `join`) |
 | `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret`, without the pops of registers the function does not use |
 | `tail` | the same pops, then `jmp rel32` |
 
@@ -214,7 +218,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and a `jz` or `jnz` on its result tests the value again; write the comparison and the jump as one statement.
 
-The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`; a new flag goes there, the first byte being full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` (`args`) is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function, because only at top level does `rsp` still point at what the kernel passed, the top level keeping its variables in registers and cells and pushing nothing between statements. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`, 32 `IS_LIB`; a new flag goes there, the first byte being full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` (`args`) is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function, because only at top level does `rsp` still point at what the kernel passed, the top level keeping its variables in registers and cells and pushing nothing between statements. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 
@@ -240,7 +244,7 @@ dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
 e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
 e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
 e8:  0f 05               syscall
-ea:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
+ea:  b8 e7 00 00 00      mov  eax, 231        ; implicit exit_group(0), never reached here
 ef:  31 ff               xor  edi, edi
 f1:  0f 05               syscall
 ```
@@ -413,6 +417,8 @@ The entry gets the address of `entry` and the number of parameters. Each paramet
 
 `fin` walks `calls` once every function is known: a name missing from `funs` is `undefined function`, a value count that differs from the parameters is `wrong argument count`, more names than results is `wrong result count`, and otherwise the displacement is written like a jump's. An entry whose value count is all ones comes from `ref`: its four bytes are the `rel32` of a `lea` and get the same distance, without the checks.
 
+**Tasks.** `spawn` and `join` are rows flagged `IS_LIB`: the function they call is the one of the program named like the keyword, so the compiler holds no code of the tasks and a program that has the statements defines the functions, with `use "lib/task.ai"`. `next` keeps the keyword's place in the source in `kwn` and `kwl`, and `eop` makes it the name of the call entry, so an `undefined function spawn` has the line of the statement. `join` is otherwise a `call`: values from position 0, the count checked against the one parameter of `join`. `spawn` has `IS_REF` as well: `next` reads a function name into `cn` and `cl` as for `ref` and starts the values at position 1 (`rdi`), leaving `rax` for the address. `eop` copies the row, `lea rax, [rip+rel32]`, and records it in `calls` with the number of values, where `ref` records all ones, so `fin` reports `wrong argument count` for the function of the task; then it writes `call rel32` with an entry of all ones, since the function `spawn` takes the address and five values whether or not the statement gave five (a register that was not set holds a value that the task's function does not read). More than five values are `wrong operand count`.
+
 **Indirect call.** `callp` is a row flagged `IS_PTR` with the bytes of `call rcx`. `aidx` sends its first value to `rcx`, row 8 of `regtab` and `argnum`, and treats the values after it as those of a call, one position lower; `anext` and the removal of pushed values follow. Nothing is recorded, so nothing is checked. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
 Because the callee saves every variable register it uses, the caller emits nothing but the `call`. `alloc` counts the registers in `fnregs`; since it always takes the lowest free one, they are the first `fnregs` of the six. `fndef` copies that many pushes (`pushlen` gives the bytes) and `popskip` tells `ret`, `tail` and `end` how many bytes of the six pops to leave out. The first pass works with all six; its code is dropped.
@@ -494,7 +500,7 @@ The `program too big` check cannot fail while the 16-to-1 argument holds, so no 
 
 ## Read-only tables
 
-The tables are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` (the names of the comparisons), `xopc` (the opcodes of the operators of an expression) and `xord` (the order in which registers are taken), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
+The tables are `data` statements in a file of their own, `compiler/tables.ai`, which the last line of `compiler/ailc.ai` names with `use "compiler/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` (the names of the comparisons), `xopc` (the opcodes of the operators of an expression) and `xord` (the order in which registers are taken), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
 
 The file is the definition of the tables. It was first printed from the bytes that the compiler in assembly assembled to; now a row is edited here. A row is decimal bytes, which no one reads as instructions, so two checks stand where the generator stood. `tests/tables.sh` checks the form: every length is that of its name or code, no statement or syscall name occurs twice, the flags are ones that exist, the two tables with rows end, the others have their size, and each syscall number is the one in a list of the script's own. `tests/insn.sh` checks the bytes: `tests/insn.cases` has a line for every row of the statement table and for the other tables, with a source, the code it must compile to in hex, and the same code as instructions. The hex is what GNU `as` writes for the instructions (`tests/insn.sh hex '<instructions>'` prints it and `tests/insn.sh asm` checks the two columns), so the expected bytes do not come from the compiler; the run in `make test` needs no assembler.
 
@@ -514,7 +520,7 @@ The compiler was first checked by comparing it with the one in assembly on every
 
 ## Adding a statement
 
-A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row of `optab` in `stage1/tables.ai`: write the instructions, take their bytes from `tests/insn.sh hex`, and add the case to `tests/insn.cases`. Anything else, like `buf`, `data`, `var`, `const`, `label`, `fn` and `end`:
+A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row of `optab` in `compiler/tables.ai`: write the instructions, take their bytes from `tests/insn.sh hex`, and add the case to `tests/insn.cases`. Anything else, like `buf`, `data`, `var`, `const`, `label`, `fn` and `end`:
 
 1. Add a row with the flags 255 and the next number, and a `jeq` for that number in `next`; a number without one falls into `whiledef`.
 2. Write the state: it reads from `ip`, appends at `op`, and ends its last token through `eol`.

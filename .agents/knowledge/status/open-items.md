@@ -11,6 +11,6 @@
 - [x] 2026-11-19 — Report a line number on compile errors ([page](../architecture/language-extensions.md))
 - [x] 2026-11-19 — Automate the Makefile failed-build check, which the test runner cannot express (compiler I/O errors are in `tests/io.sh` since 2026-11-19) ([page](../testing/stage0-test-suite.md))
 - [x] 2026-11-19 — Check emitted bytes in tests (every displacement of a full fixup table), which the runner cannot do today ([page](../testing/stage0-test-suite.md))
-- [x] 2026-11-20 — The redesign of `REDESIGN.md`: seed bootstrap and removal of stage0, infix expressions and `while`, instruction selection, corpus and compiler rewritten; report in `docs/performance.md` ([seed](../architecture/seed-bootstrap.md), [syntax](../architecture/expression-syntax.md))
+- [x] 2026-11-20 — The redesign of `docs/REDESIGN.md`: seed bootstrap and removal of stage0, infix expressions and `while`, instruction selection, corpus and compiler rewritten; report in `docs/performance.md` ([seed](../architecture/seed-bootstrap.md), [syntax](../architecture/expression-syntax.md))
 - [ ] 2026-11-20 — `collatz` is 12.6% behind C; closing it needs analysis across statements (a loop-invariant address in a register, a scaled index, folding one branch into another)
 - [ ] 2026-11-19 — Compare the tiktoken counts with Claude's tokenizer ([page](../architecture/token-cost-measurement.md))

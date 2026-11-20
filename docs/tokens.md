@@ -34,7 +34,7 @@ The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL
 
 ## Where the tokens go
 
-Measured on the first `stage1/ailc.ai` without comments: 6181 tokens in 1107 lines, 5.6 a line.
+Measured on the first `compiler/ailc.ai` without comments: 6181 tokens in 1107 lines, 5.6 a line.
 
 - **The line end is a token**, and so is every statement that an expression language would nest: 1096 of the 6181 tokens are line ends. One operation per line is the main cost against C.
 - **`as` is a token** on 422 lines. It is the price of naming every intermediate result.
@@ -51,18 +51,18 @@ Measured on the first `stage1/ailc.ai` without comments: 6181 tokens in 1107 lin
 
 Run the script again after a change of syntax and update the table when an example changes.
 
-`tools/infix.py` rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `stage1/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
+`tools/infix.py` rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `compiler/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
 
 ## Control flow, measured on 2026-11-20
 
-Before choosing new forms of control flow, the cost of the existing ones was counted in `stage1/ailc.ai` and the examples together: 13447 tokens in 2443 lines.
+Before choosing new forms of control flow, the cost of the existing ones was counted in `compiler/ailc.ai` and the examples together: 13447 tokens in 2443 lines.
 
 - Jumps, labels and comparisons were 3894 tokens, 29% of all.
 - 160 comparisons were followed by a `jz` or `jnz` on their result. One statement for the pair saves 857 tokens: 6.4% of all, 22% of the control flow.
 - 152 of the 242 labels were the target of a single forward conditional jump, the shape of an `if`. A block that needs no label name saves 602 tokens: 4.5% of all, 15% of the control flow.
 - 31 labels were the target of a single backward jump, the shape of a loop. A loop statement would save little, since a loop still needs its test and often a second exit.
 
-So the compare-and-jump statements and the `if` blocks were added, and no loop statement then. `while` came with expressions (below): on programs that compute, a loop with its test in one line is worth more than it was in the compiler source, where most loops have a second exit. After rewriting stage1 with `tools/fuse.py`, `stage1/ailc.ai` went from 13483 to 12305 tokens.
+So the compare-and-jump statements and the `if` blocks were added, and no loop statement then. `while` came with expressions (below): on programs that compute, a loop with its test in one line is worth more than it was in the compiler source, where most loops have a second exit. After rewriting stage1 with `tools/fuse.py`, `compiler/ailc.ai` went from 13483 to 12305 tokens.
 
 ## Expressions, measured on 2026-11-20
 
@@ -114,3 +114,16 @@ What the counts show:
 - A string stays a whole argument. Signed and float operations, the atomic ones, loads, stores and calls stay statements; a load in an expression is left out until programs show it paying.
 
 With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust. The examples as they were then written came to 970: `isort` lost five more by leaving its loop through a jump instead of a second label.
+
+## Tasks, measured on 2026-11-20
+
+`spawn` and `join` are statements so that a task costs what a call costs:
+
+| form | tokens |
+|---|---:|
+| `call steps lo hi as x` | 7 |
+| `spawn steps lo hi as h` | 7 |
+| `join h as x` | 5 |
+| the same with library functions only: `ref steps as p`, `call spawn p lo hi 0 0 0 as h`, `call join h as x` | 25 |
+
+A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.

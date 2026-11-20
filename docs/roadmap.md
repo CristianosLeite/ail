@@ -12,8 +12,8 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Control flow: `label`, `jmp`, `jz` and `jnz`, with forward jumps patched from a fixup list at the end of the single pass.
 - Functions: `fn` ... `end`, `call` and `ret`, with up to 64 parameters, variables and labels local to each function, recursion and forward calls.
-- Stage1: the compiler written in AIL (`stage1/ailc.ai`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
-- One compiler (2026-11-20): the build starts from a released copy of stage1, a seed pinned by checksum in `seed/MANIFEST`, the tables of stage1 are their own source, the tests stand without a second compiler, and stage0 is removed.
+- Stage1: the compiler written in AIL (`compiler/ailc.ai`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
+- One compiler (2026-11-20): the build starts from a released copy of the compiler, a seed pinned by checksum in `seed/MANIFEST`, the tables of the compiler are their own source, the tests stand without a second compiler, and stage0 is removed.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
 ## Next: develop the language in AIL
@@ -43,4 +43,4 @@ All three are done as of 2026-11-20: the corpus is 970 tokens against 1118 for C
 
 ## Not planned
 
-- A second target architecture, linkable object files, a platform calling convention and dynamic linking were evaluated on 2026-11-20 and left out. Each would add a second code generator or a file format to both compilers, for no program that needs it. A second target, if ever wanted, would start as a cross-compiling backend in stage1.
+- A second target architecture, linkable object files, a platform calling convention and dynamic linking were evaluated on 2026-11-20 and left out. Each would add a second code generator or a file format to both compilers, for no program that needs it. A second target, if ever wanted, would start as a cross-compiling backend in the compiler.

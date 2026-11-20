@@ -1,13 +1,13 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, docs/TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
 status: current
 ---
 
 > **2026-11-20:** the decision recorded below against infix expressions was reversed the same day: see [Expression syntax](expression-syntax.md). The statement forms stay beside the expressions.
 >
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `stage1/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 design decisions
 
 **Summary.** Why the bootstrap compiler (`stage0/ailc.s`) and the first syntax look the way they do,
