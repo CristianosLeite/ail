@@ -112,6 +112,7 @@ data 5 "local" 8 255 0 0
 data 3 "use" 9 255 0 0
 data 4 "else" 10 255 0 0
 data 5 "while" 11 255 0 0
+data 5 "async" 12 255 0 0
 data 0
 # names that sys accepts for a syscall number, unless the program has a
 # const of that name: name length, name, number as two bytes
@@ -159,6 +160,14 @@ data 0
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195
 # function entry: six pushes
+# an async function: test rax, rax and jz over the stores of its
+# parameters, in the code that makes its task; the entry of its poll
+# function, push rbx, mov rbx, rax, mov rax, [rbx+8], test rax, rax,
+# jz +2, jmp rax; and its return, mov [rbx+16], rax, mov eax, 1, pop rbx,
+# ret
+data asytst 72 133 192 116 0
+data asypoll 83 72 137 195 72 139 67 8 72 133 192 116 2 255 224
+data asyret 72 137 67 16 184 1 0 0 0 91 195
 data fnpush 83 85 65 84 65 85 65 86 65 87
 # xor eax,eax ; xor edi,edi ; xor esi,esi ; xor edx,edx ; xor r10d,r10d ;
 # xor r8d,r8d -- and how many of those bytes clear the first n results

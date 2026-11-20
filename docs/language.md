@@ -441,6 +441,33 @@ call workers 4
 - The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
 - The library owns the names `spawn`, `join`, `workers` and every name that starts with `task`: its other functions, its buffer and all its variables. A program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, the library's included. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
+#### Async functions
+
+```
+use "lib/async/task.ai"
+async fn name a b
+...
+ret x
+end
+call name 1 2 as h
+```
+
+`async fn` defines a function that runs as a task of [the async library](#the-async-library). A call of it runs none of its lines: it makes the task, with the values of the call as its parameters, puts it in the queue and returns its handle, which is the one result of the call. The lines run when the task is polled, and the value of its `ret` is the result of the task, which `await` gives:
+
+```
+use "lib/async/task.ai"
+async fn mul a b
+ret a*b
+end
+call mul 6 7 as h
+call await h 0 as x     # 42
+```
+
+- An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
+- The task is made by the function `async` of the program, which `lib/async/task.ai` defines; without that `use` an async function is an `undefined function async`.
+- **Its variables live in the record of the task**, not in registers and not on the stack, so that they are there when the task goes on after a wait: every use of a variable is a use of memory. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
+- The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
+
 #### Recursion and the stack
 
 A call uses 8 bytes of stack for the return address, 8 for each register the function saves, 8 for each value after the sixth, 8 for each variable that did not get a register and the bytes of its [locals](#local). A function with two variables, like `fact` above, takes 24 bytes a call, so the usual 8 MiB stack allows some 350000 nested calls.
@@ -1041,12 +1068,12 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `use` or `args` inside one; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `args` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; `spawn` with more than five values; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `spawn` with more than five values; more than seven values after `sys` |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -1057,7 +1084,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
-| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; with the name of the function, a `call` with more names after `as` than it has results |
+| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |

@@ -271,7 +271,9 @@ ret i
 end
 # where variable i of the current scope lives, as two results: 0 and its
 # x86 register, 1 and the address of its cell, 2 and its distance from rsp,
-# or for a local 3 and the distance of its bytes from rsp
+# or for a local 3 and the distance of its bytes from rsp. In an async
+# function the distances are from the start of the record of the task,
+# which rbx holds, behind its 64 bytes
 fn vplace i
 ifz infn
 if i<6
@@ -284,6 +286,9 @@ ret 1 i
 end
 load i*8+vlocal as c
 if c
+if fnasy
+ret 3 fnslots*8+c+63
+end
 ret 3 fnslots*8+c-1+pushed
 end
 if pass==1
@@ -292,6 +297,9 @@ jmp r
 end
 loadb i+fnloc as i
 jlt i 6 r
+if fnasy
+ret 2 i*8+16
+end
 ret 2 i*8-48+pushed
 end
 # the optab row of the name read last, at its operand count, or 0

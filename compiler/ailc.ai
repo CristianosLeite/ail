@@ -14,6 +14,9 @@ var ip ie op ai nv cur ns nl
 var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
 # kwn, kwl = the keyword of a spawn or join, the name of the function they call
 var kwn kwl
+# fnasy = 1 in an async function; asyn, asyl = the word async of it, the
+# name of the function that makes its task
+var fnasy asyn asyl
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
@@ -218,6 +221,7 @@ jeq d 7 constdef
 jeq d 8 localdef
 jeq d 9 usedef
 jeq d 10 elsedef
+jeq d 12 asydef
 jmp whiledef
 end
 cur=r
@@ -966,9 +970,13 @@ call z 4
 q=op
 p+=16
 store p q
+if fnasy
+call asyent
+else
 loadb fnregs+pushlen as q
 call cp fnpush q
 call frame 236
+end
 topvars=nv
 nv=0
 topblk=blkbase
@@ -996,6 +1004,13 @@ if nv==q
 call edup
 end
 asg|=1<<r
+if fnasy
+# the code that makes the task has stored the parameter
+if r>5
+call ecount
+end
+jmp f1
+end
 if r<6
 call areg r as f
 call vmov r f 137
@@ -1014,6 +1029,23 @@ call hadd 2 0 nfuncs
 nfuncs=nfuncs+1
 jmp next
 
+# "async fn ...": a function whose call makes a task, which runs it
+label asydef
+if infn
+call eplace
+end
+asyn=ns
+asyl=nl
+call blank1
+call rname
+call ok nl==2
+loadb ns as c
+loadb ns+1 as d
+call ok c==102
+call ok d==110
+fnasy=1
+jmp fndef
+
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
 jgt nblk blkbase blkend
@@ -1029,12 +1061,20 @@ d=1
 jz fntail e0
 d=6
 label e0
+if fnasy
+# a call gives one result, the task; its own result is 0 here
+store (nfuncs-1)*40+funs+32 1
+call eb 49
+call eb 192
+call cp asyret 11
+else
 store (nfuncs-1)*40+funs+32 d
 loadb q+zerolen-1 as p
 call cp zeroes p
 call frame 196
 call popskip as q
 call cp retc+q 11-q
+end
 call resolve
 nfix=fixbase
 nlabels=labbase
@@ -1070,6 +1110,7 @@ pass=2
 jmp fndef
 label e1
 call clrloc
+fnasy=0
 pass=0
 fnslots=0
 fnregs=6
