@@ -8,6 +8,7 @@
 
 # syscalls without a name in the compiler
 const procdup2 33
+const procfcntl 72
 const procpoll 7
 const procpidfd 434
 const procsetaff 203
@@ -46,6 +47,33 @@ proce+=8
 jmp next
 end
 
+# in the child: the descriptor procfd, or a copy of it at 3 or above if
+# it is 0, 1 or 2 and not the one it is to become; the copy is closed
+# when the program starts. Without a copy the child ends.
+fn prochigh procfd procto
+if procfd<3
+if procfd!=procto
+sys procfcntl procfd 1030 3 as procfd
+ifslt procfd 0
+sys exit 127
+end
+end
+end
+ret procfd
+end
+
+# in the child: make procfd its descriptor procto, or end it
+fn procput procfd procto
+if procfd!=-1
+if procfd!=procto
+sys procdup2 procfd procto as procr
+ifslt procr 0
+sys exit 127
+end
+end
+end
+end
+
 # Start a program as a child process: its number, or the error of fork,
 # negated. procargv is the address of the addresses of its arguments,
 # strings with a NUL byte at the end, with a 0 after the last; the first
@@ -54,7 +82,9 @@ end
 # process, and procin, procout and procerr as its descriptors 0, 1 and 2;
 # -1 leaves the one of this process. The caller keeps and closes the
 # descriptors it passed, and ends the child with procwait. A program that
-# cannot be started is a child that ends with status 127.
+# cannot be started is a child that ends with status 127, and so is one
+# whose descriptors cannot be put in place. The three may be given in any
+# order: 2 as procout and 1 as procerr swaps them.
 fn procstart procargv procin procout procerr
 local procz 4096
 call procenv as proce
@@ -63,15 +93,14 @@ if procpid
 ret procpid
 end
 # the child: nothing here returns
-if procin!=-1
-sys procdup2 procin 0
-end
-if procout!=-1
-sys procdup2 procout 1
-end
-if procerr!=-1
-sys procdup2 procerr 2
-end
+# a descriptor that is one of the three and goes to another of them is
+# copied out of their way first, or the one before it would overwrite it
+call prochigh procin 0 as procin
+call prochigh procout 1 as procout
+call prochigh procerr 2 as procerr
+call procput procin 0
+call procput procout 1
+call procput procerr 2
 load procargv as procp
 call strlen procp as procn
 proci=0
