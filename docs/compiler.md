@@ -1,12 +1,12 @@
 # How the stage0 compiler works
 
-`stage0/ailc.s` is the bootstrap compiler: about 1400 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`stage0/ailc.s` is the bootstrap compiler: about 1700 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
 It is the seed of the bootstrap: [stage1](stage1.md) is the same compiler written in AIL, stage0 builds it the first time, and what this page says about the output holds for both.
 
 ## Pipeline
 
-There is one pass and no intermediate representation.
+There is one pass over the top level and two over each function, and no intermediate representation.
 
 1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 64 KiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of a 1 MiB output buffer.
@@ -48,6 +48,8 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `strbytes`, `hexdig` | copy the bytes of a string up to its closing quote, decoding the escapes; read one hexadecimal digit |
 | `ident` | a name as an argument: pass a variable, the address of a buffer or of data, the cell of a `var`, the value of a `const`, or for `len` a size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
 | `capture` | `as <name>`: call `emit_op` and store `rax` in the cell of the `var` with that name, or else in the variable, defined if new |
+| `varplace`, `emit_varmov`, `emit_mem` | where a variable lives; a `mov` between a variable and a register; a `mov` between a register and memory |
+| `alloc`, `emit_frame` | place the variables of a function after its first pass; reserve or release its stack slots |
 | `defvar` | read a variable name and find it in the pool of the current scope, or add it |
 | `bufdef` | `buf <name> <size>`: enter the buffer in the table of global names and reserve its bytes |
 | `vardef`, `constdef` | `var <name>...` and `const <name> <number>`: enter the names with their kind and the address of a cell, or the value |
@@ -188,11 +190,21 @@ objdump -D -b binary -mi386:x86-64 -Mintel --start-address=176 build/hello
 
 ## Variables
 
-The table `vars` has one 16-byte entry per variable: the address of the name inside the input buffer and its length. Names are not copied. It has two halves of six entries: the first for the top level, the second for the function being compiled. `ebp` counts the entries of the current half, and `lookup` searches them linearly.
+The table `vars` has one 16-byte entry per variable: the address of the name inside the input buffer and its length. Names are not copied. It has two halves of 64 entries: the first for the top level, the second for the function being compiled. `ebp` counts the entries of the current half, and `lookup` searches them linearly.
 
-Variable `i` lives in the register `varnum[i]`: `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15`. These are the registers that neither the `syscall` instruction (which destroys `rax`, `rcx` and `r11`) nor the argument positions use. `rsp` is the stack pointer of the calls. A register is assigned on the first `as` for a name and kept for the rest of its scope; only a [function entry and return](#functions) save and restore the registers.
+Six registers hold variables: `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15` (`varnum`). These are the registers that neither the `syscall` instruction (which destroys `rax`, `rcx` and `r11`) nor the argument positions use. `varplace` says where a variable lives, and `emit_varmov` emits the `mov` between it and a register: `emit_mov_rr` for a register, `emit_mem` for memory (`REX.W 8B` or `89` with a SIB byte, 8 bytes).
 
-A name is only entered in the table when its `as` is reached, at the end of the statement, so `sys 1 n as n` with a new `n` is an undefined variable.
+**Top level.** The first six variables get the registers in order of definition. Each later one gets a cell below the buffers, allocated like the cell of a `var` and recorded in `topcell`. Nothing is reused: the top level is interleaved with functions and is compiled in one pass.
+
+**Functions** are compiled twice. On `fn`, `fndef` saves the cursors and every table counter in `snap` and sets `pass` to 1. The first pass compiles the function as usual, with every variable in `rbx`; its code is thrown away, but it finds every error and records for each variable where the source defines it (`vfirst`) and mentions it last (`vlast`), and for each jump to a label that is already defined, a loop: the source positions of the label and of the jump (`labpos`, `loops`). At `end`, `alloc` places the variables, `fnend` restores the snapshot, sets `pass` to 2 and jumps back to `fndef`, and the second pass emits the real code.
+
+`alloc` first stretches the ranges: a variable whose range meets a loop is in use to the end of that loop, because the next round may read it again; this repeats until nothing changes, so nested and overlapping loops are covered. Then it takes the variables in order of definition and gives each the first place, among the six registers and then the stack slots, whose previous variable was mentioned last before this one is defined (`locfree`). The result is `fnloc` and the number of slots `fnslots`.
+
+This is safe because execution only moves backward in the source through a backward jump. If a variable is read after another one with the same place was written, the path between the two must leave the first range and come back, and every way back is a loop that meets the range and would have stretched it over the other variable.
+
+A function with slots reserves them after its pushes (`sub rsp, 8n`) and releases them before every return (`emit_frame`); a slot is `[rsp + 8k]`.
+
+A name is only entered in the table when its `as` is reached, at the end of the statement, so `sys 1 n as n` with a new `n` is not the variable.
 
 ## Buffers
 
@@ -220,20 +232,21 @@ Neither table can overflow: the shortest `label` line is 8 bytes and the shortes
 jmp  after              ; E9 + rel32, so that top-level execution skips the body
 entry:
 push rbx / rbp / r12 / r13 / r14 / r15     ; 53 55 41 54 41 55 41 56 41 57
+sub  rsp, 8 * slots                        ; only if a variable lives on the stack
 mov  <variable i>, <argument i>            ; one per parameter
 ```
 
-`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, so it takes the next register of the pool, and `emit_mov_rr` copies it from the argument position of the same index.
+`funaddr` gets the address of `entry` and `funargs` the number of parameters. Each parameter is defined through `defvar` like a name after `as`, and `emit_varmov` copies it from the argument position of the same index to its place. A seventh parameter is `too many variables`: there are six argument registers.
 
 **Scope.** `fndef` saves `ebp` in `topvars`, clears it and sets `infn`, which makes `lookup_var` use the second half of `vars`. It also sets `labbase` and `fixbase` to the current ends of `labels` and `fixs`: the function's labels and jumps are stacked on top of the top-level ones collected so far. `fnend` calls `resolve` for exactly that part, then cuts both tables back to the bases and restores `ebp`. That is all that makes labels and variables local, and it is why functions do not nest: there is one saved scope.
 
-**Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
+**Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, after `add rsp, 8 * slots` when the function has slots. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
 
 **Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores `rax` as after any statement.
 
 `fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, and otherwise the displacement is written like a jump's. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
-Because the callee saves all six variable registers whether it uses them or not, the caller emits nothing but the `call`, and the compiler never needs to know how many variables a function will define when it emits the entry code. `funcs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
+Because the callee saves all six variable registers whether it uses them or not, the caller emits nothing but the `call`. `funcs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
 
 `examples/fact.ai` shows all of it; its function starts at `0x4000b5`, right after the 5-byte jump at the entry point:
 
@@ -244,9 +257,9 @@ bf:  48 89 c3            mov  rbx, rax        ; parameter n
 ...
 dc:  48 89 e8            mov  rax, rbp        ; call fact m: the value m
 df:  e8 d1 ff ff ff      call 0xb5
-e4:  49 89 c4            mov  r12, rax        ; as r
+e4:  48 89 c5            mov  rbp, rax        ; as r: m is done, r takes its register
 ...
-f4:  4c 89 e0            mov  rax, r12        ; ret r: the value
+f4:  48 89 e8            mov  rax, rbp        ; ret r: the value
 f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx ; ret
 ...
 112: 31 c0               xor  eax, eax        ; end: return 0
@@ -257,10 +270,11 @@ f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx
 
 ## Limits
 
-- 6 variables at top level and in each function, the size of the register pool; so at most 6 parameters.
+- 64 variables at top level and in each function, the size of the variable table; 6 parameters, the number of argument registers.
 - Global names are limited only by the source size.
 - Jumps and calls always use a 32-bit displacement, 5 bytes for `jmp` and `call` and 9 for `jz` and `jnz`.
-- Every function saves and restores all six variable registers: 21 bytes of code per function and `ret`, and 56 bytes of stack per call.
+- Every function saves and restores all six variable registers: 21 bytes of code per function and `ret`, and 56 bytes of stack per call, plus 8 per stack slot.
+- A function is compiled twice, so compiling takes up to twice as long.
 - Functions do not nest.
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to fewer than four output bytes (`end` is the worst line: 4 bytes of source, 13 of code).
 - x86-64 Linux only.

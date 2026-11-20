@@ -1,6 +1,6 @@
 # How the stage1 compiler works
 
-`stage1/ailc.ai` is the AIL compiler written in AIL: about 1330 lines, 21 KiB. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
+`stage1/ailc.ai` is the AIL compiler written in AIL: about 1570 lines, 24 KiB. It is a translation of [stage0](compiler.md), routine by routine, and behaves exactly like it: the same language, the same executable byte for byte, the same messages and exit statuses. Everything [compiler.md](compiler.md) says about the pipeline, the output file, the code generation and the limits holds for stage1; this page only describes what differs in how it is written.
 
 ```
 build/ailc  < stage1/ailc.ai > build/ailc1     # stage1 built by stage0
@@ -12,7 +12,7 @@ cmp build/ailc1 build/ailc2                    # the same file: a fixed point
 
 ## Shape of the program
 
-Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `bufdef`, `vardef`, `constdef`, `datadef`, `labdef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q` and nothing else.
+Stage0 is a state machine whose routines jump to each other. Labels are local to a function in AIL, so those routines are the top level of the program, under the same labels as in stage0: `next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `bufdef`, `vardef`, `constdef`, `datadef`, `labdef`, `jtarget`, `fndef`, `fnend` and `fin`. The top level uses the six variables `c d r f p q`, which are the ones that get registers there.
 
 What stage0 reaches with `call` is a function:
 
@@ -30,7 +30,8 @@ What stage0 reaches with `call` is a function:
 | `ldvar` | the `mov` that reads the cell of a `var` |
 | `putn`, `getn` | write the name read last into a table entry, or read it back |
 | `defvar`, `kw` | find or add a variable; find the statement row of a keyword |
-| `vreg`, `areg` | x86 register number of a variable, or of an argument position |
+| `areg` | x86 register number of an argument position |
+| `vplace`, `vmov`, `emem`, `frame`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
 
@@ -49,7 +50,7 @@ A function sees no top-level variable, so the fixed registers of stage0 are glob
 | `cur` | `curop` | statement row, at its operand count |
 | `ns`, `nl` | `r8`, `r9` | start and length of the name read last |
 
-The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs`, `calls` and `refs`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
+The counters and the saved scope of stage0 are `var`s too, under its names (`nbufs`, `bsssz`, `nlabels`, `infn`, ...). The buffers are `in` and `out`, `sig` for the `sigaction` structure, and the tables `vars`, `globs` (global names), `labs`, `fixs`, `funs`, `calls` and `refs`, and the tables of the variable allocation (`topcell`, `vfirst`, `vlast`, `fnloc`, `locfree`, `loops`). The state saved before the first pass over a function is in the vars `sip` to `sdr`. The tables hold the same number of entries as in stage0, but an entry carries all the fields of its name (a label entry is name, length and address), where stage0 has parallel arrays.
 
 ## Read-only tables
 
@@ -74,4 +75,4 @@ Writing stage1 did not need any change to the language, but these cost the most 
 - **No constant data.** The tables were 131 lines of decimal numbers that no one could read, written into a buffer at start. `data` replaced them, and with them the offsets into that buffer.
 - **Sixteen buffers.** Every global scalar wanted a buffer of its own, because a buffer name was the only global name; the limit forced most of them into one buffer behind two accessors. `var` replaced both, and the limit is gone.
 - **No 32-bit store.** Appending four bytes cleared the four after them, and patching a displacement meant loading eight bytes, replacing half and storing them back. `store4` does both directly.
-- **Six variables** were enough everywhere, at the price of some reloading in `eop` and at the top level.
+- **Six variables** were enough everywhere, at the price of some reloading in `eop` and at the top level. A scope has 64 now, and `alloc` is the first function of stage1 that uses more than six.

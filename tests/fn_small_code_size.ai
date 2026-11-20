@@ -1,0 +1,9 @@
+# a function without stack slots has no frame code: 51 bytes lie between
+# the two data bytes, as before variables could go to the stack
+data a 1
+fn f x
+ret x
+end
+data b 1
+sub b a as n
+sys 60 n

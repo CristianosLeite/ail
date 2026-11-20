@@ -12,7 +12,7 @@ It compiles to a 224-byte static Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, six register variables per function, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: the bootstrap version in assembly (stage0) and the same compiler written in AIL (stage1), which compiles itself to a byte-identical copy. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
+Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: the bootstrap version in assembly (stage0) and the same compiler written in AIL (stage1), which compiles itself to a byte-identical copy. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
 
 ## Quick start
 
@@ -44,7 +44,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | Form | Meaning |
 |---|---|
 | `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments |
-| `sys ... as x` | Same, keeping the return value in variable `x` (at most 6 variables per function) |
+| `sys ... as x` | Same, keeping the return value in variable `x` (at most 64 variables per function) |
 | `set a as x` | `x = a` |
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
 | `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |

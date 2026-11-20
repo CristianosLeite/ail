@@ -1,0 +1,27 @@
+# a function that reuses registers still restores the caller's
+fn f
+set 1 as a
+set 2 as b
+add a b as c
+set 4 as d
+add c d as e
+set 8 as g
+add e g as h
+set 16 as i
+add h i as j
+ret j
+end
+set 1 as p
+set 2 as q
+set 3 as r
+set 4 as s
+set 5 as t
+set 6 as u
+call f as x
+add p q as p
+add p r as p
+add p s as p
+add p t as p
+add p u as p
+add p x as p
+sys 60 p

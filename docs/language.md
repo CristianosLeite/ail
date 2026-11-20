@@ -160,14 +160,14 @@ sys 60 x                # exit(120)
 
 Each function has its own variables and its own labels:
 
-- The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most six.
+- The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most 64; it can have at most six parameters.
 - A function sees none of the variables defined outside it, and its variables do not exist outside it. The same name can be used on both sides for different things. Values go in through the parameters and out through `ret`.
 - Every call gets fresh variables: the caller's variables, at top level or in another function, are unchanged when the call returns, also when a function calls itself.
 - Global names (`buf`, `data`, `var`, `const`) are visible in every function, and one declared inside a function is the same as one declared outside: its name may not be that of a top-level variable either. See [Names](#names) for what happens when a variable of a function has the name of a global.
 
 Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
-Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits, and the result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack and recursion is limited only by the stack size.
+Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits, and the result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack, plus 8 for each of its variables that did not get a register, and recursion is limited only by the stack size.
 
 ### `buf`
 
@@ -177,7 +177,7 @@ buf name size
 
 Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is an [integer](#integers) or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
-A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the variables of a scope, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
 
 ```
 buf line 4096
@@ -191,7 +191,7 @@ sys 1 1 line n             # write what was read
 var name name ...
 ```
 
-Declares global 64-bit cells, zero when the program starts. A `var` name is used like a variable: as an argument it passes the value of the cell, and `as name` stores a result in it. Unlike a variable it is visible in every function and takes none of the six registers of a scope, so it is the way to share state between functions.
+Declares global 64-bit cells, zero when the program starts. A `var` name is used like a variable: as an argument it passes the value of the cell, and `as name` stores a result in it. Unlike a variable it is visible in every function and does not count among the variables of a scope, so it is the way to share state between functions.
 
 ```
 var count
@@ -328,7 +328,7 @@ sys 1 1 "abc\n" as n     # n = 4, the number of bytes written
 sys 60 n                 # exit(4)
 ```
 
-A variable is a name for a 64-bit value held in a machine register. A name starts with a lowercase letter and continues with lowercase letters, digits and `_`. `as` is reserved.
+A variable is a name for a 64-bit value, held in a machine register when one is free. A name starts with a lowercase letter and continues with lowercase letters, digits and `_`. `as` is reserved.
 
 `as name` at the end of a statement defines the variable and stores the statement's result in it. For `sys` that is the syscall's raw return value: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. `as` is the only way to set a variable; `set 5 as x` sets one to a constant.
 
@@ -338,7 +338,12 @@ Statement keywords are only special at the start of a line, so `add` or `buf` ar
 
 A variable belongs to the top level or to one function. State that several functions share goes into a [`var`](#var).
 
-The top level of a program can define at most 6 variables, and so can each [function](#functions), counting its parameters. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed within their scope. Syscalls and calls do not change these registers.
+The top level of a program can define at most 64 variables, and so can each [function](#functions), counting its parameters. Six registers hold variables: `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`; syscalls and calls do not change them.
+
+- At top level the first six variables get the registers, in order of definition, and each later one a memory cell of its own.
+- In a function a variable needs a place only from its definition to the last line that mentions it, or to the end of a loop that it is used in, where a loop is the lines between a label and a jump back to it. A register whose variable is done is given to the next variable defined, so a function can use many short-lived variables without leaving the registers. When all six are busy, the variable lives on the stack.
+
+Where a variable lives changes the speed and size of the code, never its meaning.
 
 Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), or one obtained at run time, for example from `mmap`:
 
@@ -380,7 +385,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
 | `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
-| `ailc: too many variables` | 1 | a seventh variable name at top level or in one function, parameters included |
+| `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included; a seventh parameter |
 | `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |

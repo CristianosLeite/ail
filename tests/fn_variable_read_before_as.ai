@@ -1,0 +1,6 @@
+# a name read before its as in the same function is not that variable
+fn f
+add 1 c as s
+set 5 as c
+ret s
+end

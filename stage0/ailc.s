@@ -15,7 +15,8 @@
 .equ HDRSZ,  176                # ELF header (64) + two program headers (56 each)
 .equ INSZ,   0x10000
 .equ OUTSZ,  0x100000           # worst case expansion is ~3x input
-.equ NVARS,  6                  # size of the variable register pool
+.equ NVARS,  64                 # most variables in one scope
+.equ NREGS,  6                  # size of the variable register pool
 .equ NGLOB,  INSZ / 2 + 1       # "var a b c" declares a global name every 2 bytes
 .equ NREFS,  INSZ / 2 + 1       # a name used as a value takes 2 bytes at least
 .equ G_ADDR, 0                  # kinds of global name: a buffer or data, an address;
@@ -39,6 +40,18 @@ inend:
 outbuf: .skip OUTSZ
 vars:   .skip 2 * NVARS * 16    # per variable: name address in inbuf, name length;
                                 # top level first, then the open function
+topcell: .skip NVARS * 4        # per top-level variable after the sixth: its cell
+vfirst: .skip NVARS * 8         # per variable of the function: where the source
+vlast:  .skip NVARS * 8         # defines it, and mentions it last
+fnloc:  .skip NVARS             # its place: a register 0-5, or 6 + a stack slot
+locfree: .skip (NREGS + NVARS) * 8  # per place: the last mention of its variable
+fnslots: .skip 4                # stack slots of the function
+pass:   .skip 4                 # 1 while a function is compiled to measure its
+                                # variables, 2 when it is compiled again for good
+loops:  .skip NFIX * 16         # per backward jump of the function: where the
+nloops: .skip 4                 # source has its label, and the jump
+labpos: .skip NLABELS * 8       # per label: where the source defines it
+snap:   .skip 10 * 8            # the state to return to after the first pass
 bufs:   .skip NGLOB * 16        # per global name (buf, data, var, const): the same
 bufaddr: .skip NGLOB * 4        # per global name: its address
 bufsize: .skip NGLOB * 8        # its length in bytes, or the value of a const
@@ -693,13 +706,14 @@ ident:
     jmp tokend
 4:  call lookup_var
     jc 2f
+    lea rcx, [rip+vlast]
+    mov [rcx+rax*8], rsi
     cmp ebx, 7
     jae err
-    lea rcx, [rip+varnum]
-    movzx eax, byte ptr [rcx+rax]
     lea rcx, [rip+argnum]
     movzx ecx, byte ptr [rcx+rbx]
-    call emit_mov_rr            # mov <arg reg>, <variable reg>
+    mov r9d, 0x8B
+    call emit_varmov            # mov <arg reg>, <variable>
     inc ebx
     jmp tokend
 2:  call lookup_buf             # not a variable: a global name
@@ -718,26 +732,15 @@ ident:
     mov eax, [rcx+rax*4]
     call emit_mov
     jmp tokend
-6:  cmp ebx, 7                  # a var is read from its cell:
-    jae err                     # mov <arg reg>, [abs32] = REX.W 8B /r SIB disp32
+6:  cmp ebx, 7                  # a var is read from its cell
+    jae err
     lea rcx, [rip+bufaddr]
-    mov r8d, [rcx+rax*4]
-    lea rcx, [rip+argnum]
-    movzx ecx, byte ptr [rcx+rbx]
-    mov eax, ecx
-    shr eax, 3
-    shl eax, 2                  # REX.R: the register is r8-r15
-    or eax, 0x48
-    stosb
-    mov al, 0x8B
-    stosb
-    and ecx, 7
-    lea eax, [rcx*8+4]          # ModRM: no base register, SIB follows
-    stosb
-    mov al, 0x25                # SIB: disp32 alone
-    stosb
-    mov eax, r8d
-    stosd
+    mov ecx, [rcx+rax*4]
+    lea rdx, [rip+argnum]
+    movzx eax, byte ptr [rdx+rbx]
+    mov edx, 1
+    mov r9d, 0x8B
+    call emit_mem               # mov <arg reg>, [cell]
     inc ebx
     jmp tokend
 7:  xor eax, eax                # not declared yet: a buffer or data name that
@@ -775,23 +778,90 @@ capture:
     jne 1f
     pop rcx                     # a var: store rax in its cell
     lea rcx, [rip+bufaddr]
-    mov r8d, [rcx+rax*4]
+    mov ecx, [rcx+rax*4]
+    push rcx
     call eol
     call emit_op
-    mov dword ptr [rdi], 0x25048948  # mov [abs32], rax
-    mov [rdi+4], r8d
-    add rdi, 8
+    pop rcx
+    xor eax, eax
+    mov edx, 1
+    mov r9d, 0x89
+    call emit_mem               # mov [cell], rax
     jmp next
 1:  pop rsi
     call defvar
-    lea rcx, [rip+varnum]
-    movzx r8d, byte ptr [rcx+rax]
+    push rax
     call eol
     call emit_op
-    mov ecx, r8d
-    xor eax, eax
-    call emit_mov_rr            # mov <variable reg>, rax
+    pop rax
+    xor ecx, ecx
+    mov r9d, 0x89
+    call emit_varmov            # mov <variable>, rax
     jmp next
+
+# emit a 64-bit mov between the variable eax of the current scope and the
+# register ecx: r9d = 0x8B to load the register, 0x89 to store it
+emit_varmov:
+    push rcx
+    call varplace
+    pop rax
+    test edx, edx
+    jnz emit_mem
+    cmp r9d, 0x8B
+    jne emit_mov_rr             # store: from the register eax to the variable's
+    xchg eax, ecx               # load: from the variable's register
+    jmp emit_mov_rr
+
+# emit a 64-bit mov between the register eax and memory: the address ecx
+# (edx = 1) or rsp + ecx (edx = 2); r9d = 0x8B to load, 0x89 to store
+emit_mem:
+    mov r10d, eax
+    shr r10d, 3
+    shl r10d, 2                 # REX.R: the register is r8-r15
+    or r10d, 0x48
+    mov [rdi], r10b
+    mov [rdi+1], r9b
+    and eax, 7
+    shl eax, 3
+    cmp edx, 1
+    jne 1f
+    or al, 0x04                 # ModRM: no base, SIB follows; SIB: disp32 alone
+    mov ah, 0x25
+    jmp 2f
+1:  or al, 0x84                 # ModRM: base + disp32, SIB follows; SIB: rsp
+    mov ah, 0x24
+2:  mov [rdi+2], ax
+    mov [rdi+4], ecx
+    add rdi, 8
+    ret
+
+# where the variable eax of the current scope lives: edx = 0 and ecx = its
+# x86 register, edx = 1 and ecx = the address of its cell, or edx = 2 and
+# ecx = its distance from rsp. Keeps r9.
+varplace:
+    cmp dword ptr [rip+infn], 0
+    jne 2f
+    cmp eax, NREGS              # top level: six registers, then cells
+    jae 1f
+0:  lea rcx, [rip+varnum]
+    movzx ecx, byte ptr [rcx+rax]
+    xor edx, edx
+    ret
+1:  lea rcx, [rip+topcell]
+    mov ecx, [rcx+rax*4]
+    mov edx, 1
+    ret
+2:  cmp dword ptr [rip+pass], 1 # first pass: no places yet, the code is dropped
+    jne 3f
+    xor eax, eax
+    jmp 0b
+3:  lea rcx, [rip+fnloc]
+    movzx eax, byte ptr [rcx+rax]
+    cmp eax, NREGS
+    jb 0b
+    lea ecx, [rax*8-NREGS*8]
+    mov edx, 2
+    ret
 
 # read a variable name at rsi and find it in the pool of the current scope,
 # or add it: eax = its index
@@ -806,13 +876,30 @@ defvar:
     je err_dup
 3:  call lookup_var
     jnc 2f
-    cmp ebp, NVARS              # new name: take the next register of the pool
+    cmp ebp, NVARS              # new name: the next variable of the scope
     jae err_vars
     mov [r10], r8
     mov [r10+8], r9
     mov eax, ebp
     inc ebp
-2:  ret
+    cmp dword ptr [rip+infn], 0
+    jne 4f
+    cmp eax, NREGS              # top level: after the registers, a cell below
+    jb 5f                       # the buffers, like a var
+    mov ecx, [rip+nvars]
+    inc ecx
+    mov [rip+nvars], ecx
+    shl ecx, 3
+    neg ecx
+    add ecx, BSS
+    lea rdx, [rip+topcell]
+    mov [rdx+rax*4], ecx
+5:  ret
+4:  lea rdx, [rip+vfirst]       # in a function: note where it starts
+    mov [rdx+rax*8], rsi
+2:  lea rdx, [rip+vlast]        # and where it is mentioned last
+    mov [rdx+rax*8], rsi
+    ret
 
 # ---- buffers
 # "buf <name> <size>": reserve zero-filled bytes in the writable segment
@@ -840,6 +927,8 @@ bufdef:
     pop rax
     mov rdx, 0x100000000 - BSS
     mov ecx, [rip+nbufs]
+    lea r10, [rip+bufkind]
+    mov byte ptr [r10+rcx], G_ADDR
     lea r10, [rip+bufsize]
     mov [r10+rcx*8], rax        # len gives the size as declared
     add rax, 7                  # keep every buffer 8-byte aligned
@@ -972,6 +1061,8 @@ datadef:
     test r13d, r13d
     jz 9f
     mov ecx, [rip+nbufs]
+    lea r10, [rip+bufkind]
+    mov byte ptr [r10+rcx], G_ADDR
     mov rdx, rdi
     sub rdx, rax
     lea r10, [rip+bufsize]
@@ -1008,6 +1099,8 @@ labdef:
     mov eax, [rip+nlabels]
     lea rcx, [rip+labaddr]
     mov [rcx+rax*8], rdi
+    lea rcx, [rip+labpos]
+    mov [rcx+rax*8], rsi
     inc dword ptr [rip+nlabels]
     mov qword ptr [rip+dataend], 0  # data after a label gets its own jmp
     jmp next
@@ -1016,7 +1109,20 @@ labdef:
 # for the rel32 and record it for fin, since the label may come later
 jtarget:
     call eol
-    call emit_op
+    cmp dword ptr [rip+pass], 1
+    jne 1f
+    call lookup_label           # first pass: a jump back to a label makes a loop
+    jc 1f
+    add eax, [rip+labbase]
+    lea rcx, [rip+labpos]
+    mov rax, [rcx+rax*8]
+    mov ecx, [rip+nloops]
+    shl ecx, 4
+    lea rdx, [rip+loops]
+    mov [rdx+rcx], rax
+    mov [rdx+rcx+8], rsi
+    inc dword ptr [rip+nloops]
+1:  call emit_op
     mov eax, [rip+nfix]
     lea rax, [rax+rax*2]
     lea rcx, [rip+fixs]
@@ -1034,7 +1140,31 @@ jtarget:
 fndef:
     cmp dword ptr [rip+infn], 0 # functions do not nest
     jne err
-    call blank1
+    cmp dword ptr [rip+pass], 0
+    jne 1f
+    lea rax, [rip+snap]         # first pass: remember where to come back to
+    mov [rax], rsi
+    mov [rax+8], rdi
+    mov ecx, [rip+nbufs]
+    mov [rax+16], rcx
+    mov ecx, [rip+nvars]
+    mov [rax+24], rcx
+    mov rcx, [rip+bsssz]
+    mov [rax+32], rcx
+    mov ecx, [rip+ncalls]
+    mov [rax+40], rcx
+    mov ecx, [rip+nfuncs]
+    mov [rax+48], rcx
+    mov ecx, [rip+nrefs]
+    mov [rax+56], rcx
+    mov rcx, [rip+dataend]
+    mov [rax+64], rcx
+    mov rcx, [rip+datarel]
+    mov [rax+72], rcx
+    mov dword ptr [rip+pass], 1
+    mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+nloops], 0
+1:  call blank1
     cmp rsi, r15
     jae err
     mov al, [rsi]
@@ -1058,6 +1188,8 @@ fndef:
     mov ecx, FNPUSHSZ
     rep movsb
     pop rsi
+    mov al, 0xEC
+    call emit_frame
     mov [rip+topvars], ebp
     xor ebp, ebp
     mov dword ptr [rip+infn], 1
@@ -1080,11 +1212,12 @@ fndef:
     pop rcx
     cmp ecx, ebp                # the pool did not grow: a repeated name
     je err_dup
-    lea rcx, [rip+varnum]
-    movzx ecx, byte ptr [rcx+rax]
+    cmp ebp, NREGS              # one argument register per parameter
+    ja err_vars
     lea rdx, [rip+argnum]
-    movzx eax, byte ptr [rdx+rax]
-    call emit_mov_rr            # mov <variable reg>, <argument reg>
+    movzx ecx, byte ptr [rdx+rax]
+    mov r9d, 0x89
+    call emit_varmov            # mov <variable>, <argument reg>
     jmp 1b
 2:  call eol
     mov eax, [rip+nfuncs]
@@ -1101,6 +1234,8 @@ fnend:
     call eol
     mov word ptr [rdi], 0xC031  # xor eax, eax
     add rdi, 2
+    mov al, 0xC4
+    call emit_frame
     push rsi
     lea rsi, [rip+retcode]
     mov ecx, RETSZ
@@ -1120,8 +1255,112 @@ fnend:
     sub rax, rcx
     sub rax, 4
     mov [rcx], eax
+    cmp dword ptr [rip+pass], 1
+    jne 1f
+    call alloc                  # first pass done: place the variables and
+    lea rax, [rip+snap]         # compile the function again
+    mov rsi, [rax]
+    mov rdi, [rax+8]
+    mov rcx, [rax+16]
+    mov [rip+nbufs], ecx
+    mov rcx, [rax+24]
+    mov [rip+nvars], ecx
+    mov rcx, [rax+32]
+    mov [rip+bsssz], rcx
+    mov rcx, [rax+40]
+    mov [rip+ncalls], ecx
+    mov rcx, [rax+48]
+    mov [rip+nfuncs], ecx
+    mov rcx, [rax+56]
+    mov [rip+nrefs], ecx
+    mov rcx, [rax+64]
+    mov [rip+dataend], rcx
+    mov rcx, [rax+72]
+    mov [rip+datarel], rcx
+    mov ebp, [rip+topvars]
+    mov dword ptr [rip+pass], 2
+    jmp fndef
+1:  mov dword ptr [rip+pass], 0
+    mov dword ptr [rip+fnslots], 0
     mov ebp, [rip+topvars]
     jmp next
+
+# emit "sub rsp, <frame>" (al = 0xEC) or "add rsp, <frame>" (al = 0xC4) when
+# the function has stack slots
+emit_frame:
+    mov ecx, [rip+fnslots]
+    test ecx, ecx
+    jz 1f
+    mov word ptr [rdi], 0x8148
+    mov [rdi+2], al
+    shl ecx, 3
+    mov [rdi+3], ecx
+    add rdi, 7
+1:  ret
+
+# give each of the ebp variables of the function a place. A variable is in
+# use from its definition to its last mention; if that range meets a loop,
+# to the end of the loop, since the next round may read it again. A place is
+# free for a variable defined after the last mention of the one that had it.
+alloc:
+1:  xor r8d, r8d                # stretch the ranges until nothing changes
+    mov ecx, [rip+nloops]
+    lea rbx, [rip+loops]
+2:  test ecx, ecx
+    jz 5f
+    mov r10, [rbx]              # the label
+    mov r11, [rbx+8]            # the jump back to it
+    xor eax, eax
+3:  cmp eax, ebp
+    jae 4f
+    lea rdx, [rip+vfirst]
+    cmp [rdx+rax*8], r11
+    ja 6f                       # defined after the loop
+    lea rdx, [rip+vlast]
+    cmp [rdx+rax*8], r10
+    jb 6f                       # not mentioned in or after it
+    cmp [rdx+rax*8], r11
+    jae 6f
+    mov [rdx+rax*8], r11
+    mov r8d, 1
+6:  inc eax
+    jmp 3b
+4:  add rbx, 16
+    dec ecx
+    jmp 2b
+5:  test r8d, r8d
+    jnz 1b
+    lea rdx, [rip+locfree]
+    xor ecx, ecx
+7:  mov qword ptr [rdx+rcx*8], 0
+    inc ecx
+    cmp ecx, NREGS + NVARS
+    jb 7b
+    mov dword ptr [rip+fnslots], 0
+    xor eax, eax
+8:  cmp eax, ebp
+    jae 9f
+    lea rdx, [rip+vfirst]
+    mov r10, [rdx+rax*8]
+    lea rdx, [rip+vlast]
+    mov r11, [rdx+rax*8]
+    lea rdx, [rip+locfree]
+    xor ecx, ecx
+7:  cmp [rdx+rcx*8], r10        # the first place whose variable is done
+    jb 6f
+    inc ecx
+    jmp 7b
+6:  mov [rdx+rcx*8], r11
+    lea rdx, [rip+fnloc]
+    mov [rdx+rax], cl
+    sub ecx, NREGS - 1          # a slot: count it
+    jle 6f
+    cmp ecx, [rip+fnslots]
+    jbe 6f
+    mov [rip+fnslots], ecx
+6:  inc eax
+    jmp 8b
+9:  ret
 
 # fill in the jumps of the current scope, now that all its labels are known
 resolve:
@@ -1276,7 +1515,11 @@ emit_op:
     jnz 1f                      # sys and call take any number of arguments
     cmp bl, [rdx]
     jne err
-1:  movzx ecx, byte ptr [rdx+2]
+1:  test byte ptr [rdx+1], IS_RET
+    jz 3f
+    mov al, 0xC4                # ret: release the stack slots first
+    call emit_frame
+3:  movzx ecx, byte ptr [rdx+2]
     push rsi
     lea rsi, [rdx+3]
     rep movsb

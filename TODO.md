@@ -23,7 +23,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   arithmetic available.
 - [x] Add 16-bit and 32-bit loads and stores. The current operations cover 8 and
   64 bits, and stage1 needs helpers to append or patch 32-bit words.
-- [ ] Lift the six-variable limit at top level and in functions, including
+- [x] Lift the six-variable limit at top level and in functions, including
   parameters. Registers are assigned for the entire scope. Reuse registers
   across disjoint lifetimes and spill to the stack when necessary.
 - [ ] Lift the six-parameter limit on AIL calls with stack arguments or another

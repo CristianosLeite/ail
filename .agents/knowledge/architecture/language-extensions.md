@@ -64,7 +64,28 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - Stage1 appends and patches displacements with `store4`; `p4` is gone and `e4` is two lines.
 - The suite went from 365 to 376 tests.
 
+### 64 variables per scope, register reuse and stack slots (2026-11-19)
+- A scope has 64 variables. Top level: six registers, then one memory cell each, no reuse.
+  Functions: compiled twice; the first pass measures each variable's range and the loops, `alloc`
+  then reuses a register once its variable is done and spills the rest to `[rsp + 8k]`.
+- Existing functions keep their size but may use fewer registers: `fact` now keeps `r` in the
+  register of `m`. A function without slots has no frame code (`fn_small_code_size`).
+- A seventh parameter is still `too many variables`; stack arguments are the next item.
+- Verified beyond the suite with a scratch generator: 671 random programs with up to 40 live
+  variables, nested loops and skipped blocks gave the exit status computed in Python with stage0,
+  517 with stage1, and 400 sources compiled to the same bytes by both.
+- The suite went from 376 to 396 tests.
+
 ## Why
+- **64, not unlimited:** the planned check for reads that skipped their assignment keeps one
+  64-bit mask per label; globals are unlimited, so 64 locals is not a practical limit.
+- **Two passes per function instead of a liveness analysis:** the first pass is the normal
+  compiler with its output discarded, so the ranges come from the same parser and no second
+  description of the syntax exists. Rolling back is a snapshot of ten values.
+- **Ranges stretched over loops, not real liveness:** correct for any jumps, since going back in
+  the source needs a backward jump; it costs registers only in loops that mention many variables.
+- **No reuse at top level:** it is interleaved with functions, so it would need a pass over the
+  whole source; cells are simple and the top level is not re-entered.
 - **A digit suffix, the size in bytes:** `load4` is two tokens like `loadb`; a letter (`loadd`,
   `loadw`) tokenizes worse (`lo` + `add`) and its meaning depends on the reader's assembler.
 - **`0x` prefix:** `0xffffffff` is two tokens where `4294967295` is four (see
@@ -103,7 +124,9 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - A new kind of global name goes into `bufs`/`bufaddr`/`bufsize`/`bufkind` through `newglob`
   (stage1: an entry of `globs`).
 - In stage1, never use the name of a var for a local: `as` would write the global.
-- Anything that saves and restores the compiler state for a scope must include `nrefs`.
+- A statement that changes compiler state inside a function must have that state in the
+  snapshot of `fndef` (`snap`; stage1: the vars `sip` to `sdr`), or the second pass adds it twice.
+  `fn_stack_variables_with_fixups` covers calls, forward names, data and labels.
 - When a row of `optab` changes, change the matching `data` line of stage1.
 
 ## Open items

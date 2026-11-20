@@ -1,0 +1,17 @@
+# each call has its own stack slots
+fn f n a b c d e
+jz n z
+mul n 3 as k
+mul n 5 as m
+sub n 1 as j
+call f j a b c d e as r
+add r k as r
+add r m as r
+add r a as r
+add r e as r
+ret r
+label z
+ret 0
+end
+call f 5 1 0 0 0 1 as r
+sys 60 r

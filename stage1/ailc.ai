@@ -13,13 +13,23 @@ var ip ie op ai nv cur ns nl
 # the global names and ngv those that are vars; cn, cl = name of this call
 var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
 var nfuncs ncalls ngv dataend datarel nrefs
+# pass is 1 while a function is compiled to measure its variables and 2 when
+# it is compiled again for good; the s* vars are the state to return to
+var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
-buf vars 192        # variables: 6 top level then 6 of the function, 16 bytes each: name, length
+buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
+buf topcell 512     # per top-level variable after the sixth: the address of its cell
+buf vfirst 512      # per variable of the function: where the source defines it,
+buf vlast 512       # and mentions it last
+buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
+buf locfree 560     # per place: the last mention of its variable
+buf loops 174768    # 10923 backward jumps of the function: where the source has
+                    # the label, and the jump
 buf globs 1310760   # 32769 global names of 40 bytes: name, length, address,
                     # size or value, kind (0 buffer or data, 1 var, 2 const)
-buf labs 196632     # 8193 labels of 24 bytes: name, length, address in out
+buf labs 262176     # 8193 labels of 32 bytes: name, length, address in out, place in the source
 buf fixs 262152     # 10923 jumps of 24 bytes: label name, length, rel32 address
 buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
 buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, values
@@ -356,7 +366,7 @@ fn vbase
 set vars as p
 set infn as c
 jz c x
-add p 96 as p
+add p 1024 as p
 label x
 ret p
 end
@@ -421,9 +431,9 @@ end
 fn llab
 set labbase as b
 sub nlabels b as n
-mul b 24 as b
+mul b 32 as b
 add b labs as b
-call look b n 24 as i
+call look b n 32 as i
 ret i
 end
 fn lfn
@@ -466,7 +476,7 @@ call lvar as i
 ne i 99999 as c
 jnz c x
 set nv as i
-lt i 6 as c
+lt i 64 as c
 jnz c k
 call evar
 label k
@@ -474,9 +484,55 @@ call vbase as p
 mul i 16 as c
 add p c as p
 call putn p
-add i 1 as c
-set c as nv
+add i 1 as nv
+jnz infn y
+lt i 6 as c
+jnz c z
+add ngv 1 as ngv
+mul ngv 8 as c
+sub 0x10000000 c as c
+mul i 8 as p
+add p topcell as p
+store p c
+label z
+ret i
+label y
+mul i 8 as p
+add p vfirst as p
+store p ip
 label x
+mul i 8 as p
+add p vlast as p
+store p ip
+ret i
+end
+# where variable i of the current scope lives: its x86 register (below 16),
+# 16 + its distance from rsp, or the address of its cell
+fn vplace i
+jnz infn f
+lt i 6 as c
+jz c m
+label r
+add i varnum as i
+loadb i as i
+ret i
+label m
+mul i 8 as i
+add i topcell as i
+load i as i
+ret i
+label f
+eq pass 1 as c
+jz c g
+set 0 as i
+jmp r
+label g
+add i fnloc as i
+loadb i as i
+lt i 6 as c
+jnz c r
+mul i 8 as i
+sub i 32 as i
 ret i
 end
 # the optab row of the name read last, at its operand count, or 0
@@ -503,12 +559,7 @@ add r c as r
 jmp a
 label x
 end
-# x86 register number of variable i, and of argument position i
-fn vreg i
-add i varnum as i
-loadb i as i
-ret i
-end
+# x86 register number of argument position i
 fn areg i
 add i argnum as i
 loadb i as i
@@ -654,25 +705,146 @@ add op 8 as op
 label x
 add i 1 as ai
 end
+# a 64-bit mov between the register g and memory at the place p (as vplace
+# gives it); o = 139 to load the register, 137 to store it
+fn emem g p o
+shr g 3 as c
+shl c 2 as c
+or c 72 as c
+call eb c
+call eb o
+and g 7 as g
+shl g 3 as g
+lt p 0x100000 as c
+jnz c s
+or g 4 as g
+call eb g
+call eb 37
+call e4 p
+ret 0
+label s
+or g 132 as g
+call eb g
+call eb 36
+sub p 16 as p
+call e4 p
+end
+# the same between the register g and variable i of the current scope
+fn vmov i g o
+call vplace i as p
+lt p 16 as c
+jz c m
+eq o 139 as c
+jz c s
+call mrr g p
+ret 0
+label s
+call mrr p g
+ret 0
+label m
+call emem g p o
+end
 # mov <register of the next argument>, [a]: read the cell of a var
 fn ldvar a
 set ai as i
 lt i 7 as c
 call ok c
 call areg i as r
-shr r 3 as c
-shl c 2 as c
-or c 72 as c
-call eb c
-call eb 139
-and r 7 as r
-shl r 3 as r
-or r 4 as r
-call eb r
-call eb 37
-call e4 a
+call emem r a 139
+add i 1 as ai
+end
+# sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
+# function has stack slots
+fn frame o
+jz fnslots x
+call eb 72
+call eb 129
+call eb o
+mul fnslots 8 as c
+call e4 c
+label x
+end
+# give each of the nv variables of the function a place. A variable is in
+# use from its definition to its last mention; if that range meets a loop,
+# to the end of the loop. A place is free for a variable defined after the
+# last mention of the one that had it.
+fn alloc
+label a
+set 0 as g
+set nloops as n
+set loops as b
+label l
+jz n e
+load b as lo
+add b 8 as t
+load t as hi
+set 0 as i
+label v
+ge i nv as t
+jnz t w
+mul i 8 as k
+add k vfirst as t
+load t as t
+gt t hi as t
+jnz t s
+add k vlast as k
+load k as t
+lt t lo as u
+jnz u s
+ge t hi as u
+jnz u s
+store k hi
+set 1 as g
+label s
 add i 1 as i
-set i as ai
+jmp v
+label w
+add b 16 as b
+sub n 1 as n
+jmp l
+label e
+jnz g a
+set 0 as i
+label z
+mul i 8 as t
+add t locfree as t
+store t 0
+add i 1 as i
+lt i 70 as t
+jnz t z
+set 0 as fnslots
+set 0 as i
+label p
+ge i nv as t
+jnz t x
+mul i 8 as k
+add k vfirst as t
+load t as lo
+add k vlast as t
+load t as hi
+set 0 as j
+label q
+mul j 8 as t
+add t locfree as t
+load t as u
+lt u lo as u
+jnz u f
+add j 1 as j
+jmp q
+label f
+store t hi
+add i fnloc as t
+storeb t j
+lt j 6 as u
+jnz u c
+sub j 5 as j
+gt j fnslots as u
+jz u c
+set j as fnslots
+label c
+add i 1 as i
+jmp p
+label x
 end
 # the code of the statement, after checking its operand count; a call
 # also leaves room for its rel32 and is recorded
@@ -687,6 +859,10 @@ set ai as i
 eq c i as c
 call ok c
 label k
+and f 32 as c
+jz c m
+call frame 196
+label m
 add r 2 as c
 loadb c as c
 add r 3 as r
@@ -730,7 +906,7 @@ call elab
 label k
 set labbase as i
 add c i as c
-mul c 24 as c
+mul c 32 as c
 add c labs as c
 add c 16 as c
 load c as c
@@ -958,14 +1134,15 @@ label i5
 call lvar as r
 eq r 99999 as d
 jnz d i2
+mul r 8 as d
+add d vlast as d
+store d ip
 set ai as d
 lt d 7 as f
 call ok f
-call vreg r as r
 call areg d as f
-call mrr f r
-add d 1 as d
-set d as ai
+call vmov r f 139
+add d 1 as ai
 jmp tokend
 label i2
 call lbuf as r
@@ -1025,16 +1202,14 @@ add p 16 as p
 load p as p
 call eol
 call eop
-call e4 621054280
-call e4 p
+call emem 0 p 137
 jmp next
 label cp1
 set q as ip
 call defvar as r
-call vreg r as r
 call eol
 call eop
-call mrr r 0
+call vmov r 0 137
 jmp next
 
 # "buf <name> <size>"
@@ -1057,6 +1232,8 @@ call ebuf
 label b3
 call ok r
 call eol
+add p 32 as q
+store q 0
 add p 24 as q
 store q r
 add r 7 as r
@@ -1177,6 +1354,8 @@ label d6
 call ok r
 call eol
 jz f d7
+add p 32 as d
+store d 0
 sub op q as c
 add p 24 as d
 store d c
@@ -1203,12 +1382,13 @@ call eol
 call llab as r
 call nodup r
 set nlabels as r
-mul r 24 as p
+mul r 32 as p
 add p labs as p
 call putn p
 add p 16 as p
-set op as q
-store p q
+store p op
+add p 8 as p
+store p ip
 add r 1 as r
 set r as nlabels
 set 0 as dataend
@@ -1217,6 +1397,23 @@ jmp next
 # the label name of a jump: its rel32 is filled in by resolve
 label jtarget
 call eol
+eq pass 1 as d
+jz d j1
+call llab as r
+eq r 99999 as d
+jnz d j1
+add r labbase as r
+mul r 32 as r
+add r labs as r
+add r 24 as r
+load r as r
+mul nloops 16 as p
+add p loops as p
+store p r
+add p 8 as p
+store p ip
+add nloops 1 as nloops
+label j1
 call eop
 set nfix as r
 mul r 24 as p
@@ -1235,6 +1432,21 @@ jmp next
 label fndef
 set infn as d
 call no d
+jnz pass f0
+set ip as sip
+set op as sop
+set nbufs as snb
+set ngv as snv
+set bsssz as sbs
+set ncalls as snc
+set nfuncs as snf
+set nrefs as snr
+set dataend as sde
+set datarel as sdr
+set 1 as pass
+set 0 as fnslots
+set 0 as nloops
+label f0
 call blank1
 call rname
 call lfn as r
@@ -1251,6 +1463,7 @@ set op as q
 add p 16 as p
 store p q
 call cp fnpush 10
+call frame 236
 set nv as q
 set q as topvars
 set 0 as nv
@@ -1276,9 +1489,12 @@ ne nv q as d
 jnz d f3
 call edup
 label f3
-call vreg r as f
-call areg r as r
-call mrr f r
+gt nv 6 as d
+jz d f4
+call evar
+label f4
+call areg r as f
+call vmov r f 137
 jmp f1
 label f2
 call eol
@@ -1296,6 +1512,7 @@ call ok d
 call eol
 call eb 49
 call eb 192
+call frame 196
 call cp retc 11
 call resolve
 set fixbase as q
@@ -1309,8 +1526,26 @@ set fnskip as p
 sub op p as q
 sub q 4 as q
 store4 p q
-set topvars as q
-set q as nv
+eq pass 1 as d
+jz d e1
+call alloc
+set sip as ip
+set sop as op
+set snb as nbufs
+set snv as ngv
+set sbs as bsssz
+set snc as ncalls
+set snf as nfuncs
+set snr as nrefs
+set sde as dataend
+set sdr as datarel
+set topvars as nv
+set 2 as pass
+jmp fndef
+label e1
+set 0 as pass
+set 0 as fnslots
+set topvars as nv
 jmp next
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF

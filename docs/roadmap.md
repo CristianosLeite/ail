@@ -22,7 +22,7 @@ The language is now developed in stage1; stage0 stays in the repository as the b
 1. **Constant data** (done): `data` names read-only bytes, a string is a value in every statement and `len` gives a length. Stage1 keeps its tables that way.
 2. **More global names** (done): any number of buffers, `var` for global scalars and `const` for named numbers.
 3. **Wider integers** (done): 64-bit, negative and hexadecimal literals, and 16- and 32-bit memory accesses.
-4. **More than six variables per function**: not needed by stage1; only if a later program shows a need.
+4. **More than six variables per function** (done): 64 per scope; a function reuses registers whose variable is done and spills to the stack.
 
 ## Supporting work
 
