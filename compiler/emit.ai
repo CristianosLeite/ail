@@ -640,7 +640,7 @@ store p cn
 store p+8 cl
 store p+16 op
 store4 p+24 ai
-store4 p+28 ncap
+store4 p+28 nfuncs-1|0x80000000
 call z 4
 ncalls=n+1
 call frame 196
@@ -757,7 +757,12 @@ store p cn
 store p+8 cl
 store p+16 op
 store4 p+24 i
+if f&32
+# a tail: no names after "as"; the function it stands in instead, marked
+store4 p+28 nfuncs-1|0x80000000
+else
 store4 p+28 ncap
+end
 call z 4
 ncalls=n+1
 label w
@@ -788,4 +793,64 @@ p+=32
 n-=1
 end
 epos=0
+end
+# The results of a function that returns only through tail are those of
+# the function it calls there, known when all functions are: until now
+# its count in funs is 0. Every tail is put in the list of its target
+# (tails: the function it stands in, and the next of the list, whose head
+# is at 36 of the target's entry); then each function whose count is
+# known passes it to the functions that tail to it, and those to theirs
+# (tailq is the stack of those still to do so). Each function is taken
+# once. What is left with 0 reaches no ret on any way and never returns.
+fn tailres
+t=0
+p=calls
+n=ncalls
+while n
+load4 p+28 as c
+if c&0x80000000
+call getn p
+call lfn as i
+if i!=-1
+e=t*8+tails
+store4 e c&0x7fffffff
+h=i*40+funs+36
+load4 h as k
+store4 e+4 k
+t+=1
+store4 h t
+end
+end
+p+=32
+n-=1
+end
+m=0
+i=0
+while i<nfuncs
+load4 i*40+funs+32 as c
+if c
+store4 m*4+tailq i
+m+=1
+end
+i+=1
+end
+while m
+m-=1
+load4 m*4+tailq as i
+h=i*40+funs
+load4 h+32 as v
+load4 h+36 as k
+while k
+e=k*8+tails-8
+load4 e as c
+load4 e+4 as k
+h=c*40+funs+32
+load4 h as x
+ifz x
+store4 h v
+store4 m*4+tailq c
+m+=1
+end
+end
+end
 end

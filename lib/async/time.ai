@@ -177,9 +177,16 @@ ref asynctimeroff as asyncf
 call asyncarm asynce asyncf
 ref asynctick as asyncf
 store asyncq+24 asyncf
+# a time that the clock cannot reach is the last one it can count to,
+# 292 years, so that neither the product nor the sum wraps
 call asyncclock as asyncd
+if asyncms>(0x7fffffffffffffff-asyncd)/1000000
+asyncd=0x7fffffffffffffff
+else
+asyncd+=asyncms*1000000
+end
 store asynctm+8 asyncn+1
-call asyncsift asyncn asyncd+asyncms*1000000 asynce
+call asyncsift asyncn asyncd asynce
 ret asynce
 end
 

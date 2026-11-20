@@ -1,0 +1,15 @@
+# the count comes through every function of a chain of tails
+fn w3 a
+tail w2 a
+end
+fn w2 a
+tail w1 a
+end
+fn w1 a
+tail one a
+end
+fn one a
+ret a
+end
+call w3 5 as x y
+sys exit y

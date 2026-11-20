@@ -525,6 +525,13 @@ load asyncio+8 as asynct
 load asynct+asyncfd*8 as asyncr
 if asyncr
 store asynct+asyncfd*8 0
+# out of epoll while the number still names the file: a copy of the
+# descriptor would keep the registration alive after the close
+load asyncr+16 as asyncx
+if asyncx&1
+load asyncio as asyncep
+sys asyncepollctl asyncep-1 2 asyncfd 0
+end
 asynco=40
 while asynco<72
 label asyncnext

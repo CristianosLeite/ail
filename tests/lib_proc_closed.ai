@@ -1,0 +1,21 @@
+# a descriptor that is not open is a child that ends with 127, also when
+# a copy made for another of the three would take its number: here the
+# output of this process is the input of the child, which needs a copy
+# of it, and 3, the first number free, is given as the error output
+use "lib/io.ai"
+use "lib/proc.ai"
+data sh "/bin/sh" 0
+data c "-c" 0
+data s "exit 0" 0
+buf av 32
+store av sh
+store av+8 c
+store av+16 s
+sys close 3
+call procstart av 1 1 3 as p
+call procwait p 5000 as r
+call putn r
+call procstart av 1 1 -1 as p
+call procwait p 5000 as r
+call putn r
+call print "\n"

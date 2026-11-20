@@ -8,6 +8,7 @@
 
 # syscalls without a name in the compiler
 const procdup2 33
+const procfcntl 72
 const procpoll 7
 const procpidfd 434
 const procsetaff 203
@@ -46,6 +47,85 @@ proce+=8
 jmp next
 end
 
+# in the child: end it unless procfd is -1 or an open descriptor. Asked
+# of all three before any copy is made, since a copy may take the number
+# of a descriptor that was not open and so pass for it.
+fn procopen procfd
+if procfd!=-1
+sys procfcntl procfd 1 as procr
+ifslt procr 0
+sys exit 127
+end
+end
+end
+
+# in the child: make the three descriptors given its 0, 1 and 2, or end
+# it. One that is 0, 1 or 2 itself must be read before another is put on
+# its number, so each round puts in place those whose number no other
+# still reads. When none is left to do so they read one another in a
+# ring, and only then one of them is copied to a number from 3 up, which
+# is closed when the program starts: without a ring no descriptor is
+# needed beyond the three.
+fn procmap procin procout procerr
+local procm 24
+store procm procin
+store procm+8 procout
+store procm+16 procerr
+proci=0
+while proci<3
+load procm+proci*8 as procs
+if procs==proci
+store procm+proci*8 -1
+end
+proci+=1
+end
+label round
+procn=0
+procd=0
+proci=0
+while proci<3
+load procm+proci*8 as procs
+if procs!=-1
+procn+=1
+procb=0
+procj=0
+while procj<3
+load procm+procj*8 as procx
+if procx==proci
+procb=1
+end
+procj+=1
+end
+ifz procb
+sys procdup2 procs proci as procr
+ifslt procr 0
+sys exit 127
+end
+store procm+proci*8 -1
+procd=1
+end
+end
+proci+=1
+end
+ifz procn
+ret 0
+end
+jnz procd round
+proci=0
+label ring
+load procm+proci*8 as procs
+if procs==-1
+proci+=1
+jmp ring
+end
+sys procfcntl procs 1030 3 as procs
+ifslt procs 0
+sys exit 127
+end
+store procm+proci*8 procs
+jmp round
+end
+
 # Start a program as a child process: its number, or the error of fork,
 # negated. procargv is the address of the addresses of its arguments,
 # strings with a NUL byte at the end, with a 0 after the last; the first
@@ -54,7 +134,9 @@ end
 # process, and procin, procout and procerr as its descriptors 0, 1 and 2;
 # -1 leaves the one of this process. The caller keeps and closes the
 # descriptors it passed, and ends the child with procwait. A program that
-# cannot be started is a child that ends with status 127.
+# cannot be started is a child that ends with status 127, and so is one
+# whose descriptors cannot be put in place. The three may be given in any
+# order: 2 as procout and 1 as procerr swaps them.
 fn procstart procargv procin procout procerr
 local procz 4096
 call procenv as proce
@@ -63,15 +145,10 @@ if procpid
 ret procpid
 end
 # the child: nothing here returns
-if procin!=-1
-sys procdup2 procin 0
-end
-if procout!=-1
-sys procdup2 procout 1
-end
-if procerr!=-1
-sys procdup2 procerr 2
-end
+call procopen procin
+call procopen procout
+call procopen procerr
+call procmap procin procout procerr
 load procargv as procp
 call strlen procp as procn
 proci=0
@@ -131,6 +208,7 @@ end
 fn procwait procpid procms
 local procst 8
 local procpf 8
+local procts 16
 if procms
 sys procpidfd procpid 0 as procfd
 ifsge procfd 0
@@ -140,19 +218,29 @@ label again
 sys procpoll procpf 1 procms as procr
 jeq procr -4 again
 sys close procfd
-ifz procr
-sys kill procpid 9
-label gone
-sys wait4 procpid 0 0 0 as procr
-jeq procr -4 gone
-ret -1000
-end
+jz procr late
+else
+# no descriptor to be had for the child (the limit of the process, or of
+# the system): ask every millisecond whether it has ended
+call procnow as proct
+label ask
+store procst 0
+sys wait4 procpid procst 1 0 as procr
+jeq procr -4 ask
+jnz procr took
+call procnow as procn
+jge (procn-proct)/1000000 procms late
+store procts 0
+store procts+8 1000000
+sys nanosleep procts 0
+jmp ask
 end
 end
 label reap
 store procst 0
 sys wait4 procpid procst 0 0 as procr
 jeq procr -4 reap
+label took
 ifslt procr 0
 ret -1001
 end
@@ -161,6 +249,12 @@ if procr&127
 ret 0-(procr&127)
 end
 ret procr>>8&255
+label late
+sys kill procpid 9
+label gone
+sys wait4 procpid 0 0 0 as procr
+jeq procr -4 gone
+ret -1000
 end
 
 # the time of the clock that only goes forward (CLOCK_MONOTONIC), in

@@ -1,0 +1,37 @@
+# a descriptor closed with asyncclose is out of epoll even if a copy of
+# it stays open: the copy, put back on the number, is registered and
+# read like a new file, where the kernel would else say EEXIST (-17)
+use "lib/io.ai"
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/io.ai"
+const dup 32
+const dup2 33
+buf pf 8
+buf rb 8
+sys pipe pf
+load4 pf as r
+load4 pf+4 as w
+sys dup r as d
+sys write w "a" 1
+await asyncread r rb 8 as n
+call putn n
+call asyncclose r as x
+call putn x
+sys dup2 d r
+sys close d
+sys write w "b" 1
+await asyncread r rb 8 as n
+call putn n
+call print rb 1
+# and what waits for the second one is woken by a later write
+call asyncread r rb 8 as h
+call asyncsleep 5 as s
+await s
+sys write w "c" 1
+await h as n
+call putn n
+call print rb 1
+call asyncclose r
+call asyncclose w
+call print "\n"

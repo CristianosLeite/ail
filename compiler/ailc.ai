@@ -50,7 +50,7 @@ var nblk blkbase topblk whead wsrc
 # while the value of a while is read again at the end of its loop: that
 # it is, where the source goes on, the first line of the loop in the
 # output, and what was assigned at the head
-var wend wip wbody wasg
+var wend wip wbody wasg wnv
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -110,8 +110,9 @@ buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes:
 buf runend 7456544    # per run of data statements: the address after its last byte
 buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
                     # the block, asg, and (4 bytes each) 1 for an else part and dead
-                    # at its end, and for a while the address of its first line and
-                    # the place of its value in the source, else 0
+                    # at its end (for a while, the number of variables at its head),
+                    # and for a while the address of its first line and the place of
+                    # its value in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
 buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
                     # yet defined, length, next node, scope, index in the table of
@@ -129,9 +130,16 @@ buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out
                     # source, variables assigned on every way to it
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
                     # variables assigned at the jump
-buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, results
+buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
+                    # (4 bytes each) results, 0 for a function with a tail and no ret
+                    # until fin knows, and the head of the list of the tails to it
+buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
+                    # stands in and the next tail to the same function, as index + 1
+buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
+                    # passed on
 buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
-                    # 4-byte counts: values (all ones for ref) and names after "as";
+                    # 4-byte counts: values (all ones for ref) and names after "as",
+                    # or for a tail its function with the bit 31 set;
                     # the shortest line is "await a", 8 bytes for two entries
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
@@ -464,8 +472,10 @@ p+=8
 ifz whead
 store p 0
 else
-# a while: its first line is behind this jump
+# a while: its first line is behind this jump, and its value sees the
+# variables there are now when it is read again
 store p op+4
+store4 p-4 nv
 end
 p+=8
 store p wsrc
@@ -1089,7 +1099,8 @@ jnz q e0
 q=1
 d=1
 jz fntail e0
-d=6
+# only tails: the results are those of their targets, which fin finds
+d=0
 label e0
 if fnasy
 # a call gives one result, the task; its own result is 0 here
@@ -1181,6 +1192,8 @@ wasg=q
 asg=q
 dead=0
 wbody=r
+load4 p+20 as q
+wnv=q
 load p+32 as q
 wip=ip
 ip=q
@@ -1292,6 +1305,7 @@ end
 call cp exit0 9
 rwstart=op-out+4095>>12<<12
 call resolve
+call tailres
 p=calls
 r=ncalls
 while r
@@ -1308,10 +1322,25 @@ load c+24 as d
 ifz d==q
 call eargc
 end
-load c+32 as d
+load4 c+32 as d
 load4 p+28 as q
+if q&0x80000000
+# a tail: its function returns what the target does, so the two counts
+# are one, unless the target never returns
+load4 (q&0x7fffffff)*40+funs+32 as q
+if d
+if d!=q
+call eresf
+end
+end
+else
+# a function that never returns may be asked for any number
+ifz d
+d=6
+end
 if q>d
 call eresf
+end
 end
 load c+16 as c
 load p+16 as q

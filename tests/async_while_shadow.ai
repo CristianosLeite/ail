@@ -1,0 +1,15 @@
+# the same in an async function, whose variables live in the record of
+# the task: the value read again at the end of the loop is the const
+use "lib/async/task.ai"
+const lim 3
+async fn count
+n=0
+while n<lim
+await asyncyield
+lim=100
+n+=1
+end
+ret n
+end
+await count as c
+sys exit c
