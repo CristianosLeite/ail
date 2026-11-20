@@ -1,4 +1,4 @@
-# ailc stage1 -- the AIL compiler in AIL, a translation of stage0/ailc.s.
+# ailc -- the AIL compiler in AIL, a translation of stage0/ailc.s.
 # usage: ailc < prog.ai > prog      (same output, byte for byte, as stage0)
 #
 # The fixed registers of stage0 are global vars here, since a function
@@ -4571,4 +4571,4 @@ jnz q w1
 
 # ---- the read-only tables are a file of their own, compiled here: a data
 # name may be declared after its uses
-use "stage1/tables.ai"
+use "compiler/tables.ai"

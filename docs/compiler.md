@@ -1,8 +1,8 @@
 # How the compiler works
 
-`stage1/ailc.ai` is the AIL compiler, written in AIL, with its read-only tables in `stage1/tables.ai`: about 4700 lines together, a tenth of them comments, and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
+`compiler/ailc.ai` is the AIL compiler, written in AIL, with its read-only tables in `compiler/tables.ai`: about 4700 lines together, a tenth of them comments, and no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
-It is the only compiler. It began as a translation, routine by routine, of a compiler in x86-64 assembly (`stage0/ailc.s`) that built it the first time; that one was removed on 2026-11-20 and is in the history of the repository. The directory is still called `stage1`.
+It is the only compiler. It began as a translation, routine by routine, of a compiler in x86-64 assembly (`stage0/ailc.s`) that built it the first time; that one was removed on 2026-11-20 and is in the history of the repository. The directory was called `stage1` until 2026-11-20; the seeds of `seed/MANIFEST` were built from it under that name.
 
 ## Building it
 
@@ -10,15 +10,15 @@ The compiler is built by a released copy of itself, a seed, and then by itself:
 
 ```
 tools/seed.sh build/ailc0                      # the pinned seed, checked against its SHA-256
-build/ailc0 < stage1/ailc.ai > build/ailc1     # built by the seed, from the top of the repository
-build/ailc1 < stage1/ailc.ai > build/ailc      # built by that: the compiler
-build/ailc  < stage1/ailc.ai > build/ailc2     # built by itself
+build/ailc0 < compiler/ailc.ai > build/ailc1     # built by the seed, from the top of the repository
+build/ailc1 < compiler/ailc.ai > build/ailc      # built by that: the compiler
+build/ailc  < compiler/ailc.ai > build/ailc2     # built by itself
 cmp build/ailc build/ailc2                     # the same file: a fixed point
 ```
 
 `make` builds `build/ailc`, and `make test` builds `build/ailc2` and checks the fixed point. Three generations are needed because the seed may be an older compiler: it understands the source but may write other code for it, so `build/ailc1` behaves like the current compiler without being the same file. `build/ailc` and `build/ailc2` are both written by a compiler that behaves like the current one, and must be equal.
 
-`seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `stage1/ailc.ai` and `stage1/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores. `tools/seed.sh` writes the pinned seed to `build/ailc0`: it uses the local copy when there is one and otherwise fetches it there, with `curl`, or with `gh release download` when the release needs a login, as that of a private repository does. A copy whose checksum is not the manifest's is refused and the build stops; a fetched one is then removed. Seed 1 is the compiler as the one in assembly built it on 2026-11-20, 30796 bytes, the same file when built again by itself. Seed 2, of the same day, is the fixed point of the build that started from seed 1, 41784 bytes: the first compiler that understands expressions, `name=expression` and `while`, and that compiles the statements which only compute, compare or access memory like expressions. It is pinned so that the source of the compiler may use those forms.
+`seed/MANIFEST` lists the seeds, one a line: the version, the commit whose `compiler/ailc.ai` and `compiler/tables.ai` it was built from, the SHA-256 of the file and the address of the release that keeps it (`seed-<version>`, file `ailc-<version>`). The last line is the seed the build is pinned to; earlier lines stay, so that an older revision can be built with its own seed. A local copy is `seed/ailc-<version>`, which git ignores. `tools/seed.sh` writes the pinned seed to `build/ailc0`: it uses the local copy when there is one and otherwise fetches it there, with `curl`, or with `gh release download` when the release needs a login, as that of a private repository does. A copy whose checksum is not the manifest's is refused and the build stops; a fetched one is then removed. Seed 1 is the compiler as the one in assembly built it on 2026-11-20, 30796 bytes, the same file when built again by itself. Seed 2, of the same day, is the fixed point of the build that started from seed 1, 41784 bytes: the first compiler that understands expressions, `name=expression` and `while`, and that compiles the statements which only compute, compare or access memory like expressions. It is pinned so that the source of the compiler may use those forms.
 
 The source of the compiler may only use what the pinned seed understands. A new statement is first implemented in the old language; then a seed is released and pinned; from then on the source may use the statement.
 
@@ -494,7 +494,7 @@ The `program too big` check cannot fail while the 16-to-1 argument holds, so no 
 
 ## Read-only tables
 
-The tables are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` (the names of the comparisons), `xopc` (the opcodes of the operators of an expression) and `xord` (the order in which registers are taken), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
+The tables are `data` statements in a file of their own, `compiler/tables.ai`, which the last line of `compiler/ailc.ai` names with `use "compiler/tables.ai"`. The path is relative to the directory the compiler runs in, so the compiler is compiled from the top of the repository, as the Makefile does. The tables stand after the code that uses them, : `hdr`, `optab`, `sysnames`, `fnpush`, `zeroes`, `zerolen`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum`, `exit0`, `exkw` (the names of the comparisons), `xopc` (the opcodes of the operators of an expression) and `xord` (the order in which registers are taken), and `retc`, the code of `ret`.  A table is a run of `data` lines, one row a line, with the name on the first.
 
 The file is the definition of the tables. It was first printed from the bytes that the compiler in assembly assembled to; now a row is edited here. A row is decimal bytes, which no one reads as instructions, so two checks stand where the generator stood. `tests/tables.sh` checks the form: every length is that of its name or code, no statement or syscall name occurs twice, the flags are ones that exist, the two tables with rows end, the others have their size, and each syscall number is the one in a list of the script's own. `tests/insn.sh` checks the bytes: `tests/insn.cases` has a line for every row of the statement table and for the other tables, with a source, the code it must compile to in hex, and the same code as instructions. The hex is what GNU `as` writes for the instructions (`tests/insn.sh hex '<instructions>'` prints it and `tests/insn.sh asm` checks the two columns), so the expected bytes do not come from the compiler; the run in `make test` needs no assembler.
 
@@ -514,7 +514,7 @@ The compiler was first checked by comparing it with the one in assembly on every
 
 ## Adding a statement
 
-A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row of `optab` in `stage1/tables.ai`: write the instructions, take their bytes from `tests/insn.sh hex`, and add the case to `tests/insn.cases`. Anything else, like `buf`, `data`, `var`, `const`, `label`, `fn` and `end`:
+A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row of `optab` in `compiler/tables.ai`: write the instructions, take their bytes from `tests/insn.sh hex`, and add the case to `tests/insn.cases`. Anything else, like `buf`, `data`, `var`, `const`, `label`, `fn` and `end`:
 
 1. Add a row with the flags 255 and the next number, and a `jeq` for that number in `next`; a number without one falls into `whiledef`.
 2. Write the state: it reads from `ip`, appends at `op`, and ends its last token through `eol`.

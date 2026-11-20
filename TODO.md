@@ -1,7 +1,7 @@
 # TODO
 
 This backlog records current limits and the work needed to lift them. Favor
-changes that reduce the token cost of real AIL programs. The compiler is `stage1/ailc.ai` alone since 2026-11-20:
+changes that reduce the token cost of real AIL programs. The compiler is `compiler/ailc.ai` alone since 2026-11-20:
 keep its fixed point, and use in its source only what the pinned seed
 understands. See the [roadmap](docs/roadmap.md) for project history.
 
@@ -123,7 +123,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Add CPU-bound workloads to the corpus: `sieve`, `collatz`, `fnv`, `isort`.
 - [x] Record the first seed of the compiler in a manifest and release it.
 - [x] Build the compiler from the pinned seed, in three generations.
-- [x] Make `stage1/tables.ai` its own source, checked by form and by bytes.
+- [x] Make `compiler/tables.ai` its own source, checked by form and by bytes.
 - [x] Check the one compiler without comparing it to stage0.
 - [x] Remove stage0.
 - [x] Fix the expression syntax from token counts on the corpus.

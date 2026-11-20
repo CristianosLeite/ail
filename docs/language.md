@@ -1,6 +1,6 @@
 # AIL language reference
 
-This describes exactly what the compilers accept today, stage0 and stage1 alike. The language is deliberately tiny; see the [roadmap](roadmap.md) for what comes next.
+This describes exactly what the compiler accepts today. The language is deliberately tiny; see the [roadmap](roadmap.md) for what comes next.
 
 ## Design rules
 

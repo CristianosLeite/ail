@@ -1,6 +1,6 @@
 B := build
 
-SRC := stage1/ailc.ai stage1/tables.ai
+SRC := compiler/ailc.ai compiler/tables.ai
 
 all: $(patsubst examples/%.ai,$(B)/%,$(wildcard examples/*.ai)) $(B)/ailc
 
@@ -25,14 +25,14 @@ endef
 $(B)/%: examples/%.ai $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-# The compiler, stage1/ailc.ai, in three generations: built by the seed
+# The compiler, compiler/ailc.ai, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
 # the same source, so ailc1 need not be the same file as ailc; ailc and
 # ailc2 are both written by the current compiler and must be, which
 # tests/self.sh checks. ailc1 and ailc are one program in two
 # translations and must behave alike, which it and tests/fuzz.sh check.
-# stage1/ailc.ai names its tables with use "stage1/tables.ai", a path that
+# compiler/ailc.ai names its tables with use "compiler/tables.ai", a path that
 # the compiler opens from the directory make runs in.
 $(B)/ailc1: $(SRC) $(B)/ailc0
 	$(call compile,$(B)/ailc0)

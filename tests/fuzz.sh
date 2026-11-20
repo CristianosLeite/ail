@@ -5,7 +5,7 @@
 # or exit status 1, nothing on stdout and one line "ailc: ..." on stderr.
 # A signal, a deadline, another status or anything else written fails.
 # The same source also goes to a second translation of the compiler,
-# build/ailc1, which the seed compiled from the same stage1/ailc.ai: the
+# build/ailc1, which the seed compiled from the same compiler/ailc.ai: the
 # two must give the same status, output bytes and message, or the compiler
 # has compiled itself wrongly.
 # Usage: tests/fuzz.sh [count [seed]]     (default 300 sources, seed 1)

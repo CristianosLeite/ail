@@ -2,7 +2,7 @@
 # usage: tests/self.sh [name...]     (no names = every test and example)
 #
 # The compiler checked against itself. build/ailc1 and build/ailc are the
-# same source, stage1/ailc.ai, compiled by two compilers: the seed, and the
+# same source, compiler/ailc.ai, compiled by two compilers: the seed, and the
 # compiler that the seed built. They are one program in two translations,
 # so for the source of each test, and with no names also for each example,
 # they must give the same stdout byte for byte, the same stderr and the

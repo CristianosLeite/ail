@@ -1,4 +1,4 @@
-# ailc stage1 -- the read-only tables of stage1/ailc.ai, which compiles this
+# ailc -- the read-only tables of compiler/ailc.ai, which compiles this
 # file in place with use. This file is their definition: a row is edited
 # here, one row a line. tests/tables.sh checks its form and tests/insn.sh
 # the instruction bytes, against bytes written by an assembler; a new or
