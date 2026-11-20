@@ -74,7 +74,8 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `opdptr`, `opdaddr`, `propagate`, `clrvk`, `memchk` | the access check: note what is known of a value, carry it to the variable assigned, forget it, and check or record a load or store |
 | `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
 | `blanks`, `blank1`, `eol`, `name` | skip spaces and tabs; require at least one; check that the line ends; read a name |
-| `lookup_var`, `lookup_buf`, `lookup_label`, `lookup_fn` | find a name among the variables or the labels of the current scope, the buffers or the functions |
+| `lookup_var`, `lookup_buf`, `lookup_label`, `lookup_fn` | find a name among the variables or the labels of the current scope, the global names or the functions |
+| `hhash`, `hfind`, `hadd`, `hundo`, `globdone` | the hash of names: bucket of a key, find a node, add one, remove the nodes of a first pass; make a global name findable |
 | `outchk` | report `program too big` unless the output buffer has room for what is emitted before the next check |
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
@@ -222,7 +223,7 @@ objdump -D -b binary -mi386:x86-64 -Mintel --start-address=176 build/hello
 
 ## Variables
 
-The table `vars` has one 16-byte entry per variable: the address of the name inside the input buffer and its length. Names are not copied. It has two halves of 64 entries: the first for the top level, the second for the function being compiled. `ebp` counts the entries of the current half, and `lookup` searches them linearly.
+The table `vars` has one 16-byte entry per variable: the address of the name inside the input buffer and its length. Names are not copied. It has two halves of 64 entries: the first for the top level, the second for the function being compiled. `ebp` counts the entries of the current half, and `lookup` searches them one by one.
 
 Six registers hold variables: `rbx`, `rbp`, `r12`, `r13`, `r14`, `r15` (`varnum`). These are the registers that neither the `syscall` instruction (which destroys `rax`, `rcx` and `r11`) nor the argument positions use. `varplace` says where a variable lives, and `emit_varmov` emits the `mov` between it and a register: `emit_mov_rr` for a register, `emit_mem` for memory (`REX.W 8B` or `89` with a SIB byte, 8 bytes).
 
@@ -343,12 +344,25 @@ ff:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
 - Strings and data are read-only; writable memory is what `buf`, `local` and `alloc` give, or what the program maps itself.
 - `alloc` is one mapping per call: at least a page and two system calls for every allocation and release.
 
+## Finding names
+
+Labels, functions and global names are found through one hash table; only the variables of a scope, at most 64, and the paths of `use` are searched one by one (`lookup`).
+
+`buckets` has 2^20 entries, each the number of the first node of a chain or 0. `hnodes` holds the nodes in the order they were added: the name (an address into the input and a length), the kind (`NS_GLOB`, `NS_FN`, `NS_LABEL`, `NS_PEND`), the scope, the index in the table of that kind, the next node of the chain and the bucket. `hhash` is FNV-1a over the bytes of the name, mixed with the kind and the scope by exclusive or and folded to 20 bits. `hfind` walks the chain of the bucket and compares kind, scope, length and bytes; `hadd` puts a new node in front of its chain. `lookup_label`, `lookup_fn` and `lookup_buf` are wrappers that answer as the linear searches did: the index, or carry and the free slot of the table in `r10`.
+
+- **Scope.** A label belongs to the function it stands in. Each `fn` takes the next number from `nscope` as `scope`, on each of its two passes, and the top level is 0. The label nodes of a finished function are never removed: no later lookup has their scope.
+- **Visibility.** A global name gets its node only when its statement is complete (`globdone`), and a function when its parameter line is, as the tables counted them before.
+- **Rollback.** The first pass over a function adds nodes that the second pass must not find. `fndef` saves the node count in the snapshot, and `hundo` takes the later nodes out again, last first, each being the first of its chain when its turn comes.
+- **Pending labels.** A jump to a label that is not defined yet finds or adds a node of kind `NS_PEND` for the name and and-s `asg` into its mask (`HN_MASK`). `labasg` reads that mask when the label is defined, instead of searching all jumps of the scope for the name.
+
+For two keys with the same name, a different kind or scope always gives a different bucket, because both are mixed in by exclusive or and the fold is linear over it. The comparisons of kind and scope in `hfind` can therefore never decide a lookup today; they stay so that a change of the hash cannot make names of different kinds meet. The comparison of lengths does decide: `tools/hashcol.py` finds a name and a longer one that starts with it in one bucket, and `tests/hash_collision_prefix` uses the pair.
+
 ## Capacity
 
 Nothing in the compiler grows: every buffer has the size that the largest source needs, and the kernel only gives memory to the pages that are touched. The compiler therefore has about 700 MiB of zero-filled address space and uses a few hundred kilobytes for a small program; it does not start under a limit on address space below that (`ulimit -v`).
 
 - **Source.** `INSZ` is 8 MiB. The read loops of stdin and of `use` stop with `source too big` when the buffer is full.
-- **Tables.** Each is sized for a source of `INSZ` bytes made only of the shortest line that adds an entry, as the comments beside the `.equ` lines say, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `call a` 7, a name used as a value 2.
+- **Tables.** Each is sized for a source of `INSZ` bytes made only of the shortest line that adds an entry, as the comments beside the `.equ` lines say, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `call a` 7, a name used as a value 2. The hash has room for every global name, label, function and jump at once.
 - **Output.** `OUTSZ` is 16 times `INSZ`. No line produces 16 bytes of code for each of its own: the worst are `fn a` with a frame of a page (51 bytes for 5) and the `end` of a function with six results (32 for 4). Because that is an argument and not a structure, the buffer is also checked: `outchk` reports `program too big` when fewer than `OUTGAP` (4096) bytes are left, and it runs at every statement, every value, every item of `data` and every byte of a string, between which no more than a few hundred bytes are emitted.
 - **Layout.** `fin` checks that the code ends below the cells of the vars, where the writable segment begins, before it writes the header.
 

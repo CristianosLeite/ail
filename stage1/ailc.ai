@@ -40,6 +40,10 @@ var fnres fntail ncap
 # nblk = open blocks; blkbase = those opened outside the open function;
 # topblk = blkbase of the top level, in a function
 var nblk blkbase topblk
+# the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
+# scope = 0 at top level or the number of the open function, nscope =
+# functions opened so far, snh = nhn before the first pass over a function
+var nhn hbkt scope nscope snh
 # the source limit of 8 MiB is in the sizes below: in holds one byte more,
 # out 16 times as much (see OUTSZ in stage0), and each table one entry for
 # every shortest line that makes one
@@ -68,6 +72,11 @@ buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes:
 buf runend 7456544    # per run of data statements: the address after its last byte
 buf blks 40265328     # 1677722 open blocks of 24 bytes: address of the rel32 that jumps past
                     # the block, asg, and (4 bytes each) 1 for an else part and dead
+buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
+buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
+                    # yet defined, length, next node, scope, index in the table of
+                    # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
+                    # label with jumps but no definition yet)
 buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
 buf ustack 19173968   # per use being compiled: where its line ended, and the end of
                     # the unit that has it
@@ -166,7 +175,7 @@ end
 end
 # duplicate name unless the lookup result i is "not found"
 fn nodup i
-eq i 99999 as i
+eq i -1 as i
 ifz i
 call edup
 end
@@ -403,7 +412,7 @@ call eqn q p n as t
 ret t
 end
 end
-# index of the name read last among n entries of z bytes at b, or 99999
+# index of the name read last among n entries of z bytes at b, or -1
 fn look b n z
 set 0 as i
 label a
@@ -416,7 +425,7 @@ jmp a
 end
 ret i
 end
-ret 99999
+ret -1
 end
 # the variable pool of the current scope
 fn vbase
@@ -444,10 +453,125 @@ end
 call look p n 16 as i
 ret i
 end
+# labels, functions and global names are found through one hash table with
+# chains. Nodes are never removed, except those of the first pass over a
+# function; the labels of a finished function match nothing afterwards,
+# since every function has a scope number of its own.
+# the bucket of the name read last with the kind k in the scope sc
+fn hhash k sc
+mul sc 0x9e3779b1 as m
+add m k as m
+and m 0xffffffff as m
+set 2166136261 as h
+set ns as p
+set nl as n
+label a
+jz n b
+loadb p as c
+xor h c as h
+mul h 16777619 as h
+and h 0xffffffff as h
+add p 1 as p
+sub n 1 as n
+jmp a
+label b
+xor h m as h
+shr h 15 as c
+xor h c as h
+and h 1048575 as h
+set h as hbkt
+ret h
+end
+# the node of the name read last with the kind k in the scope sc, or 0
+fn hfind k sc
+call hhash k sc as b
+mul b 8 as b
+add b buckets as b
+load b as i
+label a
+jz i x
+mul i 64 as p
+add p hnodes as p
+sub p 64 as p
+add p 56 as q
+load q as c
+jne c k t
+add p 32 as q
+load q as c
+jne c sc t
+add p 16 as q
+load q as c
+jne c nl t
+load p as q
+call eqn q ns nl as c
+jz c t
+ret p
+label t
+add p 24 as q
+load q as i
+jmp a
+label x
+end
+# add a node for the name read last with the kind k in the scope sc and the
+# value v, in front of its bucket, and return it
+fn hadd k sc v
+call hhash k sc as b
+add nhn 1 as nhn
+mul nhn 64 as p
+add p hnodes as p
+sub p 64 as p
+store p ns
+add p 8 as q
+store q 0
+add p 16 as q
+store q nl
+add p 32 as q
+store q sc
+add p 40 as q
+store q v
+add p 48 as q
+store q b
+add p 56 as q
+store q k
+mul b 8 as b
+add b buckets as b
+load b as c
+add p 24 as q
+store q c
+store b nhn
+ret p
+end
+# remove the nodes added after the first n, last first: each is then the
+# first of its bucket
+fn hundo n
+label a
+jle nhn n x
+mul nhn 64 as p
+add p hnodes as p
+sub p 64 as p
+add p 48 as q
+load q as b
+add p 24 as q
+load q as c
+mul b 8 as b
+add b buckets as b
+store b c
+sub nhn 1 as nhn
+jmp a
+label x
+end
+# the index that the node p holds, or -1 for no node
+fn hval p
+ifz p
+ret -1
+end
+add p 40 as p
+load p as p
+ret p
+end
 fn lbuf
-set nbufs as n
-call look globs n 48 as i
-ret i
+call hfind 1 0 as p
+tail hval p
 end
 # the entry of global name i
 fn gent i
@@ -474,7 +598,7 @@ end
 fn sname
 call rdname
 call lbuf as i
-ifne i 99999
+ifne i -1
 call gent i as p
 add p 32 as c
 load c as c
@@ -504,7 +628,7 @@ end
 fn cname
 call rdname
 call lbuf as i
-ne i 99999 as c
+ne i -1 as c
 call ok c
 call gent i as p
 add p 32 as c
@@ -517,17 +641,26 @@ ret p
 end
 # a label of the current scope: the index counts from labbase
 fn llab
-set labbase as b
-sub nlabels b as n
-mul b 40 as b
-add b labs as b
-call look b n 40 as i
-ret i
+call hfind 3 scope as p
+ifz p
+ret -1
+end
+add p 40 as p
+load p as p
+sub p labbase as p
+ret p
 end
 fn lfn
-set nfuncs as n
-call look funs n 40 as i
-ret i
+call hfind 2 0 as p
+tail hval p
+end
+# the global name whose entry newglob wrote is complete: from here on it is
+# found
+fn globdone
+call gent nbufs as p
+call getn p
+call hadd 1 0 nbufs
+add nbufs 1 as nbufs
 end
 # write the name read last into the table entry p, or read it back from it
 fn putn p
@@ -548,7 +681,7 @@ end
 fn defvar
 call rdname
 call lbuf as c
-jeq c 99999 v
+jeq c -1 v
 ifz infn
 call edup
 end
@@ -560,7 +693,7 @@ jz c v
 call edup
 label v
 call lvar as i
-jne i 99999 x
+jne i -1 x
 set nv as i
 ifge i 64
 call evar
@@ -1113,29 +1246,16 @@ end
 # every way to it, the line before and each jump seen so far; a label that
 # only later jumps reach starts from jmask
 fn labasg
-set asg as m
-set 0 as k
-sub nfix fixbase as n
-mul fixbase 32 as p
-add p fixs as p
-label a
-if n
-call same p as c
-if c
-add p 24 as c
-load c as c
-and m c as m
-add k 1 as k
-end
-add p 32 as p
-sub n 1 as n
-jmp a
-end
+call hfind 4 scope as p
+jz p n
+add p 8 as p
+load p as m
+and asg m as asg
+jmp x
+label n
 jz dead x
-jnz k x
-set jmask as m
+set jmask as asg
 label x
-set m as asg
 set 0 as dead
 end
 # sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
@@ -1365,7 +1485,7 @@ label a
 jz n x
 call getn p
 call llab as c
-ifeq c 99999
+ifeq c -1
 call elab
 end
 set labbase as i
@@ -1530,7 +1650,7 @@ call ok q
 gt q 4095 as d
 call no d
 call look uses nuses 16 as r
-jne r 99999 next
+jne r -1 next
 mul nuses 16 as r
 add r uses as r
 call putn r
@@ -1692,7 +1812,7 @@ loadb r as r
 and r 64 as d
 if d
 call lbuf as r
-ifeq r 99999
+ifeq r -1
 call mov 0
 set 1 as r
 jmp i9
@@ -1707,7 +1827,7 @@ call mov r
 jmp tokend
 end
 call lvar as r
-jeq r 99999 i2
+jeq r -1 i2
 mul r 8 as d
 add d vlast as d
 store d ip
@@ -1727,7 +1847,7 @@ call anext
 jmp tokend
 label i2
 call lbuf as r
-jne r 99999 i4
+jne r -1 i4
 call opda
 call mov 0
 set 0 as r
@@ -1738,7 +1858,7 @@ jmp tokend
 # the first value of at: a name, passed as its address and its size
 label atname
 call lvar as r
-ifne r 99999
+ifne r -1
 mul r 8 as d
 add d vlocal as d
 load d as d
@@ -1755,7 +1875,7 @@ call mov d
 jmp tokend
 end
 call lbuf as r
-ifne r 99999
+ifne r -1
 call gent r as p
 add p 32 as d
 load d as d
@@ -1808,7 +1928,7 @@ call blanks
 set ip as q
 call rdname
 call lbuf as r
-jeq r 99999 cp1
+jeq r -1 cp1
 call gent r as p
 add p 32 as d
 load d as d
@@ -1912,8 +2032,7 @@ set r as bsssz
 add q 0x10000000 as q
 add p 16 as p
 store p q
-add nbufs 1 as r
-set r as nbufs
+call globdone
 jmp next
 
 # "local <name> <size>": bytes in the frame of the open function; the name
@@ -1975,8 +2094,7 @@ mul r 8 as r
 sub 0x10000000 r as r
 add p 16 as q
 store q r
-add nbufs 1 as r
-set r as nbufs
+call globdone
 call tokchk
 call blanks
 call pk as c
@@ -2000,8 +2118,7 @@ add p 24 as q
 store q r
 add p 32 as q
 store q 2
-add nbufs 1 as r
-set r as nbufs
+call globdone
 jmp next
 
 # "data [<name>] <item>...": bytes behind a jmp; data statements that
@@ -2065,8 +2182,7 @@ sub q out as c
 add c 0x400000 as c
 add p 16 as d
 store d c
-add nbufs 1 as c
-set c as nbufs
+call globdone
 end
 set datarel as p
 set op as q
@@ -2101,6 +2217,7 @@ call labasg
 call clrvk
 add p 8 as p
 store p asg
+call hadd 3 scope r
 add r 1 as r
 set r as nlabels
 set 0 as dataend
@@ -2110,7 +2227,7 @@ jmp next
 label jtarget
 call eol
 call llab as r
-jeq r 99999 j1
+jeq r -1 j1
 add r labbase as r
 mul r 40 as r
 add r labs as r
@@ -2121,7 +2238,7 @@ and d f as d
 if d
 call eunasg
 end
-jne pass 1 j1
+jne pass 1 j2
 add r 24 as r
 load r as r
 mul nloops 16 as p
@@ -2130,7 +2247,19 @@ store p r
 add p 8 as p
 store p ip
 add nloops 1 as nloops
+jmp j2
 label j1
+call hfind 4 scope as q
+ifz q
+call hadd 4 scope 0 as q
+add q 8 as d
+store d -1
+end
+add q 8 as q
+load q as d
+and d asg as d
+store q d
+label j2
 call eop
 set nfix as r
 mul r 32 as p
@@ -2165,6 +2294,7 @@ set dataend as sde
 set datarel as sdr
 set nchks as snk
 set nruns as snu
+set nhn as snh
 set 1 as pass
 set 0 as fnslots
 set 6 as fnregs
@@ -2205,6 +2335,8 @@ set jmask as tjmask
 set 0 as asg
 set 0 as dead
 set 1 as infn
+add nscope 1 as nscope
+set nscope as scope
 set nlabels as q
 set q as labbase
 set nfix as q
@@ -2242,6 +2374,10 @@ set nv as fnnpar
 set nv as q
 add p 8 as p
 store p q
+mul nfuncs 40 as p
+add p funs as p
+call getn p
+call hadd 2 0 nfuncs
 add nfuncs 1 as r
 set r as nfuncs
 jmp next
@@ -2282,6 +2418,7 @@ set q as nlabels
 set 0 as fixbase
 set 0 as labbase
 set 0 as infn
+set 0 as scope
 set tasg as asg
 set tdead as dead
 set tjmask as jmask
@@ -2306,6 +2443,7 @@ set sde as dataend
 set sdr as datarel
 set snk as nchks
 set snu as nruns
+call hundo snh
 set topvars as nv
 set 2 as pass
 jmp fndef
@@ -2384,7 +2522,7 @@ label c1
 jz r c2
 call getn p
 call lfn as c
-ifeq c 99999
+ifeq c -1
 call efn
 end
 mul c 40 as c
@@ -2433,7 +2571,7 @@ label r1
 jz r r2
 call getn p
 call lbuf as c
-ifeq c 99999
+ifeq c -1
 call eund
 end
 call gent c as c
@@ -2475,7 +2613,7 @@ label k1
 jz r k2
 call getn p
 call lbuf as c
-jeq c 99999 k4
+jeq c -1 k4
 call gent c as c
 add c 32 as d
 load d as d

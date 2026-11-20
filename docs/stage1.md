@@ -26,7 +26,8 @@ What stage0 reaches with `call` is a function:
 | `crlf`, `blanks`, `blank1`, `eol`, `tokchk`, `name`, `rname`, `isas` | as in stage0; `rname` is a name that must start with a letter |
 | `hexd`, `sbytes` | `hexdig` and `strbytes` of stage0 |
 | `eqn`, `same`, `look` | compare bytes; compare a table entry with the name read last; search a table |
-| `vbase`, `lvar`, `ltop`, `lbuf`, `llab`, `lfn` | the lookups of stage0; they return an index, or 99999 for a name that is not defined |
+| `vbase`, `lvar`, `ltop`, `lbuf`, `llab`, `lfn` | the lookups of stage0; they return an index, or -1 for a name that is not defined |
+| `hhash`, `hfind`, `hadd`, `hundo`, `hval`, `globdone` | the hash of names as in stage0, with nodes of 64 bytes; `hfind` returns the node or 0, and `hval` its index or -1 |
 | `gent`, `newglob`, `cname`, `sname`, `rdname`, `rdnum` | the entry of a global name; `newglob`, `constname`, `sysname`, `rdname` and `rdnum` of stage0 |
 | `ldvar` | the `mov` that reads the cell of a `var` |
 | `putn`, `getn` | write the name read last into a table entry, or read it back |

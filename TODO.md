@@ -77,7 +77,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   parsing, allocate a fixed 1 MiB emission buffer and size the jump, label, call
   and function tables from the source cap. Grow storage as needed and check
   capacity where bytes and entries are appended.
-- [ ] Improve symbol lookup at scale. Linear scans for duplicate definitions and
+- [x] Improve symbol lookup at scale. Linear scans for duplicate definitions and
   fixups can make symbol-heavy programs take quadratic time to compile.
 - [ ] Remove fixed layout constraints. The ELF code and writable segments start
   at `0x400000` and `0x10000000`, and buffer addresses are encoded as 32-bit

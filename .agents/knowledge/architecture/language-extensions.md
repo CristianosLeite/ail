@@ -215,7 +215,26 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   writable segment at 0x10000000; twice as much would not.
 - The suite went from 717 to 722 tests.
 
+### Hashed symbol lookup (2026-11-20)
+- Labels, functions and global names are found through a chained hash of 2^20 buckets instead
+  of searches through their tables. A source of 4.3 MiB with 100000 labels and jumps, 100000
+  data names and 20000 functions compiles in 0.06 s with stage0 and 0.18 s with stage1; before,
+  stage0 took 19.6 s. The output is the same byte for byte.
+- The masks of forward jumps moved into pending nodes, so defining a label no longer scans the
+  jumps of its scope.
+- Stage1 returned 99999 for "not found"; with the 8 MiB limit a table can have that many
+  entries, so it returns -1 now (`globals_above_100000`).
+- The suite went from 722 to 726 tests.
+
 ## Why
+- **Chains with a fixed bucket array, not open addressing:** the nodes fill an arena in order,
+  so memory use follows the number of names, and the bucket array is 4 MiB whatever the source.
+  A table that is probed must be sized from the largest source and touches a page per name.
+- **Nodes are not removed when a function ends:** a scope number per function makes them
+  unreachable, and removing them would need the labels of a scope to be listed.
+- **The comparisons of kind and scope stay although they cannot fail today:** for one name two
+  kinds or scopes always hash apart, which a mutation check confirmed; the checks cost two
+  instructions and protect a future change of the hash.
 - **Sized once instead of grown:** growing a buffer moves it, and the compiler keeps addresses
   into the input (every name) and into the output (labels, fixups, the snapshot of a function).
   Turning all of them into offsets touches most of both compilers for a limit nobody will meet.

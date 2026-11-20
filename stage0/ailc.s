@@ -51,6 +51,21 @@
 .equ K_LIT,   3                 # or the bytes of a string
 .equ NCHKS,  INSZ / 8 + 1       # "load a as b\n" is longer than 8 bytes
 .equ NRUNS,  INSZ / 9 + 1       # "data a 1\n" is 9 bytes
+.equ NBUCK,  1 << 20            # buckets of the hash of names
+.equ NHN,    NGLOB + NLABELS + NFUNCS + NFIX    # most names it can hold
+.equ HN_NAME, 0                 # a node of the hash: name address,
+.equ HN_MASK, 8                 # asg of the jumps to a label not yet defined,
+.equ HN_LEN, 16                 # name length,
+.equ HN_NEXT, 20                # next node of the bucket, from 1, or 0,
+.equ HN_SCOPE, 24               # 0, or the number of the function it belongs to,
+.equ HN_VAL, 28                 # index in the table of its kind,
+.equ HN_BKT, 32                 # its bucket,
+.equ HN_NS,  36                 # and its kind:
+.equ HNSZ,   40
+.equ NS_GLOB, 1                 # a global name,
+.equ NS_FN,  2                  # a function,
+.equ NS_LABEL, 3                # a label,
+.equ NS_PEND, 4                 # a label that has jumps but no definition yet
 .equ NUSES,  INSZ / 7 + 1       # use "a" and its line end are 8 bytes
 .equ PATHSZ, 4096               # longest path of a use, with its NUL
 
@@ -80,7 +95,13 @@ pass:   .skip 4                 # 1 while a function is compiled to measure its
 loops:  .skip NFIX * 16         # per backward jump of the function: where the
 nloops: .skip 4                 # source has its label, and the jump
 labpos: .skip NLABELS * 8       # per label: where the source defines it
-snap:   .skip 12 * 8            # the state to return to after the first pass
+snap:   .skip 13 * 8            # the state to return to after the first pass
+buckets: .skip NBUCK * 4        # per bucket: its first node, from 1, or 0
+hnodes: .skip NHN * HNSZ        # the nodes, in the order they were added
+nhn:    .skip 4                 # how many
+hbkt:   .skip 4                 # the bucket that hhash found last
+scope:  .skip 4                 # 0 at top level, else the number of the open function
+nscope: .skip 4                 # functions opened so far, both passes counted
 opd:    .skip 3 * 32            # what is known of the first two values of the
                                 # statement: kind, then a number, or a name
                                 # (address, length) and a number; third: scratch
@@ -2038,7 +2059,7 @@ bufdef:
     mov eax, [rip+nbufs]
     lea r10, [rip+bufaddr]
     mov [r10+rax*4], ecx
-    inc dword ptr [rip+nbufs]
+    call globdone
     jmp next
 
 # "local <name> <size>": bytes in the frame of the open function, not
@@ -2120,7 +2141,7 @@ vardef:
     add ecx, BSS                # BSS - 8 * (its number, from 1)
     lea rdx, [rip+bufaddr]
     mov [rdx+rax*4], ecx
-    inc dword ptr [rip+nbufs]
+    call globdone
     call tokchk
     call blanks
     cmp rsi, r15
@@ -2150,7 +2171,7 @@ constdef:
     mov [rdx+rcx*8], rax
     lea rdx, [rip+bufkind]
     mov byte ptr [rdx+rcx], G_CONST
-    inc dword ptr [rip+nbufs]
+    call globdone
     jmp next
 
 # "data [<name>] <item>...": read-only bytes in the code stream behind a jmp;
@@ -2221,7 +2242,7 @@ datadef:
     add rax, BASE
     lea r10, [rip+bufaddr]
     mov [r10+rcx*4], eax
-    inc dword ptr [rip+nbufs]
+    call globdone
 9:  mov rcx, [rip+datarel]
     mov rax, rdi
     sub rax, rcx
@@ -2263,6 +2284,10 @@ labdef:
     lea rcx, [rip+labmask]
     mov rdx, [rip+asg]
     mov [rcx+rax*8], rdx
+    mov ecx, eax
+    mov eax, NS_LABEL
+    mov edx, [rip+scope]
+    call hadd
     inc dword ptr [rip+nlabels]
     mov qword ptr [rip+dataend], 0  # data after a label gets its own jmp
     jmp next
@@ -2281,7 +2306,7 @@ jtarget:
     test rcx, rdx
     jnz err_unasg
     cmp dword ptr [rip+pass], 1
-    jne 1f
+    jne 2f
     lea rcx, [rip+labpos]       # first pass: it also makes a loop
     mov rax, [rcx+rax*8]
     mov ecx, [rip+nloops]
@@ -2290,7 +2315,19 @@ jtarget:
     mov [rdx+rcx], rax
     mov [rdx+rcx+8], rsi
     inc dword ptr [rip+nloops]
-1:  call emit_op
+    jmp 2f
+1:  mov eax, NS_PEND            # a jump ahead: the label will have, of what is
+    mov edx, [rip+scope]        # assigned, only what every such jump has
+    call hfind
+    jnc 3f
+    mov eax, NS_PEND
+    mov edx, [rip+scope]
+    xor ecx, ecx
+    call hadd
+    mov qword ptr [rax+HN_MASK], -1
+3:  mov rcx, [rip+asg]
+    and [rax+HN_MASK], rcx
+2:  call emit_op
     mov eax, [rip+nfix]
     shl eax, 5
     lea rcx, [rip+fixs]
@@ -2320,42 +2357,23 @@ godead:
 1:  ret
 
 # the label r8/r9 is being defined: asg becomes what is assigned on every way
-# to it, the line before (if it falls through) and each jump seen so far. A
-# label that only later jumps reach starts from what was assigned before the
-# code became unreachable; those jumps are then checked against it.
+# to it, the line before (if it falls through) and each jump seen so far,
+# whose common part is in the pending node of the name. A label that only
+# later jumps reach starts from what was assigned before the code became
+# unreachable; those jumps are then checked against it. Keeps r8 and r9.
 labasg:
-    push rbx
-    push rbp
-    mov rbp, [rip+asg]
-    xor r13d, r13d              # jumps found
-    mov eax, [rip+fixbase]
-    mov ebx, [rip+nfix]
-    sub ebx, eax
-    shl eax, 5
-    lea rcx, [rip+fixs]
-    lea rax, [rcx+rax]
-1:  test ebx, ebx
-    jz 3f
-    push rax
-    mov r10, rax
-    mov edx, 1
-    call lookup                 # is this jump to the label?
-    pop rax
-    jc 2f
-    and rbp, [rax+24]
-    inc r13d
-2:  add rax, 32
-    dec ebx
-    jmp 1b
-3:  cmp dword ptr [rip+dead], 0
-    je 4f
-    test r13d, r13d
-    jnz 4f
-    mov rbp, [rip+jmask]
-4:  mov [rip+asg], rbp
-    mov dword ptr [rip+dead], 0
-    pop rbp
-    pop rbx
+    mov eax, NS_PEND
+    mov edx, [rip+scope]
+    call hfind
+    jc 1f
+    mov rax, [rax+HN_MASK]      # all ones in asg if the line before is dead
+    and [rip+asg], rax
+    jmp 2f
+1:  cmp dword ptr [rip+dead], 0
+    je 2f
+    mov rax, [rip+jmask]
+    mov [rip+asg], rax
+2:  mov dword ptr [rip+dead], 0
     ret
 
 # ---- functions
@@ -2389,6 +2407,8 @@ fndef:
     mov [rax+80], rcx
     mov ecx, [rip+nruns]
     mov [rax+88], rcx
+    mov ecx, [rip+nhn]
+    mov [rax+96], rcx
     mov dword ptr [rip+pass], 1
     mov dword ptr [rip+fnslots], 0
     mov dword ptr [rip+fnregs], NREGS
@@ -2441,6 +2461,10 @@ fndef:
     mov qword ptr [rip+asg], 0
     mov dword ptr [rip+dead], 0
     mov dword ptr [rip+infn], 1
+    mov eax, [rip+nscope]       # a scope number of its own for its labels
+    inc eax
+    mov [rip+nscope], eax
+    mov [rip+scope], eax
     mov eax, [rip+nlabels]
     mov [rip+labbase], eax
     mov eax, [rip+nfix]
@@ -2489,6 +2513,14 @@ fndef:
     mov eax, [rip+nfuncs]
     lea rcx, [rip+funargs]
     mov [rcx+rax], bpl
+    mov ecx, eax
+    shl rax, 4
+    lea rdx, [rip+funcs]
+    mov r8, [rdx+rax]
+    mov r9, [rdx+rax+8]
+    mov eax, NS_FN
+    xor edx, edx
+    call hadd
     inc dword ptr [rip+nfuncs]
     jmp next
 
@@ -2538,6 +2570,7 @@ fnend:
     mov [rip+fixbase], eax
     mov [rip+labbase], eax
     mov [rip+infn], eax
+    mov [rip+scope], eax
     mov rax, [rip+topasg]
     mov [rip+asg], rax
     mov rax, [rip+topasg+8]
@@ -2580,6 +2613,8 @@ fnend:
     mov [rip+nchks], ecx
     mov rcx, [rax+88]
     mov [rip+nruns], ecx
+    mov rax, [rax+96]
+    call hundo
     mov ebp, [rip+topvars]
     mov dword ptr [rip+pass], 2
     jmp fndef
@@ -2885,20 +2920,190 @@ lookup_topvar:                  # the top-level variables, from inside a functio
     mov edx, ebp
     jmp lookup
 lookup_label:
-    mov eax, [rip+labbase]
-    mov edx, [rip+nlabels]
-    sub edx, eax
-    shl eax, 4
+    mov eax, NS_LABEL
+    mov edx, [rip+scope]
+    call hfind
+    jc 1f
+    mov eax, [rax+HN_VAL]
+    sub eax, [rip+labbase]
+    clc
+    ret
+1:  mov eax, [rip+nlabels]
+    shl rax, 4
     lea r10, [rip+labels]
     add r10, rax
-    jmp lookup
+    stc
+    ret
 lookup_fn:
+    mov eax, NS_FN
+    xor edx, edx
+    call hfind
+    jc 1f
+    mov eax, [rax+HN_VAL]
+    clc
+    ret
+1:  mov eax, [rip+nfuncs]
+    shl rax, 4
     lea r10, [rip+funcs]
-    mov edx, [rip+nfuncs]
-    jmp lookup
+    add r10, rax
+    stc
+    ret
 lookup_buf:
+    mov eax, NS_GLOB
+    xor edx, edx
+    call hfind
+    jc 1f
+    mov eax, [rax+HN_VAL]
+    clc
+    ret
+1:  mov eax, [rip+nbufs]
+    shl rax, 4
     lea r10, [rip+bufs]
-    mov edx, [rip+nbufs]
+    add r10, rax
+    stc
+    ret
+
+# labels, functions and global names are found through one hash table with
+# chains: a name hashes with its kind and scope to a bucket, which leads to
+# its node. Nodes are never removed, except those that the first pass over a
+# function added; the labels of a finished function stay and match nothing,
+# since every function has a scope number of its own.
+
+# eax = the bucket of the name r8/r9 with the kind eax in the scope edx;
+# also left in hbkt. Keeps r8, r9, r10 and r11.
+hhash:
+    push rbx
+    imul edx, edx, 0x9E3779B1
+    lea ebx, [rdx+rax]
+    mov eax, 2166136261         # FNV-1a over the bytes of the name
+    xor ecx, ecx
+1:  cmp rcx, r9
+    jae 2f
+    movzx edx, byte ptr [r8+rcx]
+    xor eax, edx
+    imul eax, eax, 16777619
+    inc rcx
+    jmp 1b
+2:  xor eax, ebx
+    mov edx, eax
+    shr edx, 15
+    xor eax, edx
+    and eax, NBUCK - 1
+    mov [rip+hbkt], eax
+    pop rbx
+    ret
+
+# rax = the node of the name r8/r9 with the kind eax in the scope edx, or
+# carry set if there is none. Keeps r8 and r9.
+hfind:
+    push rbx
+    push rsi
+    mov ebx, eax
+    mov r10d, edx
+    call hhash
+    lea rsi, [rip+buckets]
+    mov eax, [rsi+rax*4]
+1:  test eax, eax
+    jz 5f
+    lea rdx, [rax+rax*4]
+    shl rdx, 3
+    lea rsi, [rip+hnodes-HNSZ]
+    add rdx, rsi
+    cmp [rdx+HN_NS], bl
+    jne 4f
+    cmp [rdx+HN_SCOPE], r10d
+    jne 4f
+    cmp [rdx+HN_LEN], r9d
+    jne 4f
+    mov rsi, [rdx+HN_NAME]
+    xor ecx, ecx
+2:  cmp rcx, r9
+    jae 3f
+    mov r11b, [r8+rcx]
+    cmp r11b, [rsi+rcx]
+    jne 4f
+    inc rcx
+    jmp 2b
+3:  mov rax, rdx
+    pop rsi
+    pop rbx
+    clc
+    ret
+4:  mov eax, [rdx+HN_NEXT]
+    jmp 1b
+5:  pop rsi
+    pop rbx
+    stc
+    ret
+
+# add a node for the name r8/r9 with the kind eax in the scope edx and the
+# value ecx, in front of its bucket: rax = the node. Keeps r8 and r9.
+hadd:
+    push rbx
+    push rcx
+    mov r10d, eax
+    mov r11d, edx
+    call hhash
+    pop rcx
+    mov edx, [rip+nhn]
+    inc edx
+    mov [rip+nhn], edx
+    lea rbx, [rdx+rdx*4]
+    shl rbx, 3
+    lea rax, [rip+hnodes-HNSZ]
+    add rbx, rax
+    mov [rbx+HN_NAME], r8
+    mov qword ptr [rbx+HN_MASK], 0
+    mov [rbx+HN_LEN], r9d
+    mov [rbx+HN_SCOPE], r11d
+    mov [rbx+HN_VAL], ecx
+    mov [rbx+HN_NS], r10b
+    mov eax, [rip+hbkt]
+    mov [rbx+HN_BKT], eax
+    lea rcx, [rip+buckets]
+    mov r10d, [rcx+rax*4]
+    mov [rbx+HN_NEXT], r10d
+    mov [rcx+rax*4], edx
+    mov rax, rbx
+    pop rbx
+    ret
+
+# remove the nodes added after the first eax: each is the first of its
+# bucket when its turn comes, since they go in the reverse of their order
+hundo:
+    mov ecx, [rip+nhn]
+1:  cmp ecx, eax
+    jbe 2f
+    lea rdx, [rcx+rcx*4]
+    shl rdx, 3
+    lea r10, [rip+hnodes-HNSZ]
+    add rdx, r10
+    mov r10d, [rdx+HN_BKT]
+    mov r11d, [rdx+HN_NEXT]
+    lea rdx, [rip+buckets]
+    mov [rdx+r10*4], r11d
+    dec ecx
+    jmp 1b
+2:  mov [rip+nhn], eax
+    ret
+
+# the global name whose entry newglob wrote is complete: from here on it is
+# found. Keeps rsi, rdi, rbx and rbp.
+globdone:
+    mov eax, [rip+nbufs]
+    shl rax, 4
+    lea rcx, [rip+bufs]
+    mov r8, [rcx+rax]
+    mov r9, [rcx+rax+8]
+    mov eax, NS_GLOB
+    xor edx, edx
+    mov ecx, [rip+nbufs]
+    call hadd
+    inc dword ptr [rip+nbufs]
+    ret
+
+# the linear search that the variables of a scope and the paths of use keep:
+# r10 = the entries, edx = how many
 lookup:
     xor eax, eax
 1:  cmp eax, edx
