@@ -10,7 +10,8 @@
 var ioargp
 args as ioargp
 
-# write the n bytes at p to the file fd, in as many writes as it takes:
+# write the ion bytes at iop to the file iofd, in as many writes as it
+# takes:
 # 1 if all went out, 0 after an error
 fn fdwrite iofd iop ion
 label more
@@ -34,14 +35,14 @@ fn eprint iop ion
 tail fdwrite 2 iop ion
 end
 
-# write the n bytes at p to stderr and end the program with status 1,
+# write the ion bytes at iop to stderr and end the program with status 1,
 # every thread of it
 fn die iop ion
 call fdwrite 2 iop ion
 sys exit_group 1
 end
 
-# the length of the NUL-terminated string at p
+# the length of the NUL-terminated string at iop
 fn strlen iop
 ioq=iop
 label next
@@ -53,7 +54,7 @@ ioq+=1
 jmp next
 end
 
-# print the unsigned number n in decimal: 1 if it went out, 0 after an error
+# print the unsigned number ion in decimal: 1 if it went out, 0 after an error
 fn putn ion
 local iodigits 24
 iop=iodigits+24
@@ -72,7 +73,7 @@ load ioargp as ion
 ret ion
 end
 
-# argument i as two results, its address and its length, or 0 and 0 if the
+# argument ioi as two results, its address and its length, or 0 and 0 if the
 # process has no such argument; argument 0 is the name of the program
 fn argv ioi
 load ioargp as ion
