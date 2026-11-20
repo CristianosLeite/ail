@@ -61,3 +61,54 @@ Before choosing new forms of control flow, the cost of the existing ones was cou
 - 31 labels were the target of a single backward jump, the shape of a loop. A loop statement would save little, since a loop still needs its test and often a second exit.
 
 So the compare-and-jump statements and the `if` blocks were added, and no loop statement. After rewriting stage1 with `tools/fuse.py`, `stage1/ailc.ai` went from 13483 to 12305 tokens.
+
+## Expressions, measured on 2026-11-20
+
+The redesign adds infix expressions, and how they are spelled was decided by writing the ten programs of the corpus in each candidate and counting. The candidates differ in three things: whether the operators of an expression stand between spaces, what separates the arguments of a statement once an argument can be an expression, and how an assignment is written. All of them use `while` and an `if` whose value is an expression.
+
+| spelling | example | total |
+|---|---|---:|
+| statements, as before | `mod x 2 as r` | 1313 |
+| operators between spaces, `x = e`, a comma between arguments | `storeb out + 1, 48 + n / 100 % 10` | 1104 |
+| the same without the comma | `storeb out + 1 48 + n / 100 % 10` | 1092 |
+| the comma form with `set e as x` for assignment | `set i + 1 as i` | 1140 |
+| operators touch their operands, spaces separate arguments, `x = e` | `storeb out+1 48+n/100%10` | 1024 |
+| the same with `set e as x` | `set i+1 as i` | 1060 |
+| the same with `x=e` | `x=x*3+1` | 988 |
+| the same with `x+=e` beside it | `c+=1` | 975 |
+| C | | 1118 |
+| Rust | | 1191 |
+
+Per program, the last AIL row against the others:
+
+| program | before | chosen | C | Rust |
+|---|---:|---:|---:|---:|
+| collatz | 158 | 115 | 119 | 165 |
+| compute | 114 | 91 | 106 | 120 |
+| count | 189 | 118 | 141 | 102 |
+| echo | 56 | 56 | 58 | 86 |
+| fact | 52 | 40 | 44 | 55 |
+| fnv | 189 | 141 | 167 | 126 |
+| hello | 23 | 18 | 29 | 45 |
+| isort | 297 | 220 | 239 | 250 |
+| loop | 62 | 44 | 70 | 56 |
+| sieve | 173 | 132 | 145 | 186 |
+| total | 1313 | 975 | 1118 | 1191 |
+
+What the counts show:
+
+- **A space before an operator or a number is paid for.** `x = (x ^ x >> 13) * 1664525 + 1013904223` is 21 tokens and `x=(x^x>>13)*1664525+1013904223` is 16: a space and the digits after it are two tokens, an operator after a space is its own token, and touching characters often merge (`=(`, `)*`, `<n`, `=i`). The spaced forms take a tenth more than the touching ones.
+- **Touching operators make the comma unnecessary.** If an expression has no space in it, the spaces separate the arguments as they always did, and `a -1` stays two arguments while `a-1` is one.
+- **`x=e` beats `set e as x`** by about two tokens an assignment (`x=n` is 2, `set n as x` is 4), and `x+=e` saves one more where a variable is changed in place, 13 times in the corpus.
+- **A load inside an expression would not pay by itself**: `v=[p-8]` and `load p-8 as v` are both 6 tokens. It would only save a line where the value is used once, which the corpus does three times.
+- `if a<b` and `iflt a b` cost the same; the expression form needs no table of names.
+
+## What this decides for expressions
+
+- An expression is written without spaces: `a+b*c`, `(h^r)*0x100000001b3`. Spaces separate the arguments of a statement, as before, so every statement that exists keeps its meaning and no comma is needed.
+- The operators, tightest first, are `* / %`, then `+ -`, `<< >>`, `&`, `^`, `|`, and last the comparisons `== != < <= > >=`, which are unsigned and give 1 or 0. That is the order of Rust, in which `x^x>>13` needs no parentheses; all are left-associative and parentheses group. A `-` followed by a digit where a value is expected is a negative number, as it is today.
+- `name=expression` assigns, and `name+=expression` with any of the ten arithmetic operators before the `=` changes a variable in place. The whole statement is one word.
+- `if` takes an expression like any statement takes one, and `while expression` ... `end` is a loop. The `ifeq` and `jlt` families, labels and jumps stay.
+- A string stays a whole argument. Signed and float operations, the atomic ones, loads, stores and calls stay statements; a load in an expression is left out until programs show it paying.
+
+With these the corpus is 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust; only `count` and `fnv` remain dearer than Rust, where Rust formats a number or reads a file in one call.

@@ -112,7 +112,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Make `stage1/tables.ai` its own source, checked by form and by bytes.
 - [x] Check the one compiler without comparing it to stage0.
 - [x] Remove stage0.
-- [ ] Fix the expression syntax from token counts on the corpus.
+- [x] Fix the expression syntax from token counts on the corpus.
 - [ ] Parse infix expressions as arguments.
 - [ ] Compile compound expressions and `name = expression`.
 - [ ] Accept an expression as the condition of `if`.
