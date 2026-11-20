@@ -200,7 +200,7 @@ its AIL replacement passes the corresponding checks.
   matching opener. A `label` stays at its current block depth. Keep expressions
   and assignments compact, as in `n-=1`. Indentation is a style convention
   and has no effect on how the compiler parses blocks.
-- [ ] Write an AIL formatter that changes only leading spaces and tabs. Add
+- [x] Write an AIL formatter that changes only leading spaces and tabs. Add
   `--check` to report indentation violations without rewriting files, as the
   first lint rule. Verify that formatting is idempotent and that formatted
   examples compile to the same bytes.
