@@ -18,7 +18,8 @@
 # A file the library knows is a record from asyncget:
 #    0  the descriptor
 #    8  its generation: a number that no other record has
-#   16  1 if epoll watches it; a plain file is never "not now"
+#   16  bit 0 if epoll watches it, a plain file being never "not now";
+#       bit 1 once it is known to be no socket
 #   40  first and 48 last event that waits to read or accept
 #   56  first and 64 last event that waits to write or connect
 # asyncio: 0 the epoll descriptor plus 1, 8 the table of the records by
@@ -43,6 +44,9 @@ const asyncaccept4 288
 const asyncepollcreate 291
 const asyncepollctl 233
 const asyncepollwait 232
+const asyncsendto 44
+const asyncsigmask 14
+const asyncsigwait 128
 
 # what asynctick calls to sleep: wait at most asyncms milliseconds (-1:
 # without limit) for files to be ready, and ask again the events that
@@ -131,6 +135,44 @@ call asyncclose asyncfd
 end
 end
 
+# write to the file of the record asyncr, with the result of write, and
+# without the signal that the kernel sends a process that writes where
+# nobody reads any more (SIGPIPE), which would end the program before
+# the event could say -32. A socket is written with sendto and the flag
+# that leaves the signal out; that it is none is found once, by the
+# error. For a pipe the signal is blocked for this thread around the
+# write, and one that the write made is taken back, unless the program
+# had blocked it itself. A plain file has no such signal.
+fn asyncput asyncr asyncfd asyncp asyncn
+load asyncr+16 as asyncf
+ifz asyncf&2
+sys asyncsendto asyncfd asyncp asyncn 0x4000 0 0 as asyncx
+if asyncx!=-88
+ret asyncx
+end
+asyncf|=2
+store asyncr+16 asyncf
+end
+ifz asyncf&1
+sys write asyncfd asyncp asyncn as asyncx
+ret asyncx
+end
+local asyncm 32
+store asyncm 4096
+sys asyncsigmask 0 asyncm asyncm+8 8
+sys write asyncfd asyncp asyncn as asyncx
+if asyncx==-32
+load asyncm+8 as asynco
+ifz asynco&4096
+store asyncm+16 0
+store asyncm+24 0
+sys asyncsigwait asyncm 0 asyncm+16 8
+end
+end
+sys asyncsigmask 2 asyncm+8 0 8
+ret asyncx
+end
+
 # ask the kernel to do the work of the event: 0 if the kernel said "not
 # now", else the event is done, with the result of the kernel, and out
 # of the list it waited in: 1, or 2 if its file is closed as well, a
@@ -149,13 +191,13 @@ if asynck==2
 sys asyncaccept4 asyncfd 0 0 0x80800 as asyncx
 end
 if asynck==3
-sys write asyncfd asyncp asyncn as asyncx
+call asyncput asyncr asyncfd asyncp asyncn as asyncx
 end
 if asynck==4
 load asynch+104 as asyncd
 asyncx=asyncn
 while asyncd<asyncn
-sys write asyncfd asyncp+asyncd asyncn-asyncd as asyncx
+call asyncput asyncr asyncfd asyncp+asyncd asyncn-asyncd as asyncx
 if asyncx>-4096
 store asynch+104 asyncd
 jmp asyncout
