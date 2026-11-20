@@ -18,7 +18,7 @@ What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `low`, `dig`, `blank` | character classes |
@@ -34,6 +34,7 @@ What stage0 reaches with `call` is a function:
 | `vplace`, `vmov`, `emem`, `frame`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
+| `godead`, `labasg` | as in stage0; a bit of `asg` is tested with a shift and set with `or`, where stage0 uses `bt` and `bts` |
 
 Because `pk` returns 256 at the end of the input, the pairs "at the end?" and "which byte?" of stage0 are one comparison each.
 

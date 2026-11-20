@@ -122,7 +122,21 @@ lt i 3 as c
 jnz c top               # prints xxx
 ```
 
-A jump does not touch any variable. Whether a variable is defined depends on the order of the lines, not on the path taken: a variable read on a path that jumped over its `as` holds an unspecified value.
+A jump does not touch any variable. A variable may only be read where every way to that line has assigned it: reading one on a path that may have jumped over its `as` is the error `unassigned variable`.
+
+```
+jz a skip
+set 1 as x
+label skip
+sys 60 x                # error: the jump passes the as of x
+```
+
+The compiler follows the lines in order. At a jump it notes which variables are assigned; at a label it keeps those that are assigned on the line before, if execution can come from there, and at every jump to the label seen so far. After `jmp` or `ret` no way leads to the next line until a label, and such lines are not checked. Two rules follow for jumps that go back:
+
+- A jump back to a label must come with every variable assigned that was assigned at the label. So assign a variable before the loop if a way into the middle of the loop exists, or simply before the first jump that could pass its `as`.
+- A label that execution can only reach from jumps below it, like the body of a loop that is entered at its test, starts with the variables that were assigned before the `jmp` or `ret` above it.
+
+The check does not know values: it treats both outcomes of `jz` and `jnz` as possible, and `sys 60` as a line that goes on. A `var` is zero from the start and is never unassigned.
 
 Labels are local: a label defined inside a [function](#functions) exists only there, and the labels outside every function are not visible inside one. A jump therefore never enters or leaves a function, and the same label name can be reused in each function.
 
@@ -385,6 +399,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
 | `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
+| `ailc: unassigned variable` | 1 | a variable read, or a jump back to a label, on a way that may not have assigned it; see [Control flow](#control-flow) |
 | `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included |
 | `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |

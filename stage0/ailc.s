@@ -69,8 +69,15 @@ labels: .skip NLABELS * 16      # per label: name address in inbuf, name length
 labaddr: .skip NLABELS * 8      # per label: its address in outbuf
 nlabels: .skip 4                # number of labels defined so far
 nfix:   .skip 4                 # number of jumps emitted so far
-fixs:   .skip NFIX * 24         # per jump: label name address and length,
-                                # address of its rel32 in outbuf
+fixs:   .skip NFIX * 32         # per jump: label name address and length,
+                                # address of its rel32 in outbuf, and the
+                                # variables assigned where the jump is
+labmask: .skip NLABELS * 8      # per label: the variables assigned on every way to it
+asg:    .skip 8                 # bit i: variable i of the scope is assigned on
+                                # every way to this point; all ones where no way leads
+dead:   .skip 4                 # 1 after jmp or ret, until the next label
+jmask:  .skip 8                 # asg as it was when dead was set
+topasg: .skip 24                # asg, dead and jmask of the top level, in a function
 infn:   .skip 4                 # 1 between fn and end
 topvars: .skip 4                # top-level variable count while in a function
 fnskip: .skip 8                 # rel32 of the jump over the open function
@@ -262,6 +269,8 @@ m_dup:    .ascii "ailc: duplicate name\n"
 .equ M_DUP_SZ, . - m_dup
 m_bufs:   .ascii "ailc: buffers too big\n"
 .equ M_BUFS_SZ, . - m_bufs
+m_unasg:  .ascii "ailc: unassigned variable\n"
+.equ M_UNASG_SZ, . - m_unasg
 m_num:    .ascii "ailc: number too big\n"
 .equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
@@ -712,6 +721,8 @@ ident:
     jc 2f
     lea rcx, [rip+vlast]
     mov [rcx+rax*8], rsi
+    bt [rip+asg], rax           # a way here that skipped its as?
+    jnc err_unasg
     call argidx
     lea rdx, [rip+argnum]
     movzx ecx, byte ptr [rdx+rcx]
@@ -797,6 +808,7 @@ capture:
     call eol
     call emit_op
     pop rax
+    bts [rip+asg], rax          # assigned from here on
     xor ecx, ecx
     mov r9d, 0x89
     call emit_varmov            # mov <variable>, rax
@@ -1105,6 +1117,11 @@ labdef:
     mov [rcx+rax*8], rdi
     lea rcx, [rip+labpos]
     mov [rcx+rax*8], rsi
+    call labasg
+    mov eax, [rip+nlabels]
+    lea rcx, [rip+labmask]
+    mov rdx, [rip+asg]
+    mov [rcx+rax*8], rdx
     inc dword ptr [rip+nlabels]
     mov qword ptr [rip+dataend], 0  # data after a label gets its own jmp
     jmp next
@@ -1113,12 +1130,18 @@ labdef:
 # for the rel32 and record it for fin, since the label may come later
 jtarget:
     call eol
+    call lookup_label
+    jc 1f
+    add eax, [rip+labbase]      # a jump back: every variable that the code after
+    lea rcx, [rip+labmask]      # the label takes as assigned must be assigned here
+    mov rcx, [rcx+rax*8]
+    mov rdx, [rip+asg]
+    not rdx
+    test rcx, rdx
+    jnz err_unasg
     cmp dword ptr [rip+pass], 1
     jne 1f
-    call lookup_label           # first pass: a jump back to a label makes a loop
-    jc 1f
-    add eax, [rip+labbase]
-    lea rcx, [rip+labpos]
+    lea rcx, [rip+labpos]       # first pass: it also makes a loop
     mov rax, [rcx+rax*8]
     mov ecx, [rip+nloops]
     shl ecx, 4
@@ -1128,15 +1151,71 @@ jtarget:
     inc dword ptr [rip+nloops]
 1:  call emit_op
     mov eax, [rip+nfix]
-    lea rax, [rax+rax*2]
+    shl eax, 5
     lea rcx, [rip+fixs]
-    lea rcx, [rcx+rax*8]
+    add rcx, rax
     mov [rcx], r8
     mov [rcx+8], r9
     mov [rcx+16], rdi
+    mov rax, [rip+asg]
+    mov [rcx+24], rax
     add rdi, 4
     inc dword ptr [rip+nfix]
+    mov rdx, [rip+curop]
+    cmp byte ptr [rdx], 0       # jmp: nothing falls through to the next line
+    jne next
+    call godead
     jmp next
+
+# no way leads to the code that follows, until a label: remember what was
+# assigned and take everything as assigned, so that such code gives no error
+godead:
+    cmp dword ptr [rip+dead], 0
+    jne 1f
+    mov rax, [rip+asg]
+    mov [rip+jmask], rax
+    mov dword ptr [rip+dead], 1
+    mov qword ptr [rip+asg], -1
+1:  ret
+
+# the label r8/r9 is being defined: asg becomes what is assigned on every way
+# to it, the line before (if it falls through) and each jump seen so far. A
+# label that only later jumps reach starts from what was assigned before the
+# code became unreachable; those jumps are then checked against it.
+labasg:
+    push rbx
+    push rbp
+    mov rbp, [rip+asg]
+    xor r13d, r13d              # jumps found
+    mov eax, [rip+fixbase]
+    mov ebx, [rip+nfix]
+    sub ebx, eax
+    shl eax, 5
+    lea rcx, [rip+fixs]
+    lea rax, [rcx+rax]
+1:  test ebx, ebx
+    jz 3f
+    push rax
+    mov r10, rax
+    mov edx, 1
+    call lookup                 # is this jump to the label?
+    pop rax
+    jc 2f
+    and rbp, [rax+24]
+    inc r13d
+2:  add rax, 32
+    dec ebx
+    jmp 1b
+3:  cmp dword ptr [rip+dead], 0
+    je 4f
+    test r13d, r13d
+    jnz 4f
+    mov rbp, [rip+jmask]
+4:  mov [rip+asg], rbp
+    mov dword ptr [rip+dead], 0
+    pop rbp
+    pop rbx
+    ret
 
 # ---- functions
 # "fn <name> <parameter>...": jump over the body, save the caller's variable
@@ -1196,6 +1275,14 @@ fndef:
     call emit_frame
     mov [rip+topvars], ebp
     xor ebp, ebp
+    mov rax, [rip+asg]          # the top level goes on after the function with
+    mov [rip+topasg], rax       # what it had assigned
+    mov eax, [rip+dead]
+    mov [rip+topasg+8], rax
+    mov rax, [rip+jmask]
+    mov [rip+topasg+16], rax
+    mov qword ptr [rip+asg], 0
+    mov dword ptr [rip+dead], 0
     mov dword ptr [rip+infn], 1
     mov eax, [rip+nlabels]
     mov [rip+labbase], eax
@@ -1216,6 +1303,7 @@ fndef:
     pop rcx
     cmp ecx, ebp                # the pool did not grow: a repeated name
     je err_dup
+    bts [rip+asg], rax          # a parameter is assigned
     cmp eax, NREGS
     jae 3f
     lea rdx, [rip+argnum]
@@ -1269,6 +1357,12 @@ fnend:
     mov [rip+fixbase], eax
     mov [rip+labbase], eax
     mov [rip+infn], eax
+    mov rax, [rip+topasg]
+    mov [rip+asg], rax
+    mov rax, [rip+topasg+8]
+    mov [rip+dead], eax
+    mov rax, [rip+topasg+16]
+    mov [rip+jmask], rax
     mov rcx, [rip+fnskip]       # top-level code continues here
     mov rax, rdi
     sub rax, rcx
@@ -1388,9 +1482,9 @@ resolve:
     mov eax, [rip+fixbase]
     mov ebp, [rip+nfix]
     sub ebp, eax
-    lea rax, [rax+rax*2]
+    shl eax, 5
     lea rbx, [rip+fixs]
-    lea rbx, [rbx+rax*8]
+    add rbx, rax
 1:  test ebp, ebp
     jz 2f
     mov r8, [rbx]
@@ -1404,7 +1498,7 @@ resolve:
     sub rax, rcx
     sub rax, 4                  # relative to the end of the rel32
     mov [rcx], eax
-    add rbx, 24
+    add rbx, 32
     dec ebp
     jmp 1b
 2:  pop rbp
@@ -1538,6 +1632,8 @@ emit_op:
     jz 3f
     mov al, 0xC4                # ret: release the stack slots first
     call emit_frame
+    call godead                 # and nothing falls through to the next line
+    mov rdx, [rip+curop]
 3:  movzx ecx, byte ptr [rdx+2]
     push rsi
     lea rsi, [rdx+3]
@@ -1767,6 +1863,11 @@ err_dup:
 err_num:
     lea rsi, [rip+m_num]
     mov edx, M_NUM_SZ
+    mov ebx, 1
+    jmp die
+err_unasg:
+    lea rsi, [rip+m_unasg]
+    mov edx, M_UNASG_SZ
     mov ebx, 1
     jmp die
 err_bufs:

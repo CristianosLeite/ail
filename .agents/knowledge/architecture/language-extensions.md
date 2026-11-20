@@ -83,9 +83,24 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - While values are being pushed, the caller's stack slots are further from `rsp`: `pushed` is
   added to every slot distance (`call_stack_values_from_stack_variables`).
 - A forward name passed on the stack is patched through `immpos`, not "four bytes back".
-- The suite went from 396 to 408 tests.
+- The suite went from 396 to 407 tests.
+
+### Reads on a path that skipped the assignment (2026-11-19)
+- `unassigned variable`: a 64-bit mask of definitely assigned variables is carried through the
+  single pass. Jumps record it, labels intersect the recorded masks, a backward jump must carry
+  at least the mask of its label, and code after `jmp` or `ret` is unreachable until a label.
+- A label only reached from below (loop entered at its test) starts from the mask before the
+  `jmp` above it. Without that rule the common bottom-test loop was rejected.
+- No existing test, example or line of stage1 tripped the check.
+- The suite went from 407 to 434 tests.
 
 ## Why
+- **Refuse at the backward jump instead of iterating:** a fixed point over back edges needs the
+  code between label and jump to be checked again, and the top level is compiled once. Checking
+  every way into a label against the mask the label used is sound in one pass; it refuses a few
+  programs whose missing variable is never read, and the fix is one `set` before the loop.
+- **`sys 60` is not treated as an exit:** the compiler knows no syscall, and a wrong guess would
+  hide a real unassigned read.
 - **Caller pops:** the callee's `ret` stays one fixed sequence, and a wrong value count is still
   found at compile time, so the stack cannot be left unbalanced.
 - **Copy stack parameters into variables at entry:** a parameter is then a variable like any

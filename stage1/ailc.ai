@@ -19,6 +19,10 @@ var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
 # pushed = bytes of call values pushed so far in this statement; fnnpar =
 # parameters of the function; immpos = where mov wrote its last imm32
 var pushed fnnpar immpos
+# asg: bit i is set when variable i of the scope is assigned on every way to
+# this point, all ones where no way leads; dead = 1 after jmp or ret, until
+# the next label; jmask = asg when dead was set; t* = those of the top level
+var asg dead jmask tasg tdead tjmask
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -32,8 +36,10 @@ buf loops 174768    # 10923 backward jumps of the function: where the source has
                     # the label, and the jump
 buf globs 1310760   # 32769 global names of 40 bytes: name, length, address,
                     # size or value, kind (0 buffer or data, 1 var, 2 const)
-buf labs 262176     # 8193 labels of 32 bytes: name, length, address in out, place in the source
-buf fixs 262152     # 10923 jumps of 24 bytes: label name, length, rel32 address
+buf labs 327720     # 8193 labels of 40 bytes: name, length, address in out, place in the
+                    # source, variables assigned on every way to it
+buf fixs 349536     # 10923 jumps of 32 bytes: label name, length, rel32 address,
+                    # variables assigned at the jump
 buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
 buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, values
 buf refs 1048608    # 32769 uses of a name not declared yet, 32 bytes: name, length,
@@ -62,6 +68,10 @@ sys 60 1
 end
 fn enum
 sys 1 2 "ailc: number too big\n"
+sys 60 1
+end
+fn eunasg
+sys 1 2 "ailc: unassigned variable\n"
 sys 60 1
 end
 fn ebuf
@@ -434,9 +444,9 @@ end
 fn llab
 set labbase as b
 sub nlabels b as n
-mul b 32 as b
+mul b 40 as b
 add b labs as b
-call look b n 32 as i
+call look b n 40 as i
 ret i
 end
 fn lfn
@@ -784,6 +794,44 @@ call areg i as r
 call emem r a 139
 call anext
 end
+# no way leads to the code that follows, until a label: remember what was
+# assigned and take everything as assigned
+fn godead
+jnz dead x
+set asg as jmask
+set 1 as dead
+set -1 as asg
+label x
+end
+# the label read last is being defined: asg becomes what is assigned on
+# every way to it, the line before and each jump seen so far; a label that
+# only later jumps reach starts from jmask
+fn labasg
+set asg as m
+set 0 as k
+sub nfix fixbase as n
+mul fixbase 32 as p
+add p fixs as p
+label a
+jz n e
+call same p as c
+jz c s
+add p 24 as c
+load c as c
+and m c as m
+add k 1 as k
+label s
+add p 32 as p
+sub n 1 as n
+jmp a
+label e
+jz dead x
+jnz k x
+set jmask as m
+label x
+set m as asg
+set 0 as dead
+end
 # sub rsp, <frame> (o = 236) or add rsp, <frame> (o = 196), when the
 # function has stack slots
 fn frame o
@@ -893,6 +941,7 @@ label k
 and f 32 as c
 jz c m
 call frame 196
+call godead
 label m
 add r 2 as c
 loadb c as c
@@ -928,7 +977,7 @@ end
 fn resolve
 set fixbase as i
 sub nfix i as n
-mul i 24 as p
+mul i 32 as p
 add p fixs as p
 label a
 jz n x
@@ -940,7 +989,7 @@ call elab
 label k
 set labbase as i
 add c i as c
-mul c 32 as c
+mul c 40 as c
 add c labs as c
 add c 16 as c
 load c as c
@@ -949,7 +998,7 @@ load i as i
 sub c i as c
 sub c 4 as c
 store4 i c
-add p 24 as p
+add p 32 as p
 sub n 1 as n
 jmp a
 label x
@@ -1171,6 +1220,11 @@ jnz d i2
 mul r 8 as d
 add d vlast as d
 store d ip
+shr asg r as d
+and d 1 as d
+jnz d i7a
+call eunasg
+label i7a
 call aidx as d
 call areg d as f
 call vmov r f 139
@@ -1240,6 +1294,8 @@ set q as ip
 call defvar as r
 call eol
 call eop
+shl 1 r as d
+or asg d as asg
 call vmov r 0 137
 jmp next
 
@@ -1413,13 +1469,16 @@ call eol
 call llab as r
 call nodup r
 set nlabels as r
-mul r 32 as p
+mul r 40 as p
 add p labs as p
 call putn p
 add p 16 as p
 store p op
 add p 8 as p
 store p ip
+call labasg
+add p 8 as p
+store p asg
 add r 1 as r
 set r as nlabels
 set 0 as dataend
@@ -1428,14 +1487,21 @@ jmp next
 # the label name of a jump: its rel32 is filled in by resolve
 label jtarget
 call eol
-eq pass 1 as d
-jz d j1
 call llab as r
 eq r 99999 as d
 jnz d j1
 add r labbase as r
-mul r 32 as r
+mul r 40 as r
 add r labs as r
+add r 32 as d
+load d as d
+xor asg -1 as f
+and d f as d
+jz d j0
+call eunasg
+label j0
+eq pass 1 as d
+jz d j1
 add r 24 as r
 load r as r
 mul nloops 16 as p
@@ -1447,15 +1513,18 @@ add nloops 1 as nloops
 label j1
 call eop
 set nfix as r
-mul r 24 as p
+mul r 32 as p
 add p fixs as p
 call putn p
 add p 16 as p
-set op as q
-store p q
+store p op
+add p 8 as p
+store p asg
 call z 4
-add r 1 as r
-set r as nfix
+add r 1 as nfix
+loadb cur as d
+jnz d next
+call godead
 jmp next
 
 # "fn <name> <parameter>...": jump over the body, save the variable
@@ -1498,6 +1567,11 @@ call frame 236
 set nv as q
 set q as topvars
 set 0 as nv
+set asg as tasg
+set dead as tdead
+set jmask as tjmask
+set 0 as asg
+set 0 as dead
 set 1 as infn
 set nlabels as q
 set q as labbase
@@ -1520,6 +1594,8 @@ ne nv q as d
 jnz d f3
 call edup
 label f3
+shl 1 r as d
+or asg d as asg
 lt r 6 as d
 jz d f4
 call areg r as f
@@ -1560,6 +1636,9 @@ set q as nlabels
 set 0 as fixbase
 set 0 as labbase
 set 0 as infn
+set tasg as asg
+set tdead as dead
+set tjmask as jmask
 set fnskip as p
 sub op p as q
 sub q 4 as q

@@ -32,7 +32,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 
 ## Correctness and memory
 
-- [ ] Detect variable reads on paths that skipped their assignment. The compiler
+- [x] Detect variable reads on paths that skipped their assignment. The compiler
   checks textual definition order, so a jump over an `as` can leave a variable
   with an unspecified value. Account for branches, joins and loop back edges.
 - [ ] Diagnose invalid accesses proven at compile time. Track known buffer

@@ -61,6 +61,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `fndef` | `fn <name> <parameter>...`: enter the function, emit the jump over it and its entry code, open its scope |
 | `fnend` | `end`: emit the default return, resolve the function's jumps and close its scope |
 | `resolve` | fill in the jumps of the current scope from its labels |
+| `godead`, `labasg` | the assignment check: what a `jmp` or `ret` and a `label` do to the set of assigned variables |
 | `blanks`, `blank1`, `eol`, `name` | skip spaces and tabs; require at least one; check that the line ends; read a name |
 | `lookup_var`, `lookup_buf`, `lookup_label`, `lookup_fn` | find a name among the variables or the labels of the current scope, the buffers or the functions |
 | `emit_op` | check the operand count and emit the statement's instruction bytes; for `call`, also leave room for the displacement and record it |
@@ -68,7 +69,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -206,6 +207,16 @@ This is safe because execution only moves backward in the source through a backw
 A function with slots reserves them after its pushes (`sub rsp, 8n`) and releases them before every return (`emit_frame`); a slot is `[rsp + 8k]`.
 
 A name is only entered in the table when its `as` is reached, at the end of the statement, so `sys 1 n as n` with a new `n` is not the variable.
+
+## Assigned variables
+
+`asg` has one bit per variable of the current scope, set when every way to the current line has assigned it. `capture` and a parameter set the bit; `ident` reports `unassigned variable` when it reads a variable whose bit is clear.
+
+- A jump stores `asg` in its `fixs` entry. `jmp` and `ret` then call `godead`: it saves `asg` in `jmask`, sets `dead` and sets every bit, so that code no way leads to raises no error.
+- `label` calls `labasg`: the new `asg` is the old one and-ed with the mask of every jump to that name recorded so far in the scope. If the line before cannot be reached and no jump was found, the label is only reached from below, and `asg` becomes `jmask`. The result is kept in `labmask`.
+- A jump to a label that is already defined must have every bit of its `labmask`; otherwise the code after the label was checked with a variable that this way does not assign.
+
+Every way into a label is thus either part of its mask or checked against it, which is what makes one pass enough. The cost is that a jump back may be refused although no later line reads the variable. `fndef` saves `asg`, `dead` and `jmask` in `topasg` and clears them, and `fnend` restores them: the top level goes on after a function as if it were not there.
 
 ## Buffers
 
