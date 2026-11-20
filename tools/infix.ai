@@ -1,6 +1,6 @@
 # tools/infix.ai -- rewrite an AIL source from statements to expressions.
 #
-#   build/tools/infix in.ai out.ai
+#   build/tools/infix in.ai out.ai [vars.ai ...]
 #
 # Three rewrites, each of which leaves what the program does as it was:
 #
@@ -18,6 +18,13 @@
 #    lines become one expression, up to 100 bytes. A "while" takes no
 #    value this way, since it reads its value every round, and a line with
 #    a comment is not folded away.
+#
+# A name that a var declares is never folded: its cell is read by other
+# functions. The var may stand in the source, in a file the source names
+# with use (read from the directory the tool runs in, like the
+# compiler; one that cannot be read ends the tool), or in a file given
+# after the two, for a source that is itself named by another file:
+# "infix compiler/emit.ai out.ai compiler/ailc.ai".
 #
 # Lines with a string are left alone, as are signed and float statements,
 # which have no operator. Comments stay on the lines that stay. A line
@@ -49,6 +56,8 @@ var gidx gtab gkinds gflag
 # the expression being parsed: its tokens, their number, the next one,
 # 1 after an error, and the depth
 var gtp gtn gti gerr gdepth
+# the number of arguments of the command line
+var gargs
 
 const ltext 0
 const ltextn 8
@@ -93,6 +102,8 @@ buf scr 24
 buf tmp 24
 buf nvals 24
 buf out 24
+# the paths read by declfile, address and length
+buf seen 24
 
 # the words with a meaning, in the order of their numbers
 const kfn 1
@@ -154,6 +165,123 @@ call eprint m ml
 call eprint p pl
 call eprint "\n"
 sys exit_group 1
+end
+
+# The vars of other files. A name that a var declares is never folded,
+# since a function elsewhere may read the cell; the declaration may
+# stand in a file that the source names with use, or in the file that
+# names the source so. declfile reads a file once for its var lines and
+# for the files it names in turn, by the path as written, from the
+# directory the tool runs in, as the compiler does.
+#
+# the line from p to e: mark the names of a var, read the file of a use
+fn declline p e
+while p<e
+loadb p as c
+jne c 32 word
+p+=1
+end
+label word
+if e-p<4
+ret 0
+end
+loadb p+3 as c
+if (c!=32)&(c!=9)
+ret 0
+end
+call sceq p "use" as r
+if r
+p+=3
+while p<e
+loadb p as c
+if c==34
+call scstr p e as q
+if q
+call declfile p+1 q-p-2
+end
+ret 0
+end
+p+=1
+end
+ret 0
+end
+call sceq p "var" as r
+ifz r
+ret 0
+end
+p+=3
+while p<e
+loadb p as c
+call scspace c as r
+if r
+p+=1
+else
+if c==35
+ret 0
+end
+q=p
+while q<e
+loadb q as c
+call scspace c as r
+jnz r named
+q+=1
+end
+label named
+call scfind p q-p as t
+if t
+if t<gnid
+storeb gflag+t 1
+end
+end
+p=q
+end
+end
+end
+
+# the lines of the n bytes at p
+fn decls p n
+e=p+n
+while p<e
+q=p
+while q<e
+loadb q as c
+jeq c 10 eol
+q+=1
+end
+label eol
+call declline p q
+p=q+1
+end
+end
+
+# the file at the path of n bytes at p, unless it was read before
+fn declfile p n
+local b 24
+load seen as s
+load seen+8 as m
+i=0
+while i<m
+load s+i as q
+load s+i+8 as k
+if k==n
+call sceq p q n as r
+if r
+ret 0
+end
+end
+i+=16
+end
+call push8 seen p
+call push8 seen n
+store b 0
+store b+8 0
+store b+16 0
+call fileread p n b as r
+ifslt r 0
+call failpath "cannot read " p n
+end
+load b as q
+call decls q r
 end
 
 # add the 8 bytes of v to the buffer b
@@ -1369,9 +1497,10 @@ end
 
 fn main
 call argc as n
-if n!=3
-call die "usage: infix in.ai out.ai\n"
+if n<3
+call die "usage: infix in.ai out.ai [vars.ai ...]\n"
 end
+gargs=n
 call argv 1 as ip il
 call argv 2 as op ol
 call sclist words as r
@@ -1456,6 +1585,17 @@ storeb gflag+t 1
 j+=1
 end
 end
+i+=1
+end
+# and those of the files the source names, and of the files named
+# after the two of the command line
+load text as p
+load text+8 as n
+call decls p n
+i=3
+while i<gargs
+call argv i as p n
+call declfile p n
 i+=1
 end
 call spell as a

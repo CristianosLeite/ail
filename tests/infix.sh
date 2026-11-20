@@ -10,6 +10,9 @@
 # tests/infix/edge.out.ai. The three .out.ai files are what the Python
 # script made that the tool was ported from. The tool must say what it
 # did, and fail with a message without its two files or its input.
+# A var declared in a file the source names with use (tests/infix/use.ai)
+# or in a file named after the two (tests/infix/part.ai) is not folded,
+# and a file of a use that cannot be read is refused.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ailc=${AILC:-build/ailc}
@@ -53,11 +56,36 @@ build/tools/infix tests/infix/edge.ai "$tmp/edge.out.ai" 2> /dev/null &&
 say infix_edges $?
 r=0
 build/tools/infix tests/infix/in.ai > /dev/null 2> "$tmp/said"
-[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "usage: infix in.ai out.ai" ] || r=1
+[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "usage: infix in.ai out.ai [vars.ai ...]" ] || r=1
 build/tools/infix "$tmp/none.ai" "$tmp/o.ai" > /dev/null 2> "$tmp/said"
 [ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "infix: cannot read $tmp/none.ai" ] || r=1
 [ ! -e "$tmp/o.ai" ] || r=1
 build/tools/infix tests/infix/in.ai "$tmp/no/dir/o.ai" > /dev/null 2> "$tmp/said"
 [ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "infix: cannot write $tmp/no/dir/o.ai" ] || r=1
+printf 'use "%s/none.ai"\nx=1\n' "$tmp" > "$tmp/uses.ai"
+build/tools/infix "$tmp/uses.ai" "$tmp/o.ai" > /dev/null 2> "$tmp/said"
+[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "infix: cannot read $tmp/none.ai" ] || r=1
+[ ! -e "$tmp/o.ai" ] || r=1
 say infix_errors $r
+# a var of a file that the source names with use is a var: the line that
+# sets it stays, and the program gives what the function reads, 42
+r=0
+build/tools/infix tests/infix/use.ai "$tmp/use.ai" 2> "$tmp/said" &&
+    cmp -s "$tmp/use.ai" tests/infix/use.ai &&
+    [ "$(cat "$tmp/said")" = "spelled 0, loops 0, folded 0" ] || r=1
+timeout --signal=KILL 10 "$ailc" < "$tmp/use.ai" > "$tmp/use" 2> /dev/null && chmod +x "$tmp/use" || r=1
+timeout --signal=KILL 10 "$tmp/use" > /dev/null 2>&1
+[ $? -eq 42 ] || r=1
+say infix_keeps_var_of_used_file $r
+# and so is a var of a file named on the command line, for a source that
+# is itself named by that file: without it the write is folded away
+r=0
+build/tools/infix tests/infix/part.ai "$tmp/part.ai" tests/infix/part_decl.ai 2> /dev/null &&
+    cmp -s "$tmp/part.ai" tests/infix/part.ai || r=1
+build/tools/infix tests/infix/part.ai "$tmp/part0.ai" 2> "$tmp/said" &&
+    [ "$(cat "$tmp/said")" = "spelled 0, loops 0, folded 1" ] || r=1
+timeout --signal=KILL 10 "$ailc" < tests/infix/part_decl.ai > "$tmp/part" 2> /dev/null && chmod +x "$tmp/part" || r=1
+timeout --signal=KILL 10 "$tmp/part" > /dev/null 2>&1
+[ $? -eq 7 ] || r=1
+say infix_keeps_var_of_named_file $r
 exit $fail
