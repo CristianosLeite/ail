@@ -127,3 +127,34 @@ With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewe
 | the same with library functions only: `ref steps as p`, `call spawn p lo hi 0 0 0 as h`, `call join h as x` | 25 |
 
 A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.
+
+## Async, measured on 2026-11-20
+
+Before the compiler learned to write tasks that are polled, two programs were written in the forms it could accept, and counted without comments: `timer`, two tasks that print a line every 100 and 150 milliseconds, and `echo`, a server that accepts connections and sends back what each one sends, a task per connection.
+
+| form | timer | lines | echo | lines |
+|---|---:|---:|---:|---:|
+| poll functions written by hand, which compile today | 180 | 34 | 291 | 53 |
+| `async fn`, `call f x as h`, `await h as x` | 79 | 15 | 144 | 26 |
+| the same with `async` left out, a function being async if it has an `await` | 78 | 15 | 142 | 26 |
+| `async fn` and `await f x as r`, a call and its await in one statement | 74 | 14 | 124 | 22 |
+
+By hand a task is a function that starts again at its first line at every poll: it keeps in its record where it was and what it needs, and every wait is a test, a return and a jump. That is 2.3 times the tokens of the form with `await`, and the part an AI gets wrong.
+
+| statement | tokens |
+|---|---:|
+| `call asyncread c b 512 as h` | 12 |
+| `await h as n` | 5 |
+| `await asyncread c b 512 as n` | 12 |
+| `call await h t as n r` and the `ifz r`, `ret 0`, `end` it needs by hand | 16 |
+| `async fn conn c` | 5 |
+| `fn conn c` | 4 |
+
+What this decides:
+
+- **`async fn name a b`** makes a function whose call returns at once with a handle, the function running as a task. The word costs one token a function. Leaving it out would save that token and nothing else, and cost two things: the first line of a function would no longer say what a call of it gives, and a plain function could not wait for a task itself, as the top level does, because an `await` in it would change what it is.
+- **`await h as x`** waits for the task or event `h` and keeps its result: 5 tokens, 3 without the result.
+- **`await name a b as x`** calls the function `name` and awaits the handle it returns, in one statement. A wait is mostly for something that was just started, and then the handle is a name that is written twice and a line that is paid for: the statement costs what the call alone costs, 5 tokens and a line less than the two. `echo` is 14% shorter with it and `timer` 6%.
+- The two forms of `await` are told apart by the first word: a variable of the scope, or a global name, is a handle; any other name is a function. A function hidden that way is called with `call` and its handle awaited.
+- The functions that wait for time and for descriptors stay functions that return a handle, so both forms work on them and nothing about them is special: `await asyncsleep 100`, or `call asyncsleep 100 as h` and later `await h` to wait for several things at once.
+- A task that nobody awaits is two lines, `call conn c as k` and `call asyncdetach k`, 11 tokens. It occurs once in a server; a statement of its own is left out until programs show it paying.
