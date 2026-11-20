@@ -181,6 +181,11 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    `tools/tokens.sh` to the AIL executable and remove its Python environment
    setup once the AIL tokenizer matches the reference.
 
+6. [x] Port `par.py`, which the list above left out: the check of
+   `tests/par.sh` and the three tables, with the process helpers and the
+   token counts of `build/tools/tokens`. With it `make test` needs no
+   Python.
+
 Use the Python scripts as references during each port. Preserve the current
 command arguments, exit statuses and output formats where callers rely on
 them. Update the documented commands and retire each Python entry point after

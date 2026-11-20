@@ -6,7 +6,7 @@ AIL exists to be cheap in tokens, so syntax choices are decided by measurement. 
 tools/tokens.sh             # the table below
 tools/tokens.sh hello fact  # some programs only
 tools/bench.sh              # check that bench/ behaves like examples/ (needs gcc and rustc)
-python3 build/tools/perf       # time the same programs, see performance.md
+build/tools/perf               # time the same programs, see performance.md
 ```
 
 ## Result

@@ -159,13 +159,13 @@ The geometric mean is the n-th root by Newton's steps in doubles, where Python u
 
 ## Tasks, 2026-11-20
 
-`tools/par.py` times the programs of `bench/par/`, each written twice: `<name>_seq.ai` does the work in one call, `<name>_par.ai` cuts it into tasks with `spawn` and `join` (`lib/task.ai`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
+`tools/par.ai`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.ai` does the work in one call, `<name>_par.ai` cuts it into tasks with `spawn` and `join` (`lib/task.ai`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
 
 ```
-make
-python3 tools/par.py              # the three tables below
-python3 tools/par.py --check      # small sizes, outputs only: part of make test
-python3 tools/par.py --runs 3 collatz
+make all tools
+build/tools/par              # the three tables below
+build/tools/par --check      # small sizes, outputs only: part of make test
+build/tools/par --runs 3 collatz
 ```
 
 | program | what it does | why it is here |
