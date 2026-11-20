@@ -60,7 +60,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a` | Return `a` from the function; reaching `end` returns 0 |
 | `call f a b as x` | Call `f` with up to 6 values; `as x` keeps the result and is optional |
-| `123` | Unsigned 32-bit decimal argument |
+| `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |
 | `x` | Variable (64-bit) or buffer name (its address) |
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
 | `# ...` | Comment to end of line |

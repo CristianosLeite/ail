@@ -43,7 +43,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `crlf` | check that a CR is followed by LF; called wherever a line may end, and for every CR in a comment |
 | `tokend`, `tokchk` | check that a token is followed by a space, tab, comment or line end; `tokend` then falls into `arg` |
 | `arg` | dispatch the next argument, or end the statement by calling `emit_op` |
-| `num` | parse a decimal integer |
+| `num` | an integer as an argument |
 | `str` | copy the literal into the output and pass its address and length (`sys`, `call`), its length (`len`) or its address |
 | `strbytes`, `hexdig` | copy the bytes of a string up to its closing quote, decoding the escapes; read one hexadecimal digit |
 | `ident` | a name as an argument: pass a variable, the address of a buffer or of data, the cell of a `var`, the value of a `const`, or for `len` a size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
@@ -52,7 +52,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `bufdef` | `buf <name> <size>`: enter the buffer in the table of global names and reserve its bytes |
 | `vardef`, `constdef` | `var <name>...` and `const <name> <number>`: enter the names with their kind and the address of a cell, or the value |
 | `newglob` | refuse a name in use as a variable or a global name, else enter it in the next table slot |
-| `rdname`, `rdnum`, `constname` | read a name that is not `as`; read a decimal number; read a name that must be a `const` and give its value |
+| `rdname`, `rdnum`, `constname` | read a name that is not `as`; read an integer; read a name that must be a `const` and give its value |
 | `datadef` | `data [<name>] <item>...`: copy the bytes into the output behind a jump, or behind the jump of the data statement just before; enter the name |
 | `labdef` | `label <name>`: enter the label and the current output position in the label table |
 | `jtarget` | the label name of a jump: call `emit_op`, leave room for the displacement and record a fixup |
@@ -65,7 +65,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_mov_rr` | emit a 64-bit `mov <register>, <register>` |
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -83,7 +83,7 @@ The second segment has a file size of zero and a memory size equal to the total 
 
 ## Code generation
 
-**Integer argument.** `mov r32, imm32` into the register for the current argument position, taken from `regtab`. It is 5 bytes, or 6 with a REX prefix for `r8`–`r10`. Writing a 32-bit register zero-extends into the 64-bit one, which is why integers are limited to unsigned 32 bits.
+**Integer argument.** `emit_mov` picks the shortest of three forms. A value below 2^32 is `mov r32, imm32` into the register for the current argument position, taken from `regtab`: 5 bytes, or 6 with a REX prefix for `r8`–`r10`; writing a 32-bit register clears the upper half. A value whose upper 33 bits are all ones is `mov r64, imm32` (`REX.W C7 /0`), which sign-extends: 7 bytes. Anything else is `mov r64, imm64` (`REX.W B8+r`): 10 bytes. `rdnum` reads the literal: decimal with a 64-bit overflow check on every digit, or up to sixteen hexadecimal digits after `0x`, negated after a `-`.
 
 **String argument.** The bytes are placed in the code stream and jumped over. `sys` and `call` get both `mov`s, `len` only the second and every other statement only the first:
 

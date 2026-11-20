@@ -47,6 +47,10 @@ fn edup
 sys 1 2 "ailc: duplicate name\n"
 sys 60 1
 end
+fn enum
+sys 1 2 "ailc: number too big\n"
+sys 60 1
+end
 fn ebuf
 sys 1 2 "ailc: buffers too big\n"
 sys 60 1
@@ -225,19 +229,78 @@ call rname
 call isas as c
 call no c
 end
-# the decimal number at the cursor, modulo 2^32
+# the number at the cursor: decimal, or hexadecimal after "0x", either one
+# after an optional "-"; it must fit 64 bits
 fn rdnum
-set 0 as r
+call pk as c
+eq c 45 as n
+jz n a
+call adv
+call pk as c
 label a
+call dig c as d
+call ok d
+set 0 as r
+eq c 48 as d
+jz d m
+add ip 1 as d
+ge d ie as k
+jnz k m
+loadb d as d
+eq d 120 as d
+jz d m
+add ip 2 as ip
+set 0 as k
+label h
 call pk as c
 call dig c as d
-jz d x
-mul r 10 as r
+jz d h1
 sub c 48 as c
-add r c as r
-and r 4294967295 as r
+jmp h2
+label h1
+or c 32 as c
+sub c 97 as c
+lt c 6 as d
+jz d h3
+add c 10 as c
+label h2
+add k 1 as k
+gt k 16 as d
+jz d h4
+call enum
+label h4
+shl r 4 as r
+or r c as r
 call adv
-jmp a
+jmp h
+label h3
+call ok k
+jmp s
+label m
+call pk as c
+call dig c as d
+jz d s
+sub c 48 as c
+gt r 0x1999999999999999 as d
+jnz d o
+ne r 0x1999999999999999 as d
+jnz d f
+gt c 5 as d
+jz d f
+label o
+call enum
+label f
+mul r 10 as r
+add r c as r
+call adv
+jmp m
+label s
+jz n x
+gt r 0x8000000000000000 as d
+jz d y
+call enum
+label y
+sub 0 r as r
 label x
 ret r
 end
@@ -459,7 +522,7 @@ add op 1 as op
 end
 # four bytes; the store also clears the four after them, not yet written
 fn e4 v
-and v 4294967295 as v
+and v 0xffffffff as v
 store op v
 add op 4 as op
 end
@@ -484,7 +547,7 @@ fn p4 a v
 load a as o
 shr o 32 as o
 shl o 32 as o
-and v 4294967295 as v
+and v 0xffffffff as v
 or o v as o
 store a o
 end
@@ -547,23 +610,6 @@ call eb c
 jmp a
 label x
 end
-# one byte of data written as a decimal number
-fn dnum
-set 0 as r
-label a
-call pk as c
-call dig c as d
-jz d x
-mul r 10 as r
-sub c 48 as c
-add r c as r
-gt r 255 as d
-call no d
-call adv
-jmp a
-label x
-call eb r
-end
 # mov <register d>, <register s>, 64-bit
 fn mrr d s
 shr s 3 as a
@@ -580,11 +626,13 @@ or s d as s
 or s 192 as s
 call eb s
 end
-# mov <register of the next argument>, v
+# mov <register of the next argument>, v, in its shortest form
 fn mov v
 set ai as i
 lt i 7 as c
 call ok c
+shr v 32 as c
+jnz c w
 mul i 2 as r
 add r regtab as r
 loadb r as c
@@ -595,8 +643,27 @@ add r 1 as r
 loadb r as c
 call eb c
 call e4 v
-add i 1 as i
-set i as ai
+jmp x
+label w
+call areg i as r
+shr r 3 as c
+or c 72 as c
+call eb c
+and r 7 as r
+ge v 0xffffffff80000000 as c
+jz c q
+call eb 199
+or r 192 as r
+call eb r
+call e4 v
+jmp x
+label q
+or r 184 as r
+call eb r
+store op v
+add op 8 as op
+label x
+add i 1 as ai
 end
 # mov <register of the next argument>, [a]: read the cell of a var
 fn ldvar a
@@ -787,8 +854,8 @@ label n8
 and f 4 as d
 jz d arg
 call pk as c
-call dig c as d
-jnz d num
+call low c as d
+jz d num
 call cname as r
 call mov r
 jmp tokend
@@ -813,6 +880,8 @@ eq c 34 as d
 jnz d str
 call low c as d
 jnz d ident
+eq c 45 as d
+jnz d num
 call dig c as d
 jnz d num
 call err
@@ -855,7 +924,7 @@ loadb r as r
 and r 64 as d
 jnz d s1
 sub p out as p
-add p 4194304 as p
+add p 0x400000 as p
 call mov p
 and r 20 as d
 jz d tokend
@@ -986,27 +1055,16 @@ call rdname
 call newglob as p
 call blank1
 call pk as c
-call dig c as d
-jnz d b1
+call low c as d
+jz d b1
 call cname as r
-gt r 4026531840 as d
-jz d b3
-call ebuf
-label b1
-set 0 as r
-label b2
-call pk as c
-call dig c as d
-jz d b3
-mul r 10 as r
-sub c 48 as c
-add r c as r
-gt r 4026531840 as d
-jz d b4
-call ebuf
-label b4
-call adv
 jmp b2
+label b1
+call rdnum as r
+label b2
+gt r 0xf0000000 as d
+jz d b3
+call ebuf
 label b3
 call ok r
 call eol
@@ -1017,12 +1075,12 @@ shr r 3 as r
 shl r 3 as r
 set bsssz as q
 add r q as r
-gt r 4026531840 as d
+gt r 0xf0000000 as d
 jz d b5
 call ebuf
 label b5
 set r as bsssz
-add q 268435456 as q
+add q 0x10000000 as q
 add p 16 as p
 store p q
 add nbufs 1 as r
@@ -1040,7 +1098,7 @@ store q 1
 add ngv 1 as r
 set r as ngv
 mul r 8 as r
-sub 268435456 r as r
+sub 0x10000000 r as r
 add p 16 as q
 store q r
 add nbufs 1 as r
@@ -1066,9 +1124,6 @@ call blank1
 call rdname
 call newglob as p
 call blank1
-call pk as c
-call dig c as d
-call ok d
 call rdnum as r
 call eol
 add p 24 as q
@@ -1121,9 +1176,10 @@ call adv
 call sbytes
 jmp d5
 label d4
-call dig c as d
-call ok d
-call dnum
+call rdnum as c
+gt c 255 as d
+call no d
+call eb c
 label d5
 call tokchk
 add r 1 as r
@@ -1136,7 +1192,7 @@ sub op q as c
 add p 24 as d
 store d c
 sub q out as c
-add c 4194304 as c
+add c 0x400000 as c
 add p 16 as d
 store d c
 add nbufs 1 as c
@@ -1344,7 +1400,7 @@ mul ngv 8 as c
 add c 4095 as c
 shr c 12 as c
 shl c 12 as c
-sub 268435456 c as d
+sub 0x10000000 c as d
 add out 136 as p
 store p d
 add out 144 as p

@@ -233,6 +233,8 @@ m_dup:    .ascii "ailc: duplicate name\n"
 .equ M_DUP_SZ, . - m_dup
 m_bufs:   .ascii "ailc: buffers too big\n"
 .equ M_BUFS_SZ, . - m_bufs
+m_num:    .ascii "ailc: number too big\n"
+.equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
 .equ M_LABEL_SZ, . - m_label
 m_fn:     .ascii "ailc: undefined function\n"
@@ -378,12 +380,12 @@ next:
     jmp tokend
 4:  test byte ptr [rdx+1], IS_SYS
     jz arg
-    cmp rsi, r15                # sys: the syscall number is a literal or a const
+    cmp rsi, r15                # sys: the syscall number is a const or a literal
     jae err
     mov al, [rsi]
-    sub al, '0'
-    cmp al, 9
-    jbe num
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja num
     call constname
     call emit_mov
     jmp tokend
@@ -434,7 +436,9 @@ arg:
     jb 3f
     cmp al, 'z'
     jbe ident
-3:  sub al, '0'
+3:  cmp al, '-'
+    je num
+    sub al, '0'
     cmp al, 9
     jbe num
     jmp err
@@ -536,20 +540,74 @@ hexdig:
 1:  mov eax, edx
     ret
 
-# eax = the decimal number at rsi, modulo 2^32
+# rax = the number at rsi: decimal, or hexadecimal after "0x", either one
+# after an optional "-". It must fit 64 bits, a negative one as two's complement
 rdnum:
-    xor eax, eax
+    xor r10d, r10d              # 1 for a negative number
+    cmp rsi, r15
+    jae err
+    cmp byte ptr [rsi], '-'
+    jne 1f
+    inc rsi
+    mov r10d, 1
 1:  cmp rsi, r15
-    jae 2f
+    jae err
     movzx ecx, byte ptr [rsi]
     sub ecx, '0'
     cmp ecx, 9
-    ja 2f
-    imul eax, eax, 10
-    add eax, ecx
+    ja err
+    xor eax, eax
+    test ecx, ecx
+    jnz 5f
+    lea rdx, [rsi+1]
+    cmp rdx, r15
+    jae 5f
+    cmp byte ptr [rdx], 'x'
+    jne 5f
+    add rsi, 2
+    xor r11d, r11d              # number of hexadecimal digits
+2:  cmp rsi, r15
+    jae 4f
+    movzx ecx, byte ptr [rsi]
+    mov edx, ecx
+    sub edx, '0'
+    cmp edx, 9
+    jbe 3f
+    or ecx, 0x20                # A-F as a-f
+    sub ecx, 'a'
+    cmp ecx, 5
+    ja 4f
+    lea edx, [rcx+10]
+3:  inc r11d
+    cmp r11d, 16
+    ja err_num
+    shl rax, 4
+    or rax, rdx
     inc rsi
-    jmp 1b
-2:  ret
+    jmp 2b
+4:  test r11d, r11d             # "0x" needs a digit
+    jz err
+    jmp 8f
+5:  cmp rsi, r15
+    jae 8f
+    movzx ecx, byte ptr [rsi]
+    sub ecx, '0'
+    cmp ecx, 9
+    ja 8f
+    mov edx, 10
+    mul rdx
+    jc err_num
+    add rax, rcx
+    jc err_num
+    inc rsi
+    jmp 5b
+8:  test r10d, r10d
+    jz 9f
+    mov rdx, 0x8000000000000000
+    cmp rax, rdx
+    ja err_num
+    neg rax
+9:  ret
 
 # rax = the value of the const whose name is at rsi
 constname:
@@ -751,39 +809,24 @@ bufdef:
     call rdname
     call newglob
     call blank1
-    mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
     cmp rsi, r15
     jae err
-    movzx eax, byte ptr [rsi]
-    sub eax, '0'
-    cmp eax, 9
-    jbe 1f
-    push rdx                    # not a number: the size is a const
-    call constname
-    pop rdx
-    cmp rax, rdx
-    ja err_bufs
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja 1f
+    call constname              # the size is a const
     jmp 3f
-1:  xor eax, eax
-2:  cmp rsi, r15
-    jae 3f
-    movzx ecx, byte ptr [rsi]
-    sub ecx, '0'
-    cmp ecx, 9
-    ja 3f
-    imul rax, rax, 10
-    add rax, rcx
+1:  call rdnum                  # or a number
+3:  mov rdx, 0x100000000 - BSS  # room in the 32-bit address range
     cmp rax, rdx
     ja err_bufs
-    inc rsi
-    jmp 2b
-3:  test rax, rax
+    test rax, rax
     jz err
     push rax
-    push rdx
     call eol
-    pop rdx
     pop rax
+    mov rdx, 0x100000000 - BSS
     mov ecx, [rip+nbufs]
     lea r10, [rip+bufsize]
     mov [r10+rcx*8], rax        # len gives the size as declared
@@ -852,12 +895,6 @@ constdef:
     call rdname
     call newglob
     call blank1
-    cmp rsi, r15
-    jae err
-    movzx eax, byte ptr [rsi]
-    sub eax, '0'
-    cmp eax, 9
-    ja err
     call rdnum
     push rax
     call eol
@@ -909,23 +946,10 @@ datadef:
     inc rsi
     call strbytes
     jmp 5f
-4:  sub eax, '0'
-    cmp eax, 9
+4:  call rdnum
+    cmp rax, 255                # one byte
     ja err
-    xor eax, eax
-7:  cmp rsi, r15
-    jae 8f
-    movzx ecx, byte ptr [rsi]
-    sub ecx, '0'
-    cmp ecx, 9
-    ja 8f
-    imul eax, eax, 10
-    add eax, ecx
-    cmp eax, 255                # one byte
-    ja err
-    inc rsi
-    jmp 7b
-8:  stosb
+    stosb
 5:  call tokchk
     inc ebx
     jmp 3b
@@ -1283,11 +1307,15 @@ emit_mov_rr:
     add rdi, 3
     ret
 
-# emit "mov <arg reg ebx>, eax" and advance ebx
+# emit "mov <arg reg ebx>, rax" in its shortest form and advance ebx.
+# Keeps r8 and r9.
 emit_mov:
     cmp ebx, 7
     jae err
-    lea rcx, [rip+regtab]
+    mov rdx, rax
+    shr rdx, 32
+    jnz 2f
+    lea rcx, [rip+regtab]       # 32 bits: mov r32, imm32 clears the upper half
     movzx edx, byte ptr [rcx+rbx*2]
     test edx, edx
     jz 1f
@@ -1297,6 +1325,29 @@ emit_mov:
     mov [rdi], dl
     mov [rdi+1], eax
     add rdi, 5
+    inc ebx
+    ret
+2:  lea rcx, [rip+argnum]
+    movzx ecx, byte ptr [rcx+rbx]
+    mov edx, ecx
+    shr edx, 3                  # REX.B: the register is r8-r15
+    or edx, 0x48                # REX.W
+    mov [rdi], dl
+    and ecx, 7
+    movsxd rdx, eax
+    cmp rdx, rax
+    jne 3f
+    mov byte ptr [rdi+1], 0xC7  # mov r64, imm32, sign-extended
+    or cl, 0xC0
+    mov [rdi+2], cl
+    mov [rdi+3], eax
+    add rdi, 7
+    inc ebx
+    ret
+3:  or cl, 0xB8                 # mov r64, imm64
+    mov [rdi+1], cl
+    mov [rdi+2], rax
+    add rdi, 10
     inc ebx
     ret
 
@@ -1405,6 +1456,11 @@ err_vars:
 err_dup:
     lea rsi, [rip+m_dup]
     mov edx, M_DUP_SZ
+    mov ebx, 1
+    jmp die
+err_num:
+    lea rsi, [rip+m_num]
+    mov edx, M_NUM_SZ
     mov ebx, 1
     jmp die
 err_bufs:

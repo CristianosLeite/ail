@@ -37,7 +37,7 @@ sys n a b c d e f
 sys n a b c d e f as name
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be a decimal integer or the name of a [`const`](#const), not a variable or a string. The statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be an [integer](#integers) or the name of a [`const`](#const), not a variable or a string. The statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -175,7 +175,7 @@ Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `
 buf name size
 ```
 
-Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
+Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is an [integer](#integers) or the name of a [`const`](#const), at least 1, and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
 A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It may be declared before or after the lines that use it. Variables and global names (buffers, data, [`var`](#var) and [`const`](#const)) share one name space. There is no limit on the number of buffers; the memory is reserved when the program is loaded and never freed.
 
@@ -227,7 +227,7 @@ data name item item ...
 data item item ...
 ```
 
-Puts read-only bytes into the program and makes `name` their address. An item is a [string](#strings), which gives its bytes, or a decimal integer from 0 to 255, which gives one byte; there must be at least one item. Nothing is added: no terminator, no padding, no alignment.
+Puts read-only bytes into the program and makes `name` their address. An item is a [string](#strings), which gives its bytes, or an [integer](#integers) from 0 to 255, which gives one byte; there must be at least one item. Nothing is added: no terminator, no padding, no alignment.
 
 ```
 data msg "hello" 10
@@ -280,7 +280,15 @@ sys 1 1 b 2
 
 ### Integers
 
-Unsigned decimal, 0 to 4294967295. No sign, no hex, no separators. Larger values wrap silently.
+```
+4096
+0xff
+-1
+```
+
+A decimal integer from 0 to 18446744073709551615, or `0x` followed by one to sixteen hexadecimal digits (`a` to `f` in either case; the `x` is lower case). A `-` directly before either form gives the two's complement, down to -9223372036854775808. All are 64-bit values: `-1` and `0xffffffffffffffff` are the same. There are no separators and no other sign.
+
+A literal that does not fit 64 bits is the error `number too big`; nothing wraps silently. Arithmetic still wraps.
 
 ### Strings
 
@@ -373,6 +381,7 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
 | `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
+| `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
@@ -384,14 +393,14 @@ Causes of a syntax error:
 
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
-- `sys` not followed by a decimal syscall number or the name of a `const`
+- `sys` not followed by an integer or the name of a `const`
 - the wrong number of operands: `set`, `len`, `load` and `loadb` take one, `store`, `storeb`, the arithmetic statements and the comparisons take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
 - `var` without a name, or with something that is not a name or is `as`
-- `const` without a name and a decimal integer, with the name `as`, or followed by anything but a comment
-- `data` without an item, with an item that is not a string or a decimal integer up to 255, with the name `as`, or followed by anything but a comment
-- `buf` without a name and a size of at least 1 (a decimal integer or a `const`), with the name `as`, or followed by anything but a comment
+- `const` without a name and an integer, with the name `as`, or followed by anything but a comment
+- `data` without an item, with an item that is not a string or an integer from 0 to 255, with the name `as`, or followed by anything but a comment
+- `buf` without a name and a size of at least 1 (an integer or a `const`), with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
@@ -401,7 +410,8 @@ Causes of a syntax error:
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it
-- an argument that is not a decimal integer, a string, a variable name or a global name
+- an argument that is not an integer, a string, a variable name or a global name
+- `-` or `0x` without a digit after it
 - `as` without a name, with the name `as`, or followed by anything but a comment
 - more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
 - a string with no closing quote

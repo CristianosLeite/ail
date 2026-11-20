@@ -50,7 +50,20 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   value and the label is missing. Stage1 keeps its tables at the end of the source.
 - The suite went from 308 to 329 tests.
 
+### 64-bit, negative and hexadecimal literals (2026-11-19)
+- `rdnum` reads every integer of the language: decimal up to 2^64-1, `0x` with up to sixteen
+  digits, either after `-` down to -2^63. Out of range is `number too big`; the silent wrap at 32
+  bits is gone. `sys`, `const`, `buf` sizes and `data` bytes all go through it.
+- `emit_mov` chooses among 5/6, 7 and 10 bytes. `num_shortest_encoding` pins the three sizes by
+  the distance between data bytes.
+- `buf_size_over_32bit` became `buf_size_over_64bit` with the new message.
+- The suite went from 329 to 365 tests.
+
 ## Why
+- **`0x` prefix:** `0xffffffff` is two tokens where `4294967295` is four (see
+  [Token cost measurement](token-cost-measurement.md)).
+- **An error instead of wrapping:** a literal that silently becomes another number is the kind of
+  fault an AI cannot see in its own output.
 - **Hide instead of refusing in functions:** with declarations allowed after uses, a function
   compiled before a later `buf` cannot know the name is taken, so refusing would depend on the
   order of the source. Hiding is the same whatever the order.

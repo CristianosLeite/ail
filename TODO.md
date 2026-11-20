@@ -17,7 +17,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Support forward references to buffers and data. A `buf` must precede every
   use today, including uses inside functions. Give the new global names clear
   collision and shadowing rules for function locals and top-level variables.
-- [ ] Support full-width 64-bit immediates, negative literals and compact hex
+- [x] Support full-width 64-bit immediates, negative literals and compact hex
   notation for hardware values. Ordinary literals are unsigned decimal and
   silently wrap at 32 bits. Diagnose out-of-range literals and keep wrapping
   arithmetic available.

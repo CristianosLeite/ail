@@ -18,12 +18,12 @@ What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `low`, `dig`, `blank` | character classes |
 | `crlf`, `blanks`, `blank1`, `eol`, `tokchk`, `name`, `rname`, `isas` | as in stage0; `rname` is a name that must start with a letter |
-| `hexd`, `sbytes`, `dnum` | `hexdig` and `strbytes` of stage0; one byte of `data` written as a number |
+| `hexd`, `sbytes` | `hexdig` and `strbytes` of stage0 |
 | `eqn`, `same`, `look` | compare bytes; compare a table entry with the name read last; search a table |
 | `vbase`, `lvar`, `ltop`, `lbuf`, `llab`, `lfn` | the lookups of stage0; they return an index, or 99999 for a name that is not defined |
 | `gent`, `newglob`, `cname`, `rdname`, `rdnum` | the entry of a global name; `newglob`, `constname`, `rdname` and `rdnum` of stage0 |
@@ -63,7 +63,7 @@ AIL stores a byte or 64 bits. `e4` appends four bytes with a 64-bit `store` and 
 
 ## What the translation had to match
 
-- A number is accumulated modulo 2^32, as `imul eax, eax, 10` does: `num` masks after every digit. The size of a `buf` is accumulated in 64 bits against the limit, as in stage0.
+- Stage0 finds a decimal overflow in the carry flag after `mul` and `add`. AIL has no flags, so `rdnum` compares before it multiplies: the value may not be above 0x1999999999999999 (2^64 / 10, rounded down), nor equal to it with a digit above 5.
 - A negative syscall result is tested unsigned: a `read` result above the buffer size is an error, and a `write` result is good when `result - 1` is below the bytes left.
 - The order of the checks in a routine decides which message a source with two faults gets, so it follows stage0 line by line.
 
