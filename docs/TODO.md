@@ -195,10 +195,55 @@ its AIL replacement passes the corresponding checks.
 - [x] Implement a small runtime in AIL that starts a bounded, configurable pool
   of Linux threads on demand. Reuse workers across tasks and skip runtime
   initialization in programs that never spawn a task.
-- [ ] Test result delivery, shared-memory synchronization and worker limits.
+- [x] Test result delivery, shared-memory synchronization and worker limits.
   Measure elapsed time and source tokens on the same divisible workloads at 1,
   2, 4, 8, 14 and 20 workers on the benchmark machine. Vary task size to find
   where scheduling and synchronization overhead outweigh the speedup.
+
+## Native asynchronous execution
+
+Port Tokio's runtime model to AIL on Linux and integrate suspension into the
+language. Use Tokio's scheduler, I/O driver and timer service as the reference
+architecture. Keep the runtime in AIL and expose its polling contract through
+a small internal interface for compiler-generated code.
+[Tokio runtime architecture](https://docs.rs/tokio/latest/tokio/runtime/index.html)
+
+1. [ ] Prototype the runtime in AIL with hand-written resumable tasks. Define
+   the task frame, poll and wake contract, result storage and task lifetime.
+   Start with one executor thread, a ready queue and cooperative scheduling.
+   Coalesce repeated wakeups and preserve wakeups that arrive during a poll.
+   Keep runtime initialization on demand for programs that execute async code.
+   [Tokio's poll and wake model](https://tokio.rs/tokio/tutorial/async)
+2. [ ] Add the Linux I/O driver and timers. Keep the executor, `epoll` driver,
+   and monotonic deadline queue in separate AIL files under `lib/async/`.
+   Start with sleep, timeouts and nonblocking TCP accept, connect, read and
+   write. Define how operations retry after `EAGAIN`, handle partial reads
+   and writes, and remove registrations when cancelled. Test descriptor
+   reuse and races between I/O readiness, deadline expiry and cancellation.
+3. [ ] Integrate native async syntax. Prototype `async fn name ...` and
+   `await h as result`, and measure their token cost on timers and network
+   programs before settling the syntax. Define how a call creates a future,
+   which operation schedules it as a concurrent task, and how synchronous
+   code starts and drives the executor. Compile each async function into a
+   resumable state machine with a frame for values that must survive `await`.
+   Define how results and errors are delivered, how that frame is freed,
+   and when a `local` address remains valid across suspension. Keep the
+   compiler sources within the syntax supported by the pinned seed until
+   a seed that supports async is released and pinned.
+4. [ ] Integrate with the existing `spawn` and `join` worker pool. Keep their
+   documented behavior and use the pool for blocking calls and CPU-bound
+   work. Deliver worker completion to the executor as a wakeup that an async
+   task can await. Define cancellation and shutdown for queued work, running
+   work, and tasks suspended on timers or I/O. Add bounded channels and
+   waiting on the first of several operations after those rules are tested.
+   Evaluate a multithreaded async scheduler after measuring the single-thread
+   executor and defining which task state can move across threads.
+5. [ ] Test suspension and resumption across branches and loops, propagation
+   of results and errors, cancellation before and after readiness, shutdown
+   with live tasks, and progress under load. Check that synchronous programs
+   start no async runtime. Add a timer example and a concurrent TCP echo
+   server. Measure source tokens, throughput, latency and memory per task
+   on representative workloads before broadening the API.
 
 ## Redesign
 
