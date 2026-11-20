@@ -1,7 +1,7 @@
 ---
 title: Seed bootstrap
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, REDESIGN.md, seed/MANIFEST, docs/compiler.md]
+sources: [conversation 2026-11-20, docs/REDESIGN.md, seed/MANIFEST, docs/compiler.md]
 status: current
 ---
 # Seed bootstrap

@@ -1,7 +1,7 @@
 ---
 title: Expression syntax
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, REDESIGN.md, docs/tokens.md]
+sources: [conversation 2026-11-20, docs/REDESIGN.md, docs/tokens.md]
 status: current
 ---
 # Expression syntax
@@ -32,10 +32,10 @@ ten-program corpus in eight spellings: 975 tokens against 1313 before, 1118 for 
 ## Why
 - **This reverses a recorded decision.** Infix was rejected on 2026-11-19 as adding punctuation
   and a second parser path, and `docs/tokens.md` found a loop statement not worth it (31
-  loop-shaped labels against 152 if-shaped). `REDESIGN.md` (2026-11-20, the user's document)
+  loop-shaped labels against 152 if-shaped). `docs/REDESIGN.md` (2026-11-20, the user's document)
   asks for expressions and `while`; the count then showed 26% fewer tokens on programs that
   compute, which the earlier measurement, taken on the compiler source, did not have.
-- **No spaces instead of the commas of the sketch in `REDESIGN.md`:** the document left
+- **No spaces instead of the commas of the sketch in `docs/REDESIGN.md`:** the document left
   argument boundaries to be settled by counting. Without spaces in an expression the old rule
   "spaces separate arguments" needs no change, `a -1` and `a-1` cannot be confused, and it is
   116 tokens cheaper than the comma form. The cost is one strict rule to know: `a + b` is three

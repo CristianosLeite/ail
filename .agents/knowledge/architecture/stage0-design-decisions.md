@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, docs/TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
 status: current
 ---
 

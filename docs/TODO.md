@@ -3,7 +3,7 @@
 This backlog records current limits and the work needed to lift them. Favor
 changes that reduce the token cost of real AIL programs. The compiler is `compiler/ailc.ai` alone since 2026-11-20:
 keep its fixed point, and use in its source only what the pinned seed
-understands. See the [roadmap](docs/roadmap.md) for project history.
+understands. See the [roadmap](roadmap.md) for project history.
 
 ## Compiler self-hosting and language limits
 

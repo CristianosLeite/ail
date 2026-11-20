@@ -1,12 +1,12 @@
 ---
 title: Language extensions
 last-verified: 2026-11-19
-sources: [conversation 2026-11-19, TODO.md, stage0/ailc.s, compiler/ailc.ai]
+sources: [conversation 2026-11-19, docs/TODO.md, stage0/ailc.s, compiler/ailc.ai]
 status: current
 ---
 # Language extensions
 
-**Summary.** Decisions taken while implementing the backlog in `TODO.md`, one commit per item, in
+**Summary.** Decisions taken while implementing the backlog in `docs/TODO.md`, one commit per item, in
 both compilers. Each section says what was chosen, why, and what to keep in mind when touching it.
 
 ## Facts

@@ -86,6 +86,8 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
 - [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
+- [Backlog](docs/TODO.md): the limits of the compiler and the work to lift them, item by item
+- [Redesign](docs/REDESIGN.md): the goals that brought expressions, `while` and the seed-built compiler
 
 ## Layout
 
