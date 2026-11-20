@@ -1,0 +1,6 @@
+# while may be the name of a variable
+while=3
+while while
+while-=1
+end
+sys exit while+4

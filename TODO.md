@@ -116,7 +116,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Parse infix expressions as arguments.
 - [x] Compile compound expressions and `name = expression`.
 - [x] Accept an expression as the condition of `if`.
-- [ ] Add the `while` block.
+- [x] Add the `while` block.
 - [ ] Check expressions against computed results in random programs.
 - [ ] Use immediate forms of instructions, and shifts and masks for division
   and remainder by a power of two.

@@ -39,7 +39,7 @@ var srcend nuses nustk
 var fnres fntail ncap
 # nblk = open blocks; blkbase = those opened outside the open function;
 # topblk = blkbase of the top level, in a function
-var nblk blkbase topblk
+var nblk blkbase topblk whead wsrc
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -80,8 +80,10 @@ buf vk 2048         # the same per variable of the current scope
 buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
                     # length, offset, width + 256 for a store
 buf runend 7456544    # per run of data statements: the address after its last byte
-buf blks 40265328     # 1677722 open blocks of 24 bytes: address of the rel32 that jumps past
+buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
                     # the block, asg, and (4 bytes each) 1 for an else part and dead
+                    # at its end, and for a while the address of its head and its
+                    # place in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
 buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
                     # yet defined, length, next node, scope, index in the table of
@@ -2163,7 +2165,7 @@ end
 # the jump recorded for it lands here
 fn blktop
 sub nblk 1 as p
-mul p 24 as p
+mul p 40 as p
 add p blks as p
 load p as d
 sub op d as c
@@ -2709,7 +2711,8 @@ jeq d 6 vardef
 jeq d 7 constdef
 jeq d 8 localdef
 jeq d 9 usedef
-jmp elsedef
+jeq d 10 elsedef
+jmp whiledef
 end
 set r as cur
 set 0 as ai
@@ -2909,13 +2912,18 @@ add cur 2 as f
 loadb f as f
 and f 8 as f
 jz f next
-mul nblk 24 as p
+mul nblk 40 as p
 add p blks as p
 store p op
 add p 8 as p
 store p asg
 add p 8 as p
 store p 0
+add p 8 as p
+store p whead
+add p 8 as p
+store p wsrc
+set 0 as whead
 call z 4
 add nblk 1 as nblk
 jmp next
@@ -3658,6 +3666,47 @@ jmp next
 # part the last line of the part before
 label blkend
 call eol
+sub nblk 1 as p
+mul p 40 as p
+add p blks as p
+add p 24 as q
+load q as r
+if r
+# the end of a while: jump back to its head. That way there must have
+# assigned what the head had assigned, like a jump back to a label, and in
+# the first pass over a function the loop is noted for alloc. After the
+# loop, what is assigned is what the head had: the only way out is its test.
+ifz dead
+add p 8 as q
+load q as q
+xor asg -1 as f
+and q f as q
+if q
+call eunasgj
+end
+end
+ifeq pass 1
+add p 32 as q
+load q as q
+mul nloops 16 as d
+add d loops as d
+store d q
+add d 8 as d
+store d ip
+add nloops 1 as nloops
+end
+call eb 233
+sub r op as r
+sub r 4 as r
+call e4 r
+call blktop as p
+sub nblk 1 as nblk
+add p 8 as q
+load q as q
+set q as asg
+set 0 as dead
+jmp be3
+end
 call blktop as p
 sub nblk 1 as nblk
 add p 16 as q
@@ -3687,6 +3736,14 @@ ifle nblk blkbase
 call eplace
 end
 call eol
+sub nblk 1 as p
+mul p 40 as p
+add p blks as p
+add p 24 as q
+load q as d
+if d
+call eplace
+end
 call eb 233
 set op as r
 call z 4
@@ -3708,6 +3765,28 @@ set f as asg
 set 0 as dead
 call clrvk
 jmp next
+
+# "while <value>": an "if <value>" whose block ends with a jump back to
+# here. The head is a place that a jump reaches, so what is known of the
+# variables is forgotten, as at a label.
+label whiledef
+call blank1
+call clrvk
+set 0 as dataend
+set op as whead
+set ip as wsrc
+set exnm as p
+store2 p 0x6669
+set p as ns
+set 2 as nl
+call kw as r
+set r as cur
+set 0 as ai
+set 0 as ncap
+store opd 0
+add opd 32 as d
+store d 0
+jmp arg
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
 label fin

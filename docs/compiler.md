@@ -58,7 +58,7 @@ The top level uses the six variables `c d r f p q`, which are the ones that get 
 | `bufdef`, `localdef`, `vardef`, `constdef`, `datadef`, `labdef` | the statements `buf`, `local`, `var`, `const`, `data` and `label` |
 | `jtarget` | the label name of a jump: call `eop`, leave room for the displacement and record a fixup |
 | `fndef`, `fnend` | `fn`: enter the function, emit the jump over it and its entry code, open its scope; `end`: close the innermost open block if there is one, else emit the default return, resolve the jumps and close the scope |
-| `blkend`, `elsedef` | the `end` and the `else` of a block |
+| `blkend`, `elsedef`, `whiledef` | the `end` and the `else` of a block; `while`, which opens a block that ends with a jump back |
 | `earg` | an argument that is an expression: parse it and compute it into the register of its position |
 | `asgn` | `name=expression` and `name+=expression`: compute and store |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
@@ -335,9 +335,13 @@ Neither table can overflow: the shortest `label` line is 8 bytes and the shortes
 
 ## Blocks
 
-The `if` forms are rows flagged `IS_IF` whose bytes, like those of a jump, stop before the `rel32`; the jump is the opposite of the condition and leads past the block. When such a statement ends, `arg` pushes an entry on `blks`: the address of the `rel32` and `asg`, the variables assigned on the way past the block. No label is involved.
+The `if` forms are rows flagged `IS_IF` whose bytes, like those of a jump, stop before the `rel32`; the jump is the opposite of the condition and leads past the block. When such a statement ends, `arg` pushes an entry of 40 bytes on `blks`: the address of the `rel32` and `asg`, the variables assigned on the way past the block. No label is involved.
 
 `end` goes to `blkend` when a block is open (`nblk` above `blkbase`, the depth at which the function began), and only otherwise ends the function. `blktop` fills in the recorded jump. The variables assigned afterwards are those of both ways there: `asg` is and-ed with the recorded mask, or replaced by it when the block ended in `jmp` or `ret`. `else` emits a `jmp` past the rest, lets the jump of the `if` land behind it, and swaps the entry: it now holds the new `rel32`, the mask at the end of the first part and whether that part was dead, while `asg` goes back to what the `if` had. `end` then merges the two parts, and if both were dead the code after it is dead too. `end` and `else` call `clrvk`, and `end` clears `dataend`, as a label does.
+
+**Loops.** `while` is the last of the statements parsed on their own, row 11. Its state `whiledef` forgets what is known of the variables and clears `dataend`, as a label does, since a jump will reach this place; notes the output cursor and the place in the source in `whead` and `wsrc`; and then makes the statement an `if`: it points `cur` at that row and goes to `arg`. The value is therefore parsed, and a comparison in it turned into a compare and a jump, by the code that does it for `if`. When the statement ends, the entry pushed on `blks` takes `whead` and `wsrc` with it; an entry is 40 bytes, and those two cells are zero for an `if`.
+
+`blkend` finds a head in the entry and ends a loop instead of a block. It emits `jmp` back to the head, whose distance is known at once. That jump is a way to the head like a jump back to a label, so it must have assigned what was assigned there (`unassigned variable` otherwise), unless the line cannot be reached. In the first pass over a function it adds the loop to `loops`, from the place before the value to the place after `end`, so that `alloc` keeps every variable that is alive in the loop in its place to the end of it. Then the jump of the `if` is filled in to land behind the jump back, and `asg` becomes what it was at the head: the only way past a loop is its test. `else` refuses an entry with a head.
 
 ## Functions
 
@@ -445,7 +449,7 @@ The tables are `data` statements in a file of their own, `stage1/tables.ai`, whi
 
 The file is the definition of the tables. It was first printed from the bytes that the compiler in assembly assembled to; now a row is edited here. A row is decimal bytes, which no one reads as instructions, so two checks stand where the generator stood. `tests/tables.sh` checks the form: every length is that of its name or code, no statement or syscall name occurs twice, the flags are ones that exist, the two tables with rows end, the others have their size, and each syscall number is the one in a list of the script's own. `tests/insn.sh` checks the bytes: `tests/insn.cases` has a line for every row of the statement table and for the other tables, with a source, the code it must compile to in hex, and the same code as instructions. The hex is what GNU `as` writes for the instructions (`tests/insn.sh hex '<instructions>'` prints it and `tests/insn.sh asm` checks the two columns), so the expected bytes do not come from the compiler; the run in `make test` needs no assembler.
 
-The statement table has each row as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. Its last ten rows have the flags 255 and no code: they are the statements parsed on their own, and the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`, 10 `else`), so `next` finds every keyword with the one search `kw`.
+The statement table has each row as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. Its last eleven rows have the flags 255 and no code: they are the statements parsed on their own, and the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`, 10 `else`, 11 `while`), so `next` finds every keyword with the one search `kw`.
 
 ## How the source is written
 
@@ -463,7 +467,7 @@ The compiler was first checked by comparing it with the one in assembly on every
 
 A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is one new row of `optab` in `stage1/tables.ai`: write the instructions, take their bytes from `tests/insn.sh hex`, and add the case to `tests/insn.cases`. Anything else, like `buf`, `data`, `var`, `const`, `label`, `fn` and `end`:
 
-1. Add a row with the flags 255 and the next number, and a `jeq` for that number in `next`; a number without one falls into `elsedef`.
+1. Add a row with the flags 255 and the next number, and a `jeq` for that number in `next`; a number without one falls into `whiledef`.
 2. Write the state: it reads from `ip`, appends at `op`, and ends its last token through `eol`.
 3. Jump back to `next`.
 

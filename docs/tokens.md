@@ -60,7 +60,7 @@ Before choosing new forms of control flow, the cost of the existing ones was cou
 - 152 of the 242 labels were the target of a single forward conditional jump, the shape of an `if`. A block that needs no label name saves 602 tokens: 4.5% of all, 15% of the control flow.
 - 31 labels were the target of a single backward jump, the shape of a loop. A loop statement would save little, since a loop still needs its test and often a second exit.
 
-So the compare-and-jump statements and the `if` blocks were added, and no loop statement. After rewriting stage1 with `tools/fuse.py`, `stage1/ailc.ai` went from 13483 to 12305 tokens.
+So the compare-and-jump statements and the `if` blocks were added, and no loop statement then. `while` came with expressions (below): on programs that compute, a loop with its test in one line is worth more than it was in the compiler source, where most loops have a second exit. After rewriting stage1 with `tools/fuse.py`, `stage1/ailc.ai` went from 13483 to 12305 tokens.
 
 ## Expressions, measured on 2026-11-20
 

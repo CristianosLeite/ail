@@ -1,0 +1,13 @@
+# the value may be a plain variable, a number or the old forms may follow
+buf b 8
+store b 3
+n=0
+load b as v
+while v
+n+=v
+sub v 1 as v
+end
+while 0
+n=99
+end
+sys exit n

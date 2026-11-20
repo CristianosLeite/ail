@@ -108,6 +108,7 @@ data 5 "const" 7 255 0 0
 data 5 "local" 8 255 0 0
 data 3 "use" 9 255 0 0
 data 4 "else" 10 255 0 0
+data 5 "while" 11 255 0 0
 data 0
 # names that sys accepts for a syscall number, unless the program has a
 # const of that name: name length, name, number as two bytes

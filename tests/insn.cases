@@ -115,3 +115,6 @@ a=3 ; jnz a!=7 l ; label l | b8030000004889c34889d8bf070000004839f80f8500000000 
 a=3 ; jz a<=7 l ; label l | b8030000004889c34889d8bf070000004839f80f8700000000 | mov eax, 3 ; mov rbx, rax ; mov rax, rbx ; mov edi, 7 ; cmp rax, rdi ; {disp32} ja 1f ; 1:
 a=3 ; if a>a+1 ; end | b8030000004889c34889d8504889d8bf010000004801f84889c7584839f80f8600000000 | mov eax, 3 ; mov rbx, rax ; mov rax, rbx ; push rax ; mov rax, rbx ; mov edi, 1 ; add rax, rdi ; mov rdi, rax ; pop rax ; cmp rax, rdi ; {disp32} jbe 1f ; 1:
 a=3 ; if a&1 ; end | b8030000004889c34889d8bf010000004821f84885c00f8400000000 | mov eax, 3 ; mov rbx, rax ; mov rax, rbx ; mov edi, 1 ; and rax, rdi ; test rax, rax ; {disp32} jz 1f ; 1:
+# while: the test of an if at the head and a jump back at the end
+i=3 ; while i ; i-=1 ; end | b8030000004889c34889d84885c00f84130000004889d8bf010000004829f84889c3e9e1ffffff | mov eax, 3 ; mov rbx, rax ; 1: mov rax, rbx ; test rax, rax ; {disp32} jz 2f ; mov rax, rbx ; mov edi, 1 ; sub rax, rdi ; mov rbx, rax ; {disp32} jmp 1b ; 2:
+i=3 ; while i<9 ; end | b8030000004889c34889d8bf090000004839f80f8305000000e9eaffffff | mov eax, 3 ; mov rbx, rax ; 1: mov rax, rbx ; mov edi, 9 ; cmp rax, rdi ; {disp32} jae 2f ; {disp32} jmp 1b ; 2:

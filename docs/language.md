@@ -307,6 +307,23 @@ The check does not know values: it treats both outcomes of `jz` and `jnz` as pos
 
 Labels are local: a label defined inside a [function](#functions) exists only there, and the labels outside every function are not visible inside one. A jump therefore never enters or leaves a function, and the same label name can be reused in each function.
 
+
+#### Loops
+
+```
+i=0
+while i<10
+    sys write 1 "x"
+    i+=1
+end
+```
+
+`while a` runs the lines up to the matching `end` again and again, as long as `a` is not zero when it is reached; the value is computed before each round, so the lines may run no time at all. The value is one [argument](#arguments), usually an expression, and a comparison there costs one compare and one jump, as in `if`.
+
+A loop is a block: it nests with `if` blocks and other loops, `end` closes the innermost open one, and it must be closed in the function it was opened in. It has no `else`. Nothing leaves a loop but its value becoming zero, a `jmp` to a label, or a `ret`; there is no statement to end the round early, so put the rest of the round in an `if`.
+
+A variable must have a value on every way to a line that reads it. After a loop that is what had a value before it, since the lines in it may not have run: a variable first assigned inside a loop cannot be read after it. What the compiler knows of an address is forgotten where a loop begins.
+
 ### Functions
 
 ```
@@ -775,7 +792,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `use` or `args` inside one; `end` with no block and no function open; `else` without an open block, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `use` or `args` inside one; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
@@ -810,6 +827,7 @@ What remains a plain `syntax error`:
 - `data` without an item or with an item that is not a string or an integer from 0 to 255
 - `use` without a path in quotes, with an empty path or one of more than 4095 bytes
 - a statement that defines something followed by anything but a comment: `buf`, `var`, `const`, `data`, `label`, `local`, `use`, `fn`, `else`, `end`
+- `while` with nothing after it
 - more than one name after `as` on a statement that is not `call` or `callp`, more than six on those, or anything but a comment after the names
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
