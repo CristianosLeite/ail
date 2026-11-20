@@ -1,5 +1,6 @@
 #!/bin/sh
 # usage: tests/run.sh [name...]     (no names = every test)
+# The compiler is build/ailc, or the one named by the environment variable AILC.
 #
 # A test is a set of files named tests/<name>.*:
 #   .ai     the program (or .ai.sh, a script that prints the program)
@@ -7,13 +8,14 @@
 #   .code   expected exit status of the compiled program (default 0)
 #   .err    expected compiler stderr; the compiler must then exit 1
 # A test has either .err (compiling must fail) or .out (program must run).
-# A program still running after $limit seconds is killed and fails its test,
+# A compiler or program still running after $limit seconds is killed and fails its test,
 # whatever status the test expects: the status is taken from a file that is
 # only written when the program ends by itself. The kill is SIGKILL to the
 # whole process group, so a program that ignores SIGTERM does not live on.
 # Every run works in a directory of its own, removed when it ends, so runs
 # at the same time do not overwrite each other's files.
 cd "$(dirname "$0")/.." || exit 1
+ailc=${AILC:-build/ailc}
 limit=10
 mkdir -p build/tests
 out=$(mktemp -d build/tests/run.XXXXXX) || exit 1
@@ -26,7 +28,8 @@ check() {
     then sh tests/$1.ai.sh > $out/$1.ai || return 1
     else cp tests/$1.ai $out/$1.ai || return 1
     fi
-    build/ailc < $out/$1.ai > $out/$1 2> $out/$1.err
+    # the compiler has the same deadline; killed, its status is neither 0 nor 1
+    timeout --signal=KILL $limit $ailc < $out/$1.ai > $out/$1 2> $out/$1.err
     rc=$?
     if [ -f tests/$1.err ]; then
         [ $rc -eq 1 ] && cmp -s $out/$1.err tests/$1.err

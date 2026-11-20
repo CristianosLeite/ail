@@ -1,0 +1,1190 @@
+# ailc stage1 -- the AIL compiler in AIL, a translation of stage0/ailc.s.
+# usage: ailc < prog.ai > prog      (same output, byte for byte, as stage0)
+#
+# The fixed registers of stage0 are 8-byte buffers here, since a function
+# sees no top-level variable:
+#   ip = input cursor    ie = input end     op = output cursor
+#   ai = argument index of the statement    nv = variables of the scope
+#   cur = optab row of the statement (at its operand count)
+#   ns, nl = start and length of the name read last
+# Top level uses the variables c d r f p q only.
+buf in 65537
+buf out 1048576
+buf ro 592          # read-only tables, filled in at start (see "tables")
+buf st 720          # cold state, read with g and written with s:
+#   0 nbufs    8 bsssz   16 nlabels  24 nfix     32 infn   40 topvars
+#   48 fnskip  56 labbase  64 fixbase  72 80 name of this call
+#   88 nfuncs  96 ncalls  104 sigaction
+#   144 variables: 6 top level then 6 of the function, 16 bytes each: name, length
+#   336 buffers, 24 bytes each: name, length, address
+buf labs 196632     # 8193 labels of 24 bytes: name, length, address in out
+buf fixs 262152     # 10923 jumps of 24 bytes: label name, length, rel32 address
+buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
+buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, values
+buf ip 8
+buf ie 8
+buf op 8
+buf ai 8
+buf nv 8
+buf cur 8
+buf ns 8
+buf nl 8
+
+# ---- errors: source problems exit 1, I/O problems exit 2
+fn err
+sys 1 2 "ailc: syntax error\n"
+sys 60 1
+end
+fn ebig
+sys 1 2 "ailc: source too big\n"
+sys 60 1
+end
+fn eund
+sys 1 2 "ailc: undefined variable\n"
+sys 60 1
+end
+fn evar
+sys 1 2 "ailc: too many variables\n"
+sys 60 1
+end
+fn edup
+sys 1 2 "ailc: duplicate name\n"
+sys 60 1
+end
+fn ebuf
+sys 1 2 "ailc: too many buffers\n"
+sys 60 1
+end
+fn elab
+sys 1 2 "ailc: undefined label\n"
+sys 60 1
+end
+fn efn
+sys 1 2 "ailc: undefined function\n"
+sys 60 1
+end
+fn eargc
+sys 1 2 "ailc: wrong argument count\n"
+sys 60 1
+end
+fn erd
+sys 1 2 "ailc: read error\n"
+sys 60 2
+end
+fn ewr
+sys 1 2 "ailc: write error\n"
+sys 60 2
+end
+# syntax error unless c is not zero
+fn ok c
+jnz c k
+call err
+label k
+end
+# syntax error unless c is zero
+fn no c
+jz c k
+call err
+label k
+end
+# duplicate name unless the lookup result i is "not found"
+fn nodup i
+eq i 99999 as i
+jnz i k
+call edup
+label k
+end
+
+# ---- cold state
+fn g k
+add st k as k
+load k as k
+ret k
+end
+fn s k v
+add st k as k
+store k v
+end
+
+# ---- input
+# the byte at the cursor, or 256 at the end of the input
+fn pk
+load ip as p
+load ie as e
+lt p e as c
+jz c z
+loadb p as c
+ret c
+label z
+ret 256
+end
+fn adv
+load ip as p
+add p 1 as p
+store ip p
+end
+fn low c
+sub c 97 as c
+lt c 26 as c
+ret c
+end
+fn dig c
+sub c 48 as c
+lt c 10 as c
+ret c
+end
+fn blank c
+eq c 32 as d
+eq c 9 as c
+or c d as c
+ret c
+end
+# a CR at the cursor must be the first half of a CRLF line end
+fn crlf
+load ip as p
+add p 1 as p
+load ie as e
+lt p e as c
+jz c bad
+loadb p as c
+eq c 10 as c
+jnz c k
+label bad
+call err
+label k
+end
+fn blanks
+label a
+call pk as c
+call blank c as c
+jz c x
+call adv
+jmp a
+label x
+end
+# one space or tab at least
+fn blank1
+call pk as c
+call blank c as c
+call ok c
+call blanks
+end
+# after the last token of a statement: blanks, then a comment or line end
+fn eol
+call blanks
+call pk as c
+eq c 256 as d
+jnz d k
+eq c 10 as d
+jnz d k
+eq c 35 as d
+jnz d k
+eq c 13 as d
+call ok d
+call crlf
+label k
+end
+# read a name [a-z0-9_]* into ns and nl
+fn name
+load ip as p
+store ns p
+label a
+call pk as c
+eq c 95 as d
+jnz d t
+call dig c as d
+jnz d t
+call low c as d
+jz d x
+label t
+call adv
+jmp a
+label x
+load ip as e
+sub e p as e
+store nl e
+end
+# the same, but it must start with a letter
+fn rname
+call pk as c
+call low c as c
+call ok c
+call name
+end
+# 1 if the name read last is "as"
+fn isas
+load nl as n
+eq n 2 as n
+jz n x
+load ns as p
+loadb p as n
+eq n 97 as n
+jz n x
+add p 1 as p
+loadb p as n
+eq n 115 as n
+ret n
+label x
+end
+
+# ---- tables of names
+# 1 if the n bytes at a and b are equal
+fn eqn a b n
+label l
+jz n y
+loadb a as c
+loadb b as d
+ne c d as c
+jnz c x
+add a 1 as a
+add b 1 as b
+sub n 1 as n
+jmp l
+label y
+ret 1
+label x
+end
+# 1 if the table entry q holds the name read last
+fn same q
+add q 8 as t
+load t as t
+load nl as n
+ne t n as t
+jnz t x
+load q as q
+load ns as p
+call eqn q p n as t
+ret t
+label x
+end
+# index of the name read last among n entries of z bytes at b, or 99999
+fn look b n z
+set 0 as i
+label a
+ge i n as t
+jnz t x
+call same b as t
+jnz t y
+add b z as b
+add i 1 as i
+jmp a
+label y
+ret i
+label x
+ret 99999
+end
+# the variable pool of the current scope
+fn vbase
+add st 144 as p
+call g 32 as c
+jz c x
+add p 96 as p
+label x
+ret p
+end
+fn lvar
+call vbase as p
+load nv as n
+call look p n 16 as i
+ret i
+end
+# the top-level variables, also from inside a function
+fn ltop
+add st 144 as p
+load nv as n
+call g 32 as c
+jz c x
+call g 40 as n
+label x
+call look p n 16 as i
+ret i
+end
+fn lbuf
+add st 336 as p
+call g 0 as n
+call look p n 24 as i
+ret i
+end
+# a label of the current scope: the index counts from labbase
+fn llab
+call g 56 as b
+call g 16 as n
+sub n b as n
+mul b 24 as b
+add b labs as b
+call look b n 24 as i
+ret i
+end
+fn lfn
+call g 88 as n
+call look funs n 32 as i
+ret i
+end
+# write the name read last into the table entry p, or read it back from it
+fn putn p
+load ns as c
+store p c
+add p 8 as p
+load nl as c
+store p c
+end
+fn getn p
+load p as c
+store ns c
+add p 8 as p
+load p as c
+store nl c
+end
+# read a variable name and find it in the pool of the scope, or add it
+fn defvar
+call rname
+call isas as c
+call no c
+call lbuf as c
+call nodup c
+call lvar as i
+ne i 99999 as c
+jnz c x
+load nv as i
+lt i 6 as c
+jnz c k
+call evar
+label k
+call vbase as p
+mul i 16 as c
+add p c as p
+call putn p
+add i 1 as c
+store nv c
+label x
+ret i
+end
+# the optab row of the name read last, at its operand count, or 0
+fn kw
+add ro 176 as r
+load nl as n
+load ns as p
+label a
+loadb r as l
+jz l x
+add r 1 as r
+ne l n as c
+jnz c t
+call eqn r p n as c
+jz c t
+add r l as r
+ret r
+label t
+add r l as r
+add r 2 as c
+loadb c as c
+add r 3 as r
+add r c as r
+jmp a
+label x
+end
+# x86 register number of variable i, and of argument position i
+fn vreg i
+add i ro as i
+add i 562 as i
+loadb i as i
+ret i
+end
+fn areg i
+add i ro as i
+add i 555 as i
+loadb i as i
+ret i
+end
+
+# ---- output
+fn eb v
+load op as p
+storeb p v
+add p 1 as p
+store op p
+end
+# four bytes; the store also clears the four after them, not yet written
+fn e4 v
+and v 4294967295 as v
+load op as p
+store p v
+add p 4 as p
+store op p
+end
+fn z n
+load op as p
+add p n as p
+store op p
+end
+fn cp a n
+load op as p
+label l
+jz n x
+loadb a as c
+storeb p c
+add a 1 as a
+add p 1 as p
+sub n 1 as n
+jmp l
+label x
+store op p
+end
+# patch four bytes at a, keeping the four after them
+fn p4 a v
+load a as o
+shr o 32 as o
+shl o 32 as o
+and v 4294967295 as v
+or o v as o
+store a o
+end
+# mov <register d>, <register s>, 64-bit
+fn mrr d s
+shr s 3 as a
+shl a 2 as a
+shr d 3 as b
+or a b as a
+or a 72 as a
+call eb a
+call eb 137
+and s 7 as s
+shl s 3 as s
+and d 7 as d
+or s d as s
+or s 192 as s
+call eb s
+end
+# mov <register of the next argument>, v
+fn mov v
+load ai as i
+lt i 7 as c
+call ok c
+mul i 2 as r
+add r ro as r
+add r 541 as r
+loadb r as c
+jz c n
+call eb c
+label n
+add r 1 as r
+loadb r as c
+call eb c
+call e4 v
+add i 1 as i
+store ai i
+end
+# the code of the statement, after checking its operand count; a call
+# also leaves room for its rel32 and is recorded
+fn eop
+load cur as r
+add r 1 as f
+loadb f as f
+and f 20 as c
+jnz c k
+loadb r as c
+load ai as i
+eq c i as c
+call ok c
+label k
+add r 2 as c
+loadb c as c
+add r 3 as r
+call cp r c
+and f 16 as f
+jz f x
+load ai as i
+lt i 7 as c
+call ok c
+call g 96 as n
+mul n 32 as p
+add p calls as p
+call g 72 as c
+store p c
+call g 80 as c
+add p 8 as r
+store r c
+load op as c
+add p 16 as r
+store r c
+add p 24 as r
+store r i
+call z 4
+add n 1 as n
+call s 96 n
+label x
+end
+# fill in the jumps of the current scope, now that its labels are known
+fn resolve
+call g 64 as i
+call g 24 as n
+sub n i as n
+mul i 24 as p
+add p fixs as p
+label a
+jz n x
+call getn p
+call llab as c
+ne c 99999 as i
+jnz i k
+call elab
+label k
+call g 56 as i
+add c i as c
+mul c 24 as c
+add c labs as c
+add c 16 as c
+load c as c
+add p 16 as i
+load i as i
+sub c i as c
+sub c 4 as c
+call p4 i c
+add p 24 as p
+sub n 1 as n
+jmp a
+label x
+end
+
+# ---- start: a closed output pipe must be a write error, not a death
+add st 104 as p
+store p 1
+sys 13 13 p 0 8
+set in as p
+add in 65537 as q
+label rd
+sub q p as r
+jnz r rd1
+call ebig
+label rd1
+sys 0 0 p r as r
+jz r rd2
+gt r 65537 as c
+jz c rd3
+call erd
+label rd3
+add p r as p
+jmp rd
+label rd2
+store ie p
+store ip in
+# ---- tables, four bytes a line, low byte first: the ELF header (0), the
+# statements (176; per row name length, name, operand count, flags, code
+# length, code; flag 64 is a statement parsed on its own), then fnpush
+# (531), regtab (541), argnum (555), varnum (562) and exit0 (568)
+store op ro
+call e4 1179403647
+call e4 65794
+call z 8
+call e4 4063234
+call e4 1
+call e4 4194480
+call z 4
+call e4 64
+call z 16
+call e4 3670080
+call e4 4194306
+call z 4
+call e4 1
+call e4 5
+call z 8
+call e4 4194304
+call z 4
+call e4 4194304
+call z 20
+call e4 4096
+call z 4
+call e4 1
+call e4 6
+call z 8
+call e4 268435456
+call z 4
+call e4 268435456
+call z 20
+call e4 4096
+call z 4
+call e4 1937339139
+call e4 251790336
+call e4 1702036229
+call e4 65908
+call e4 1684300035
+call e4 1208156418
+call e4 1929639937
+call e4 16933493
+call e4 4163454979
+call e4 1819634947
+call e4 1208221954
+call e4 63418127
+call e4 41314660
+call e4 3526427905
+call e4 66582344
+call e4 40136557
+call e4 3526428673
+call e4 1224210248
+call e4 1627639945
+call e4 16933998
+call e4 4162930691
+call e4 41053954
+call e4 155714305
+call e4 1870136312
+call e4 50397810
+call e4 66597192
+call e4 40659059
+call e4 2303198721
+call e4 3771943161
+call e4 1919447811
+call e4 1208353026
+call e4 3544775049
+call e4 1902445288
+call e4 1208549634
+call e4 2484074553
+call e4 3233157056
+call e4 40201730
+call e4 961022209
+call e4 3230994424
+call e4 46183951
+call e4 16938092
+call e4 4164503561
+call e4 264278543
+call e4 1812119734
+call e4 151061093
+call e4 267925832
+call e4 3054485654
+call e4 1952907968
+call e4 1208549634
+call e4 2534406201
+call e4 3233157056
+call e4 40199938
+call e4 961022209
+call e4 3230863352
+call e4 79738383
+call e4 1684107116
+call e4 1208156417
+call e4 1812267147
+call e4 1650745711
+call e4 251855105
+call e4 1929707702
+call e4 1701998452
+call e4 1208156674
+call e4 1929787529
+call e4 1701998452
+call e4 50463330
+call e4 54036544
+call e4 7368042
+call e4 48824586
+call e4 167869034
+call e4 3229960197
+call e4 1778615311
+call e4 167869038
+call e4 3229960197
+call e4 1661240591
+call e4 7105633
+call e4 65536272
+call e4 24405362
+call e4 1598098210
+call e4 1564565057
+call e4 1532845121
+call e4 1852179139
+call e4 50348033
+call e4 40269154
+call e4 1694695488
+call e4 1073964142
+call e4 1634469120
+call e4 74212706
+call e4 1392508992
+call e4 1096040789
+call e4 1096171861
+call e4 12058711
+call e4 12452031
+call e4 1102725562
+call e4 12140984
+call e4 167904775
+call e4 84085000
+call e4 252579084
+call e4 15544
+call e4 268382464
+call e4 5
+store op out
+call cp ro 176
+
+# ---- statement
+label next
+call pk as c
+eq c 256 as d
+jnz d fin
+call blank c as d
+jnz d n1
+eq c 10 as d
+jnz d n1
+eq c 35 as d
+jnz d n2
+eq c 13 as d
+jz d n4
+call crlf
+label n1
+call adv
+jmp next
+label n2
+call adv
+call pk as c
+eq c 256 as d
+jnz d fin
+eq c 10 as d
+jnz d next
+eq c 13 as d
+jz d n2
+call crlf
+jmp n2
+label n4
+call rname
+call kw as r
+call ok r
+add r 1 as f
+loadb f as f
+and f 64 as d
+jz d n6
+loadb r as d
+eq d 1 as c
+jnz c fndef
+eq d 2 as c
+jnz c bufdef
+eq d 3 as c
+jnz c fnend
+jmp labdef
+label n6
+store cur r
+store ai 0
+call pk as c
+call blank c as d
+call ok d
+call blanks
+and f 32 as d
+jz d n7
+call g 32 as d
+call ok d
+label n7
+and f 16 as d
+jz d n8
+call rname
+load ns as d
+call s 72 d
+load nl as d
+call s 80 d
+jmp tokend
+label n8
+and f 4 as d
+jz d arg
+call pk as c
+call dig c as d
+call ok d
+jmp num
+
+# ---- arguments
+# every token must be followed by a space, tab, comment or end of line
+label tokend
+call pk as c
+eq c 256 as d
+jnz d arg
+call blank c as d
+jnz d arg
+eq c 10 as d
+jnz d arg
+eq c 13 as d
+jnz d arg
+eq c 35 as d
+call ok d
+label arg
+call pk as c
+eq c 256 as d
+jnz d a1
+eq c 10 as d
+jnz d a1
+eq c 35 as d
+jnz d a1
+call blank c as d
+jnz d a2
+eq c 13 as d
+jnz d a4
+eq c 34 as d
+jnz d str
+call low c as d
+jnz d ident
+call dig c as d
+jnz d num
+call err
+label a4
+call crlf
+label a1
+load cur as r
+add r 1 as f
+loadb f as f
+and f 9 as f
+call no f
+call eop
+jmp next
+label a2
+call adv
+jmp arg
+
+label num
+set 0 as r
+label nm1
+call pk as c
+call dig c as d
+jz d nm2
+mul r 10 as r
+sub c 48 as c
+add r c as r
+and r 4294967295 as r
+call adv
+jmp nm1
+label nm2
+call mov r
+jmp tokend
+
+# string: the bytes go into the code behind a jmp, then address and length
+label str
+load cur as r
+add r 1 as r
+loadb r as r
+and r 4 as r
+call ok r
+call adv
+call eb 233
+load op as r
+call z 4
+load op as p
+label s1
+call pk as c
+eq c 256 as d
+call no d
+call adv
+eq c 34 as d
+jnz d s4
+eq c 92 as d
+jz d s3
+call pk as c
+eq c 256 as d
+call no d
+call adv
+eq c 110 as d
+jz d s5
+set 10 as c
+jmp s3
+label s5
+eq c 116 as d
+jz d s6
+set 9 as c
+jmp s3
+label s6
+eq c 48 as d
+jz d s3
+set 0 as c
+label s3
+call eb c
+jmp s1
+label s4
+load op as q
+sub q p as q
+call p4 r q
+sub p out as p
+add p 4194304 as p
+call mov p
+call mov q
+jmp tokend
+
+# a name: a variable or buffer to pass, "as", or the label of a jump
+label ident
+call name
+load cur as r
+add r 1 as f
+loadb f as f
+and f 8 as f
+jz f i3
+loadb r as f
+load ai as d
+ge d f as d
+jnz d jtarget
+label i3
+call isas as d
+jnz d capture
+call lvar as r
+eq r 99999 as d
+jnz d i2
+load ai as d
+lt d 7 as f
+call ok f
+call vreg r as r
+call areg d as f
+call mrr f r
+add d 1 as d
+store ai d
+jmp tokend
+label i2
+call lbuf as r
+ne r 99999 as d
+jnz d i4
+call eund
+label i4
+mul r 24 as r
+add r st as r
+add r 352 as r
+load r as r
+call mov r
+jmp tokend
+
+# "as <name>": emit the statement and keep rax in the variable
+label capture
+load cur as r
+add r 1 as r
+loadb r as r
+and r 2 as r
+call no r
+call blanks
+call defvar as r
+call vreg r as r
+call eol
+call eop
+call mrr r 0
+jmp next
+
+# "buf <name> <size>"
+label bufdef
+call blank1
+call rname
+call isas as d
+call no d
+call lvar as r
+call nodup r
+call ltop as r
+call nodup r
+call lbuf as r
+call nodup r
+call g 0 as r
+lt r 16 as d
+jnz d b1
+call ebuf
+label b1
+mul r 24 as p
+add p st as p
+add p 336 as p
+call putn p
+call blank1
+call pk as c
+call dig c as d
+call ok d
+set 0 as r
+label b2
+call pk as c
+call dig c as d
+jz d b3
+mul r 10 as r
+sub c 48 as c
+add r c as r
+gt r 4026531840 as d
+jz d b4
+call ebuf
+label b4
+call adv
+jmp b2
+label b3
+call ok r
+call eol
+add r 7 as r
+shr r 3 as r
+shl r 3 as r
+call g 8 as q
+add r q as r
+gt r 4026531840 as d
+jz d b5
+call ebuf
+label b5
+call s 8 r
+add q 268435456 as q
+add p 16 as p
+store p q
+call g 0 as r
+add r 1 as r
+call s 0 r
+jmp next
+
+# "label <name>"
+label labdef
+call blank1
+call rname
+call eol
+call llab as r
+call nodup r
+call g 16 as r
+mul r 24 as p
+add p labs as p
+call putn p
+add p 16 as p
+load op as q
+store p q
+add r 1 as r
+call s 16 r
+jmp next
+
+# the label name of a jump: its rel32 is filled in by resolve
+label jtarget
+call eol
+call eop
+call g 24 as r
+mul r 24 as p
+add p fixs as p
+call putn p
+add p 16 as p
+load op as q
+store p q
+call z 4
+add r 1 as r
+call s 24 r
+jmp next
+
+# "fn <name> <parameter>...": jump over the body, save the variable
+# registers and open a scope whose first variables are the parameters
+label fndef
+call g 32 as d
+call no d
+call blank1
+call rname
+call lfn as r
+call nodup r
+call g 88 as r
+mul r 32 as p
+add p funs as p
+call putn p
+call eb 233
+load op as q
+call s 48 q
+call z 4
+load op as q
+add p 16 as p
+store p q
+add ro 531 as q
+call cp q 10
+load nv as q
+call s 40 q
+store nv 0
+call s 32 1
+call g 16 as q
+call s 56 q
+call g 24 as q
+call s 64 q
+label f1
+call blanks
+call pk as c
+eq c 256 as d
+jnz d f2
+eq c 10 as d
+jnz d f2
+eq c 13 as d
+jnz d f2
+eq c 35 as d
+jnz d f2
+load nv as q
+call defvar as r
+load nv as d
+ne d q as d
+jnz d f3
+call edup
+label f3
+call vreg r as f
+call areg r as r
+call mrr f r
+jmp f1
+label f2
+call eol
+load nv as q
+add p 8 as p
+store p q
+call g 88 as r
+add r 1 as r
+call s 88 r
+jmp next
+
+# "end": return 0, resolve the function's jumps, drop its labels and jumps
+label fnend
+call g 32 as d
+call ok d
+call eol
+call eb 49
+call eb 192
+add ro 490 as q
+call cp q 11
+call resolve
+call g 64 as q
+call s 24 q
+call g 56 as q
+call s 16 q
+call s 64 0
+call s 56 0
+call s 32 0
+call g 48 as p
+load op as q
+sub q p as q
+sub q 4 as q
+call p4 p q
+call g 40 as q
+store nv q
+jmp next
+
+# ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
+label fin
+call g 32 as d
+call no d
+add ro 568 as q
+call cp q 9
+call resolve
+set calls as p
+call g 96 as r
+label c1
+jz r c2
+call getn p
+call lfn as c
+ne c 99999 as d
+jnz d c3
+call efn
+label c3
+mul c 32 as c
+add c funs as c
+add c 24 as d
+load d as d
+add p 24 as q
+load q as q
+eq d q as d
+jnz d c4
+call eargc
+label c4
+add c 16 as c
+load c as c
+add p 16 as q
+load q as q
+sub c q as c
+sub c 4 as c
+call p4 q c
+add p 32 as p
+sub r 1 as r
+jmp c1
+label c2
+load op as q
+sub q out as q
+add out 96 as p
+store p q
+add out 104 as p
+store p q
+call g 8 as c
+add out 160 as p
+store p c
+set out as p
+label w1
+sys 1 1 p q as c
+sub c 1 as d
+lt d q as d
+jnz d w2
+call ewr
+label w2
+add p c as p
+sub q c as q
+jnz q w1

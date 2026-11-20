@@ -2,7 +2,7 @@
 
 `stage0/ailc.s` is the bootstrap compiler: about 1100 lines of x86-64 assembly (GNU as, Intel syntax) with no dependencies beyond Linux syscalls. It turns AIL source on stdin into a runnable ELF64 executable on stdout.
 
-It exists to be replaced. Once AIL can express a compiler, the next version is written in AIL and stage0 is only used to build it the first time.
+It is the seed of the bootstrap: [stage1](stage1.md) is the same compiler written in AIL, stage0 builds it the first time, and what this page says about the output holds for both.
 
 ## Pipeline
 
@@ -258,4 +258,4 @@ A statement that takes values in `rax` and `rdi` and leaves a result in `rax` is
 2. Write the emitter, using `rdi` as the output cursor and leaving `rsi` after the statement. End its last token through `eol`.
 3. Jump back to `next`.
 
-Either way, document it in [language.md](language.md) and add tests in `tests/`, including one for each way it can be rejected.
+Either way, document it in [language.md](language.md) and add tests in `tests/`, including one for each way it can be rejected. Make the same change in `stage1/ailc.ai`: `tests/stage1.sh` fails as long as the two compilers differ on any test.

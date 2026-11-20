@@ -6,7 +6,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 AIL is a proof-of-concept programming language whose design goal is low token consumption when an AI writes it. It is hardware-oriented (assembly-like, no classes or objects) and human readability is explicitly not a goal. When adding syntax, prefer short common words and bare spaces over punctuation and boilerplate, and let the compiler infer anything derivable (for example, a string literal supplies its own length).
 
-The plan is to bootstrap: stage0 is written in assembly, and later compiler versions are to be written in AIL itself. Self-hosting is not started.
+The compiler is bootstrapped: stage0 (`stage0/ailc.s`) is written in assembly, and stage1 (`stage1/ailc.ai`) is the same compiler written in AIL, built by stage0 and then by itself. The two must behave identically, byte for byte, so a change to the language goes into both.
 
 ## Rules
 
@@ -17,9 +17,10 @@ The plan is to bootstrap: stage0 is written in assembly, and later compiler vers
 Requires GNU `as` and `ld` on x86-64 Linux.
 
 ```
-make            # build build/ailc and every example in examples/
-make test       # run every test in tests/, then the I/O checks of tests/io.sh
-make test T=hello   # run one test
+make            # build build/ailc, every example in examples/ and build/ailc1 (stage1)
+make test       # run every test in tests/ and the I/O checks of tests/io.sh with stage0,
+                # compare the compilers (tests/stage1.sh), then run both again with stage1
+make test T=hello   # run one test, with both compilers
 make build/foo  # compile examples/foo.ai to build/foo
 make clean
 ```
@@ -30,20 +31,20 @@ The compiler reads source on stdin and writes the executable on stdout:
 build/ailc < prog.ai > prog && chmod +x prog
 ```
 
-A test is a set of files `tests/<name>.*`, run by `tests/run.sh`:
+`build/ailc1` is used the same way. A test is a set of files `tests/<name>.*`, run by `tests/run.sh` (with the compiler named by `AILC`, default `build/ailc`):
 
 - `.ai`: the program, or `.ai.sh`, a script that prints it (used for generated sources such as the size-limit tests)
 - `.out`: expected stdout of the compiled program
 - `.code`: expected exit status of the compiled program, default 0
 - `.err`: expected compiler stderr; the compiler must then exit 1
 
-A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a program after 10 seconds, with `SIGKILL` to its whole process group, and fails the test, so a loop that never ends cannot hang the suite or outlive it. The compiler's I/O errors do not fit that form and are checked by `tests/io.sh`, which `make test` runs after the suite when no `T` is given: closed stdin, output to `/dev/full` and output to a pipe whose reader is gone. Not covered and checked by hand: the Makefile's behaviour after a failed example build.
+A test has either `.err` (compiling must fail) or `.out` (the program must run). The runner kills a compiler or a program after 10 seconds, with `SIGKILL` to its whole process group, and fails the test, so a loop that never ends cannot hang the suite or outlive it. The compiler's I/O errors do not fit that form and are checked by `tests/io.sh`, which `make test` runs after the suite when no `T` is given: closed stdin, output to `/dev/full`, output to a pipe whose reader is gone, and a short write (a non-blocking pipe that takes 4096 bytes: the compiler must write that prefix, then report the error). `make test` names the compiler of every run itself, so an `AILC` in its environment changes nothing. `tests/stage1.sh` gives the source of every test and example to both compilers and requires the same stdout, stderr and exit status, then requires `build/ailc1` (stage1 built by stage0) and `build/ailc2` (stage1 built by itself) to be the same file. Not covered and checked by hand: the Makefile's behaviour after a failed example build.
 
 Compiler errors are one line on stderr with no location: `ailc: syntax error`, `ailc: undefined variable`, `ailc: too many variables`, `ailc: duplicate name`, `ailc: too many buffers`, `ailc: undefined label`, `ailc: undefined function`, `ailc: wrong argument count` or `ailc: source too big` exit 1; `ailc: read error` or `ailc: write error` exit 2.
 
-## Language (stage0)
+## Language
 
-`docs/language.md` is the language reference and `docs/compiler.md` explains the compiler; keep both in sync with `stage0/ailc.s`. Statements:
+`docs/language.md` is the language reference, `docs/compiler.md` explains stage0 and `docs/stage1.md` stage1; keep them in sync with `stage0/ailc.s` and `stage1/ailc.ai`. Statements:
 
 - `sys n a b ...`: raw Linux syscall, up to 6 arguments; `n` must be a decimal number.
 - `set a as x`, and `add sub mul div mod and or xor shl shr` as `op a b as x`: 64-bit, wrapping, unsigned division and shift.
@@ -71,3 +72,14 @@ GNU as, Intel syntax (`.intel_syntax noprefix`). Single pass with no AST; the sy
 - **Strings** are inlined in the code stream behind a `jmp rel32`, so their absolute address is known immediately and no data section or second pass is needed. The code segment is not writable, so string data is read-only.
 
 Adding a statement that takes values in `rax`/`rdi` and leaves a result in `rax` means adding a row to `optab`; anything else needs a keyword check in `next` (as `buf`, `label`, `fn` and `end` have) and its own parser ending in `eol`. Either way add tests for what it accepts and rejects. Do not name a label after an assembler keyword: `jbe word` assembles without a warning and jumps to the wrong place. Forward references to code go through a fixup list: `fixs` holds the `rel32` jump displacements to labels of the current scope, `calls` the `rel32` displacements of calls. Code inside `emit_op` must keep `r8`, where `capture` holds the variable register.
+
+## Stage1 (`stage1/ailc.ai`)
+
+A translation of stage0, routine by routine; `docs/stage1.md` has the map. What to know before editing it:
+
+- **The top level is the state machine** of stage0 under the same labels (`next`, `tokend`, `arg`, `num`, `str`, `ident`, `capture`, `bufdef`, `labdef`, `jtarget`, `fndef`, `fnend`, `fin`) and uses only the variables `c d r f p q`: a seventh name is `too many variables`. Everything stage0 calls is a function.
+- **Global state is in buffers**, since a function sees no top-level variable: `ip`, `ie`, `op`, `ai`, `nv`, `cur`, `ns`, `nl` are one cell each, and the rest is in `st` at the offsets listed at the top of the file, read with `call g <offset> as x` and written with `call s <offset> x`. All sixteen buffers are in use, and a variable may not have the name of a buffer.
+- **Errors are calls that never return** (`call err`, `call edup`, ...); `ok` and `no` are a syntax error unless their value is non-zero or zero. A lookup returns 99999 for a name that is not defined.
+- **The read-only tables** (ELF header, statement rows, register tables) are the `call e4 <decimal>` lines after `store op ro`: four bytes a line, little-endian. The statement rows have the layout of `optab`, plus four rows flagged 64 for `fn`, `buf`, `end` and `label`. Code refers to the tables by their offsets in `ro` (176 statements, 490 `ret` code, 531 `fnpush`, 541 `regtab`, 555 `argnum`, 562 `varnum`, 568 `exit0`), so inserting bytes moves every later offset.
+- **`e4` clears the four bytes after the ones it writes**; use it only to append. `p4` patches four bytes in place.
+- The source must stay within the 65536-byte limit of the compilers (it is about 17 KiB).

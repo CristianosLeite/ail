@@ -12,20 +12,17 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Control flow: `label`, `jmp`, `jz` and `jnz`, with forward jumps patched from a fixup list at the end of the single pass.
 - Functions: `fn` ... `end`, `call` and `ret`, with up to six parameters, variables and labels local to each function, recursion and forward calls.
+- Stage1: the compiler written in AIL (`stage1/ailc.ai`) with the same behaviour as stage0. Stage0 builds it, it builds itself, and the two outputs are byte-identical; `make test` checks that and that both compilers agree on every test.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
-## Next: make the language able to express a compiler
+## Next: develop the language in AIL
 
-Stage0 has to grow until a compiler can be written in AIL. In rough order of dependency:
+The language is now developed in stage1; stage0 stays in the repository as the bootstrap seed. A new feature that stage1 itself is to use has to go into both, since stage0 must still build stage1. Writing stage1 needed no change to the language, and showed where it costs most ([details](stage1.md#friction-found)). In rough order of value:
 
-1. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses if writing the compiler shows a need.
-2. **More than six variables per function**, if writing the compiler shows a need.
-
-## Then: self-hosting
-
-1. Write the compiler in AIL (stage1), with the same behaviour as stage0.
-2. Build stage1 with stage0, then build stage1 with itself, and check that the two outputs are byte-identical.
-3. From then on, develop the language in AIL. Stage0 stays in the repository only as the bootstrap seed.
+1. **Constant data**: a string as a value outside `sys`, so that tables need not be built from decimal numbers at run time.
+2. **More global names**: more than sixteen buffers, or a cheaper kind of global scalar.
+3. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses.
+4. **More than six variables per function**: not needed by stage1; only if a later program shows a need.
 
 ## Supporting work
 

@@ -1,7 +1,7 @@
 ---
 title: Stage0 test suite
 last-verified: 2026-11-19
-sources: [control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
+sources: [stage1 review 2026-11-19 (REVIEW.md), control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
 status: current
 ---
 # Stage0 test suite
@@ -45,6 +45,22 @@ layout of a test; this page records why some fixtures look the way they do.
   timeout instead of hanging.
 - The control-flow review decoded all 10921 displacements of a full fixture by hand and found
   them correct. No test repeats that.
+
+- A review of stage1 on 2026-11-19 (REVIEW.md) found three gaps in the scripts, all closed.
+  `AILC=build/ailc1 make test` ran every runner with stage1, so stage0's I/O handling went
+  untested while the suite passed; the Makefile now sets `AILC` on every run. A compiler that
+  never ended stalled the suite, since only the compiled program had a deadline; `run.sh`,
+  `io.sh` and `stage1.sh` now run the compilers under `timeout`, and `stage1.sh` fails a test
+  whose status is above 2 even when both compilers agree on it. And nothing ran the write loop
+  past its first write; `io_short_write` does.
+- `io_short_write` opens a fifo read-write on descriptor 4 and runs a small AIL program with it
+  as stdout, which calls `fcntl` for `F_SETPIPE_SZ` 4096 and `O_NONBLOCK`. Both belong to the
+  open pipe, not the process, so the compiler started next inherits them: its first `write`
+  takes 4096 bytes and its second fails. The case checks the prefix, the message and status 2.
+  A stage1 that exits after its first write fails it. It cannot tell whether the second write
+  starts at the right byte: that needs a reader draining between the writes, which is a race.
+- Checked by hand on 2026-11-19: `AILC=/bin/false make test` passes; a compiler replaced by
+  `sleep 100` fails `run.sh`, `io.sh` and `stage1.sh` after the deadline instead of hanging.
 
 ## Why
 - **A deadline in the runner, not in each test:** control flow makes non-termination a normal

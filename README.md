@@ -12,20 +12,20 @@ It compiles to a 224-byte static Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, six register variables per function, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion; the compiler is still the bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
+Early proof of concept. The language has raw syscalls, six register variables per function, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion. The compiler exists twice: the bootstrap version in assembly (stage0) and the same compiler written in AIL (stage1), which compiles itself to a byte-identical copy. See the [roadmap](docs/roadmap.md) for what comes next.
 
 ## Quick start
 
 Requires x86-64 Linux with GNU `as` and `ld` (binutils) and `make`.
 
 ```
-make                # builds build/ailc and the examples
+make                # builds build/ailc, the examples and build/ailc1 (the compiler in AIL)
 build/hello         # prints: hello world
 echo hi | build/echo     # prints: hi
 echo hi | build/count    # prints: 0003
 build/loop          # prints the digits 0 to 9, one per line
 build/fact; echo $? # prints: 120
-make test           # runs the tests in tests/
+make test           # runs the tests in tests/ with both compilers and compares them
 make test T=hello   # runs one test
 ```
 
@@ -34,6 +34,8 @@ To compile your own program, give the compiler source on stdin and take the exec
 ```
 build/ailc < prog.ai > prog && chmod +x prog
 ```
+
+`build/ailc1` is used the same way and writes the same file.
 
 Or put it in `examples/foo.ai` and run `make build/foo`.
 
@@ -65,12 +67,14 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
 - [How the compiler works](docs/compiler.md): pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
-- [Roadmap](docs/roadmap.md): the path to a self-hosted compiler
+- [How the stage1 compiler works](docs/stage1.md): the compiler written in AIL, and what writing it showed about the language
+- [Roadmap](docs/roadmap.md): what is done and what comes next
 
 ## Layout
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
+- `stage1/ailc.ai`: the compiler in AIL, built by stage0 and then by itself
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function)
-- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`
+- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/stage1.sh` compares the two compilers
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents
