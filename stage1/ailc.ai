@@ -81,68 +81,68 @@ buf refs 1048608    # 32769 uses of a name not declared yet, 32 bytes: name, len
 
 # ---- errors: source problems exit 1, I/O problems exit 2
 fn err
-sys 1 2 "ailc: syntax error\n"
-sys 60 1
+sys write 2 "ailc: syntax error\n"
+sys exit 1
 end
 fn ebig
-sys 1 2 "ailc: source too big\n"
-sys 60 1
+sys write 2 "ailc: source too big\n"
+sys exit 1
 end
 fn eund
-sys 1 2 "ailc: undefined variable\n"
-sys 60 1
+sys write 2 "ailc: undefined variable\n"
+sys exit 1
 end
 fn evar
-sys 1 2 "ailc: too many variables\n"
-sys 60 1
+sys write 2 "ailc: too many variables\n"
+sys exit 1
 end
 fn edup
-sys 1 2 "ailc: duplicate name\n"
-sys 60 1
+sys write 2 "ailc: duplicate name\n"
+sys exit 1
 end
 fn enum
-sys 1 2 "ailc: number too big\n"
-sys 60 1
+sys write 2 "ailc: number too big\n"
+sys exit 1
 end
 fn eunasg
-sys 1 2 "ailc: unassigned variable\n"
-sys 60 1
+sys write 2 "ailc: unassigned variable\n"
+sys exit 1
 end
 fn eacc
-sys 1 2 "ailc: invalid access\n"
-sys 60 1
+sys write 2 "ailc: invalid access\n"
+sys exit 1
 end
 fn euse
-sys 1 2 "ailc: cannot read file\n"
-sys 60 1
+sys write 2 "ailc: cannot read file\n"
+sys exit 1
 end
 fn eres
-sys 1 2 "ailc: wrong result count\n"
-sys 60 1
+sys write 2 "ailc: wrong result count\n"
+sys exit 1
 end
 fn ebuf
-sys 1 2 "ailc: buffers too big\n"
-sys 60 1
+sys write 2 "ailc: buffers too big\n"
+sys exit 1
 end
 fn elab
-sys 1 2 "ailc: undefined label\n"
-sys 60 1
+sys write 2 "ailc: undefined label\n"
+sys exit 1
 end
 fn efn
-sys 1 2 "ailc: undefined function\n"
-sys 60 1
+sys write 2 "ailc: undefined function\n"
+sys exit 1
 end
 fn eargc
-sys 1 2 "ailc: wrong argument count\n"
-sys 60 1
+sys write 2 "ailc: wrong argument count\n"
+sys exit 1
 end
 fn erd
-sys 1 2 "ailc: read error\n"
-sys 60 2
+sys write 2 "ailc: read error\n"
+sys exit 2
 end
 fn ewr
-sys 1 2 "ailc: write error\n"
-sys 60 2
+sys write 2 "ailc: write error\n"
+sys exit 2
 end
 # syntax error unless c is not zero
 fn ok c
@@ -451,6 +451,37 @@ set nbufs as c
 call gent c as p
 call putn p
 ret p
+end
+# the syscall number named at the cursor: a const of the program, or else
+# one of the names in sysnames
+fn sname
+call rdname
+call lbuf as i
+ifne i 99999
+call gent i as p
+add p 32 as c
+load c as c
+eq c 2 as c
+call ok c
+add p 24 as p
+load p as p
+ret p
+end
+set sysnames as r
+label a
+loadb r as l
+call ok l
+add r 1 as r
+jne l nl t
+call eqn r ns l as c
+jz c t
+add r l as r
+load2 r as r
+ret r
+label t
+add r l as r
+add r 2 as r
+jmp a
 end
 # the value of the const whose name is at the cursor
 fn cname
@@ -1338,7 +1369,7 @@ end
 
 # ---- start: a closed output pipe must be a write error, not a death
 store sig 1
-sys 13 13 sig 0 8
+sys rt_sigaction 13 sig 0 8
 set in as p
 add in 65537 as q
 label rd
@@ -1346,7 +1377,7 @@ sub q p as r
 ifz r
 call ebig
 end
-sys 0 0 p r as r
+sys read 0 p r as r
 if r
 ifgt r 65537
 call erd
@@ -1415,6 +1446,12 @@ if d
 set infn as d
 call ok d
 end
+add cur 2 as d
+loadb d as d
+and d 16 as d
+if d
+call no infn
+end
 and f 16 as d
 if d
 call rname
@@ -1429,7 +1466,7 @@ jz d arg
 call pk as c
 call low c as d
 jz d num
-call cname as r
+call sname as r
 call mov r
 jmp tokend
 
@@ -1490,7 +1527,7 @@ sub q 1 as q
 jmp u8
 end
 storeb r 0
-sys 2 pathbuf 0 0 as f
+sys open pathbuf 0 0 as f
 ifslt f 0
 call euse
 end
@@ -1501,7 +1538,7 @@ sub q srcend as q
 ifz q
 call ebig
 end
-sys 0 f srcend q as c
+sys read f srcend q as c
 ifslt c 0
 call euse
 end
@@ -1509,7 +1546,7 @@ if c
 add srcend c as srcend
 jmp u4
 end
-sys 3 f
+sys close f
 mul nustk 16 as p
 add p ustack as p
 store p ip
@@ -2478,7 +2515,7 @@ add out 160 as p
 store p c
 set out as p
 label w1
-sys 1 1 p q as c
+sys write 1 p q as c
 sub c 1 as d
 lt d q as d
 ifz d

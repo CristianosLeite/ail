@@ -5,7 +5,7 @@ Proof of concept: a hardware-oriented programming language designed to cost few 
 This is a complete program:
 
 ```
-sys 1 1 "hello world\n"
+sys write 1 "hello world\n"
 ```
 
 It compiles to a 224-byte static Linux executable.
@@ -43,7 +43,8 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 
 | Form | Meaning |
 |---|---|
-| `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments |
+| `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments; `n` is a number or a name such as `write` |
+| `args as p` | Address of the argument count, arguments and environment the kernel passed |
 | `sys ... as x` | Same, keeping the return value in variable `x` (at most 64 variables per function) |
 | `set a as x` | `x = a` |
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |

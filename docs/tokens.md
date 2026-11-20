@@ -15,14 +15,14 @@ tools/bench.sh              # check that bench/ behaves like examples/ (needs gc
 | count | 189 | 141 | 102 | 232 |
 | echo | 56 | 58 | 86 | 150 |
 | fact | 52 | 44 | 55 | 101 |
-| hello | 25 | 29 | 45 | 78 |
+| hello | 23 | 29 | 45 | 78 |
 | loop | 62 | 70 | 56 | 135 |
-| total | 384 | 342 | 344 | 696 |
-| relative to AIL | 1.00 | 0.89 | 0.90 | 1.81 |
+| total | 382 | 342 | 344 | 696 |
+| relative to AIL | 1.00 | 0.90 | 0.90 | 1.82 |
 
-AIL costs 45% fewer tokens than assembly that does the same, and about 11% more than C or Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes (`count`, where C writes one expression per digit and Rust one `format!`).
+AIL costs 45% fewer tokens than assembly that does the same, and about 10% more than C or Rust. It wins where the program is mostly system calls and tests of their results (`hello`, `echo`) and loses where it computes (`count`, where C writes one expression per digit and Rust one `format!`).
 
-The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for.
+The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 
 ## Where the tokens go
 

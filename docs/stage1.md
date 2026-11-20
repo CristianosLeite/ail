@@ -26,7 +26,7 @@ What stage0 reaches with `call` is a function:
 | `hexd`, `sbytes` | `hexdig` and `strbytes` of stage0 |
 | `eqn`, `same`, `look` | compare bytes; compare a table entry with the name read last; search a table |
 | `vbase`, `lvar`, `ltop`, `lbuf`, `llab`, `lfn` | the lookups of stage0; they return an index, or 99999 for a name that is not defined |
-| `gent`, `newglob`, `cname`, `rdname`, `rdnum` | the entry of a global name; `newglob`, `constname`, `rdname` and `rdnum` of stage0 |
+| `gent`, `newglob`, `cname`, `sname`, `rdname`, `rdnum` | the entry of a global name; `newglob`, `constname`, `sysname`, `rdname` and `rdnum` of stage0 |
 | `ldvar` | the `mov` that reads the cell of a `var` |
 | `putn`, `getn` | write the name read last into a table entry, or read it back |
 | `defvar`, `kw` | find or add a variable; find the statement row of a keyword |
@@ -57,7 +57,7 @@ The counters and the saved scope of stage0 are `var`s too, under its names (`nbu
 
 ## Read-only tables
 
-The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `zeroes`, `zerolen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
+The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `zeroes`, `zerolen`, `probe`, `sysnames`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
 The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has ten more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`, 10 `else`), so `next` finds every keyword with the one search `kw`.
 

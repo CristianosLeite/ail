@@ -40,6 +40,7 @@
 .equ IS_PTR,  1024              # callp: the first value is the function's address
 .equ IS_IF,   2048              # opens a block: the code ends where the rel32 of
                                 # the jump past the block goes
+.equ IS_TOP,  4096              # args: only outside functions
 .equ NBLK,   INSZ / 5 + 1       # "if a\n" is 5 bytes
 .equ K_CONST, 1                 # what is known of a value: a number,
 .equ K_ADDR,  2                 # a global name plus a number,
@@ -304,6 +305,11 @@ optab:
     .byte 2
     .word AS_REQ
     .byte 9,  0x48,0x39,0xF8, 0x0F,0x9D,0xC0, 0x0F,0xB6,0xC0
+    .byte 4
+    .ascii "args"                                   # mov rax, rsp
+    .byte 0
+    .word AS_REQ | IS_TOP
+    .byte 3,  0x48,0x89,0xE0
     .byte 3
     .ascii "len"                                    # mov eax, <length>
     .byte 1
@@ -568,6 +574,122 @@ retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
     .byte 11,  0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xE9
     .byte 0
 
+# names that sys accepts for a syscall number, unless the program has a
+# const of that name: name length, name, number as two bytes
+sysnames:
+    .byte 4
+    .ascii "read"
+    .word 0
+    .byte 5
+    .ascii "write"
+    .word 1
+    .byte 4
+    .ascii "open"
+    .word 2
+    .byte 5
+    .ascii "close"
+    .word 3
+    .byte 4
+    .ascii "stat"
+    .word 4
+    .byte 5
+    .ascii "fstat"
+    .word 5
+    .byte 5
+    .ascii "lseek"
+    .word 8
+    .byte 4
+    .ascii "mmap"
+    .word 9
+    .byte 8
+    .ascii "mprotect"
+    .word 10
+    .byte 6
+    .ascii "munmap"
+    .word 11
+    .byte 3
+    .ascii "brk"
+    .word 12
+    .byte 12
+    .ascii "rt_sigaction"
+    .word 13
+    .byte 5
+    .ascii "ioctl"
+    .word 16
+    .byte 4
+    .ascii "pipe"
+    .word 22
+    .byte 9
+    .ascii "nanosleep"
+    .word 35
+    .byte 6
+    .ascii "getpid"
+    .word 39
+    .byte 6
+    .ascii "socket"
+    .word 41
+    .byte 7
+    .ascii "connect"
+    .word 42
+    .byte 6
+    .ascii "accept"
+    .word 43
+    .byte 4
+    .ascii "bind"
+    .word 49
+    .byte 6
+    .ascii "listen"
+    .word 50
+    .byte 4
+    .ascii "fork"
+    .word 57
+    .byte 6
+    .ascii "execve"
+    .word 59
+    .byte 4
+    .ascii "exit"
+    .word 60
+    .byte 5
+    .ascii "wait4"
+    .word 61
+    .byte 4
+    .ascii "kill"
+    .word 62
+    .byte 6
+    .ascii "rename"
+    .word 82
+    .byte 5
+    .ascii "mkdir"
+    .word 83
+    .byte 5
+    .ascii "rmdir"
+    .word 84
+    .byte 6
+    .ascii "unlink"
+    .word 87
+    .byte 5
+    .ascii "chmod"
+    .word 90
+    .byte 12
+    .ascii "gettimeofday"
+    .word 96
+    .byte 6
+    .ascii "getuid"
+    .word 102
+    .byte 13
+    .ascii "clock_gettime"
+    .word 228
+    .byte 10
+    .ascii "exit_group"
+    .word 231
+    .byte 6
+    .ascii "openat"
+    .word 257
+    .byte 9
+    .ascii "getrandom"
+    .word 318
+    .byte 0
+
 # function entry: push rbx ; push rbp ; push r12 ; push r13 ; push r14 ; push r15
 fnpush:
     .byte 0x53, 0x55, 0x41,0x54, 0x41,0x55, 0x41,0x56, 0x41,0x57
@@ -780,6 +902,10 @@ next:
     jz 4f
     cmp dword ptr [rip+infn], 0 # ret: only between fn and end
     je err
+4:  test byte ptr [rdx+2], IS_TOP >> 8
+    jz 4f
+    cmp dword ptr [rip+infn], 0 # args: only outside them
+    jne err
 4:  test byte ptr [rdx+1], IS_CALL
     jz 4f
     cmp rsi, r15                # call: the function name comes first
@@ -800,7 +926,7 @@ next:
     sub al, 'a'
     cmp al, 'z' - 'a'
     ja num
-    call constname
+    call sysname
     call emit_mov
     jmp tokend
 1:  inc rsi
@@ -1159,6 +1285,36 @@ rdnum:
     ja err_num
     neg rax
 9:  ret
+
+# rax = the syscall number named at rsi: a const of the program, or else
+# one of the names in sysnames
+sysname:
+    call rdname
+    call lookup_buf
+    jc 1f
+    lea rcx, [rip+bufkind]
+    cmp byte ptr [rcx+rax], G_CONST
+    jne err
+    lea rcx, [rip+bufsize]
+    mov rax, [rcx+rax*8]
+    ret
+1:  lea rdx, [rip+sysnames]
+2:  movzx ecx, byte ptr [rdx]
+    test ecx, ecx
+    jz err                      # no such name
+    cmp rcx, r9
+    jne 4f
+    xor eax, eax
+3:  mov r10b, [r8+rax]
+    cmp r10b, [rdx+rax+1]
+    jne 4f
+    inc eax
+    cmp eax, ecx
+    jb 3b
+    movzx eax, word ptr [rdx+rcx+1]
+    ret
+4:  lea rdx, [rdx+rcx+3]
+    jmp 2b
 
 # rax = the value of the const whose name is at rsi
 constname:

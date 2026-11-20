@@ -63,7 +63,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `bufdef` | `buf <name> <size>`: enter the buffer in the table of global names and reserve its bytes |
 | `vardef`, `constdef` | `var <name>...` and `const <name> <number>`: enter the names with their kind and the address of a cell, or the value |
 | `newglob` | refuse a name in use as a variable or a global name, else enter it in the next table slot |
-| `rdname`, `rdnum`, `constname` | read a name that is not `as`; read an integer; read a name that must be a `const` and give its value |
+| `rdname`, `rdnum`, `constname`, `sysname` | read a name that is not `as`; read an integer; read a name that must be a `const` and give its value; the same for the number of `sys`, with the table `sysnames` behind the consts |
 | `datadef` | `data [<name>] <item>...`: copy the bytes into the output behind a jump, or behind the jump of the data statement just before; enter the name |
 | `labdef` | `label <name>`: enter the label and the current output position in the label table |
 | `jtarget` | the label name of a jump: call `emit_op`, leave room for the displacement and record a fixup |
@@ -143,6 +143,7 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `smod` | `cqo` / `idiv rdi` / `mov rax, rdx` |
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
 | `slt` `sle` `sgt` `sge` | the same with `setl` `setle` `setg` or `setge` |
+| `args` | `mov rax, rsp` |
 | `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
 | `load4` | `mov eax, [rax]` |
@@ -170,7 +171,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and `jz` and `jnz` test the value again.
 
-The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` (`args`) is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function, because only at top level does `rsp` still point at what the kernel passed, the top level keeping its variables in registers and cells and pushing nothing between statements. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `emit_op` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 

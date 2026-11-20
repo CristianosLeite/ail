@@ -64,7 +64,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Measure the cost of explicit labels, jumps and comparison temporaries in
   real programs. Evaluate direct conditional branches and compact structured
   control flow while retaining explicit jumps.
-- [ ] Make system interfaces cheaper to use. `sys` requires numeric syscall
+- [x] Make system interfaces cheaper to use. `sys` requires numeric syscall
   IDs, returns raw error values and leaves omitted argument registers untouched.
   Evaluate named ABI constants and reusable helpers for process arguments,
   environment and common I/O.

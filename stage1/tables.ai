@@ -40,6 +40,7 @@ data 3 "slt" 2 1 0 9 72 57 248 15 156 192 15 182 192
 data 3 "sle" 2 1 0 9 72 57 248 15 158 192 15 182 192
 data 3 "sgt" 2 1 0 9 72 57 248 15 159 192 15 182 192
 data 3 "sge" 2 1 0 9 72 57 248 15 157 192 15 182 192
+data 4 "args" 0 1 16 3 72 137 224
 data 3 "len" 1 65 0 0
 data 4 "load" 1 129 0 3 72 139 0
 data 5 "loadb" 1 129 0 3 15 182 0
@@ -92,6 +93,46 @@ data 5 "const" 7 255 0 0
 data 5 "local" 8 255 0 0
 data 3 "use" 9 255 0 0
 data 4 "else" 10 255 0 0
+data 0
+# names that sys accepts for a syscall number, unless the program has a
+# const of that name: name length, name, number as two bytes
+data sysnames 4 "read" 0 0
+data 5 "write" 1 0
+data 4 "open" 2 0
+data 5 "close" 3 0
+data 4 "stat" 4 0
+data 5 "fstat" 5 0
+data 5 "lseek" 8 0
+data 4 "mmap" 9 0
+data 8 "mprotect" 10 0
+data 6 "munmap" 11 0
+data 3 "brk" 12 0
+data 12 "rt_sigaction" 13 0
+data 5 "ioctl" 16 0
+data 4 "pipe" 22 0
+data 9 "nanosleep" 35 0
+data 6 "getpid" 39 0
+data 6 "socket" 41 0
+data 7 "connect" 42 0
+data 6 "accept" 43 0
+data 4 "bind" 49 0
+data 6 "listen" 50 0
+data 4 "fork" 57 0
+data 6 "execve" 59 0
+data 4 "exit" 60 0
+data 5 "wait4" 61 0
+data 4 "kill" 62 0
+data 6 "rename" 82 0
+data 5 "mkdir" 83 0
+data 5 "rmdir" 84 0
+data 6 "unlink" 87 0
+data 5 "chmod" 90 0
+data 12 "gettimeofday" 96 0
+data 6 "getuid" 102 0
+data 13 "clock_gettime" 228 0
+data 10 "exit_group" 231 0
+data 6 "openat" 1 1
+data 9 "getrandom" 62 1
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87

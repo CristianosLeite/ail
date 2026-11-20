@@ -185,7 +185,24 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - The examples use the jumps: 411 to 384 tokens, C and Rust now at 0.89 and 0.90 of AIL.
 - The suite went from 628 to 675 tests.
 
+### Cheaper system interfaces (2026-11-20)
+- `sys` accepts 37 built-in names for syscall numbers, in that position only; a const of the
+  program with the same name wins. `args as p` gives the initial stack pointer at top level.
+- `lib/io.ai` is the first library file: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`,
+  `argc`, `argv`. It is tested through `use` like any program (`lib_io_*`).
+- Raw error values stay; with the signed jumps a failed call is one line (`jslt r 0 fail`).
+  Registers of omitted arguments stay unset; the reference now says what that means.
+- Stage1 names its own syscalls. The suite went from 675 to 700 tests.
+
 ## Why
+- **Names only in the number position:** as global constants they would take `read`, `write`,
+  `open`, `exit` away from the programmer; in one position they cost nothing.
+- **A table in the compiler, not a library of consts:** a `use` and a const per call would cost
+  more tokens than the numbers they replace, and the table is 300 bytes.
+- **`args` instead of saving the stack pointer at start:** every program would pay for code that
+  few need; at top level the pointer is still what the kernel left.
+- **Helpers in AIL, not in the compiler:** they need no compiler support, and a library is the
+  first real use of `use`, several results and `tail`.
 - **The prefix `j` and `if` on the comparison name:** no new words to learn, and `jne`, `ifle`
   are single tokens while the others are two.
 - **`end` for blocks too:** a second closing word would cost a keyword, and the innermost-first

@@ -1,0 +1,8 @@
+var a
+args as a
+fn f
+load a as n
+ret n
+end
+call f as r
+sys exit r

@@ -57,7 +57,7 @@ sys n a b c d e f
 sys n a b c d e f as name
 ```
 
-Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be an [integer](#integers) or the name of a [`const`](#const), not a variable or a string. The statement ends at the end of the line.
+Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With `as name`, the syscall's return value is kept in the variable `name` (see [Variables](#variables)). `n` must be an [integer](#integers), the name of a [`const`](#const) or one of the [syscall names](#syscall-names) below, not a variable or a string. The statement ends at the end of the line.
 
 | Position | Register |
 |---|---|
@@ -71,7 +71,57 @@ Performs the raw Linux x86-64 syscall number `n` with up to six arguments. With 
 
 Registers for arguments you leave out are not set and keep whatever they held. Without `as`, the syscall's return value is lost.
 
-Syscall numbers are the kernel's own; the common ones are `0` read, `1` write, `60` exit. A `const` gives one a name: `const write 1` allows `sys write 1 "hi\n"`.
+Registers for arguments you leave out are not set by the statement either, so a syscall that reads more arguments than it was given sees whatever those registers held.
+
+#### Syscall names
+
+In the place of the number, and only there, `sys` accepts these names for the kernel's numbers:
+
+| | | | |
+|---|---|---|---|
+| `read` 0 | `write` 1 | `open` 2 | `close` 3 |
+| `stat` 4 | `fstat` 5 | `lseek` 8 | `mmap` 9 |
+| `mprotect` 10 | `munmap` 11 | `brk` 12 | `rt_sigaction` 13 |
+| `ioctl` 16 | `pipe` 22 | `nanosleep` 35 | `getpid` 39 |
+| `socket` 41 | `connect` 42 | `accept` 43 | `bind` 49 |
+| `listen` 50 | `fork` 57 | `execve` 59 | `exit` 60 |
+| `wait4` 61 | `kill` 62 | `rename` 82 | `mkdir` 83 |
+| `rmdir` 84 | `unlink` 87 | `chmod` 90 | `gettimeofday` 96 |
+| `getuid` 102 | `clock_gettime` 228 | `exit_group` 231 | `openat` 257 |
+| `getrandom` 318 | | | |
+
+```
+sys write 1 "hello\n"
+sys exit 0
+```
+
+A name costs one token where a number costs two. The names are not constants: anywhere else `write` is an ordinary name, free for a variable or a function. A `const` of the program with the same name is used instead of the built-in number, and any other syscall is reached by its number or by a `const` of your own.
+
+#### Results and errors
+
+The kernel returns one value: the result, or a negative error number from -1 to -4095. `as` keeps it as it is. Read as signed it is below zero exactly when the call failed, so one line tests it:
+
+```
+sys open path 0 0 as fd
+jslt fd 0 fail
+```
+
+### `args`
+
+```
+args as p
+```
+
+Keeps in a variable the address of what the kernel passed to the program. At that address stands the number of arguments, 8 bytes; then one address for each argument, the first being the name the program was started with; then a zero; then one address for each environment string, and another zero. Every argument and environment string ends with a NUL byte.
+
+```
+args as p
+load p as argc
+add p 8 as q
+load q as name          # address of the program's name
+```
+
+`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/io.ai`](#the-io-library) does that and offers `argc` and `argv`.
 
 ### `set` and arithmetic
 
@@ -593,6 +643,34 @@ What the language offers against mistakes is therefore local and explicit:
 
 There is no ownership or borrow checking. A function receives addresses as plain values and may keep them; a syscall receives them the same way.
 
+## The io library
+
+`lib/io.ai` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/io.ai"`; put that line first, since it also records the program's arguments where it stands.
+
+| Function | Does |
+|---|---|
+| `print p n` | writes the `n` bytes at `p` to stdout, repeating the write until all are out; returns 1, or 0 after an error |
+| `eprint p n` | the same to stderr |
+| `fdwrite fd p n` | the same to the file `fd` |
+| `die p n` | writes the bytes to stderr and ends the program with status 1 |
+| `putn n` | prints `n` as an unsigned decimal number; returns like `print` |
+| `strlen p` | the length of the NUL-terminated string at `p` |
+| `argc` | the number of arguments, the program's name included |
+| `argv i` | two results: the address and the length of argument `i`, or 0 and 0 if there is none |
+
+```
+use "lib/io.ai"
+call argv 1 as p n
+ifz p
+call die "usage: greet name\n"
+end
+call print "hello "
+call print p n
+call print "\n"
+```
+
+A string literal is the two values that `print` takes. The library defines the var `argp` besides its functions, and no other global name.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.
@@ -626,7 +704,8 @@ Causes of a syntax error:
 
 - a line that does not start with a statement keyword
 - a keyword not followed by a space or tab
-- `sys` not followed by an integer or the name of a `const`
+- `sys` not followed by an integer, the name of a `const` or a syscall name
+- `args` inside a function, with a value or without `as`
 - the wrong number of operands: `set`, `len` and the loads take one, the stores, the arithmetic statements and the comparisons, signed ones included, take two
 - `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
 - `len` of a number, a `var` or a `const`
