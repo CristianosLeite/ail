@@ -1,0 +1,11 @@
+# tail calls g and returns what it returns
+fn g a b
+add a b as a
+ret a
+end
+fn f x
+add x 1 as y
+tail g x y
+end
+call f 5 as r
+sys 60 r

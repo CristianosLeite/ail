@@ -50,7 +50,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `ident` | a name as an argument: pass a variable, the address of a buffer or of data, the cell of a `var`, the value of a `const`, or for `len` a size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
 | `capture` | `as <name>`: call `emit_op` and store `rax` in the cell of the `var` with that name, or else in the variable, defined if new |
 | `varplace`, `emit_varmov`, `emit_mem` | where a variable lives; a `mov` between a variable and a register; a `mov` between a register and memory |
-| `alloc`, `emit_frame` | place the variables of a function after its first pass; reserve or release its stack slots |
+| `alloc`, `emit_frame`, `popskip` | place the variables of a function after its first pass; reserve or release its frame; how many of the pops a return leaves out |
 | `defvar` | read a variable name and find it in the pool of the current scope, or add it |
 | `localdef`, `clrloc` | `local <name> <size>`: a variable of the function whose value is the address of bytes in its frame; forget the locals |
 | `bufdef` | `buf <name> <size>`: enter the buffer in the table of global names and reserve its bytes |
@@ -150,7 +150,8 @@ Every statement except `buf`, `data`, `var`, `const`, `local`, `label`, `fn` and
 | `jmp` | `jmp rel32` |
 | `jz` `jnz` | `test rax, rax` / `jz` or `jnz rel32` |
 | `call` | `call rel32` |
-| `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret` |
+| `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret`, without the pops of registers the function does not use |
+| `tail` | the same pops, then `jmp rel32` |
 
 The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers. So `add x 1 as x` with `x` in `rbx` is `mov rax, rbx` / `mov edi, 1` / `add rax, rdi` / `mov rbx, rax`: 14 bytes, with no attempt to use shorter forms.
 
@@ -260,8 +261,8 @@ Neither table can overflow: the shortest `label` line is 8 bytes and the shortes
 ```
 jmp  after              ; E9 + rel32, so that top-level execution skips the body
 entry:
-push rbx / rbp / r12 / r13 / r14 / r15     ; 53 55 41 54 41 55 41 56 41 57
-sub  rsp, 8 * slots                        ; only if a variable lives on the stack
+push rbx / rbp / r12 / r13 / r14 / r15     ; as many of them as the function uses
+sub  rsp, frame                            ; only if it has stack slots or locals
 mov  <variable i>, <argument i>            ; one per parameter
 ```
 
@@ -269,32 +270,36 @@ mov  <variable i>, <argument i>            ; one per parameter
 
 **Scope.** `fndef` saves `ebp` in `topvars`, clears it and sets `infn`, which makes `lookup_var` use the second half of `vars`. It also sets `labbase` and `fixbase` to the current ends of `labels` and `fixs`: the function's labels and jumps are stacked on top of the top-level ones collected so far. `fnend` calls `resolve` for exactly that part, then cuts both tables back to the bases and restores `ebp`. That is all that makes labels and variables local, and it is why functions do not nest: there is one saved scope.
 
-**Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, after `add rsp, 8 * slots` when the function has slots. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
+**Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, without the pops of the registers the function does not use, after `add rsp, frame` when the function has a frame. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
 
 **Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. Every value after those is loaded into `r11`, row 7 of `regtab` and `argnum`, and pushed (`argidx`, `argnext`); `pushed` counts the bytes, `varplace` adds it to the distance of a stack slot, and `emit_op` emits `add rsp, pushed` after the `call`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores `rax` as after any statement.
 
 `fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, and otherwise the displacement is written like a jump's. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
-Because the callee saves all six variable registers whether it uses them or not, the caller emits nothing but the `call`. `funcs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
+Because the callee saves every variable register it uses, the caller emits nothing but the `call`. `alloc` counts the registers in `fnregs`; since it always takes the lowest free one, they are the first `fnregs` of the six. `fndef` copies that many pushes (`pushlen` gives the bytes) and `popskip` tells `ret`, `tail` and `end` how many bytes of the six pops to leave out. The first pass works with all six; its code is dropped.
 
-`examples/fact.ai` shows all of it; its function starts at `0x4000b5`, right after the 5-byte jump at the entry point:
+**Tail call.** `tail` is a row with the flags of both `call` and `ret` whose bytes are the six pops and `E9`: `emit_op` releases the frame, copies the pops of the saved registers and the `jmp`, and records the displacement in `calls` like a call's, so the value count is checked the same way. More than six values are refused there, since the pushed ones would lie in the released frame.
+
+**Large frames.** A frame of 4096 bytes or more is not reserved with one `sub`: `emit_frame` copies the template `probe`, which goes down a page at a time and touches each page with `test [rsp], rsp`, using `r11` as the counter. A stack that is too small is then found at its guard page. `funcs` and `calls` are sized from the source limit like the label tables: `fn a` plus `end` is 9 bytes and `call a` is 7.
+
+`examples/fact.ai` shows all of it; its function starts at `0x4000b5`, right after the 5-byte jump at the entry point. It has three variables in two registers, so it saves two:
 
 ```
-b0:  e9 6a 00 00 00      jmp  0x11f           ; fn: skip the body
-b5:  53 55 41 54 41 55 41 56 41 57            ; push rbx, rbp, r12, r13, r14, r15
-bf:  48 89 c3            mov  rbx, rax        ; parameter n
+b0:  e9 4a 00 00 00      jmp  0xff            ; fn: skip the body
+b5:  53 55               push rbx ; push rbp  ; the registers it uses
+b7:  48 89 c3            mov  rbx, rax        ; parameter n
 ...
-dc:  48 89 e8            mov  rax, rbp        ; call fact m: the value m
-df:  e8 d1 ff ff ff      call 0xb5
-e4:  48 89 c5            mov  rbp, rax        ; as r: m is done, r takes its register
+d4:  48 89 e8            mov  rax, rbp        ; call fact m: the value m
+d7:  e8 d9 ff ff ff      call 0xb5
+dc:  48 89 c5            mov  rbp, rax        ; as r: m is done, r takes its register
 ...
-f4:  48 89 e8            mov  rax, rbp        ; ret r: the value
-f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx ; ret
+ec:  48 89 e8            mov  rax, rbp        ; ret r: the value
+ef:  5d 5b c3            pop  rbp ; pop rbx ; ret
 ...
-112: 31 c0               xor  eax, eax        ; end: return 0
-114: 41 5f 41 5e 41 5d 41 5c 5d 5b c3
-11f: b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
-124: e8 8c ff ff ff      call 0xb5
+fa:  31 c0               xor  eax, eax        ; end: return 0
+fc:  5d 5b c3
+ff:  b8 05 00 00 00      mov  eax, 5          ; top level: call fact 5
+104: e8 ac ff ff ff      call 0xb5
 ```
 
 ## Limits
@@ -302,7 +307,7 @@ f7:  41 5f 41 5e 41 5d 41 5c 5d 5b c3         ; pop r15, r14, r13, r12, rbp, rbx
 - 64 variables at top level and in each function, the size of the variable table; so at most 64 parameters.
 - Global names are limited only by the source size.
 - Jumps and calls always use a 32-bit displacement, 5 bytes for `jmp` and `call` and 9 for `jz` and `jnz`.
-- Every function saves and restores all six variable registers: 21 bytes of code per function and `ret`, and 56 bytes of stack per call, plus 8 per stack slot.
+- A call uses 8 bytes of stack for the return address and 8 for each register the function uses, plus 8 per stack slot and the bytes of its locals.
 - A function is compiled twice, so compiling takes up to twice as long.
 - Functions do not nest.
 - Input 64 KiB (65536 bytes, inclusive), output 1 MiB. The input limit is checked; the output limit is safe because each source byte expands to fewer than four output bytes (`end` is the worst line: 4 bytes of source, 13 of code).

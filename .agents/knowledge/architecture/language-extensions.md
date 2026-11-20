@@ -139,7 +139,26 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   operands agreed in both orders or in the low byte of the result; mutation checks showed it.
 - The suite went from 534 to 548 tests.
 
+### Recursion: tail calls, fewer saved registers, probed frames (2026-11-19)
+- `tail name values` releases the frame and jumps: a row with the flags of `call` and `ret`.
+  At most six values. Ten million rounds of a self-`tail` run in one frame.
+- A function saves only the registers it uses (`fnregs`), not all six: `fact` takes 24 bytes of
+  stack a call instead of 56, and every function is shorter. Tests that measure code size or
+  frame distance changed (`fn_small_code_size` 51 to 24, `local_takes_no_register` 64 to 24).
+- Stack exhaustion is defined as `SIGSEGV` on the guard page. A frame of a page or more is
+  entered a page at a time with a touch of each.
+- The suite went from 548 to 569 tests.
+
 ## Why
+- **An explicit `tail`, not an optimisation of `call` + `ret`:** recognising the pair needs a
+  look at the next line, and whether the stack grows is something the writer of a recursion
+  must be able to rely on, not hope for.
+- **At most six values:** values on the stack would lie in the frame that `tail` gives up.
+- **Probe instead of a checked limit:** the kernel already has the guard; touching every page
+  is all that is needed to reach it, and it costs nothing for frames under a page.
+- **Two mutations of the probe change nothing observable** (a frame of exactly one page with or
+  without the loop, and the loop ending one round earlier): the stack pointer ends in the same
+  place either way.
 - **Prefix `s`:** at most two tokens each (`sle` and `sar` are one), and the unsigned names
   stay the short ones because addresses and sizes are the common case.
 - **No checked forms:** a checked add needs a second result or a trap; the first costs a line at

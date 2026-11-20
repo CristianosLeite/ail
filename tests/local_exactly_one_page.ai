@@ -1,0 +1,12 @@
+fn f a
+local m 4096
+store m a
+add m 4088 as p
+store p 2
+load m as x
+load p as y
+add x y as x
+ret x
+end
+call f 9 as r
+sys 60 r

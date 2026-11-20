@@ -29,6 +29,8 @@ var nchks nruns snk snu
 # loccur = bytes of locals declared so far in this pass; fnlocal = those of
 # the function, after its first pass
 var loccur fnlocal
+# fnregs = how many of the six registers the function uses
+var fnregs
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -1089,11 +1091,28 @@ fn frame o
 mul fnslots 8 as c
 add c fnlocal as c
 jz c x
+ne o 236 as d
+jnz d s
+lt c 4096 as d
+jnz d s
+call cp probe 36
+sub op 34 as d
+store4 d c
+ret 0
+label s
 call eb 72
 call eb 129
 call eb o
 call e4 c
 label x
+end
+# how many bytes of the six pops to leave out: those of the registers that
+# the function does not use and so did not save
+fn popskip
+add fnregs pushlen as c
+loadb c as c
+sub 10 c as c
+ret c
 end
 # no variable is a local: where a function starts and ends
 fn clrloc
@@ -1154,6 +1173,7 @@ add i 1 as i
 lt i 70 as t
 jnz t z
 set 0 as fnslots
+set 0 as fnregs
 set 0 as i
 label p
 ge i nv as t
@@ -1180,7 +1200,12 @@ store t hi
 add i fnloc as t
 storeb t j
 lt j 6 as u
+jz u r
+lt j fnregs as u
 jnz u c
+add j 1 as fnregs
+jmp c
+label r
 sub j 5 as j
 gt j fnslots as u
 jz u c
@@ -1209,13 +1234,27 @@ call memchk r
 label y
 and f 32 as c
 jz c m
+and f 16 as c
+jz c o
+gt ai 6 as c
+call no c
+label o
 call frame 196
 call godead
+call popskip as n
+add r 3 as c
+loadb c as c
+sub c n as c
+add r 4 as p
+add p n as p
+call cp p c
+jmp h
 label m
 add r 3 as c
 loadb c as c
-add r 4 as r
-call cp r c
+add r 4 as p
+call cp p c
+label h
 and f 16 as f
 jz f x
 set ai as i
@@ -1946,6 +1985,7 @@ set nchks as snk
 set nruns as snu
 set 1 as pass
 set 0 as fnslots
+set 6 as fnregs
 set 0 as fnlocal
 set 0 as nloops
 label f0
@@ -1966,7 +2006,9 @@ call z 4
 set op as q
 add p 16 as p
 store p q
-call cp fnpush 10
+add fnregs pushlen as q
+loadb q as q
+call cp fnpush q
 call frame 236
 set nv as q
 set q as topvars
@@ -2008,8 +2050,9 @@ jmp f1
 label f4
 sub fnnpar r as d
 add d fnslots as d
+add d fnregs as d
 mul d 8 as d
-add d 64 as d
+add d 16 as d
 add d fnlocal as d
 call emem 11 d 139
 call vmov r 11 137
@@ -2032,7 +2075,10 @@ call eol
 call eb 49
 call eb 192
 call frame 196
-call cp retc 11
+call popskip as q
+add retc q as d
+sub 11 q as q
+call cp d q
 call resolve
 set fixbase as q
 set q as nfix
@@ -2072,6 +2118,7 @@ label e1
 call clrloc
 set 0 as pass
 set 0 as fnslots
+set 6 as fnregs
 set 0 as fnlocal
 set topvars as nv
 jmp next
@@ -2294,6 +2341,7 @@ data 2 "jz" 1 10 0 5 72 133 192 15 132
 data 3 "jnz" 1 10 0 5 72 133 192 15 133
 data 4 "call" 0 16 0 1 232
 data 3 "ret" 1 34 0 11 65 95 65 94 65 93 65 92 93 91 195
+data 4 "tail" 0 50 0 11 65 95 65 94 65 93 65 92 93 91 233
 data 2 "fn" 1 255 0 0
 data 3 "buf" 2 255 0 0
 data 3 "end" 3 255 0 0
@@ -2305,6 +2353,12 @@ data 5 "local" 8 255 0 0
 data 0
 data retc 65 95 65 94 65 93 65 92 93 91 195      # the code of ret
 data fnpush 83 85 65 84 65 85 65 86 65 87
+# bytes of fnpush that save the first n registers; 10 minus that many bytes
+# of the pops restore all but those
+data pushlen 0 1 2 4 6 8 10
+# sub rsp, <frame> for a frame of a page or more, a page at a time with a
+# touch of each; the frame is the four bytes at offset 2
+data probe 65 187 255 255 255 127 72 129 236 0 16 0 0 72 133 36 36 73 129 235 0 16 0 0 73 129 251 0 16 0 0 115 229 76 41 220
 data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185 65 187    # per argument: REX prefix or 0, mov opcode
 data argnum 0 7 6 2 10 8 9 11    # per argument: x86 register number
 data varnum 3 5 12 13 14 15    # per variable: x86 register number

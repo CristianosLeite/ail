@@ -50,7 +50,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   Existing operations use unsigned semantics. Consider checked arithmetic for
   overflow and invalid shifts, and a way to handle division by zero, which
   currently raises `SIGFPE`.
-- [ ] Improve recursion limits. Each call consumes 56 bytes before any future
+- [x] Improve recursion limits. Each call consumes 56 bytes before any future
   spills, and stack exhaustion is unchecked. Evaluate tail calls and a defined
   stack exhaustion failure mode.
 

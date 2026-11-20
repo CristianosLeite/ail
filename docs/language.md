@@ -187,7 +187,32 @@ Each function has its own variables and its own labels:
 
 Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
-Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits; the caller pushes any further values on the stack, in order, and removes them after the call. The result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack, plus 8 for each value after the sixth and 8 for each variable of the function that did not get a register, and recursion is limited only by the stack size.
+Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits; the caller pushes any further values on the stack, in order, and removes them after the call. The result comes back in `rax`. The function saves those of the six variable registers that it uses when it starts and restores them when it returns.
+
+#### Recursion and the stack
+
+A call uses 8 bytes of stack for the return address, 8 for each register the function saves, 8 for each value after the sixth, 8 for each variable that did not get a register and the bytes of its [locals](#local). A function with two variables, like `fact` above, takes 24 bytes a call, so the usual 8 MiB stack allows some 350000 nested calls.
+
+When the stack runs out, the program dies with `SIGSEGV` (exit status 139 in a shell): the kernel keeps an unmapped guard below the stack, and a function whose frame is a page or more enters it a page at a time, so the guard is hit and never jumped over. Nothing else is checked.
+
+```
+tail name x y
+```
+
+`tail` calls a function and returns its result, as `call name x y as r` followed by `ret r` would, but it releases the frame of the current function first and jumps: the callee returns directly to the caller's caller, and the stack does not grow. A function that ends each round with a `tail` to itself is a loop, however many rounds it takes:
+
+```
+fn count n acc
+jz n done
+sub n 1 as n
+add acc 1 as acc
+tail count n acc        # ten million rounds use one frame
+label done
+ret acc
+end
+```
+
+`tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. For the same reason it must not pass the address of a `local`. No way leads to the line after it.
 
 ### `buf`
 
@@ -523,7 +548,7 @@ Causes of a syntax error:
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
 - `end` outside a function, or followed by anything but a comment
 - `ret` outside a function, without exactly one value, or with `as`
-- `call` without a function name
+- `call` or `tail` without a function name; `tail` outside a function, with `as` or with more than six values (a string counts as two)
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it

@@ -1,0 +1,13 @@
+# no way leads past tail: the line after it is not checked
+fn g
+ret 4
+end
+fn f a
+jz a z
+set 1 as y
+label z
+tail g
+add y 1 as y
+end
+call f 0 as r
+sys 60 r

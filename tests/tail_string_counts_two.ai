@@ -1,0 +1,9 @@
+fn g p n
+sys 1 1 p n as w
+ret w
+end
+fn f
+tail g "tail\n"
+end
+call f as r
+sys 60 r

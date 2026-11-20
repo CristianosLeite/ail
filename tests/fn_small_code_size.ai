@@ -1,5 +1,5 @@
-# a function without stack slots has no frame code: 51 bytes lie between
-# the two data bytes, as before variables could go to the stack
+# a function with one variable saves one register and has no frame code:
+# 24 bytes lie between the two data bytes
 data a 1
 fn f x
 ret x

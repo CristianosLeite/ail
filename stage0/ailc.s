@@ -54,6 +54,7 @@ vlast:  .skip NVARS * 8         # defines it, and mentions it last
 fnloc:  .skip NVARS             # its place: a register 0-5, or 6 + a stack slot
 locfree: .skip (NREGS + NVARS) * 8  # per place: the last mention of its variable
 fnslots: .skip 4                # stack slots of the function
+fnregs: .skip 4                 # how many of the six registers it uses
 vlocal: .skip NVARS * 4         # per variable of the function that is a local:
                                 # 1 + its offset among the locals
 vlocsz: .skip NVARS * 4         # per local: its size as declared
@@ -411,12 +412,34 @@ free_end:
 retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
     .byte 0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xC3
 .equ RETSZ, . - retcode         # pop rbp ; pop rbx ; ret
+    # tail: the same pops, then jmp rel32 to the function instead of ret
+    .byte 4
+    .ascii "tail"
+    .byte 0
+    .word AS_NONE | IS_CALL | IS_RET
+    .byte 11,  0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xE9
     .byte 0
 
 # function entry: push rbx ; push rbp ; push r12 ; push r13 ; push r14 ; push r15
 fnpush:
     .byte 0x53, 0x55, 0x41,0x54, 0x41,0x55, 0x41,0x56, 0x41,0x57
 .equ FNPUSHSZ, . - fnpush
+# bytes of fnpush that save the first n registers; 10 minus that many bytes
+# of the pops restore all but those
+pushlen: .byte 0, 1, 2, 4, 6, 8, 10
+
+# sub rsp, <frame> for a frame of a page or more: go down a page at a time
+# and touch each one, so that a stack that is too small is found by its
+# guard page and not passed over
+probe:
+    mov r11d, 0x7fffffff        # the frame (patched)
+1:  sub rsp, 4096
+    test [rsp], rsp
+    sub r11, 4096
+    cmp r11, 4096
+    jae 1b
+    sub rsp, r11
+.equ PROBESZ, . - probe
 
 # syscall arg index -> (REX prefix or 0, "mov r32, imm32" opcode)
 regtab:
@@ -1751,6 +1774,7 @@ fndef:
     mov [rax+88], rcx
     mov dword ptr [rip+pass], 1
     mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+fnregs], NREGS
     mov dword ptr [rip+fnlocal], 0
     mov dword ptr [rip+nloops], 0
 1:  mov dword ptr [rip+loccur], 0
@@ -1775,8 +1799,10 @@ fndef:
     lea rcx, [rip+funaddr]
     mov [rcx+rax*8], rdi
     push rsi
-    lea rsi, [rip+fnpush]
-    mov ecx, FNPUSHSZ
+    lea rsi, [rip+fnpush]       # save the registers the function uses
+    mov ecx, [rip+fnregs]
+    lea rax, [rip+pushlen]
+    movzx ecx, byte ptr [rax+rcx]
     rep movsb
     pop rsi
     mov al, 0xEC
@@ -1821,9 +1847,10 @@ fndef:
     jmp 1b
 3:  push rax                    # from the seventh on the caller pushed them, the
     mov ecx, [rip+fnnpar]       # last one nearest: above the slots, the locals,
-    sub ecx, eax                # the six saved registers and the return address
+    sub ecx, eax                # the saved registers and the return address
     add ecx, [rip+fnslots]
-    lea ecx, [rcx*8+48]
+    add ecx, [rip+fnregs]
+    shl ecx, 3
     add ecx, [rip+fnlocal]
     mov eax, 11
     mov edx, 2
@@ -1853,8 +1880,11 @@ fnend:
     mov al, 0xC4
     call emit_frame
     push rsi
+    call popskip                # restore the registers the function saved
     lea rsi, [rip+retcode]
+    add rsi, rax
     mov ecx, RETSZ
+    sub ecx, eax
     rep movsb
     pop rsi
     call resolve
@@ -1912,6 +1942,7 @@ fnend:
 1:  call clrloc                 # not before alloc, which must know the locals
     mov dword ptr [rip+pass], 0
     mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+fnregs], NREGS
     mov dword ptr [rip+fnlocal], 0
     mov ebp, [rip+topvars]
     jmp next
@@ -1933,11 +1964,34 @@ emit_frame:
     shl ecx, 3
     add ecx, [rip+fnlocal]
     jz 1f
-    mov word ptr [rdi], 0x8148
+    cmp al, 0xEC
+    jne 2f
+    cmp ecx, 4096
+    jae 3f
+2:  mov word ptr [rdi], 0x8148
     mov [rdi+2], al
     mov [rdi+3], ecx
     add rdi, 7
 1:  ret
+3:  push rsi                    # a page or more: reserve it with a probe
+    push rcx
+    lea rsi, [rip+probe]
+    mov ecx, PROBESZ
+    rep movsb
+    pop rcx
+    pop rsi
+    mov [rdi-PROBESZ+2], ecx
+    ret
+
+# eax = how many bytes of the six pops to leave out: those of the registers
+# that the function does not use and so did not save
+popskip:
+    mov eax, [rip+fnregs]
+    lea rcx, [rip+pushlen]
+    movzx ecx, byte ptr [rcx+rax]
+    mov eax, FNPUSHSZ
+    sub eax, ecx
+    ret
 
 # give each of the ebp variables of the function a place. A variable is in
 # use from its definition to its last mention; if that range meets a loop,
@@ -1978,6 +2032,7 @@ alloc:
     cmp ecx, NREGS + NVARS
     jb 7b
     mov dword ptr [rip+fnslots], 0
+    mov dword ptr [rip+fnregs], 0
     xor eax, eax
 8:  cmp eax, ebp
     jae 9f
@@ -1997,7 +2052,14 @@ alloc:
 6:  mov [rdx+rcx*8], r11
     lea rdx, [rip+fnloc]
     mov [rdx+rax], cl
-    sub ecx, NREGS - 1          # a slot: count it
+    cmp ecx, NREGS
+    jae 61f
+    cmp ecx, [rip+fnregs]       # a register: count how many are in use
+    jb 6f
+    lea edx, [rcx+1]
+    mov [rip+fnregs], edx
+    jmp 6f
+61: sub ecx, NREGS - 1          # a slot: count it
     jle 6f
     cmp ecx, [rip+fnslots]
     jbe 6f
@@ -2165,15 +2227,28 @@ emit_op:
     call memchk
 1:  test byte ptr [rdx+1], IS_RET
     jz 3f
-    mov al, 0xC4                # ret: release the stack slots first
+    test byte ptr [rdx+1], IS_CALL
+    jz 4f
+    cmp ebx, 6                  # tail: the values must be in registers, since
+    ja err                      # the frame that would hold the others is gone
+4:  mov al, 0xC4                # ret: release the stack slots first
     call emit_frame
     call godead                 # and nothing falls through to the next line
+    call popskip                # then pop only what the function saved
     mov rdx, [rip+curop]
+    movzx ecx, byte ptr [rdx+3]
+    sub ecx, eax
+    push rsi
+    lea rsi, [rdx+rax+4]
+    rep movsb
+    pop rsi
+    jmp 5f
 3:  movzx ecx, byte ptr [rdx+3]
     push rsi
     lea rsi, [rdx+4]
     rep movsb
     pop rsi
+5:
     test byte ptr [rdx+1], IS_CALL
     jz 2f
     mov eax, [rip+ncalls]
