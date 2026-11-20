@@ -3,6 +3,7 @@
    a read and a write for each event.  echod [port]; prints the port. */
 #define _GNU_SOURCE
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,9 +41,13 @@ int main(int argc, char **argv) {
             ssize_t r = read(fd, b, sizeof b);
             if (r <= 0) { close(fd); continue; }
             for (ssize_t w = 0; w < r;) {
-                ssize_t m = write(fd, b + w, r - w);
-                if (m < 0) continue;      /* full: try again, as a benchmark may */
-                w += m;
+                /* no SIGPIPE for a client that is gone; a full socket is
+                   tried again, as a benchmark may, anything else closes */
+                ssize_t m = send(fd, b + w, r - w, MSG_NOSIGNAL);
+                if (m >= 0) { w += m; continue; }
+                if (errno == EAGAIN || errno == EINTR) continue;
+                close(fd);
+                break;
             }
         }
     }

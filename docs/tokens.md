@@ -164,7 +164,7 @@ With the statements in the compiler, the programs of `bench/async/` as they are 
 | program | AIL | C |
 |---|---:|---:|
 | `timer`: two tasks that print at their own pace | 78 | |
-| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 245 | 481 |
+| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 245 | 503 |
 | `ping`: load for it, with the time of every round trip and its distribution | 614 | |
 
 The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 245 tokens, 119 are the two functions that serve, 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.

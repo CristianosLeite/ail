@@ -222,7 +222,7 @@ The task form of a program is 107 to 115 tokens and 22 to 24 lines longer. In `c
 
 ## Async, 2026-11-20
 
-The programs of `bench/async/` measure the runtime of `lib/async/`, which polls every task on one thread. They are the measurement of the backlog section on asynchronous execution: what a wait costs, what a server on one thread carries, and whether a scheduler on several threads would pay. Machine as above (Core i7-12700H, 20 threads, Linux 7.0); every figure is the median of five runs.
+The programs of `bench/async/` measure the runtime of `lib/async/`, which polls every task on one thread. They are the measurement of the backlog section on asynchronous execution: what a wait costs, what a server on one thread carries, and whether a scheduler on several threads would pay. Machine as above (Core i7-12700H, 20 threads, Linux 7.0); every figure is the median of five runs. The table of the server and the times of its processor were taken again after both servers were made to write without `SIGPIPE`.
 
 ```
 make
@@ -261,19 +261,19 @@ A wait on the thread is a few tens of instructions: a record from a free list, t
 
 | connections | server | round trips a second | mean | median | 99 of 100 within |
 |---:|---|---:|---:|---:|---:|
-| 1 | `echod` (AIL) | 112800 | 8 us | 7 us | 18 us |
-| 1 | `echod.c` | 109000 | 8 us | 8 us | 18 us |
-| 100 | `echod` (AIL) | 294600 | 337 us | 335 us | 615 us |
-| 100 | `echod.c` | 281300 | 353 us | 354 us | 413 us |
-| 1000 | `echod` (AIL) | 279400 | 3503 us | 3364 us | 5048 us |
-| 1000 | `echod.c` | 271700 | 3586 us | 3522 us | 4366 us |
+| 1 | `echod` (AIL) | 119200 | 7 us | 7 us | 17 us |
+| 1 | `echod.c` | 120200 | 7 us | 7 us | 16 us |
+| 100 | `echod` (AIL) | 297600 | 334 us | 334 us | 381 us |
+| 100 | `echod.c` | 295200 | 337 us | 336 us | 433 us |
+| 1000 | `echod` (AIL) | 285000 | 3428 us | 3363 us | 4415 us |
+| 1000 | `echod.c` | 281500 | 3469 us | 3372 us | 4734 us |
 
 With clients and server as tasks of one thread (`ping` without a port) the same work is 165800, 171700 and 158600 round trips a second, about half, as one processor does both sides.
 
 - **The server written with `async fn` carries what the one written on `epoll` by hand carries.** The time of a round trip with many connections is the wait in line, connections times the service time, and the same for both.
-- **Where the time goes**: for a million round trips at 100 connections the AIL server uses 0.31 s in its own code and 3.0 s in the kernel; the C server 0.14 s and 2.97 s. The runtime costs 170 ns a round trip more than code written for this one program, 6% of the processor time of the server, and nine tenths of the time are the kernel's in either.
-- **System calls**: for 200000 round trips the AIL server made 208705 calls of `read`, 8605 of which said "not now", 200002 of `write` and 169 of `epoll_wait`. An operation asks the kernel first, so a busy server hardly ever sleeps; the server in C, which waits for an event before each read, cannot make fewer.
-- The source of the server is 245 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 481 in C; [token cost](tokens.md) has the forms.
+- **Where the time goes**: for a million round trips at 100 connections the AIL server uses 0.31 s in its own code and 2.98 s in the kernel; the C server 0.15 s and 2.93 s. The runtime costs 160 ns a round trip more than code written for this one program, 7% of the processor time of the server, and nine tenths of the time are the kernel's in either.
+- **System calls**: for 200000 round trips the AIL server made 208705 calls of `read`, 8605 of which said "not now", 200002 writes (`sendto` with `MSG_NOSIGNAL`, counted when they were still `write`) and 169 of `epoll_wait`. An operation asks the kernel first, so a busy server hardly ever sleeps; the server in C, which waits for an event before each read, cannot make fewer.
+- The source of the server is 245 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 503 in C; [token cost](tokens.md) has the forms.
 
 ### A scheduler on several threads
 
