@@ -792,7 +792,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 | `print p n` | writes the `n` bytes at `p` to stdout, repeating the write until all are out; returns 1, or 0 after an error |
 | `eprint p n` | the same to stderr |
 | `fdwrite fd p n` | the same to the file `fd` |
-| `die p n` | writes the bytes to stderr and ends the program with status 1 |
+| `die p n` | writes the bytes to stderr and ends the program with status 1, with every thread (`exit_group`) |
 | `putn n` | prints `n` as an unsigned decimal number; returns like `print` |
 | `strlen p` | the length of the NUL-terminated string at `p` |
 | `argc` | the number of arguments, the program's name included |

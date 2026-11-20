@@ -34,10 +34,11 @@ fn eprint iop ion
 tail fdwrite 2 iop ion
 end
 
-# write the n bytes at p to stderr and end the program with status 1
+# write the n bytes at p to stderr and end the program with status 1,
+# every thread of it
 fn die iop ion
 call fdwrite 2 iop ion
-sys exit 1
+sys exit_group 1
 end
 
 # the length of the NUL-terminated string at p
