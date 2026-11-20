@@ -140,6 +140,8 @@ From `REDESIGN.md`; one commit per item.
   give the same bytes.
 - [x] Test the condition of `while` at the end of the loop.
 - [x] Branch on the flags of the previous instruction.
+- [x] Compile loads and stores with the address as base, index and number
+  (added when the measurements showed where `isort` and `sieve` lost).
 - [ ] Record the measurements after instruction selection.
 - [ ] Write the examples and the library with expressions.
 - [ ] Add a tool that rewrites statements as expressions.

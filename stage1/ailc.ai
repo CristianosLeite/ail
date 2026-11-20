@@ -68,6 +68,8 @@ var xst xso
 # the register whose value the zero flag describes, if nothing was written
 # since the output stood at xflgpos
 var xflg xflgpos
+# the memory of a load or store: base, index (16 for none) and number
+var xmb xmx xmd
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -2332,15 +2334,342 @@ call epop 0
 end
 call anext
 end
+# ---- loads and stores
+# A load or store that is compiled like an expression (kinds 4 and 5 of
+# xclass) addresses memory as [base + index + number]: xaddr computes the
+# address expression into that form, and xmins writes the instruction.
+# REX for an instruction with a memory operand: w for 64 bits, g the
+# register in the reg field, b the base, x the index (16 for none); written
+# only if it says something, or if f is set
+fn erexm w g b x f
+shl w 3 as v
+shr g 3 as c
+shl c 2 as c
+or v c as v
+iflt x 16
+shr x 3 as c
+shl c 1 as c
+or v c as v
+end
+shr b 3 as c
+or v c as v
+or v f as c
+if c
+or v 64 as v
+call eb v
+end
+end
+# ModRM, SIB and displacement of [b + x + d], with g in the reg field
+fn emodm g b x d
+and g 7 as g
+shl g 3 as g
+and b 7 as b
+set 0 as m
+set 0 as n
+if d
+set 128 as m
+set 4 as n
+add d 128 as c
+shr c 8 as c
+ifz c
+set 64 as m
+set 1 as n
+end
+else
+# rbp and r13 cannot be a base without a displacement
+ifeq b 5
+set 64 as m
+set 1 as n
+end
+end
+set 0 as s
+ifne x 16
+set 1 as s
+end
+ifeq b 4
+set 1 as s
+end
+or m g as m
+if s
+or m 4 as m
+call eb m
+set 4 as i
+ifne x 16
+and x 7 as i
+end
+shl i 3 as i
+or i b as i
+call eb i
+else
+or m b as m
+call eb m
+end
+ifeq n 1
+call eb d
+end
+ifeq n 4
+call e4 d
+end
+end
+# the width in bytes of the load or store at cur, from the last letter of
+# its name
+fn xwidth
+sub cur 1 as c
+loadb c as c
+ifeq c 98
+ret 1
+end
+ifeq c 50
+ret 2
+end
+ifeq c 52
+ret 4
+end
+ret 8
+end
+# Compute the nodes 0 up to e of ex, an address, as base, index and number
+# in xmb, xmx and xmd. A number added or subtracted last is the number, and
+# a variable that has a register, added last, is the index; the rest is
+# computed into a register, which is that of a variable if the rest is one.
+fn xaddr e
+set 16 as xmx
+set 0 as xmd
+set e as h
+sub e 1 as r
+mul r 32 as p
+add p ex as p
+load p as k
+ifeq k 6
+add p 8 as q
+load q as o
+sub p 32 as q
+load q as rk
+add q 8 as q
+load q as ra
+ifeq rk 1
+set 0 as t
+set 0 as v
+ifeq o 3
+set ra as v
+set 1 as t
+end
+ifeq o 4
+sub 0 ra as v
+set 1 as t
+end
+if t
+add v 0x80000000 as c
+shr c 32 as c
+ifz c
+set v as xmd
+sub e 2 as h
+end
+end
+end
+ifeq rk 4
+ifeq o 3
+call vplace ra as kk pp
+ifz kk
+set pp as xmx
+sub e 2 as h
+end
+end
+end
+end
+call xgen 0 h
+set 0 as nxs
+set 0 as xspl
+load exv as k
+add exv 8 as q
+load q as a
+add exv 16 as q
+load q as b
+add exv 24 as q
+load q as c
+set 16 as r
+ifeq k 7
+set a as r
+end
+ifeq k 4
+call vplace a as kk pp
+ifz kk
+set pp as r
+end
+end
+ifeq r 16
+call xalloc as r
+ifeq k 2
+# the number that goes with a name is the displacement, if there is none
+ifz xmd
+set c as xmd
+set 0 as c
+end
+end
+call xld k a b c r
+end
+set r as xmb
+end
+# the instruction of a load (s = 0) or a store (s = 1) of w bytes between
+# register g and the memory that xaddr found
+fn xmins w s g
+ifeq w 2
+if s
+call eb 102
+end
+end
+set 0 as f
+ifeq w 1
+if s
+ifge g 4
+set 64 as f
+end
+end
+end
+eq w 8 as c
+call erexm c g xmb xmx f
+if s
+set 137 as o
+ifeq w 1
+set 136 as o
+end
+call eb o
+else
+set 139 as o
+iflt w 4
+call eb 15
+set 183 as o
+ifeq w 1
+set 182 as o
+end
+end
+call eb o
+end
+call emodm g xmb xmx xmd
+end
+# a load is complete, with its name after as
+fn xmload
+loadb cur as n
+ifne ai n
+call ecount
+end
+add exv 8 as q
+call cp4 q opd
+call memchk cur
+call xwidth as w
+load caps as f
+add caps 8 as p
+load p as p
+set 0 as g
+set 1 as kk
+ifz f
+shl 1 p as d
+or asg d as asg
+mul p 32 as d
+add d vk as d
+store d 0
+call vplace p as kk pp
+ifz kk
+set pp as g
+end
+end
+call xinit 0x0fc1 16
+call xaddr nex
+call xmins w 0 g
+if f
+call emem 0 1 p 137
+ret 0
+end
+if kk
+call vmov p 0 137
+end
+end
+# A store is complete: the address, then the value, which is written from
+# its register, or as a number if it fits the instruction. eop is left to
+# check the access and to copy nothing of the row.
+fn xmstore
+loadb cur as n
+ifne ai n
+ret 0
+end
+add exv 8 as q
+call cp4 q opd
+load exv as e
+add e 1 as e
+call xwidth as w
+call xinit 0x0fc1 16
+call xaddr e
+call xgen e nex
+load exv as k
+add exv 8 as q
+load q as a
+add exv 16 as q
+load q as b
+add exv 24 as q
+load q as c
+ifeq k 1
+set 1 as t
+ifeq w 8
+add a 0x80000000 as d
+shr d 32 as d
+if d
+set 0 as t
+end
+end
+if t
+ifeq w 2
+call eb 102
+end
+eq w 8 as d
+call erexm d 0 xmb xmx 0
+set 199 as o
+ifeq w 1
+set 198 as o
+end
+call eb o
+call emodm 0 xmb xmx xmd
+ifeq w 1
+call eb a
+end
+ifeq w 2
+call eb a
+shr a 8 as d
+call eb d
+end
+ifge w 4
+call e4 a
+end
+jmp x
+end
+end
+set 16 as r
+ifeq k 7
+set a as r
+end
+ifeq k 4
+call vplace a as kk pp
+ifz kk
+set pp as r
+end
+end
+ifeq r 16
+call xalloc as r
+call xld k a b c r
+end
+call xmins w 1 r
+label x
+add cur 3 as q
+loadb q as c
+set c as xskip
+end
 # The statements that only compute or compare are compiled like
 # expressions: their values are parsed into ex, each as an expression, and
 # no code is written until the statement is complete. xclass says which
 # kind the statement at cur is: 1 it computes and keeps the result with as
 # (set, and the sixteen whose operators an expression has: xso is the
 # operator, -1 for set), 2 it compares two values and jumps or opens a
-# block, 3 it tests one value and does. 0 is every other statement, and any
-# line with a string, which is compiled the old way, by the bytes of its
-# row.
+# block, 3 it tests one value and does, 4 it is a load, 5 a store. 0 is
+# every other statement, and any line with a string, which is compiled the
+# old way, by the bytes of its row.
 fn xclass
 set ip as p
 label s
@@ -2357,6 +2686,21 @@ load2 q as f
 loadb cur as n
 add cur 3 as q
 loadb q as l
+and f 128 as c
+if c
+ifle l 3
+and f 2 as c
+if c
+ifeq n 2
+ret 5
+end
+else
+ifeq n 1
+ret 4
+end
+end
+end
+end
 ifeq f 1
 ifz l
 ifeq n 1
@@ -2446,7 +2790,10 @@ end
 # becomes the one that compares and jumps (ifeq, jlt, ...), or its opposite
 # for ifz and jz. The name read last, the label of a jump, is kept.
 fn xjcond
-ifz xst
+iflt xst 2
+ret 0
+end
+ifgt xst 3
 ret 0
 end
 loadb cur as n
@@ -3802,6 +4149,9 @@ and f 1 as d
 if d
 call eas
 end
+ifeq xst 5
+call xmstore
+end
 call xjcond
 call eop
 add cur 2 as f
@@ -4105,6 +4455,10 @@ call err
 label cp4
 call eol
 if xst
+ifeq xst 4
+call xmload
+jmp next
+end
 call xcap
 jmp next
 end
