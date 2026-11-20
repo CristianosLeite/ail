@@ -1,0 +1,176 @@
+# ---- input
+# the byte at the cursor, or 256 at the end of the input
+fn pk
+if ip<ie
+loadb ip as c
+ret c
+end
+ret 256
+end
+fn adv
+ip+=1
+end
+fn low c
+ret c-97<26
+end
+fn dig c
+ret c-48<10
+end
+fn blank c
+ret (c==9)|(c==32)
+end
+# a CR at the cursor must be the first half of a CRLF line end
+fn crlf
+p=ip+1
+jge p ie bad
+loadb p as c
+ifz c==10
+label bad
+call err
+end
+end
+fn blanks
+label a
+call pk as c
+call blank c as c
+if c
+call adv
+jmp a
+end
+end
+# one space or tab at least
+fn blank1
+call pk as c
+call blank c as c
+call ok c
+call blanks
+end
+# after the last token of a statement: blanks, then a comment or line end
+fn eol
+call blanks
+call pk as c
+jeq c 256 k
+jeq c 10 k
+jeq c 35 k
+call ok c==13
+call crlf
+label k
+end
+# a token must be followed by a space, tab, comment or end of line
+fn tokchk
+call pk as c
+jeq c 256 k
+call blank c as d
+jnz d k
+jeq c 10 k
+jeq c 13 k
+call ok c==35
+label k
+end
+# read a name [a-z0-9_]* into ns and nl
+fn name
+p=ip
+ns=p
+label a
+call pk as c
+jeq c 95 t
+call dig c as d
+jnz d t
+call low c as d
+if d
+label t
+call adv
+jmp a
+end
+nl=ip-p
+end
+# the same, but it must start with a letter
+fn rname
+call pk as c
+call low c as c
+ifz c
+call enam
+end
+call name
+end
+# 1 if the name read last is "as"
+fn isas
+jne nl 2 x
+p=ns
+loadb p as n
+jz n==97 x
+loadb p+1 as n
+ret n==115
+label x
+end
+# a name that starts with a letter and is not "as"
+fn rdname
+call rname
+call isas as c
+if c
+call enam
+end
+end
+# the number at the cursor: decimal, or hexadecimal after "0x", either one
+# after an optional "-"; it must fit 64 bits
+fn rdnum
+call pk as c
+n=c==45
+if n
+call adv
+call pk as c
+end
+call dig c as d
+call ok d
+r=0
+jne c 48 m
+d=ip+1
+jge d ie m
+loadb d as d
+jz d==120 m
+ip+=2
+k=0
+label h
+call pk as c
+call dig c as d
+if d
+c-=48
+jmp h2
+end
+c=(c|32)-97
+if c<6
+c+=10
+label h2
+k+=1
+if k>16
+call enum
+end
+r=r<<4|c
+call adv
+jmp h
+end
+call ok k
+jmp s
+label m
+call pk as c
+call dig c as d
+jz d s
+c-=48
+if r<=0x1999999999999999
+jne r 0x1999999999999999 f
+jle c 5 f
+end
+call enum
+label f
+r=r*10+c
+call adv
+jmp m
+label s
+if n
+if r>0x8000000000000000
+call enum
+end
+r=0-r
+end
+ret r
+end

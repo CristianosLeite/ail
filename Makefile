@@ -1,6 +1,7 @@
 B := build
 
-SRC := compiler/ailc.ai compiler/tables.ai
+SRC := compiler/ailc.ai compiler/diag.ai compiler/lex.ai compiler/names.ai \
+       compiler/expr.ai compiler/emit.ai compiler/tables.ai
 
 all: $(patsubst examples/%.ai,$(B)/%,$(wildcard examples/*.ai)) $(B)/ailc
 
@@ -32,8 +33,9 @@ $(B)/%: examples/%.ai $(B)/ailc
 # ailc2 are both written by the current compiler and must be, which
 # tests/self.sh checks. ailc1 and ailc are one program in two
 # translations and must behave alike, which it and tests/fuzz.sh check.
-# compiler/ailc.ai names its tables with use "compiler/tables.ai", a path that
-# the compiler opens from the directory make runs in.
+# compiler/ailc.ai names the other files with use "compiler/<name>.ai",
+# paths that the compiler opens from the directory make runs in. It is
+# the first of SRC because the recipes compile $<.
 $(B)/ailc1: $(SRC) $(B)/ailc0
 	$(call compile,$(B)/ailc0)
 

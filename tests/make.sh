@@ -21,7 +21,7 @@ leftovers() {
 
 mkdir "$d/compiler" "$d/seed" "$d/tools" "$d/examples" "$d/build"
 cp -p Makefile "$d/"
-cp -p compiler/ailc.ai compiler/tables.ai "$d/compiler/"
+cp -p compiler/*.ai "$d/compiler/"
 cp -p seed/MANIFEST "$d/seed/"
 cp -p tools/seed.sh "$d/tools/"
 # the seed and the compilers built from it, each newer than what it is

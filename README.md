@@ -91,7 +91,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 ## Layout
 
-- `compiler/ailc.ai`, `compiler/tables.ai`: the compiler, written in AIL, built by the seed and then by itself
+- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.ai` is its first file and names the others (`diag.ai`, `lex.ai`, `names.ai`, `expr.ai`, `emit.ai`, `tables.ai`) with `use`
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements

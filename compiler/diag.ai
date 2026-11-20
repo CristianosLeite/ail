@@ -1,0 +1,196 @@
+# ---- errors: one line on stderr, "ailc: <place>: <message> <name>", then
+# exit. Source problems exit 1, I/O problems 2. The place is the path of a
+# file read by use and a colon, if the fault is in one, and the line number;
+# it is taken from epos, or from the input cursor while that is zero.
+fn ew p n
+sys write 2 p n
+end
+# print the message m of n bytes with its place and exit with status s
+fn die m n s
+call ew "ailc: "
+jeq epos -1 q
+pos=ip
+u=curunit
+if epos
+pos=epos
+u=0
+jlt pos mainend g
+label a
+u+=1
+jgt u nuses q
+load u*8+ustart-8 as c
+jlt pos c a
+load u*8+uendp-8 as c
+jge pos c a
+label g
+end
+st=in
+if u
+load u*8+ustart-8 as st
+c=(u-1)*16+uses
+load c as pp
+load c+8 as pl
+call ew pp pl
+call ew ":"
+end
+ln=1
+while st<pos
+loadb st as c
+if c==10
+ln+=1
+end
+st+=1
+end
+e=numbuf+24
+b=e
+label t
+b-=1
+storeb b ln%10+48
+ln/=10
+jnz ln t
+call ew b e-b
+call ew ": "
+label q
+call ew m n
+if enamel
+call ew " "
+call ew ename enamel
+end
+call ew "\n"
+sys exit s
+end
+fn err
+call die "syntax error" 1
+end
+fn estmt
+call die "unknown statement" 1
+end
+fn eplace
+call die "not allowed here" 1
+end
+fn eend
+call die "missing end" 1
+end
+fn eas
+call die "missing as" 1
+end
+fn enoas
+call die "unexpected as" 1
+end
+fn emlab
+call die "missing label" 1
+end
+fn ecount
+call die "wrong operand count" 1
+end
+fn estr
+call die "unterminated string" 1
+end
+fn enam
+call die "expected a name" 1
+end
+fn evar
+call die "too many variables" 1
+end
+fn enum
+call die "number too big" 1
+end
+fn ebuf
+call die "buffers too big" 1
+end
+fn eres
+call die "wrong result count" 1
+end
+fn eunasgj
+call die "unassigned variable" 1
+end
+fn eaccl
+call die "invalid access" 1
+end
+fn edup
+ename=ns
+enamel=nl
+call die "duplicate name" 1
+end
+fn eund
+ename=ns
+enamel=nl
+call die "undefined variable" 1
+end
+fn eunasg
+ename=ns
+enamel=nl
+call die "unassigned variable" 1
+end
+fn eacc
+ename=ns
+enamel=nl
+call die "invalid access" 1
+end
+fn euse
+ename=ns
+enamel=nl
+call die "cannot read file" 1
+end
+fn elab
+ename=ns
+enamel=nl
+call die "undefined label" 1
+end
+fn efn
+ename=ns
+enamel=nl
+call die "undefined function" 1
+end
+fn eargc
+ename=ns
+enamel=nl
+call die "wrong argument count" 1
+end
+fn eresf
+ename=ns
+enamel=nl
+call die "wrong result count" 1
+end
+fn ebig
+epos=-1
+call die "source too big" 1
+end
+fn eprog
+epos=-1
+call die "program too big" 1
+end
+fn erd
+epos=-1
+call die "read error" 2
+end
+fn ewr
+epos=-1
+call die "write error" 2
+end
+# syntax error unless c is not zero
+fn ok c
+ifz c
+call err
+end
+end
+# syntax error unless c is zero
+fn no c
+if c
+call err
+end
+end
+# duplicate name unless the lookup result i is "not found"
+fn nodup i
+ifz i==-1
+call edup
+end
+end
+
+# the output buffer must have room left for what comes before the next
+# check: 4096 bytes, more than any statement emits between two checks
+fn ochk
+if op-out>134213632
+call eprog
+end
+end

@@ -1,9 +1,9 @@
 # TODO
 
 This backlog records current limits and the work needed to lift them. Favor
-changes that reduce the token cost of real AIL programs. The compiler is `compiler/ailc.ai` alone since 2026-11-20:
-keep its fixed point, and use in its source only what the pinned seed
-understands. See the [roadmap](roadmap.md) for project history.
+changes that reduce the token cost of real AIL programs. Keep the compiler's
+fixed point and use in its source only what the pinned seed understands.
+See the [roadmap](roadmap.md) for project history.
 
 ## Compiler self-hosting and language limits
 
@@ -73,6 +73,26 @@ understands. See the [roadmap](roadmap.md) for project history.
 
 ## Compiler scale, output and tooling
 
+- [x] Split the compiler using the existing [`use`](language.md#use) statement,
+  which the pinned seed already supports for `compiler/tables.ai`.
+  - Keep `compiler/ailc.ai` as the entry point with the shared declarations and
+    parser state machine. Its states share top-level variables and labels.
+    Extract whole functions along the existing section boundaries. Suggested
+    files under `compiler/` are `diag.ai`, `lex.ai`, `names.ai`, `expr.ai` and
+    `emit.ai` for diagnostics, token reading, name lookup, expressions and code
+    emission.
+  - Put each `use` where the extracted code stood. A used file shares the
+    top-level scope and is compiled at that point, so preserve the order of
+    `var` and `const` declarations and keep each function in one file. Build
+    from the repository root and use the same spelling for each path everywhere,
+    since `use` resolves paths from the working directory and deduplicates by
+    exact spelling.
+  - List every compiler source in the Makefile dependencies and include it in
+    the scratch copy in `tests/make.sh`. Run `make test` to check the bootstrap
+    fixed point and compare `build/ailc` byte for byte with a build from before
+    the split to verify that moving the source preserved the generated binary.
+  - Revisit a separate `import` if a concrete use case calls for file-local
+    names or explicit exports.
 - [x] Lift the 65,536-byte source cap. Both compilers read all input before
   parsing, allocate a fixed 1 MiB emission buffer and size the jump, label, call
   and function tables from the source cap. Grow storage as needed and check
@@ -100,6 +120,71 @@ understands. See the [roadmap](roadmap.md) for project history.
 - [x] Automate the check that a failed example build leaves no up-to-date target.
 - [x] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
   assembly programs. Use the results to guide syntax choices.
+
+## Port the Python tools to AIL
+
+Give each tool an entry point at `tools/<name>.ai` and an executable at
+`build/tools/<name>`. Build the tools with `build/ailc` after the bootstrap.
+Add a `make tools` target and declare each tool's source dependencies so edits
+to a shared file rebuild its callers. Have `make test` build the tools it runs.
+
+Use the existing [`use`](language.md#use) and keep dependencies one way.
+Tool entry points handle arguments, diagnostics and exit status. Put shared
+token and line scanning in `tools/lib/scan.ai` and shared control-flow
+analysis in `tools/lib/flow.ai`. Keep each tool's rewrite rules, generator or
+reporting code with that tool. Add `lib/bytes.ai`, `lib/file.ai` and
+`lib/proc.ai` for byte buffers, file I/O and child processes as callers need
+them. Reuse `lib/io.ai` for arguments and output. Keep Linux syscall details
+in the file and process helpers and the compiler bootstrap independent of
+the tools.
+
+Pass text as an address and byte length, and refer to positions in a growable
+buffer by offset so they survive reallocation. Keep mutable state in buffers
+owned by the caller. Document who frees allocations and closes descriptors,
+which calls may grow a buffer, and how errors are returned. Prefix new shared
+symbols by file purpose because `use` brings names into one program-wide scope.
+
+1. [ ] Port `hashcol.py`. Use existing arithmetic and byte operations to
+   enumerate names and compute the 32-bit hash. Check the reported pair against
+   the current script and the `hash_collision_prefix` fixture.
+2. [ ] Port `fuse.py`, then `infix.py`. Add shared file and buffer helpers and a
+   byte-oriented source scanner that preserves strings, comments and line
+   endings. Share label lookup and control-flow traversal where the passes
+   need the same semantics. Keep expression trees and their printer in
+   `infix` until another tool uses them. Compare the ports against the Python
+   tools on representative sources. Retain the byte-for-byte, idempotence
+   and compiled-behavior checks in `tests/infix.sh` and switch it to the AIL
+   executable after it passes them.
+3. [ ] Port `randvars.py`. Use a documented deterministic PRNG and keep the
+   evaluator independent of the compiler and source emitters. Retain the
+   three source forms, the byte comparison of the first two, expected exit
+   statuses, and saved failure sources. Replay selected Python-generated
+   cases as fixtures if the new PRNG changes the corpus for existing seeds.
+   Add the process helpers used here and by `perf` for environment and argument
+   passing, descriptor redirection, output capture, exit status and cleanup.
+   Drain redirected output while the child runs, or use temporary files.
+   Enforce the existing run timeout, kill timed-out children and reap them.
+   Switch `make test` to the AIL runner for both function and top-level modes.
+4. [ ] Port `perf.py`. Reuse the process and file helpers. Keep benchmark inputs
+   and expected results in tool-local data, and keep validation, timing and
+   reporting in separate functions. Preserve CPU affinity, monotonic timing,
+   warmups, shuffled run order, summary statistics and output checks. Keep
+   `gcc`, `rustc`, `as` and `ld` as external commands. Document the launch
+   method and compare it against the current `posix_spawn` path before mixing
+   new startup measurements with historical results.
+5. [ ] Port `tokens.py`. Keep corpus selection, comment stripping and table
+   output in the tool. Put `o200k_base` segmentation and byte-pair encoding
+   in a dedicated AIL source file. Load the official merge ranks as a data
+   file pinned by checksum. Compare the full table with `tiktoken` on the
+   benchmark corpus and exercise Unicode and whitespace cases separately.
+   A compatible external tokenizer can serve during the transition. Switch
+   `tools/tokens.sh` to the AIL executable and remove its Python environment
+   setup once the AIL tokenizer matches the reference.
+
+Use the Python scripts as references during each port. Preserve the current
+command arguments, exit statuses and output formats where callers rely on
+them. Update the documented commands and retire each Python entry point after
+its AIL replacement passes the corresponding checks.
 
 ## Parallel execution
 
