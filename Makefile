@@ -41,7 +41,10 @@ $(B)/tools/%: tools/%.ai $(B)/ailc
 	@mkdir -p $(@D)
 	$(call compile,$(B)/ailc)
 
+TL := lib/io.ai lib/bytes.ai lib/file.ai
+
 $(B)/tools/hashcol: lib/io.ai
+$(B)/tools/fuse: $(TL) tools/lib/scan.ai tools/lib/flow.ai
 
 # The compiler, compiler/ailc.ai, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
