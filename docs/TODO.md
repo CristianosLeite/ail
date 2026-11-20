@@ -192,7 +192,7 @@ its AIL replacement passes the corresponding checks.
   `spawn` submit a function and return a task handle, and have `join` wait
   for its result. Define handle lifetime, error handling and the visibility of
   writes after `join`. Specify how long memory passed to a task must stay valid.
-- [ ] Implement a small runtime in AIL that starts a bounded, configurable pool
+- [x] Implement a small runtime in AIL that starts a bounded, configurable pool
   of Linux threads on demand. Reuse workers across tasks and skip runtime
   initialization in programs that never spawn a task.
 - [ ] Test result delivery, shared-memory synchronization and worker limits.

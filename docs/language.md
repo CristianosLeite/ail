@@ -427,6 +427,20 @@ The two statements are calls of the functions `spawn` and `join` of the program,
 - **Errors**: a task has no failure of its own. What it reports, it reports in its result. A fault in a task (a trap of `at`, a division by zero, a bad address) ends the whole program, as anywhere else.
 - **The end of the program**: reaching the last line ends the program with every task, run or not. So does `sys exit_group`; `sys exit` ends only the thread that runs it.
 
+**The pool.** Tasks are run by worker threads that `lib/task.ai` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
+
+```
+call workers 4
+```
+
+- `spawn` puts the task in a queue. If a worker is asleep it wakes one; if more tasks wait than workers sleep, and fewer workers exist than the limit, it starts one. A worker runs task after task and sleeps in the kernel when the queue is empty. Workers never end before the program does.
+- The limit is the value of the last `call workers n`, or, if the program never calls it, the number of processors the process may run on (`sched_getaffinity`), found at the first `spawn`. `workers 0` starts no thread. Workers already started stay when the limit is lowered.
+- `join` of a task that is still in the queue runs it on the joining thread; `join` of a task that a worker took sleeps until it is done. So at most the limit plus the joining threads run tasks at once, a task may spawn and join tasks of its own with any limit, and a program is correct with no worker at all. A task never moves between threads once it has started.
+- A worker has a stack of 8 MiB with a closed page below it: a task that needs more is a fault (`SIGSEGV`), which ends the program. A task run by `join` uses the stack of the joining thread.
+- If the kernel refuses a thread or its stack, the task stays in the queue for another worker or its `join`.
+- The costs: a task is 80 bytes, used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
+- The library owns the names `spawn`, `join`, `workers`, the functions and the buffer whose names start with `task`. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
+
 #### Recursion and the stack
 
 A call uses 8 bytes of stack for the return address, 8 for each register the function saves, 8 for each value after the sixth, 8 for each variable that did not get a register and the bytes of its [locals](#local). A function with two variables, like `fact` above, takes 24 bytes a call, so the usual 8 MiB stack allows some 350000 nested calls.

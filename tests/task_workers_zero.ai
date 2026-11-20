@@ -1,0 +1,21 @@
+use "lib/task.ai"
+buf hs 80
+fn work a
+ret a*2
+end
+call workers 0
+i=0
+while i<10
+spawn work i as h
+store hs+i*8 h
+i+=1
+end
+s=0
+while i
+i-=1
+load hs+i*8 as h
+join h as x
+s+=x
+end
+load taskq+48 as w
+sys exit_group s+w

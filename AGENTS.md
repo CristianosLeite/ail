@@ -62,7 +62,7 @@ Compiler errors are one line on stderr, `ailc: <place>: <message> <name>`, where
 
 ## Library
 
-`lib/task.ai` holds the functions `spawn`, `join` and what they need; its tests are the `spawn_*`, `join_*` and `task_*` files. `lib/io.ai` is AIL code that programs compile in with `use "lib/io.ai"`: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`, `argc` and `argv`. Its tests are the `lib_io_*` files in `tests/`. A new helper goes there only if several programs need it.
+`lib/task.ai` holds the functions `spawn` and `join`, `workers` (the limit of the pool) and the pool of threads that runs tasks: a queue under a futex lock in the buffer `taskq`, workers started by `sys clone` on demand up to the limit and kept, and a `join` that runs a task nobody took. It has no top-level code and no `var` (a `var` name is written by `as` in any function of the program); its tests are the `spawn_*`, `join_*` and `task_*` files. `lib/io.ai` is AIL code that programs compile in with `use "lib/io.ai"`: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`, `argc` and `argv`. Its tests are the `lib_io_*` files in `tests/`. A new helper goes there only if several programs need it.
 
 ## Language
 
