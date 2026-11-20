@@ -12,7 +12,7 @@
 #   24  the class of its size, which is asyncget's
 #   40  its result
 #   48  the next record of those that are done
-#   56  the task of the pool that runs it
+#   56  the task of the pool that runs it, 0 if it ran without one
 #   64  the event that awaits it, 0 once that was cancelled
 #   72  1 if it need not run any more
 #   80  and 88 its last two values
@@ -175,6 +175,14 @@ ifz asynct
 call asyncfree asyncj
 call asyncfinish asynch -12
 ret asynch
+end
+# With no worker at all, because the limit is 0 or the kernel refused
+# the thread, nothing would ever run the work: join runs it here, on
+# the polling thread, which is slow but ends.
+load taskq+48 as asyncx
+ifz asyncx
+call join asynct
+asynct=0
 end
 store asyncj+56 asynct
 store asynch+64 asyncj

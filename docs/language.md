@@ -1095,7 +1095,7 @@ end
 ```
 
 - The function runs on another thread, at the same time as the tasks: what it shares with them it touches only through [`xadd` and `cas`](#atomic-operations), and it calls no function of the async library. Memory it is passed stays valid until the event is done.
-- `spawn`, `join` and `workers` are what they were, and a program may use both: the pool is one, and its limit holds for both kinds of work. `asyncblock` needs a worker, so the limit is not 0. A `join` in a task holds the polling thread until its task is done; `asyncblock` is the form that does not.
+- `spawn`, `join` and `workers` are what they were, and a program may use both: the pool is one, and its limit holds for both kinds of work. With no worker at all, because the limit is 0 or the kernel refused the first thread, `asyncblock` runs the work itself before it returns, on the polling thread: the program is slower then, and still right. A `join` in a task holds the polling thread until its task is done; `asyncblock` is the form that does not.
 - A worker that has finished puts its work in a list and, only if the polling thread sleeps, writes to an `eventfd` that ends the sleep. The polling thread takes the list when it next looks at the outside world.
 - **Cancelling** the event (`asynccancel`, a limit of `asynctimeout`) gives -125 at once. Work that no worker has begun is then not run; work that runs cannot be stopped: it returns later, and its result is dropped.
 - **The costs**: two records of 128 bytes and one task of the pool; in the kernel, what `spawn` costs, and a write and a wake when the polling thread sleeps.
