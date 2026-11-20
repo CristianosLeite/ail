@@ -1,0 +1,40 @@
+# the value of a while names what it named at the head of the loop, also
+# when it is read again at the end: a variable defined in the loop hides
+# a global name only from its definition on
+const ready 1
+const lim 3
+# the variable is not assigned on every way round the loop
+fn run
+while ready
+ready=0
+ret 42
+end
+end
+# assigned on every way: the test at the end must still read the const,
+# so the loop runs until the count ends it
+fn count
+n=0
+while n<lim
+lim=100
+n+=1
+end
+ret n
+end
+fn nest
+a=0
+i=0
+while i<lim
+j=0
+while j<lim
+lim=1
+a+=1
+j+=1
+end
+i+=1
+end
+ret a
+end
+call run as r
+call count as c
+call nest as a
+sys exit r+c+a
