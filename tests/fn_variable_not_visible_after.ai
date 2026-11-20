@@ -1,0 +1,4 @@
+fn f
+set 1 as x
+end
+sys 60 x

@@ -1,0 +1,8 @@
+# a buffer is global wherever it is declared
+fn f
+buf b 8
+store b 7
+end
+call f
+load b as n
+sys 60 n

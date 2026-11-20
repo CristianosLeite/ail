@@ -1,0 +1,7 @@
+# the function is defined after the call and after the exit
+call later 5 as x
+sys 60 x
+fn later a
+mul a 3 as a
+ret a
+end

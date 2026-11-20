@@ -1,0 +1,5 @@
+# five parameters and two more variables
+fn f a b c d e
+set 1 as g
+set 2 as h
+end

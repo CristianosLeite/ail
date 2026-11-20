@@ -1,0 +1,12 @@
+# exit with the factorial of 5, computed by a recursive function
+fn fact n
+jz n one
+sub n 1 as m
+call fact m as r        # n and m are saved across the call
+mul n r as r
+ret r
+label one
+ret 1
+end
+call fact 5 as x
+sys 60 x

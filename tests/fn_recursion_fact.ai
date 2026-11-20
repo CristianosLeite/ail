@@ -1,0 +1,11 @@
+fn fact n
+jz n one
+sub n 1 as m
+call fact m as r
+mul n r as r
+ret r
+label one
+ret 1
+end
+call fact 5 as x
+sys 60 x

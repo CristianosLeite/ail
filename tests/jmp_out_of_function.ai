@@ -1,0 +1,4 @@
+label x
+fn f
+jmp x
+end

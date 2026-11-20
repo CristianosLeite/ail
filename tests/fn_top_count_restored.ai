@@ -1,0 +1,11 @@
+# the function's variable does not free a top-level register
+set 1 as a
+set 1 as b
+set 1 as c
+set 1 as d
+set 1 as e
+set 1 as g
+fn f
+set 1 as z
+end
+set 1 as h

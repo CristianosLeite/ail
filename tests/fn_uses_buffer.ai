@@ -1,0 +1,11 @@
+buf b 8
+fn bump
+load b as v
+add v 1 as v
+store b v
+end
+call bump
+call bump
+call bump
+load b as n
+sys 60 n

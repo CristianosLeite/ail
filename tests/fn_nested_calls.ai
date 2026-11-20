@@ -1,0 +1,17 @@
+fn inc a
+add a 1 as a
+ret a
+end
+fn twice a
+call inc a as a
+call inc a as a
+ret a
+end
+fn outer a
+call twice a as b
+call twice b as b
+add a b as b            # a is still 10 after the calls
+ret b
+end
+call outer 10 as x
+sys 60 x

@@ -1,0 +1,16 @@
+# reaching end returns 0, whatever the last statement left behind
+fn nothing
+end
+fn side a
+add a 1 as a
+end
+set 7 as x
+call nothing as x
+jnz x bad
+set 7 as x
+call side 5 as x
+jnz x bad
+sys 1 1 "ok\n"
+sys 60 0
+label bad
+sys 60 1

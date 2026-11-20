@@ -1,0 +1,6 @@
+# as is reserved for variables only
+fn as a
+ret a
+end
+call as 6 as x
+sys 60 x

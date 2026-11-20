@@ -1,0 +1,13 @@
+fn isqrt n
+set 0 as i
+label top
+mul i i as s
+gt s n as c
+jz c more
+ret i
+label more
+add i 1 as i
+jmp top
+end
+call isqrt 50 as x
+sys 60 x

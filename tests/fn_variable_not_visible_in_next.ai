@@ -1,0 +1,5 @@
+fn f a
+end
+fn g
+ret a
+end

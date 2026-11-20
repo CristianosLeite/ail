@@ -11,14 +11,15 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - Comparisons: `eq`, `ne`, `lt`, `le`, `gt`, `ge` keep `1` or `0` in a variable, unsigned.
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Control flow: `label`, `jmp`, `jz` and `jnz`, with forward jumps patched from a fixup list at the end of the single pass.
+- Functions: `fn` ... `end`, `call` and `ret`, with up to six parameters, variables and labels local to each function, recursion and forward calls.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
 ## Next: make the language able to express a compiler
 
 Stage0 has to grow until a compiler can be written in AIL. In rough order of dependency:
 
-1. **Functions**: call and return with a simple calling convention.
-2. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses if writing the compiler shows a need.
+1. **Wider integers**: 64-bit and negative immediates, and 16- and 32-bit memory accesses if writing the compiler shows a need.
+2. **More than six variables per function**, if writing the compiler shows a need.
 
 ## Then: self-hosting
 

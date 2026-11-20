@@ -1,7 +1,7 @@
 ---
 title: Stage0 test suite
 last-verified: 2026-11-19
-sources: [control-flow review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
+sources: [control-flow review 2026-11-19 (REVIEW.md), functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, tests/run.sh]
 status: current
 ---
 # Stage0 test suite
@@ -13,6 +13,10 @@ layout of a test; this page records why some fixtures look the way they do.
 ## Facts
 - `tests/run.sh` runs each compiled program under `timeout` with `limit=10` seconds; a timeout is
   a failed test. Before 2026-11-19 a program that never exited hung the whole suite.
+- Until the functions review of 2026-11-19 the runner compared the status of `timeout` itself, so a
+  program that hung passed a test expecting status 124. The program now runs under `sh -c`, which
+  writes its status to `build/tests/<name>.rc`; no file means the deadline expired and the test
+  fails. `exit_status_124` keeps a normal exit with 124 passing.
 - `jump_fills_source` (10921 `jmp a` lines and one final `label a`) only proves that the fixup
   table holds that many entries: its first jump skips all the others, so it still passes when a
   later displacement is wrong.

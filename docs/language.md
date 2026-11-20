@@ -14,6 +14,8 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`.
 
+A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
+
 Blank lines are ignored. Indentation is ignored.
 
 ## Separators
@@ -122,6 +124,51 @@ jnz c top               # prints xxx
 
 A jump does not touch any variable. Whether a variable is defined depends on the order of the lines, not on the path taken: a variable read on a path that jumped over its `as` holds an unspecified value.
 
+Labels are local: a label defined inside a [function](#functions) exists only there, and the labels outside every function are not visible inside one. A jump therefore never enters or leaves a function, and the same label name can be reused in each function.
+
+### Functions
+
+```
+fn name a b
+...
+ret value
+end
+
+call name x y as result
+call name x y
+```
+
+`fn` starts a function and `end` closes it. The names after the function name are its parameters; there may be none and at most six. A function cannot be defined inside another one. Where a function stands does not matter: top-level execution skips its body, and a `call` may come before or after the definition.
+
+`call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is an integer, a variable or a buffer name, never a string, and the number of values must equal the number of parameters.
+
+`ret value` returns that one value to the caller and is only allowed inside a function. Reaching `end` returns `0`.
+
+```
+fn fact n
+jz n one
+sub n 1 as m
+call fact m as r        # a function may call itself
+mul n r as r
+ret r
+label one
+ret 1
+end
+call fact 5 as x
+sys 60 x                # exit(120)
+```
+
+Each function has its own variables and its own labels:
+
+- The parameters are the function's first variables. Together with the variables it defines with `as`, a function has at most six.
+- A function sees none of the variables defined outside it, and its variables do not exist outside it. The same name can be used on both sides for different things. Values go in through the parameters and out through `ret`.
+- Every call gets fresh variables: the caller's variables, at top level or in another function, are unchanged when the call returns, also when a function calls itself.
+- Buffers are global. A function can use any buffer declared on an earlier line, and a `buf` written inside a function is the same as one written outside: its name may not be that of a top-level variable either.
+
+Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
+
+Calling convention: the values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits, and the result comes back in `rax`. The function saves the six variable registers on the stack when it starts and restores them when it returns, so a call uses 56 bytes of stack and recursion is limited only by the stack size.
+
 ### `buf`
 
 ```
@@ -130,7 +177,7 @@ buf name size
 
 Reserves `size` bytes of writable memory, filled with zeros when the program starts, and makes `name` their address. `size` is a decimal integer of at least 1 and is rounded up to a multiple of 8, so every buffer is 8-byte aligned.
 
-A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as`. Variables and buffers share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
+A buffer name is a constant, not a variable: it uses none of the six variable registers, and it can be used wherever a value is accepted, as one argument. It must be declared on an earlier line, and it cannot be the target of `as` or the name of a parameter. Variables and buffers share one name space. A program can declare at most 16 buffers; the memory is reserved when the program is loaded and never freed.
 
 ```
 buf line 4096
@@ -202,7 +249,7 @@ A variable used as an argument passes its full 64-bit value and counts as one ar
 
 Statement keywords are only special at the start of a line, so `add` or `buf` are valid variable names.
 
-A program can define at most 6 variables. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed. Syscalls do not change these registers.
+The top level of a program can define at most 6 variables, and so can each [function](#functions), counting its parameters. They live in `rbx`, `rbp`, `r12`, `r13`, `r14` and `r15`, in order of definition, and are never freed within their scope. Syscalls and calls do not change these registers.
 
 Variables hold values only. Memory is always reached through an explicit address: a [buffer](#buf), or one obtained at run time, for example from `mmap`:
 
@@ -223,10 +270,12 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | Message | Status | Cause |
 |---|---|---|
 | `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as an argument before any `as` or `buf` defined it |
-| `ailc: too many variables` | 1 | a seventh variable name |
-| `ailc: duplicate name` | 1 | `buf` with a name already in use, `as` with the name of a buffer, or a second `label` with the same name |
-| `ailc: undefined label` | 1 | a jump to a label that the program never defines |
+| `ailc: undefined variable` | 1 | a name used as an argument before any `as`, parameter or `buf` defined it in this scope |
+| `ailc: too many variables` | 1 | a seventh variable name at top level or in one function, parameters included |
+| `ailc: duplicate name` | 1 | `buf` with a name already in use (inside a function, also by a top-level variable), `as` or a parameter with the name of a buffer, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
+| `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
+| `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
 | `ailc: too many buffers` | 1 | a seventeenth buffer, or buffers that together exceed about 3.7 GiB |
 | `ailc: source too big` | 1 | source larger than 65536 bytes |
 | `ailc: read error` | 2 | reading stdin failed |
@@ -244,6 +293,10 @@ Causes of a syntax error:
 - `buf` without a name and a decimal size of at least 1, with the name `as`, or followed by anything but a comment
 - `label` without a name, or followed by anything but a comment
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
+- `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
+- `end` outside a function, or followed by anything but a comment
+- `ret` outside a function, without exactly one value, or with `as`
+- `call` without a function name, or with more than six values
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF
 - a string anywhere but in a `sys` statement
@@ -279,6 +332,19 @@ loadb b as c
 sub c 32 as c
 storeb b c
 sys 1 1 b n
+```
+
+Write a string given by address and length, from a function that returns the number of bytes written:
+
+```
+fn put p n
+sys 1 1 p n as r
+ret r
+end
+buf b 4
+store b 174877025       # "ail\n"
+call put b 4 as n
+sys 60 n                # exit(4)
 ```
 
 Print to stdout:

@@ -1,11 +1,11 @@
 # ailc stage0 -- AIL bootstrap compiler, x86-64 Linux, GNU as.
 # usage: ailc < prog.ai > prog      (emits a static ELF64 directly, no linker)
 #
-# Single pass; jumps are patched at the end. Register roles:
+# Single pass; jumps and calls are patched afterwards. Register roles:
 #   rsi = input cursor   r15 = input end
 #   rdi = output cursor  r14 = output base
 #   ebx = syscall arg index of the statement being compiled
-#   ebp = number of variables defined so far
+#   ebp = number of variables defined so far in the current scope
 # curop points at the optab entry of the statement being compiled.
 
 .intel_syntax noprefix
@@ -19,16 +19,21 @@
 .equ NBUFS,  16                 # size of the buffer table
 .equ NLABELS, INSZ / 8 + 1      # "label a\n" is 8 bytes: the source cannot hold more
 .equ NFIX,   INSZ / 6 + 1       # "jmp a\n" is 6 bytes
+.equ NFUNCS, INSZ / 9 + 1       # "fn a\nend\n" is 9 bytes
+.equ NCALLS, INSZ / 7 + 1       # "call a\n" is 7 bytes
 .equ AS_REQ,  1                 # optab flags: "as name" is required,
 .equ AS_NONE, 2                 # is not allowed,
 .equ IS_SYS,  4                 # the statement is sys
 .equ IS_JMP,  8                 # a label name follows the operands
+.equ IS_CALL, 16                # a function name precedes the operands
+.equ IS_RET,  32                # the statement is ret: only inside a function
 
 .bss
 inbuf:  .skip INSZ + 1          # one spare byte tells "exactly INSZ" from "too big"
 inend:
 outbuf: .skip OUTSZ
-vars:   .skip NVARS * 16        # per variable: name address in inbuf, name length
+vars:   .skip 2 * NVARS * 16    # per variable: name address in inbuf, name length;
+                                # top level first, then the open function
 bufs:   .skip NBUFS * 16        # per buffer: the same
 bufaddr: .skip NBUFS * 4        # per buffer: its address
 nbufs:  .skip 4                 # number of buffers defined so far
@@ -40,6 +45,19 @@ nlabels: .skip 4                # number of labels defined so far
 nfix:   .skip 4                 # number of jumps emitted so far
 fixs:   .skip NFIX * 24         # per jump: label name address and length,
                                 # address of its rel32 in outbuf
+infn:   .skip 4                 # 1 between fn and end
+topvars: .skip 4                # top-level variable count while in a function
+fnskip: .skip 8                 # rel32 of the jump over the open function
+labbase: .skip 4                # first label of the current scope
+fixbase: .skip 4                # first jump of the current scope
+callname: .skip 16              # function name of this call: address, length
+funcs:  .skip NFUNCS * 16       # per function: name address in inbuf, name length
+funaddr: .skip NFUNCS * 8       # per function: its entry address in outbuf
+funargs: .skip NFUNCS           # per function: number of parameters
+nfuncs: .skip 4                 # number of functions defined so far
+calls:  .skip NCALLS * 32       # per call: function name address and length,
+                                # address of its rel32 in outbuf, value count
+ncalls: .skip 4                 # number of calls emitted so far
 
 .section .rodata
 hdr:
@@ -149,7 +167,22 @@ optab:
     .byte 3
     .ascii "jnz"                                    # test rax, rax ; jnz rel32
     .byte 1, AS_NONE | IS_JMP, 5,  0x48,0x85,0xC0, 0x0F,0x85
+    # functions: the code of call ends where the rel32 of the function goes
+    .byte 4
+    .ascii "call"
+    .byte 0, IS_CALL, 1,  0xE8                      # call rel32
+    .byte 3
+    .ascii "ret"
+    .byte 1, AS_NONE | IS_RET, 11
+retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
+    .byte 0x41,0x5F, 0x41,0x5E, 0x41,0x5D, 0x41,0x5C, 0x5D, 0x5B, 0xC3
+.equ RETSZ, . - retcode         # pop rbp ; pop rbx ; ret
     .byte 0
+
+# function entry: push rbx ; push rbp ; push r12 ; push r13 ; push r14 ; push r15
+fnpush:
+    .byte 0x53, 0x55, 0x41,0x54, 0x41,0x55, 0x41,0x56, 0x41,0x57
+.equ FNPUSHSZ, . - fnpush
 
 # syscall arg index -> (REX prefix or 0, "mov r32, imm32" opcode)
 regtab:
@@ -184,6 +217,10 @@ m_bufs:   .ascii "ailc: too many buffers\n"
 .equ M_BUFS_SZ, . - m_bufs
 m_label:  .ascii "ailc: undefined label\n"
 .equ M_LABEL_SZ, . - m_label
+m_fn:     .ascii "ailc: undefined function\n"
+.equ M_FN_SZ, . - m_fn
+m_argc:   .ascii "ailc: wrong argument count\n"
+.equ M_ARGC_SZ, . - m_argc
 m_read:   .ascii "ailc: read error\n"
 .equ M_READ_SZ, . - m_read
 m_write:  .ascii "ailc: write error\n"
@@ -237,12 +274,20 @@ next:
     cmp al, 'z' - 'a'
     ja err
     call name
-    cmp r9, 3
+    cmp r9, 2
+    jne 5f
+    cmp word ptr [r8], 0x6e66   # "fn"
+    je fndef
+5:  cmp r9, 3
     jne 5f
     cmp word ptr [r8], 0x7562   # "bu"
-    jne 5f
+    jne 4f
     cmp byte ptr [r8+2], 'f'
     je bufdef
+4:  cmp word ptr [r8], 0x6e65   # "en"
+    jne 5f
+    cmp byte ptr [r8+2], 'd'
+    je fnend
 5:  cmp r9, 5
     jne 5f
     cmp dword ptr [r8], 0x6562616c  # "labe"
@@ -278,7 +323,23 @@ next:
     cmp al, 9
     jne err
 3:  call blanks
-    test byte ptr [rdx+1], IS_SYS
+    test byte ptr [rdx+1], IS_RET
+    jz 4f
+    cmp dword ptr [rip+infn], 0 # ret: only between fn and end
+    je err
+4:  test byte ptr [rdx+1], IS_CALL
+    jz 4f
+    cmp rsi, r15                # call: the function name comes first
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja err
+    call name
+    mov [rip+callname], r8
+    mov [rip+callname+8], r9
+    jmp tokend
+4:  test byte ptr [rdx+1], IS_SYS
     jz arg
     cmp rsi, r15                # sys: the syscall number must be a literal
     jae err
@@ -455,6 +516,19 @@ capture:
     test byte ptr [rdx+1], AS_NONE
     jnz err
     call blanks
+    call defvar
+    lea rcx, [rip+varnum]
+    movzx r8d, byte ptr [rcx+rax]
+    call eol
+    call emit_op
+    mov ecx, r8d
+    xor eax, eax
+    call emit_mov_rr            # mov <variable reg>, rax
+    jmp next
+
+# read a variable name at rsi and find it in the pool of the current scope,
+# or add it: eax = its index
+defvar:
     cmp rsi, r15
     jae err
     mov al, [rsi]
@@ -476,14 +550,7 @@ capture:
     mov [r10+8], r9
     mov eax, ebp
     inc ebp
-2:  lea rcx, [rip+varnum]
-    movzx r8d, byte ptr [rcx+rax]
-    call eol
-    call emit_op
-    mov ecx, r8d
-    xor eax, eax
-    call emit_mov_rr            # mov <variable reg>, rax
-    jmp next
+2:  ret
 
 # ---- buffers
 # "buf <name> <size>": reserve zero-filled bytes in the writable segment
@@ -502,6 +569,8 @@ bufdef:
     je err
 1:  call lookup_var
     jnc err_dup
+    call lookup_topvar          # a buffer is global: no top-level variable
+    jnc err_dup                 # may have its name either
     call lookup_buf
     jnc err_dup
     cmp dword ptr [rip+nbufs], NBUFS
@@ -586,6 +655,131 @@ jtarget:
     inc dword ptr [rip+nfix]
     jmp next
 
+# ---- functions
+# "fn <name> <parameter>...": jump over the body, save the caller's variable
+# registers and open a scope whose first variables are the parameters
+fndef:
+    cmp dword ptr [rip+infn], 0 # functions do not nest
+    jne err
+    call blank1
+    cmp rsi, r15
+    jae err
+    mov al, [rsi]
+    sub al, 'a'
+    cmp al, 'z' - 'a'
+    ja err
+    call name
+    call lookup_fn
+    jnc err_dup
+    mov [r10], r8
+    mov [r10+8], r9
+    mov byte ptr [rdi], 0xE9    # jmp rel32, filled in by end
+    inc rdi
+    mov [rip+fnskip], rdi
+    add rdi, 4
+    mov eax, [rip+nfuncs]
+    lea rcx, [rip+funaddr]
+    mov [rcx+rax*8], rdi
+    push rsi
+    lea rsi, [rip+fnpush]
+    mov ecx, FNPUSHSZ
+    rep movsb
+    pop rsi
+    mov [rip+topvars], ebp
+    xor ebp, ebp
+    mov dword ptr [rip+infn], 1
+    mov eax, [rip+nlabels]
+    mov [rip+labbase], eax
+    mov eax, [rip+nfix]
+    mov [rip+fixbase], eax
+1:  call blanks                 # parameters, up to the end of the line
+    cmp rsi, r15
+    jae 2f
+    mov al, [rsi]
+    cmp al, 10
+    je 2f
+    cmp al, 13
+    je 2f
+    cmp al, '#'
+    je 2f
+    push rbp
+    call defvar
+    pop rcx
+    cmp ecx, ebp                # the pool did not grow: a repeated name
+    je err_dup
+    lea rcx, [rip+varnum]
+    movzx ecx, byte ptr [rcx+rax]
+    lea rdx, [rip+argnum]
+    movzx eax, byte ptr [rdx+rax]
+    call emit_mov_rr            # mov <variable reg>, <argument reg>
+    jmp 1b
+2:  call eol
+    mov eax, [rip+nfuncs]
+    lea rcx, [rip+funargs]
+    mov [rcx+rax], bpl
+    inc dword ptr [rip+nfuncs]
+    jmp next
+
+# "end": return zero, resolve the jumps of the function and drop its labels,
+# variables and jumps
+fnend:
+    cmp dword ptr [rip+infn], 0
+    je err
+    call eol
+    mov word ptr [rdi], 0xC031  # xor eax, eax
+    add rdi, 2
+    push rsi
+    lea rsi, [rip+retcode]
+    mov ecx, RETSZ
+    rep movsb
+    pop rsi
+    call resolve
+    mov eax, [rip+fixbase]
+    mov [rip+nfix], eax
+    mov eax, [rip+labbase]
+    mov [rip+nlabels], eax
+    xor eax, eax
+    mov [rip+fixbase], eax
+    mov [rip+labbase], eax
+    mov [rip+infn], eax
+    mov rcx, [rip+fnskip]       # top-level code continues here
+    mov rax, rdi
+    sub rax, rcx
+    sub rax, 4
+    mov [rcx], eax
+    mov ebp, [rip+topvars]
+    jmp next
+
+# fill in the jumps of the current scope, now that all its labels are known
+resolve:
+    push rbx
+    push rbp
+    mov eax, [rip+fixbase]
+    mov ebp, [rip+nfix]
+    sub ebp, eax
+    lea rax, [rax+rax*2]
+    lea rbx, [rip+fixs]
+    lea rbx, [rbx+rax*8]
+1:  test ebp, ebp
+    jz 2f
+    mov r8, [rbx]
+    mov r9, [rbx+8]
+    call lookup_label
+    jc err_label
+    add eax, [rip+labbase]
+    lea rcx, [rip+labaddr]
+    mov rax, [rcx+rax*8]
+    mov rcx, [rbx+16]
+    sub rax, rcx
+    sub rax, 4                  # relative to the end of the rel32
+    mov [rcx], eax
+    add rbx, 24
+    dec ebp
+    jmp 1b
+2:  pop rbp
+    pop rbx
+    ret
+
 # require one space or tab at rsi, then skip the rest of them
 blank1:
     cmp rsi, r15
@@ -646,16 +840,35 @@ name:
     sub r9, r8
     ret
 
-# find the name r8/r9 among the variables, the buffers or the labels:
-# eax = its index, or carry set if it is not defined, with r10 = the free
+# find the name r8/r9 among the variables or the labels of the current
+# scope, the functions or the buffers: eax = its index (for a label, counted
+# from labbase), or carry set if it is not defined, with r10 = the free
 # table slot
 lookup_var:
     lea r10, [rip+vars]
+    cmp dword ptr [rip+infn], 0
+    je 1f
+    add r10, NVARS * 16         # the pool of the open function
+1:  mov edx, ebp
+    jmp lookup
+lookup_topvar:                  # the top-level variables, from inside a function
+    lea r10, [rip+vars]
+    mov edx, [rip+topvars]
+    cmp dword ptr [rip+infn], 0
+    jne lookup
     mov edx, ebp
     jmp lookup
 lookup_label:
-    lea r10, [rip+labels]
+    mov eax, [rip+labbase]
     mov edx, [rip+nlabels]
+    sub edx, eax
+    shl eax, 4
+    lea r10, [rip+labels]
+    add r10, rax
+    jmp lookup
+lookup_fn:
+    lea r10, [rip+funcs]
+    mov edx, [rip+nfuncs]
     jmp lookup
 lookup_buf:
     lea r10, [rip+bufs]
@@ -682,11 +895,12 @@ lookup:
 4:  stc
     ret
 
-# emit the code of the current statement, after checking its operand count
+# emit the code of the current statement, after checking its operand count;
+# a call also leaves room for its rel32 and records it for fin. Keeps r8.
 emit_op:
     mov rdx, [rip+curop]
-    test byte ptr [rdx+1], IS_SYS
-    jnz 1f                      # sys takes any number of arguments
+    test byte ptr [rdx+1], IS_SYS | IS_CALL
+    jnz 1f                      # sys and call take any number of arguments
     cmp bl, [rdx]
     jne err
 1:  movzx ecx, byte ptr [rdx+2]
@@ -694,7 +908,23 @@ emit_op:
     lea rsi, [rdx+3]
     rep movsb
     pop rsi
-    ret
+    test byte ptr [rdx+1], IS_CALL
+    jz 2f
+    cmp ebx, 6                  # a function has at most six parameters
+    ja err
+    mov eax, [rip+ncalls]
+    shl eax, 5
+    lea rcx, [rip+calls]
+    add rcx, rax
+    mov rax, [rip+callname]
+    mov [rcx], rax
+    mov rax, [rip+callname+8]
+    mov [rcx+8], rax
+    mov [rcx+16], rdi
+    mov [rcx+24], ebx
+    add rdi, 4
+    inc dword ptr [rip+ncalls]
+2:  ret
 
 # emit the 64-bit "mov <reg ecx>, <reg eax>" (x86 register numbers)
 emit_mov_rr:
@@ -733,26 +963,33 @@ emit_mov:
     inc ebx
     ret
 
-# ---- implicit exit(0), patch jumps and sizes, write ELF to stdout
+# ---- implicit exit(0), patch jumps, calls and sizes, write ELF to stdout
 fin:
+    cmp dword ptr [rip+infn], 0 # a function without its end
+    jne err
     lea rsi, [rip+exit0]
     mov ecx, EXIT0SZ
     rep movsb
-    lea rbx, [rip+fixs]         # every label is known now: fill in the jumps
-    mov ebp, [rip+nfix]
+    call resolve                # the top-level jumps
+    lea rbx, [rip+calls]        # every function is known now: fill in the calls
+    mov ebp, [rip+ncalls]
 1:  test ebp, ebp
     jz 2f
     mov r8, [rbx]
     mov r9, [rbx+8]
-    call lookup_label
-    jc err_label
-    lea rcx, [rip+labaddr]
+    call lookup_fn
+    jc err_fn
+    lea rcx, [rip+funargs]
+    movzx ecx, byte ptr [rcx+rax]
+    cmp ecx, [rbx+24]
+    jne err_argc
+    lea rcx, [rip+funaddr]
     mov rax, [rcx+rax*8]
     mov rcx, [rbx+16]
     sub rax, rcx
     sub rax, 4                  # relative to the end of the rel32
     mov [rcx], eax
-    add rbx, 24
+    add rbx, 32
     dec ebp
     jmp 1b
 2:
@@ -811,6 +1048,16 @@ err_bufs:
 err_label:
     lea rsi, [rip+m_label]
     mov edx, M_LABEL_SZ
+    mov ebx, 1
+    jmp die
+err_fn:
+    lea rsi, [rip+m_fn]
+    mov edx, M_FN_SZ
+    mov ebx, 1
+    jmp die
+err_argc:
+    lea rsi, [rip+m_argc]
+    mov edx, M_ARGC_SZ
     mov ebx, 1
     jmp die
 err_read:

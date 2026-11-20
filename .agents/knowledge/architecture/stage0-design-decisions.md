@@ -1,7 +1,7 @@
 ---
 title: Stage0 design decisions
 last-verified: 2026-11-19
-sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow item 2026-11-19, stage0/ailc.s]
+sources: [commit 787fe7e, code reviews 2026-11-19, conversations 2026-11-19, TODO.md control flow and functions items 2026-11-19, stage0/ailc.s]
 status: current
 ---
 # Stage0 design decisions
@@ -113,8 +113,9 @@ records the reasoning.
 
 ## How to apply
 - Keep new syntax to short common words separated by spaces; let the compiler derive what it can.
-- A forward reference to code goes through `fixs`, resolved in `fin`. Functions can reuse it for
-  `call rel32`; a table sized from the source limit needs the shortest line that fills it.
+- A forward reference to code goes through a fixup list: `fixs` for jumps, resolved per scope,
+  and `calls` for `call rel32`, resolved in `fin` (see [Stage0 functions](stage0-functions.md)).
+  A table sized from the source limit needs the shortest line that fills it.
 - A statement that ends in a name which is not a value (as the jumps do) is an `optab` row with
   its own flag, checked in `ident` and at the end-of-statement path in `arg`.
 - A new statement that maps to "operands in `rax`/`rdi`, result in `rax`" is a row in `optab`.
@@ -131,12 +132,12 @@ records the reasoning.
 ## Open items
 - 2026-11-19: token cost has not been measured with a real tokenizer; the syntax follows a rule of
   thumb only.
-- 2026-11-19: self-hosting is not started; the language lacks functions.
-- 2026-11-19: six variables will not be enough for a compiler; that needs spilling or scoped reuse
-  of registers once functions exist.
+- 2026-11-19: self-hosting is not started; functions exist since 2026-11-19.
+- 2026-11-19: six variables per function may not be enough for a compiler; more needs spilling.
 - 2026-11-19: errors carry no line number.
 - 2026-11-19: I/O error paths and the Makefile failed-build case have no automated test.
 
 ## Related
+- [Stage0 functions](stage0-functions.md)
 - [Stage0 test suite](../testing/stage0-test-suite.md)
 - [Open items](../status/open-items.md)

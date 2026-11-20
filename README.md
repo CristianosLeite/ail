@@ -12,7 +12,7 @@ It compiles to a 224-byte static Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, six register variables, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, but no functions yet, and the compiler is a bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
+Early proof of concept. The language has raw syscalls, six register variables per function, integer arithmetic, comparisons, byte or 64-bit memory access, labels and jumps, and functions with recursion; the compiler is still the bootstrap version written in assembly. The plan is to grow the language until the compiler can be rewritten in AIL itself; see the [roadmap](docs/roadmap.md).
 
 ## Quick start
 
@@ -24,6 +24,7 @@ build/hello         # prints: hello world
 echo hi | build/echo     # prints: hi
 echo hi | build/count    # prints: 0003
 build/loop          # prints the digits 0 to 9, one per line
+build/fact; echo $? # prints: 120
 make test           # runs the tests in tests/
 make test T=hello   # runs one test
 ```
@@ -41,7 +42,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | Form | Meaning |
 |---|---|
 | `sys n a b ...` | Raw Linux syscall `n` with up to 6 arguments |
-| `sys ... as x` | Same, keeping the return value in variable `x` (at most 6 variables) |
+| `sys ... as x` | Same, keeping the return value in variable `x` (at most 6 variables per function) |
 | `set a as x` | `x = a` |
 | `add a b as x` | `x = a + b`; also `sub mul div mod and or xor shl shr` |
 | `lt a b as x` | `x = 1` if `a < b`, else `0`, unsigned; also `eq ne le gt ge` |
@@ -50,6 +51,9 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `store p a`, `storeb p a` | Write `a` as 64 bits or as one byte at address `p` |
 | `label l` | Name this point of the program |
 | `jmp l`, `jz a l`, `jnz a l` | Jump to label `l`: always, if `a` is zero, if `a` is not zero |
+| `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
+| `ret a` | Return `a` from the function; reaching `end` returns 0 |
+| `call f a b as x` | Call `f` with up to 6 values; `as x` keeps the result and is optional |
 | `123` | Unsigned 32-bit decimal argument |
 | `x` | Variable (64-bit) or buffer name (its address) |
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
@@ -66,7 +70,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 ## Layout
 
 - `stage0/ailc.s`: bootstrap compiler in assembly
-- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump)
+- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function)
 - `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents
