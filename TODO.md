@@ -101,6 +101,20 @@ understands. See the [roadmap](docs/roadmap.md) for project history.
 - [x] Measure token cost with a real tokenizer on equivalent AIL, C, Rust and
   assembly programs. Use the results to guide syntax choices.
 
+## Parallel execution
+
+- [ ] Define compact `spawn` and `join` forms for independent tasks. Have
+  `spawn` submit a function and return a task handle, and have `join` wait
+  for its result. Define handle lifetime, error handling and the visibility of
+  writes after `join`. Specify how long memory passed to a task must stay valid.
+- [ ] Implement a small runtime in AIL that starts a bounded, configurable pool
+  of Linux threads on demand. Reuse workers across tasks and skip runtime
+  initialization in programs that never spawn a task.
+- [ ] Test result delivery, shared-memory synchronization and worker limits.
+  Measure elapsed time and source tokens on the same divisible workloads at 1,
+  2, 4, 8, 14 and 20 workers on the benchmark machine. Vary task size to find
+  where scheduling and synchronization overhead outweigh the speedup.
+
 ## Redesign
 
 From `REDESIGN.md`; one commit per item.
@@ -117,7 +131,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Compile compound expressions and `name = expression`.
 - [x] Accept an expression as the condition of `if`.
 - [x] Add the `while` block.
-- [ ] Check expressions against computed results in random programs.
+- [x] Check expressions against computed results in random programs.
 - [ ] Use immediate forms of instructions, and shifts and masks for division
   and remainder by a power of two.
 - [ ] Use variables in place as operands.

@@ -26,6 +26,12 @@ layout of a test; this page records why some fixtures look the way they do.
   changes. A stage1 with one constant of `rdnum` changed, given as the second compiler, was
   found by the fuzz at source 1303 of 3000; wrappers that print two error lines or die of a
   signal fail at once.
+- `tools/randvars.py` (rewritten 2026-11-20) renders each random tree twice, as statements
+  with labels and jumps and as expressions with `x+=e`, `while` and `if` on a comparison, with
+  all sixteen operators, redundant parentheses now and then, divisors forced non-zero by `|1`,
+  and variables first assigned inside a loop or block kept to it (a `while` may run no round, so
+  the compiler does not count them as assigned after it). Python runs the tree for the expected
+  status. See the page on [expression code](../architecture/expression-syntax.md).
 - The older facts below that speak of two compilers describe the suite before that date.
 - `tests/make.sh` (since 2026-11-20) checks the recipe for examples in a scratch copy with the
   compiler already built: a good example builds and runs; after its source is broken the build
