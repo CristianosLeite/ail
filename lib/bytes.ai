@@ -38,6 +38,10 @@ load byb+16 as bycap
 if bycap-bylen>=byn
 ret 1
 end
+# a length that does not fit in 64 bits is no memory
+if bylen+byn<bylen
+ret 0
+end
 bynew=bycap*2
 if bynew<bylen+byn
 bynew=bylen+byn

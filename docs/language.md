@@ -838,7 +838,7 @@ call print p n
 ```
 
 - **Growth**: `byadd`, `byaddb`, `byaddn` and `byneed` may move the bytes: when the room is used up they take twice as much with `alloc` (at least 4096 bytes), copy, and `free` the old. An address into the bytes is therefore only good until the next of those four calls; a place that must survive them is kept as an offset from the start. After `byneed b n` the next `n` bytes added move nothing.
-- **Errors**: the four return 1, or 0 when the kernel has no memory; the buffer is then as it was. Nothing else can fail and nothing is checked: `bycut` beyond the length and a buffer that is not 24 bytes of the caller's are faults of the program.
+- **Errors**: the four return 1, or 0 when the kernel has no memory or the new length would not fit in 64 bits; the buffer is then as it was. Nothing else can fail and nothing is checked: `bycut` beyond the length and a buffer that is not 24 bytes of the caller's are faults of the program.
 - **Ownership**: the caller owns the 24 bytes and ends the buffer with `byfree`; a buffer in a `local` is freed before its function returns. The bytes are read at the address in the first 8 bytes, with the length in the next 8.
 - **Names**: the library owns every name that starts with `by`; a program has no `var` of such a name.
 
