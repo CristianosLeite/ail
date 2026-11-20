@@ -8,12 +8,14 @@
 # with "async", as its functions and its buffer have.
 #
 # A piece of work is a record from asyncget:
-#    0  the function and 8 to 32 its four values
+#    0  the function, 8 and 16 its first two values
+#   24  the class of its size, which is asyncget's
 #   40  its result
 #   48  the next record of those that are done
 #   56  the task of the pool that runs it
 #   64  the event that awaits it, 0 once that was cancelled
 #   72  1 if it need not run any more
+#   80  and 88 its last two values
 # Only the thread that polls makes and frees records. A worker reads the
 # record it was given and writes 40 and 48.
 #
@@ -34,8 +36,8 @@ ifz asyncx
 load asyncj as asyncf
 load asyncj+8 as asynca
 load asyncj+16 as asyncb
-load asyncj+24 as asyncc
-load asyncj+32 as asyncd
+load asyncj+80 as asyncc
+load asyncj+88 as asyncd
 callp asyncf asynca asyncb asyncc asyncd as asyncv
 end
 store asyncj+40 asyncv
@@ -163,8 +165,8 @@ end
 store asyncj asyncp
 store asyncj+8 asynca
 store asyncj+16 asyncb
-store asyncj+24 asyncc
-store asyncj+32 asyncd
+store asyncj+80 asyncc
+store asyncj+88 asyncd
 store asyncj+64 asynch
 store asyncj+72 0
 ref asyncjob as asyncf
