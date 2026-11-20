@@ -3,7 +3,7 @@ buf out 2
 storeb out+1 10         # newline
 i=0
 while i<10
-storeb out i+48         # 48 is "0"
-sys 1 1 out 2
-i+=1
+	storeb out i+48         # 48 is "0"
+	sys 1 1 out 2
+	i+=1
 end

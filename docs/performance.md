@@ -109,7 +109,7 @@ Geometric mean of AIL / C: 1.041, within the 5% the redesign set as its first th
 
 `REDESIGN.md` set four criteria. This is where each stands, measured with the final compiler, the one written with expressions and built from seed 2.
 
-**Source cost: met.** The corpus is fixed at ten programs, the six that existed and four added for arithmetic, control flow and memory access. AIL is 970 tokens, Rust 1191, C 1118; [tokens.md](tokens.md) lists every program. AIL is below C in all ten and above Rust in two, `count` (118 against 102) and `fnv` (141 against 126).
+**Source cost: met.** The corpus is fixed at ten programs, the six that existed and four added for arithmetic, control flow and memory access. AIL was 970 tokens, Rust 1191, C 1118, with AIL below C in all ten programs and above Rust in two, `count` (118 against 102) and `fnv` (141 against 126). Since the examples are indented, later the same day, AIL is 990: still below Rust, below C in nine and two tokens above it in `collatz` (121 against 119), with `fnv` at 144; [tokens.md](tokens.md) lists every program.
 
 **CPU performance: the threshold is met, parity is not.** Geometric mean of elapsed time against `gcc -O3` over the five CPU-bound programs: 1.039, inside the 5% set as the first threshold.
 
