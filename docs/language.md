@@ -160,7 +160,7 @@ i+=1
 h=(h^r)*0x100000001b3
 ```
 
-`name=expression` computes the [expression](#expressions) and keeps it in the variable, exactly as `set expression as name` does: the variable is defined if it is new, a `var` of that name is written, and any other global name is `duplicate name`. The statement is one word: no space on either side of the `=`, and nothing after the expression but a comment. A variable that is new cannot stand in its own expression.
+`name=expression` computes the [expression](#expressions) and keeps it in the variable, as `set expression as name` does, but in the register of the variable where it can, so that `i+=1` is one instruction: the variable is defined if it is new, a `var` of that name is written, and any other global name is `duplicate name`. The statement is one word: no space on either side of the `=`, and nothing after the expression but a comment. A variable that is new cannot stand in its own expression.
 
 With one of the operators `* / % + - << >> & ^ |` directly before the `=`, the variable is changed in place: `x+=e` is `x=x+(e)`, the whole right side being the second operand, so `x*=a+1` multiplies by the sum. The variable must have a value already.
 

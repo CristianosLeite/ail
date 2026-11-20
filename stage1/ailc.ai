@@ -54,6 +54,10 @@ var nex nexv nexs exdm exsh
 # operands of the operator at hand, and how many bytes of the row of a
 # statement eop is to leave out
 var xfree xpref nxs xspl xlk xla xlb xlc xrk xra xrb xrc xskip xcl xct
+# for an assignment to a variable that has a register: that register (else
+# 16), whether the operator at hand is the last, and whether the result is
+# already in the register
+var xtr xlast xtin
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -1787,27 +1791,76 @@ set 7 as xlk
 set r as xla
 end
 end
+# the result is being made in the register of the variable assigned: it is
+# no longer free for anything else
+fn xtarget
+set 1 as xtin
+shl 1 xtr as m
+or xfree m as c
+xor c m as xfree
+end
+# the two operands change places
+fn xswap
+set xlk as k
+set xla as a
+set xlb as b
+set xlc as c
+set xrk as t
+set t as xlk
+set xra as t
+set t as xla
+set xrb as t
+set t as xlb
+set xrc as t
+set t as xlc
+set k as xrk
+set a as xra
+set b as xrb
+set c as xrc
+end
 # the register that an operator computes in: that of its left operand if
 # it is a computed value, or of its right one if the operands may change
 # places (m = 1), else a new one with the left operand loaded
 fn xdst m
+if xlast
+iflt xtr 16
+# The last operator of an assignment computes in the register of the
+# variable where it can: at once if its left operand is in that register,
+# or its right one and the two may change places; else after loading the
+# left operand there, unless the right one is in it.
+call xint xlk xla as c
+if m
+ifz c
+call xint xrk xra as c
+if c
+call xswap
+end
+end
+end
+if c
+call xtarget
+ret xtr
+end
+ifne xlk 7
+call xint xrk xra as c
+ifeq xrk 7
+eq xra xtr as c
+end
+ifz c
+call xld xlk xla xlb xlc xtr
+call xtarget
+ret xtr
+end
+end
+end
+end
 ifeq xlk 7
 ret xla
 end
 if m
 ifeq xrk 7
-set xlk as k
-set xla as a
-set xlb as b
-set xlc as c
-set xra as r
-set 7 as xlk
-set r as xla
-set k as xrk
-set a as xra
-set b as xrb
-set c as xrc
-ret r
+call xswap
+ret xla
 end
 end
 call xalloc as d
@@ -1836,7 +1889,16 @@ shr c 32 as c
 jnz c n
 call vplace a as kk pp
 jnz kk n
+set 16 as d
+if xlast
+iflt xtr 16
+set xtr as d
+call xtarget
+end
+end
+ifeq d 16
 call xalloc as d
+end
 call rexw d pp
 add v 128 as c
 shr c 8 as c
@@ -2128,6 +2190,9 @@ load q as b
 add p 24 as q
 load q as c
 ifeq k 6
+add i 1 as j
+eq j h as j
+set j as xlast
 call xop a
 else
 call xpush k a b c
@@ -2157,6 +2222,27 @@ set m as xfree
 set g as xpref
 set 0 as nxs
 set 0 as xspl
+set 16 as xtr
+set 0 as xtin
+end
+# 1 if variable i lives in register r
+fn xinreg i r
+call vplace i as kk pp
+ifz kk
+eq pp r as c
+ret c
+end
+ret 0
+end
+# 1 if the value k a is a variable that lives in the register of the
+# variable being assigned
+fn xint k a
+ifeq k 4
+iflt xtr 16
+tail xinreg a xtr
+end
+end
+ret 0
 end
 # the expression parsed last is the next value of the statement: compute it
 # into the register of its position, note what is known of it, count it.
@@ -2390,9 +2476,6 @@ add q 8 as q
 load q as k2
 add q 8 as q
 load q as k3
-call xinit 0x0fc1 0
-call xgen 0 nex
-call xfin 0
 set ts as ns
 set tl as nl
 call lbuf as r
@@ -2403,6 +2486,9 @@ load d as d
 ifeq d 1
 add p 16 as p
 load p as p
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
 call emem 0 1 p 137
 ret 0
 end
@@ -2437,7 +2523,50 @@ add d 8 as d
 store d k2
 add d 8 as d
 store d k3
+call vplace i as kk pp
+if kk
+# the variable lives in memory: through rax
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
 call vmov i 0 137
+ret 0
+end
+# The variable has a register. If no variable of the expression lives in
+# that register (the variable itself, or one that is done and left it its
+# place), the register is free for the computation and preferred, so that
+# the result is likely to be made in it. Otherwise it holds a value the
+# expression still reads, and only the last operator may write it (xdst).
+set 0 as j
+set 0 as al
+label a
+iflt j nex
+mul j 32 as d
+add d ex as d
+load d as c
+ifeq c 4
+add d 8 as d
+load d as c
+call xinreg c pp as c
+or al c as al
+end
+add j 1 as j
+jmp a
+end
+set 0x0fc1 as m
+set 16 as g
+ifz al
+shl 1 pp as c
+or m c as m
+set pp as g
+end
+call xinit m g
+set pp as xtr
+call xgen 0 nex
+ifz xtin
+call xfin pp
+end
+set 16 as xtr
 end
 
 # ---- output

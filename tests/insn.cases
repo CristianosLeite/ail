@@ -100,37 +100,53 @@ fn f ; jmp l ; ret 1 2 ; label l ; end | e915000000e90b000000b801000000bf0200000
 fn f a b c d e g h ; end ; call f 1 2 3 4 5 6 7 | e922000000534889c34889fb4889f34889d34c89d34c89c34c8b9c24100000004c89db31c05bc3b801000000bf02000000be03000000ba0400000041ba0500000041b80600000041bb070000004153e8b1ffffff4881c408000000 | {disp32} jmp 1f ; f: push rbx ; mov rbx, rax ; mov rbx, rdi ; mov rbx, rsi ; mov rbx, rdx ; mov rbx, r10 ; mov rbx, r8 ; {disp32} mov r11, [rsp + 16] ; mov rbx, r11 ; xor eax, eax ; pop rbx ; ret ; 1: mov eax, 1 ; mov edi, 2 ; mov esi, 3 ; mov edx, 4 ; mov r10d, 5 ; mov r8d, 6 ; mov r11d, 7 ; push r11 ; call f ; .byte 0x48, 0x81, 0xc4 ; .long 8
 # expressions: values in the free scratch registers, rax first; a number is
 # the immediate operand of the instruction where it fits 32 bits, and a
-# variable is used in its register or in memory, where it is
-x=5 ; y=x+1 | b8050000004889c34889d84883c0014889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; add rax, 1 ; mov rbp, rax
-x=5 ; x*=x | b8050000004889c34889d8480fafc34889c3 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; imul rax, rbx ; mov rbx, rax
-x=5 ; sys 60 x+2*x | b8050000004889c3b83c000000486bfb024801df0f05 | mov eax, 5 ; mov rbx, rax ; mov eax, 60 ; imul rdi, rbx, 2 ; add rdi, rbx ; syscall
-x=5 ; set (x-1)*(x+1) as y | b8050000004889c34889d84883e8014889df4883c701480fafc74889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; sub rax, 1 ; mov rdi, rbx ; add rdi, 1 ; imul rax, rdi ; mov rbp, rax
-buf b 16 ; x=b+8 | 488d05490f00004883c0084889c3 | lea rax, [rip + 3913] ; add rax, 8 ; mov rbx, rax
-buf b 16 ; x=1 ; store b+8 x<<3 | b8010000004889c3488d05410f00004883c0084889df48c1e703488938 | mov eax, 1 ; mov rbx, rax ; lea rax, [rip + 3905] ; add rax, 8 ; mov rdi, rbx ; shl rdi, 3 ; mov [rax], rdi
-x=9 ; y=3 ; sys 60 1 2 3 x/y | b8090000004889c3b8030000004889c5b83c000000bf01000000be02000000ba0300000050524889d831d248f7f54989c25a580f05 | mov eax, 9 ; mov rbx, rax ; mov eax, 3 ; mov rbp, rax ; mov eax, 60 ; mov edi, 1 ; mov esi, 2 ; mov edx, 3 ; push rax ; push rdx ; mov rax, rbx ; xor edx, edx ; div rbp ; mov r10, rax ; pop rdx ; pop rax ; syscall
+# variable is used in its register or in memory, where it is. An
+# assignment is computed in the register of its variable where it can be.
+x=5 ; y=x+1 | bb050000004889dd4883c501 | mov ebx, 5 ; mov rbp, rbx ; add rbp, 1
+x=5 ; x*=x | bb05000000480fafdb | mov ebx, 5 ; imul rbx, rbx
+x=5 ; sys 60 x+2*x | bb05000000b83c000000486bfb024801df0f05 | mov ebx, 5 ; mov eax, 60 ; imul rdi, rbx, 2 ; add rdi, rbx ; syscall
+x=5 ; set (x-1)*(x+1) as y | bb050000004889d84883e8014889df4883c701480fafc74889c5 | mov ebx, 5 ; mov rax, rbx ; sub rax, 1 ; mov rdi, rbx ; add rdi, 1 ; imul rax, rdi ; mov rbp, rax
+buf b 16 ; x=b+8 | 488d1d490f00004883c308 | lea rbx, [rip + 3913] ; add rbx, 8
+buf b 16 ; x=1 ; store b+8 x<<3 | bb01000000488d05440f00004883c0084889df48c1e703488938 | mov ebx, 1 ; lea rax, [rip + 3908] ; add rax, 8 ; mov rdi, rbx ; shl rdi, 3 ; mov [rax], rdi
+x=9 ; y=3 ; sys 60 1 2 3 x/y | bb09000000bd03000000b83c000000bf01000000be02000000ba0300000050524889d831d248f7f54989c25a580f05 | mov ebx, 9 ; mov ebp, 3 ; mov eax, 60 ; mov edi, 1 ; mov esi, 2 ; mov edx, 3 ; push rax ; push rdx ; mov rax, rbx ; xor edx, edx ; div rbp ; mov r10, rax ; pop rdx ; pop rax ; syscall
 # a comparison that is the value of if, ifz, jz or jnz compares and jumps
-a=3 ; b=5 ; if a<b ; end | b8030000004889c3b8050000004889c54839eb0f8300000000 | mov eax, 3 ; mov rbx, rax ; mov eax, 5 ; mov rbp, rax ; cmp rbx, rbp ; {disp32} jae 1f ; 1:
-a=3 ; b=5 ; ifz a<b ; end | b8030000004889c3b8050000004889c54839eb0f8200000000 | mov eax, 3 ; mov rbx, rax ; mov eax, 5 ; mov rbp, rax ; cmp rbx, rbp ; {disp32} jb 1f ; 1:
-a=3 ; jnz a!=7 l ; label l | b8030000004889c34883fb070f8500000000 | mov eax, 3 ; mov rbx, rax ; cmp rbx, 7 ; {disp32} jne 1f ; 1:
-a=3 ; jz a<=7 l ; label l | b8030000004889c34883fb070f8700000000 | mov eax, 3 ; mov rbx, rax ; cmp rbx, 7 ; {disp32} ja 1f ; 1:
-a=3 ; if a>a+1 ; end | b8030000004889c34889d84883c0014839c30f8600000000 | mov eax, 3 ; mov rbx, rax ; mov rax, rbx ; add rax, 1 ; cmp rbx, rax ; {disp32} jbe 1f ; 1:
-a=3 ; if a&1 ; end | b8030000004889c34889d84883e0014885c00f8400000000 | mov eax, 3 ; mov rbx, rax ; mov rax, rbx ; and rax, 1 ; test rax, rax ; {disp32} jz 1f ; 1:
+a=3 ; b=5 ; if a<b ; end | bb03000000bd050000004839eb0f8300000000 | mov ebx, 3 ; mov ebp, 5 ; cmp rbx, rbp ; {disp32} jae 1f ; 1:
+a=3 ; b=5 ; ifz a<b ; end | bb03000000bd050000004839eb0f8200000000 | mov ebx, 3 ; mov ebp, 5 ; cmp rbx, rbp ; {disp32} jb 1f ; 1:
+a=3 ; jnz a!=7 l ; label l | bb030000004883fb070f8500000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} jne 1f ; 1:
+a=3 ; jz a<=7 l ; label l | bb030000004883fb070f8700000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} ja 1f ; 1:
+a=3 ; if a>a+1 ; end | bb030000004889d84883c0014839c30f8600000000 | mov ebx, 3 ; mov rax, rbx ; add rax, 1 ; cmp rbx, rax ; {disp32} jbe 1f ; 1:
+a=3 ; if a&1 ; end | bb030000004889d84883e0014885c00f8400000000 | mov ebx, 3 ; mov rax, rbx ; and rax, 1 ; test rax, rax ; {disp32} jz 1f ; 1:
 # while: the test of an if at the head and a jump back at the end
-i=3 ; while i ; i-=1 ; end | b8030000004889c34889d84885c00f840f0000004889d84883e8014889c3e9e5ffffff | mov eax, 3 ; mov rbx, rax ; 1: mov rax, rbx ; test rax, rax ; {disp32} jz 2f ; mov rax, rbx ; sub rax, 1 ; mov rbx, rax ; {disp32} jmp 1b ; 2:
-i=3 ; while i<9 ; end | b8030000004889c34883fb090f8305000000e9f1ffffff | mov eax, 3 ; mov rbx, rax ; 1: cmp rbx, 9 ; {disp32} jae 2f ; {disp32} jmp 1b ; 2:
-x=5 ; x=(x^x>>13)*1664525+1013904223 | b8050000004889c34889d848c1e80d4831d84869c00d66190048055ff36e3c4889c3 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; shr rax, 13 ; xor rax, rbx ; imul rax, rax, 1664525 ; add rax, 1013904223 ; mov rbx, rax
-x=5 ; y=x/2+x%8 | b8050000004889c34889d848d1e84889df4883e7074801f84889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; shr rax, 1 ; mov rdi, rbx ; and rdi, 7 ; add rax, rdi ; mov rbp, rax
-x=5 ; y=x/1+x%1 | b8050000004889c34889d84889df4883e7004801f84889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; mov rdi, rbx ; and rdi, 0 ; add rax, rdi ; mov rbp, rax
-x=5 ; y=x/3 | b8050000004889c34889d8bf0300000031d248f7f74889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; mov edi, 3 ; xor edx, edx ; div rdi ; mov rbp, rax
-x=5 ; y=x%10 | b8050000004889c34889d8bf0a00000031d248f7f74889d04889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; mov edi, 10 ; xor edx, edx ; div rdi ; mov rax, rdx ; mov rbp, rax
-x=5 ; y=(x-200)|(x&-2)^(x+0x7fffffff) | b8050000004889c34889d8482dc80000004889df4883e7fe4889de4881c6ffffff7f4831f74809f84889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; sub rax, 200 ; mov rdi, rbx ; and rdi, -2 ; mov rsi, rbx ; add rsi, 0x7fffffff ; xor rdi, rsi ; or rax, rdi ; mov rbp, rax
-x=5 ; y=x+0x80000000 | b8050000004889c34889d8bf000000804801f84889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; mov edi, 0x80000000 ; add rax, rdi ; mov rbp, rax
-x=5 ; y=x*-3+x*0x123456789 | b8050000004889c3486bc3fd4889df48be8967452301000000480faffe4801f84889c5 | mov eax, 5 ; mov rbx, rax ; imul rax, rbx, -3 ; mov rdi, rbx ; movabs rsi, 0x123456789 ; imul rdi, rsi ; add rax, rdi ; mov rbp, rax
-x=5 ; y=x<<3>>60 | b8050000004889c34889d848c1e00348c1e83c4889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; shl rax, 3 ; shr rax, 60 ; mov rbp, rax
-x=5 ; y=1<<x | b8050000004889c3b8010000004889d948d3e04889c5 | mov eax, 5 ; mov rbx, rax ; mov eax, 1 ; mov rcx, rbx ; shl rax, cl ; mov rbp, rax
-x=5 ; y=(x<9)+(x==5) | b8050000004889c34883fb090f92c00fb6c04883fb05400f94c7400fb6ff4801f84889c5 | mov eax, 5 ; mov rbx, rax ; cmp rbx, 9 ; setb al ; movzx eax, al ; cmp rbx, 5 ; sete dil ; movzx edi, dil ; add rax, rdi ; mov rbp, rax
-x=5 ; y=3-x | b8050000004889c3b8030000004829d84889c5 | mov eax, 5 ; mov rbx, rax ; mov eax, 3 ; sub rax, rbx ; mov rbp, rax
-x=5 ; y=3+x | b8050000004889c3b8030000004801d84889c5 | mov eax, 5 ; mov rbx, rax ; mov eax, 3 ; add rax, rbx ; mov rbp, rax
-x=5 ; y=(x|0x1000)^(x<200)+(x>=0x7fffffff) | b8050000004889c34889d8480d001000004881fbc8000000400f92c7400fb6ff4881fbffffff7f400f93c6400fb6f64801f74831f84889c5 | mov eax, 5 ; mov rbx, rax ; mov rax, rbx ; or rax, 0x1000 ; cmp rbx, 200 ; setb dil ; movzx edi, dil ; cmp rbx, 0x7fffffff ; setae sil ; movzx esi, sil ; add rdi, rsi ; xor rax, rdi ; mov rbp, rax
-a=1 ; b=1 ; c=1 ; d=1 ; e=1 ; f=1 ; g=1 ; h=a+g*g-g | b8010000004889c3b8010000004889c5b8010000004989c4b8010000004989c5b8010000004989c6b8010000004989c7b801000000488905140f0000488b050d0f0000480faf05050f00004801d8482b05fb0e0000488905fc0e0000 | mov eax, 1 ; mov rbx, rax ; mov eax, 1 ; mov rbp, rax ; mov eax, 1 ; mov r12, rax ; mov eax, 1 ; mov r13, rax ; mov eax, 1 ; mov r14, rax ; mov eax, 1 ; mov r15, rax ; mov eax, 1 ; mov [rip + 3860], rax ; mov rax, [rip + 3853] ; imul rax, [rip + 3845] ; add rax, rbx ; sub rax, [rip + 3835] ; mov [rip + 3836], rax
-var v ; x=7 ; if x/v>v ; end | b8070000004889c34889d831d248f7353c0f0000483b05350f00000f8600000000 | mov eax, 7 ; mov rbx, rax ; mov rax, rbx ; xor edx, edx ; div qword ptr [rip + 3900] ; cmp rax, [rip + 3893] ; {disp32} jbe 1f ; 1:
+i=3 ; while i ; i-=1 ; end | bb030000004889d84885c00f84090000004883eb01e9ebffffff | mov ebx, 3 ; 1: mov rax, rbx ; test rax, rax ; {disp32} jz 2f ; sub rbx, 1 ; {disp32} jmp 1b ; 2:
+i=3 ; while i<9 ; end | bb030000004883fb090f8305000000e9f1ffffff | mov ebx, 3 ; 1: cmp rbx, 9 ; {disp32} jae 2f ; {disp32} jmp 1b ; 2:
+x=5 ; x=(x^x>>13)*1664525+1013904223 | bb050000004889d848c1e80d4831d84869c00d66190048055ff36e3c4889c3 | mov ebx, 5 ; mov rax, rbx ; shr rax, 13 ; xor rax, rbx ; imul rax, rax, 1664525 ; add rax, 1013904223 ; mov rbx, rax
+x=5 ; y=x/2+x%8 | bb050000004889dd48d1ed4889d84883e0074801c5 | mov ebx, 5 ; mov rbp, rbx ; shr rbp, 1 ; mov rax, rbx ; and rax, 7 ; add rbp, rax
+x=5 ; y=x/1+x%1 | bb050000004889dd4889d84883e0004801c5 | mov ebx, 5 ; mov rbp, rbx ; mov rax, rbx ; and rax, 0 ; add rbp, rax
+x=5 ; y=x/3 | bb050000004889d8bd0300000031d248f7f54889c5 | mov ebx, 5 ; mov rax, rbx ; mov ebp, 3 ; xor edx, edx ; div rbp ; mov rbp, rax
+x=5 ; y=x%10 | bb050000004889d8bd0a00000031d248f7f54889d04889c5 | mov ebx, 5 ; mov rax, rbx ; mov ebp, 10 ; xor edx, edx ; div rbp ; mov rax, rdx ; mov rbp, rax
+x=5 ; y=(x-200)|(x&-2)^(x+0x7fffffff) | bb050000004889dd4881edc80000004889d84883e0fe4889df4881c7ffffff7f4831f84809c5 | mov ebx, 5 ; mov rbp, rbx ; sub rbp, 200 ; mov rax, rbx ; and rax, -2 ; mov rdi, rbx ; add rdi, 0x7fffffff ; xor rax, rdi ; or rbp, rax
+x=5 ; y=x+0x80000000 | bb050000004889ddb8000000804801c5 | mov ebx, 5 ; mov rbp, rbx ; mov eax, 0x80000000 ; add rbp, rax
+x=5 ; y=x*-3+x*0x123456789 | bb05000000486bebfd4889d848bf8967452301000000480fafc74801c5 | mov ebx, 5 ; imul rbp, rbx, -3 ; mov rax, rbx ; movabs rdi, 0x123456789 ; imul rax, rdi ; add rbp, rax
+x=5 ; y=x<<3>>60 | bb050000004889dd48c1e50348c1ed3c | mov ebx, 5 ; mov rbp, rbx ; shl rbp, 3 ; shr rbp, 60
+x=5 ; y=1<<x | bb05000000bd010000004889d948d3e5 | mov ebx, 5 ; mov ebp, 1 ; mov rcx, rbx ; shl rbp, cl
+x=5 ; y=(x<9)+(x==5) | bb050000004883fb09400f92c5400fb6ed4883fb050f94c00fb6c04801c5 | mov ebx, 5 ; cmp rbx, 9 ; setb bpl ; movzx ebp, bpl ; cmp rbx, 5 ; sete al ; movzx eax, al ; add rbp, rax
+x=5 ; y=3-x | bb05000000bd030000004829dd | mov ebx, 5 ; mov ebp, 3 ; sub rbp, rbx
+x=5 ; y=3+x | bb05000000bd030000004801dd | mov ebx, 5 ; mov ebp, 3 ; add rbp, rbx
+x=5 ; y=(x|0x1000)^(x<200)+(x>=0x7fffffff) | bb050000004889dd4881cd001000004881fbc80000000f92c00fb6c04881fbffffff7f400f93c7400fb6ff4801f84831c5 | mov ebx, 5 ; mov rbp, rbx ; or rbp, 0x1000 ; cmp rbx, 200 ; setb al ; movzx eax, al ; cmp rbx, 0x7fffffff ; setae dil ; movzx edi, dil ; add rax, rdi ; xor rbp, rax
+a=1 ; b=1 ; c=1 ; d=1 ; e=1 ; f=1 ; g=1 ; h=a+g*g-g | bb01000000bd0100000041bc0100000041bd0100000041be0100000041bf01000000b801000000488905220f0000488b051b0f0000480faf05130f00004801d8482b05090f00004889050a0f0000 | mov ebx, 1 ; mov ebp, 1 ; mov r12d, 1 ; mov r13d, 1 ; mov r14d, 1 ; mov r15d, 1 ; mov eax, 1 ; mov [rip + 3874], rax ; mov rax, [rip + 3867] ; imul rax, [rip + 3859] ; add rax, rbx ; sub rax, [rip + 3849] ; mov [rip + 3850], rax
+var v ; x=7 ; if x/v>v ; end | bb070000004889d831d248f7353f0f0000483b05380f00000f8600000000 | mov ebx, 7 ; mov rax, rbx ; xor edx, edx ; div qword ptr [rip + 3903] ; cmp rax, [rip + 3896] ; {disp32} jbe 1f ; 1:
+x=5 ; y=x*0x100000000 | bb050000004889dd48b80000000001000000480fafe8 | mov ebx, 5 ; mov rbp, rbx ; movabs rax, 0x100000000 ; imul rbp, rax
+x=5 ; y=7 ; x=y-x | bb05000000bd070000004889e84829d84889c3 | mov ebx, 5 ; mov ebp, 7 ; mov rax, rbp ; sub rax, rbx ; mov rbx, rax
+x=5 ; y=7 ; x=y+x | bb05000000bd070000004801eb | mov ebx, 5 ; mov ebp, 7 ; add rbx, rbp
+x=5 ; y=7 ; x=(y+1)*x | bb05000000bd070000004889e84883c001480fafd8 | mov ebx, 5 ; mov ebp, 7 ; mov rax, rbp ; add rax, 1 ; imul rbx, rax
+x=5 ; y=7 ; x=y*y-x*x | bb05000000bd070000004889e8480fafc54889df480faffb4829f84889c3 | mov ebx, 5 ; mov ebp, 7 ; mov rax, rbp ; imul rax, rbp ; mov rdi, rbx ; imul rdi, rbx ; sub rax, rdi ; mov rbx, rax
+x=5 ; x+=1 | bb050000004883c301 | mov ebx, 5 ; add rbx, 1
+x=5 ; x=x | bb050000004889db | mov ebx, 5 ; mov rbx, rbx
+x=5 ; y=x | bb050000004889dd | mov ebx, 5 ; mov rbp, rbx
+x=5 ; x<<=x | bb050000004889d948d3e3 | mov ebx, 5 ; mov rcx, rbx ; shl rbx, cl
+x=5 ; x=x*3 | bb05000000486bdb03 | mov ebx, 5 ; imul rbx, rbx, 3
+x=5 ; x=3*x | bb05000000486bdb03 | mov ebx, 5 ; imul rbx, rbx, 3
+x=5 ; x/=2 | bb0500000048d1eb | mov ebx, 5 ; shr rbx, 1
+x=5 ; x%=3 | bb050000004889d8bf0300000031d248f7f74889d04889c3 | mov ebx, 5 ; mov rax, rbx ; mov edi, 3 ; xor edx, edx ; div rdi ; mov rax, rdx ; mov rbx, rax
+var v ; v=5 ; v+=v*2 | b805000000488905440f0000488b053d0f0000486bc002480305320f00004889052b0f0000 | mov eax, 5 ; mov [rip + 3908], rax ; mov rax, [rip + 3901] ; imul rax, rax, 2 ; add rax, [rip + 3890] ; mov [rip + 3883], rax
+fn f a b ; c=a+b ; d=c*c ; ret d ; end | e91a00000053554889c34889fd4801eb480fafdb4889d85d5bc331c05d5bc3 | {disp32} jmp 1f ; push rbx ; push rbp ; mov rbx, rax ; mov rbp, rdi ; add rbx, rbp ; imul rbx, rbx ; mov rax, rbx ; pop rbp ; pop rbx ; ret ; xor eax, eax ; pop rbp ; pop rbx ; ret ; 1:
