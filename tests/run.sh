@@ -9,7 +9,8 @@
 # A test has either .err (compiling must fail) or .out (program must run).
 # A program still running after $limit seconds is killed and fails its test,
 # whatever status the test expects: the status is taken from a file that is
-# only written when the program ends by itself.
+# only written when the program ends by itself. The kill is SIGKILL to the
+# whole process group, so a program that ignores SIGTERM does not live on.
 # Every run works in a directory of its own, removed when it ends, so runs
 # at the same time do not overwrite each other's files.
 cd "$(dirname "$0")/.." || exit 1
@@ -33,7 +34,14 @@ check() {
     fi
     [ $rc -eq 0 ] && [ ! -s $out/$1.err ] || return 1
     chmod +x $out/$1
-    timeout $limit sh -c '"$1" > "$1.got"; echo $? > "$1.rc"' sh $out/$1
+    # timeout leads a process group of its own, whose id the wrapper sees
+    # as $PPID. Not every timeout signals the group, so do it here as well.
+    if ! timeout --signal=KILL $limit sh -c \
+        'echo $PPID > "$1.pg"; "$1" > "$1.got"; echo $? > "$1.rc"' sh $out/$1
+    then
+        kill -s KILL -- -$(cat $out/$1.pg) 2> /dev/null
+        return 1
+    fi
     [ -f $out/$1.rc ] || return 1
     rc=$(cat $out/$1.rc)
     want=0

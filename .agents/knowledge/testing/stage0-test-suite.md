@@ -21,6 +21,14 @@ layout of a test; this page records why some fixtures look the way they do.
   every run wrote `build/tests/<name>` and its companions. Each run now works in its own
   `mktemp -d build/tests/run.XXXXXX`, removed by an exit trap. The price is that the files of a
   failed test are gone when the runner ends; rerun the steps by hand to inspect them.
+- A review on 2026-11-19 found that a program ignoring `SIGTERM` failed its test but kept
+  running after the deadline. The runner now calls `timeout --signal=KILL` and, when that fails,
+  sends `SIGKILL` itself to the process group, whose id the wrapper stored as `$PPID` (`timeout`
+  makes itself a group leader). The second kill is needed: GNU `timeout` 9.7 signals the whole
+  group and exits 137, but uutils `timeout` 0.10.0, the default on this machine, kills only the
+  `sh` wrapper, exits 124 and leaves the program alive. Checked with both in a scratch copy with
+  `limit=1`, using a program that ignores `SIGTERM` (`buf a 32`, `store a 1`, `sys 13 15 a 0 8`,
+  then an endless loop); it is not in the suite because it would cost the full deadline each run.
 - `tests/io.sh` holds the checks that are not "compile, run, compare": the compiler's exit
   status and message with stdin closed, with output to `/dev/full` and with output to a closed
   pipe. `make test` runs it after the suite when no `T` is given. The closed pipe is a fifo whose
