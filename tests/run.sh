@@ -10,10 +10,14 @@
 # A program still running after $limit seconds is killed and fails its test,
 # whatever status the test expects: the status is taken from a file that is
 # only written when the program ends by itself.
+# Every run works in a directory of its own, removed when it ends, so runs
+# at the same time do not overwrite each other's files.
 cd "$(dirname "$0")/.." || exit 1
-out=build/tests
 limit=10
-mkdir -p $out
+mkdir -p build/tests
+out=$(mktemp -d build/tests/run.XXXXXX) || exit 1
+trap 'rm -rf "$out"' EXIT
+trap 'exit 1' HUP INT TERM
 [ $# -eq 0 ] && set -- $(ls tests | sed -n 's/\.ai\(\.sh\)\{0,1\}$//p' | sort -u)
 
 check() {
@@ -29,7 +33,6 @@ check() {
     fi
     [ $rc -eq 0 ] && [ ! -s $out/$1.err ] || return 1
     chmod +x $out/$1
-    rm -f $out/$1.rc
     timeout $limit sh -c '"$1" > "$1.got"; echo $? > "$1.rc"' sh $out/$1
     [ -f $out/$1.rc ] || return 1
     rc=$(cat $out/$1.rc)

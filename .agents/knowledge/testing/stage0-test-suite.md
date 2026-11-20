@@ -15,8 +15,12 @@ layout of a test; this page records why some fixtures look the way they do.
   a failed test. Before 2026-11-19 a program that never exited hung the whole suite.
 - Until the functions review of 2026-11-19 the runner compared the status of `timeout` itself, so a
   program that hung passed a test expecting status 124. The program now runs under `sh -c`, which
-  writes its status to `build/tests/<name>.rc`; no file means the deadline expired and the test
+  writes its status to `<name>.rc` in the run's directory; no file means the deadline expired and the test
   fails. `exit_status_124` keeps a normal exit with 124 passing.
+- A review on 2026-11-19 ran eight runners at once and six failed, one with `Text file busy`:
+  every run wrote `build/tests/<name>` and its companions. Each run now works in its own
+  `mktemp -d build/tests/run.XXXXXX`, removed by an exit trap. The price is that the files of a
+  failed test are gone when the runner ends; rerun the steps by hand to inspect them.
 - `tests/io.sh` holds the checks that are not "compile, run, compare": the compiler's exit
   status and message with stdin closed, with output to `/dev/full` and with output to a closed
   pipe. `make test` runs it after the suite when no `T` is given. The closed pipe is a fifo whose
