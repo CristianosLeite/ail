@@ -40,7 +40,8 @@ make build/foo  # compile examples/foo.ai to build/foo
 make clean
 tests/insn.sh hex 'shr rax, 13'   # the bytes GNU as writes for instructions, for a case in tests/insn.cases
 tests/insn.sh asm   # check tests/insn.cases against the assembler
-tools/tokens.sh  # token cost of examples/ against the C, Rust and assembly programs in bench/
+tools/tokens.sh  # token cost of examples/ against the C, Rust and assembly programs in bench/ (fetches the pinned files once)
+build/tools/tokens -c '#' file.ai   # the tokens of a file without its comments; --ids file prints their numbers
 tools/bench.sh   # check that bench/ behaves like examples/ (needs gcc and rustc)
 python3 tools/par.py    # time the task programs of bench/par/ against their sequential forms at 1 to 20 threads; docs/performance.md
 build/tools/perf   # time examples/ against bench/ built with gcc -O3 and rustc -O; docs/performance.md

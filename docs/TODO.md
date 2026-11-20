@@ -172,7 +172,7 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    `gcc`, `rustc`, `as` and `ld` as external commands. Document the launch
    method and compare it against the current `posix_spawn` path before mixing
    new startup measurements with historical results.
-5. [ ] Port `tokens.py`. Keep corpus selection, comment stripping and table
+5. [x] Port `tokens.py`. Keep corpus selection, comment stripping and table
    output in the tool. Put `o200k_base` segmentation and byte-pair encoding
    in a dedicated AIL source file. Load the official merge ranks as a data
    file pinned by checksum. Compare the full table with `tiktoken` on the

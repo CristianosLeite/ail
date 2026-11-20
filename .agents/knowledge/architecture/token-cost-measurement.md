@@ -54,7 +54,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   Python and network access once, the behaviour check `gcc` and `rustc`.
 
 ## How to apply
-- Before choosing between two spellings, tokenize both (`.venv/bin/python` with `tiktoken`).
+- Before choosing between two spellings, tokenize both (`build/tools/tokens --ids file`, or `-c '#' file` for a count; since 2026-11-20 the tokenizer is `tools/lib/o200k.ai`, which gives the numbers of `tiktoken`; `.venv` with `tiktoken` is no longer needed by any tool).
 - Prefer a statement that removes a line over one that shortens a word.
 - Replace numbers by names where the language can: constants, named data, global scalars.
 - After changing an example, change its three equivalents in `bench/`, run `tools/bench.sh` and

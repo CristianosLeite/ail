@@ -15,10 +15,10 @@ nothing; make test does that. Without it the sizes below are timed:
 the median of the runs, on all processors, each run a new process.
 Three tables are printed: elapsed time by threads, elapsed time by
 the number of tasks the same work is cut into, and the tokens of both
-sources (if tiktoken can be imported, as in .venv of tools/tokens.sh).
+sources (counted by build/tools/tokens, if it is built and the files it
+reads are there: make tools, tools/pin.sh; see tools/tokens.sh).
 """
 import os
-import re
 import struct
 import subprocess
 import sys
@@ -90,28 +90,20 @@ def check(names):
     sys.exit(fail)
 
 
-def code(path):
-    lines = []
-    for line in open(path, encoding="utf-8"):
-        line = re.sub(r"\s*#.*", "", line.rstrip("\n"))
-        if line.strip():
-            lines.append(line)
-    return "\n".join(lines) + "\n"
-
-
 def tokens(names):
+    paths = ["bench/par/%s_%s.ai" % (name, k) for name in names for k in ("seq", "par")]
     try:
-        import tiktoken
-    except ImportError:
-        print("\n(no token table: tiktoken is not installed for this python)")
+        out = subprocess.run(["build/tools/tokens", "-c", "#"] + paths, check=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        print("\n(no token table: build/tools/tokens is not built or lacks its pinned files)")
         return
-    enc = tiktoken.get_encoding("o200k_base")
+    count = [int(line.split()[0]) for line in out.splitlines()]
     print("\n| program | sequential | tasks | lines added |")
     print("|---|---:|---:|---:|")
-    for name in names:
-        a, b = (code("bench/par/%s_%s.ai" % (name, k)) for k in ("seq", "par"))
-        print("| %s | %d | %d | %d |" % (name, len(enc.encode(a)),
-              len(enc.encode(b)), b.count("\n") - a.count("\n")))
+    for i, name in enumerate(names):
+        a, b = (sum(1 for l in open(p) if l.split("#")[0].strip()) for p in paths[2 * i:2 * i + 2])
+        print("| %s | %d | %d | %d |" % (name, count[2 * i], count[2 * i + 1], b - a))
 
 
 def main():
