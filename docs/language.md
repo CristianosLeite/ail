@@ -1033,6 +1033,7 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 
 - When no task can be polled, the thread sleeps until the earliest timer is due; with no timer and nothing else to wait for, nothing can happen and `asyncrun` returns. A timer is never early; it is late by what the tasks polled before it take.
 - Tasks that always have something to do do not keep timers and files from being seen: every 61st poll looks at both without sleeping.
+- `asynctimeout` of 0, the handle of a task that could not be made, is 0, and no timer.
 - After `asynctimeout` the handle `h` belongs to the limit: it is not awaited or cancelled any more, and cancelling the limit cancels it. A task that runs out of time is told, like any cancelled task, while the limit already has the result -62. Whether the result or the time came first is decided when the limit is polled; if both have come by then, the result counts.
 - The timers that run are 16 bytes each in a heap, besides their events.
 

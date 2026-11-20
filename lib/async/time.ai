@@ -281,8 +281,13 @@ end
 # "call asynctimeout h ms as g": a task whose result is that of h if h
 # is done within ms milliseconds, and else -62, after h was cancelled.
 # It is awaited in the place of h, whose handle means nothing afterwards,
-# and cancelling it cancels h. 0 if there is no memory, and h stays.
+# and cancelling it cancels h. 0 if h is 0, or if there is no memory,
+# and h stays.
 fn asynctimeout asynch asyncms
+# no task: 0, which await takes for one that is done
+ifz asynch
+ret 0
+end
 call asyncsleep asyncms as asynce
 ifz asynce
 ret 0
