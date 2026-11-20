@@ -1,0 +1,24 @@
+# a var of the program declared before the use keeps its value: no
+# variable of the library has a name that a program may have, since "as"
+# on the name of a var writes the cell in any function
+var fd p n w q c digits r i s l
+use "lib/io.ai"
+data z "bcd" 0
+fd=1
+p=1
+n=1
+w=1
+q=1
+c=1
+digits=1
+r=1
+i=1
+s=1
+l=1
+call print "a"
+call putn 23
+call strlen z as a
+call argc as b
+call argv 0 as d e
+call eprint ""
+sys exit fd+p+n+w+q+c+digits+r+i+s+l+a+b

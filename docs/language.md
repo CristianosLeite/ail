@@ -809,7 +809,7 @@ call print p n
 call print "\n"
 ```
 
-A string literal is the two values that `print` takes. The library defines the var `argp` besides its functions, and no other global name.
+A string literal is the two values that `print` takes. The library defines the var `ioargp` besides its functions, and no other global name. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, and no variable named `ioargp`, which would write the library's.
 
 ## Comments
 
