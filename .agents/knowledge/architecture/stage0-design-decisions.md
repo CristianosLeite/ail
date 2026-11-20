@@ -112,8 +112,11 @@ records the reasoning.
   and a source of exactly the limit still reaches EOF normally.
 - **Exit 1 for source errors, 2 for I/O errors:** a caller can tell "fix the program" from "fix the
   environment" without parsing the message.
-- **Makefile builds examples into `<target>.tmp` and renames:** the shell creates the redirect target
-  before the compiler runs, so writing to the real target leaves a fresh-looking file on failure.
+- **Makefile builds examples into a temporary file and renames:** the shell creates the redirect
+  target before the compiler runs, so writing to the real target leaves a fresh-looking file on
+  failure. The file comes from `mktemp <target>.tmp.XXXXXX` and a trap removes it: with the fixed
+  name `<target>.tmp` used until 2026-11-19, sixteen of twenty simultaneous rebuilds of one
+  example failed (`mv: cannot stat`). `mktemp` creates mode 600, so the recipe sets 755 itself.
 
 ## How to apply
 - Keep new syntax to short common words separated by spaces; let the compiler derive what it can.

@@ -8,11 +8,14 @@ $(B)/ailc: stage0/ailc.s
 	ld -o $@ $(B)/ailc.o
 
 # Build into a temporary file so a failed compile never leaves a target
-# that looks up to date.
+# that looks up to date. The file is unique to this recipe, so two makes
+# building the same example do not take it from each other; mktemp creates
+# it unreadable by others, hence the full mode.
 $(B)/%: examples/%.ai $(B)/ailc
-	$(B)/ailc < $< > $@.tmp
-	chmod +x $@.tmp
-	mv $@.tmp $@
+	@echo "$(B)/ailc < $< > $@"
+	@tmp=$$(mktemp $@.tmp.XXXXXX) || exit 1; \
+	trap 'rm -f "$$tmp"' EXIT; trap 'exit 1' HUP INT TERM; \
+	$(B)/ailc < $< > "$$tmp" && chmod 755 "$$tmp" && mv "$$tmp" $@
 
 test: $(B)/ailc
 ifeq ($(T),)
