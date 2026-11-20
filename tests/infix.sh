@@ -77,6 +77,18 @@ timeout --signal=KILL 10 "$ailc" < "$tmp/use.ai" > "$tmp/use" 2> /dev/null && ch
 timeout --signal=KILL 10 "$tmp/use" > /dev/null 2>&1
 [ $? -eq 42 ] || r=1
 say infix_keeps_var_of_used_file $r
+# the var line of such a file is read as the compiler reads it. $1 is the
+# name of the check, $2 the text of the file, in which the var must be
+# declared: the line that sets it must stay
+keeps() {
+    printf '%b' "$2" > "$tmp/$1_lib.ai"
+    printf 'use "%s"\nshared=42\nif shared\nsys exit 1\nend\n' "$tmp/$1_lib.ai" > "$tmp/$1.ai"
+    build/tools/infix "$tmp/$1.ai" "$tmp/$1.out.ai" 2> /dev/null &&
+        cmp -s "$tmp/$1.ai" "$tmp/$1.out.ai" &&
+        "$ailc" < "$tmp/$1.ai" > /dev/null 2>&1
+    say "infix_$1" $?
+}
+keeps var_after_tab '\tvar shared\n'
 # and so is a var of a file named on the command line, for a source that
 # is itself named by that file: without it the write is folded away
 r=0

@@ -178,7 +178,9 @@ end
 fn declline p e
 while p<e
 loadb p as c
-jne c 32 word
+if (c!=32)&(c!=9)
+jmp word
+end
 p+=1
 end
 label word
