@@ -88,7 +88,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
   output are x86-64 Linux only. Generated programs are standalone ELF64 files
   without ELF sections, symbols or dynamic linking, and AIL calls use an
   internal calling convention. Consider linkable objects and a platform ABI.
-- [ ] Report source locations and specific causes for compile errors, including
+- [x] Report source locations and specific causes for compile errors, including
   the original use site of unresolved names. Today diagnostics are one line
   without a location. Evaluate source maps or debug metadata for runtime faults.
 - [ ] Generate common compiler tables from a single definition. Stage0 declares

@@ -119,6 +119,16 @@ blks:   .skip NBLK * 24         # per open block: address of the rel32 that jump
 nblk:   .skip 4                 # open blocks
 blkbase: .skip 4                # those of them opened outside the open function
 topblk: .skip 4                 # blkbase of the top level, in a function
+epos:   .skip 8                 # where an error is: 0 for the input cursor, -1
+                                # for nowhere, else an address in the source
+ename:  .skip 8                 # the name an error is about: address,
+enamel: .skip 8                 # length, 0 for none
+mainend: .skip 8                # end of the source read from stdin
+ustart: .skip NUSES * 8         # per file of use: where its bytes start
+uendp:  .skip NUSES * 8         # and end
+curunit: .skip 4                # 0, or 1 + the file of use being read
+ucur:   .skip NUSES * 4         # per use being compiled: curunit outside it
+numbuf: .skip 24                # a line number in decimal
 srcend: .skip 8                 # end of all source read so far, in inbuf
 uses:   .skip NUSES * 16        # per file compiled through use: the path as
 nuses:  .skip 4                 # written (address in inbuf, length)
@@ -897,40 +907,40 @@ exit0:                          # mov eax,60 ; xor edi,edi ; syscall
     .byte 0xB8,60,0,0,0, 0x31,0xFF, 0x0F,0x05
 .equ EXIT0SZ, . - exit0
 
-m_syntax: .ascii "ailc: syntax error\n"
-.equ M_SYNTAX_SZ, . - m_syntax
-m_big:    .ascii "ailc: source too big\n"
-.equ M_BIG_SZ, . - m_big
-m_undef:  .ascii "ailc: undefined variable\n"
-.equ M_UNDEF_SZ, . - m_undef
-m_vars:   .ascii "ailc: too many variables\n"
-.equ M_VARS_SZ, . - m_vars
-m_dup:    .ascii "ailc: duplicate name\n"
-.equ M_DUP_SZ, . - m_dup
-m_bufs:   .ascii "ailc: buffers too big\n"
-.equ M_BUFS_SZ, . - m_bufs
-m_unasg:  .ascii "ailc: unassigned variable\n"
-.equ M_UNASG_SZ, . - m_unasg
-m_acc:    .ascii "ailc: invalid access\n"
-.equ M_ACC_SZ, . - m_acc
-m_use:    .ascii "ailc: cannot read file\n"
-.equ M_USE_SZ, . - m_use
-m_res:    .ascii "ailc: wrong result count\n"
-.equ M_RES_SZ, . - m_res
-m_prog:   .ascii "ailc: program too big\n"
-.equ M_PROG_SZ, . - m_prog
-m_num:    .ascii "ailc: number too big\n"
-.equ M_NUM_SZ, . - m_num
-m_label:  .ascii "ailc: undefined label\n"
-.equ M_LABEL_SZ, . - m_label
-m_fn:     .ascii "ailc: undefined function\n"
-.equ M_FN_SZ, . - m_fn
-m_argc:   .ascii "ailc: wrong argument count\n"
-.equ M_ARGC_SZ, . - m_argc
-m_read:   .ascii "ailc: read error\n"
-.equ M_READ_SZ, . - m_read
-m_write:  .ascii "ailc: write error\n"
-.equ M_WRITE_SZ, . - m_write
+# the messages, without what die puts around them
+.macro msg name, text
+\name: .ascii "\text"
+.equ \name\()_sz, . - \name
+.endm
+    msg m_syntax, "syntax error"
+    msg m_stmt, "unknown statement"
+    msg m_place, "not allowed here"
+    msg m_end, "missing end"
+    msg m_as, "missing as"
+    msg m_noas, "unexpected as"
+    msg m_lab, "missing label"
+    msg m_count, "wrong operand count"
+    msg m_str, "unterminated string"
+    msg m_name, "expected a name"
+    msg m_big, "source too big"
+    msg m_undef, "undefined variable"
+    msg m_vars, "too many variables"
+    msg m_dup, "duplicate name"
+    msg m_bufs, "buffers too big"
+    msg m_unasg, "unassigned variable"
+    msg m_acc, "invalid access"
+    msg m_use, "cannot read file"
+    msg m_res, "wrong result count"
+    msg m_prog, "program too big"
+    msg m_num, "number too big"
+    msg m_label, "undefined label"
+    msg m_fn, "undefined function"
+    msg m_argc, "wrong argument count"
+    msg m_read, "read error"
+    msg m_write, "write error"
+m_ailc:   .ascii "ailc: "
+m_colon:  .ascii ": "
+m_nl:     .ascii "\n"
 
 .text
 .globl _start
@@ -957,6 +967,7 @@ _start:
     add r15, rax
     jmp 1b
 2:  mov [rip+srcend], r15
+    mov [rip+mainend], r15
     # ---- header template
     lea r14, [rip+outbuf]
     mov rdi, r14
@@ -986,7 +997,7 @@ next:
     jmp 1f
 4:  sub al, 'a'                 # a statement starts with its keyword
     cmp al, 'z' - 'a'
-    ja err
+    ja err_stmt
     call name
     cmp r9, 2
     jne 5f
@@ -1033,7 +1044,7 @@ next:
 5:  lea rdx, [rip+optab]
 6:  movzx ecx, byte ptr [rdx]   # length of this entry's name
     test ecx, ecx
-    jz err                      # end of table: unknown keyword
+    jz err_stmt                      # end of table: unknown keyword
     cmp rcx, r9
     jne 8f
     xor eax, eax
@@ -1065,19 +1076,19 @@ next:
     test byte ptr [rdx+1], IS_RET
     jz 4f
     cmp dword ptr [rip+infn], 0 # ret: only between fn and end
-    je err
+    je err_place
 4:  test byte ptr [rdx+2], IS_TOP >> 8
     jz 4f
     cmp dword ptr [rip+infn], 0 # args: only outside them
-    jne err
+    jne err_place
 4:  test byte ptr [rdx+1], IS_CALL
     jz 4f
     cmp rsi, r15                # call: the function name comes first
-    jae err
+    jae err_name
     mov al, [rsi]
     sub al, 'a'
     cmp al, 'z' - 'a'
-    ja err
+    ja err_name
     call name
     mov [rip+callname], r8
     mov [rip+callname+8], r9
@@ -1112,9 +1123,12 @@ unitend:
     test eax, eax
     jz fin
     cmp dword ptr [rip+infn], 0 # a function ends in the unit it starts in
-    jne err
+    jne err_end
     dec eax
     mov [rip+nustk], eax
+    lea rcx, [rip+ucur]
+    mov edx, [rcx+rax*4]
+    mov [rip+curunit], edx
     shl eax, 4
     lea rcx, [rip+ustack]
     mov rsi, [rcx+rax]
@@ -1125,7 +1139,7 @@ unitend:
 # here, unless a use with the same path was compiled before
 usedef:
     cmp dword ptr [rip+infn], 0
-    jne err
+    jne err_place
     call blank1
     cmp rsi, r15
     jae err
@@ -1134,12 +1148,12 @@ usedef:
     inc rsi
     mov r8, rsi
 1:  cmp rsi, r15
-    jae err
+    jae err_str
     mov al, [rsi]
     cmp al, '"'
     je 2f
     cmp al, 10                  # a path is on one line
-    je err
+    je err_str
     inc rsi
     jmp 1b
 2:  mov r9, rsi
@@ -1157,6 +1171,7 @@ usedef:
     mov [r10], r8
     mov [r10+8], r9
     inc dword ptr [rip+nuses]
+    mov [rip+epos], r8          # an error from here on is about this path
     push rsi
     push rdi
     mov rsi, r8
@@ -1190,6 +1205,18 @@ usedef:
     syscall
     pop rdi
     pop rsi
+    mov qword ptr [rip+epos], 0
+    mov eax, [rip+nuses]        # where the unit lies, for the place of an error
+    lea rcx, [rip+ustart-8]
+    mov [rcx+rax*8], r13
+    lea rcx, [rip+uendp-8]
+    mov rdx, [rip+srcend]
+    mov [rcx+rax*8], rdx
+    mov ecx, [rip+nustk]
+    lea rdx, [rip+ucur]
+    mov r10d, [rip+curunit]
+    mov [rdx+rcx*4], r10d
+    mov [rip+curunit], eax
     mov eax, [rip+nustk]        # come back here at the end of the unit
     shl eax, 4
     lea rcx, [rip+ustack]
@@ -1243,8 +1270,10 @@ arg:
     jmp err
 4:  call crlf
 1:  mov rdx, [rip+curop]        # end of statement without "as" or a label
-    test byte ptr [rdx+1], AS_REQ | IS_JMP
-    jnz err
+    test byte ptr [rdx+1], IS_JMP
+    jnz err_lab
+    test byte ptr [rdx+1], AS_REQ
+    jnz err_as
     call emit_op
     mov rdx, [rip+curop]
     test byte ptr [rdx+2], IS_IF >> 8
@@ -1333,14 +1362,14 @@ str:
 # copy the bytes of a string, whose opening quote is behind rsi, to rdi
 strbytes:
 1:  cmp rsi, r15
-    jae err
+    jae err_str
     lodsb
     cmp al, '"'
     je 4f
     cmp al, '\\'
     jne 3f
     cmp rsi, r15
-    jae err
+    jae err_str
     lodsb
     cmp al, 'n'
     jne 2f
@@ -1506,16 +1535,16 @@ constname:
 # read a name at rsi that starts with a letter and is not "as": r8, r9
 rdname:
     cmp rsi, r15
-    jae err
+    jae err_name
     mov al, [rsi]
     sub al, 'a'
     cmp al, 'z' - 'a'
-    ja err
+    ja err_name
     call name
     cmp r9, 2
     jne 1f
     cmp word ptr [r8], 0x7361   # "as" is reserved
-    je err
+    je err_name
 1:  ret
 
 # a token must be followed by a space, tab, comment or end of line
@@ -1683,7 +1712,7 @@ addref:
 capture:
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], AS_NONE
-    jnz err
+    jnz err_noas
 1:  call blanks
     push rsi
     call rdname
@@ -1871,10 +1900,10 @@ memchk:
     cmp qword ptr [rax], K_LIT
     jne 2f
     test ecx, 0x100             # a string is read-only
-    jnz err_acc
+    jnz err_accl
     movzx ecx, cl
     cmp rcx, [rax+8]
-    ja err_acc
+    ja err_accl
     ret
 2:  cmp qword ptr [rax], K_ADDR
     jne 3f
@@ -1889,6 +1918,10 @@ memchk:
     mov r11, [rax+24]
     mov [r10+16], r11
     mov [r10+24], ecx
+    lea r11, [rip+inbuf]        # and where the statement is, for the message
+    mov rcx, rsi
+    sub rcx, r11
+    mov [r10+28], ecx
     inc dword ptr [rip+nchks]
 3:  ret
 
@@ -2089,7 +2122,7 @@ bufdef:
 # variables, whose value is the address.
 localdef:
     cmp dword ptr [rip+infn], 0
-    je err
+    je err_place
     call blank1
     push rbp
     call defvar
@@ -2279,11 +2312,11 @@ datadef:
 labdef:
     call blank1
     cmp rsi, r15
-    jae err
+    jae err_name
     mov al, [rsi]
     sub al, 'a'
     cmp al, 'z' - 'a'
-    ja err
+    ja err_name
     call name
     call eol
     call lookup_label
@@ -2321,7 +2354,7 @@ jtarget:
     mov rdx, [rip+asg]
     not rdx
     test rcx, rdx
-    jnz err_unasg
+    jnz err_unasgj
     cmp dword ptr [rip+pass], 1
     jne 2f
     lea rcx, [rip+labpos]       # first pass: it also makes a loop
@@ -2398,7 +2431,7 @@ labasg:
 # registers and open a scope whose first variables are the parameters
 fndef:
     cmp dword ptr [rip+infn], 0 # functions do not nest
-    jne err
+    jne err_place
     cmp dword ptr [rip+pass], 0
     jne 1f
     lea rax, [rip+snap]         # first pass: remember where to come back to
@@ -2437,11 +2470,11 @@ fndef:
     call clrloc
     call blank1
     cmp rsi, r15
-    jae err
+    jae err_name
     mov al, [rsi]
     sub al, 'a'
     cmp al, 'z' - 'a'
-    ja err
+    ja err_name
     call name
     call lookup_fn
     jnc err_dup
@@ -2548,7 +2581,7 @@ fnend:
     cmp eax, [rip+blkbase]
     ja blkend
     cmp dword ptr [rip+infn], 0
-    je err
+    je err_place
     call eol
     mov eax, [rip+fnres]        # a function without ret has one result, or if
     mov edx, eax                # it has a tail, those of the function it jumps
@@ -2695,7 +2728,7 @@ blkend:
 elsedef:
     mov eax, [rip+nblk]
     cmp eax, [rip+blkbase]
-    jbe err
+    jbe err_place
     call eol
     mov byte ptr [rdi], 0xE9    # jmp rel32, filled in at end
     inc rdi
@@ -2703,7 +2736,7 @@ elsedef:
     add rdi, 4
     call blktop
     cmp dword ptr [rcx+16], 0   # one else to a block
-    jne err
+    jne err_place
     mov [rcx], r8
     mov rax, [rcx+8]            # the else part starts with what the if had
     mov rdx, [rip+asg]          # and remembers how the part before ended
@@ -2842,6 +2875,7 @@ resolve:
     jz 2f
     mov r8, [rbx]
     mov r9, [rbx+8]
+    mov [rip+epos], r8          # an undefined label is reported where it is used
     call lookup_label
     jc err_label
     add eax, [rip+labbase]
@@ -2854,7 +2888,8 @@ resolve:
     add rbx, 32
     dec ebp
     jmp 1b
-2:  pop rbp
+2:  mov qword ptr [rip+epos], 0
+    pop rbp
     pop rbx
     ret
 
@@ -3152,14 +3187,14 @@ emit_op:
     test byte ptr [rdx+2], IS_PTR >> 8
     jz 6f
     test ebx, ebx               # callp too, after the address
-    jz err
+    jz err_count
     jmp 1f
 6:  test byte ptr [rdx+1], IS_RET
     jz 6f
     test ebx, ebx               # ret: one to six results, the same number at
-    jz err                      # every ret of the function
+    jz err_count                      # every ret of the function
     cmp ebx, 6
-    ja err
+    ja err_count
     mov eax, [rip+fnres]
     test eax, eax
     jnz 7f
@@ -3169,7 +3204,7 @@ emit_op:
     jne err_res
     jmp 1f
 6:  cmp bl, [rdx]
-    jne err
+    jne err_count
     test byte ptr [rdx+1], IS_MEM
     jz 1f
     call memchk
@@ -3178,7 +3213,7 @@ emit_op:
     test byte ptr [rdx+1], IS_CALL
     jz 4f
     cmp ebx, 6                  # tail: the values must be in registers, since
-    ja err                      # the frame that would hold the others is gone
+    ja err_count                      # the frame that would hold the others is gone
     mov dword ptr [rip+fntail], 1
 4:  mov al, 0xC4                # ret: release the stack slots first
     call emit_frame
@@ -3203,7 +3238,7 @@ emit_op:
     test byte ptr [rdx+2], IS_REF >> 8
     jz 9f
     test ebx, ebx               # ref takes the name alone and gives one value
-    jnz err
+    jnz err_count
     cmp dword ptr [rip+ncap], 1
     jne err
     mov ebx, -1                 # recorded as a call with no count: an address
@@ -3251,7 +3286,7 @@ argidx:
     mov ecx, 7
     ret
 1:  cmp ebx, 7
-    jae err
+    jae err_count
 2:  ret
 
 # the value is in its register: push it if it goes on the stack, count it
@@ -3337,9 +3372,9 @@ emit_mov:
 # ---- implicit exit(0), patch jumps, calls and sizes, write ELF to stdout
 fin:
     cmp dword ptr [rip+infn], 0 # a function without its end
-    jne err
+    jne err_end
     cmp dword ptr [rip+nblk], 0 # or a block
-    jne err
+    jne err_end
     lea rsi, [rip+exit0]
     mov ecx, EXIT0SZ
     rep movsb
@@ -3355,6 +3390,7 @@ fin:
     jz 2f
     mov r8, [rbx]
     mov r9, [rbx+8]
+    mov [rip+epos], r8          # an error is reported at the call
     call lookup_fn
     jc err_fn
     cmp dword ptr [rbx+24], -1
@@ -3366,7 +3402,7 @@ fin:
     lea rcx, [rip+funres]       # no more names after "as" than it has results
     movzx ecx, byte ptr [rcx+rax]
     cmp [rbx+28], ecx
-    ja err_res
+    ja err_resf
     lea rcx, [rip+funaddr]
     mov rax, [rcx+rax*8]
     mov rcx, [rbx+16]
@@ -3395,6 +3431,7 @@ fin:
     jmp 7f
 6:  mov r8, [rbx]
     mov r9, [rbx+8]
+    mov [rip+epos], r8          # an error is reported where the name is used
     call lookup_buf
     jc err_undef
     lea rcx, [rip+bufkind]      # a var or a const must be declared first
@@ -3440,6 +3477,10 @@ fin:
     jz 2f
     mov r8, [rbx]
     mov r9, [rbx+8]
+    mov ecx, [rbx+28]           # an error is reported at the load or store
+    lea rdx, [rip+inbuf]
+    add rcx, rdx
+    mov [rip+epos], rcx
     call lookup_buf
     jc 4f
     lea rcx, [rip+bufkind]
@@ -3469,7 +3510,8 @@ fin:
 4:  add rbx, 32
     dec ebp
     jmp 1b
-2:  mov [r14+64+32], r13        # file size
+2:  mov qword ptr [rip+epos], -1 # what is left is not about a place
+    mov [r14+64+32], r13        # file size
     mov [r14+64+40], r13
     mov rcx, [rip+rwstart]
     mov [r14+64+56+16], rcx     # the address of the writable segment
@@ -3496,95 +3538,145 @@ fin:
     xor edi, edi
     syscall
 
-# ---- errors: source problems exit 1, I/O problems exit 2
-err:
-    lea rsi, [rip+m_syntax]
-    mov edx, M_SYNTAX_SZ
-    mov ebx, 1
-    jmp die
-err_big:
-    lea rsi, [rip+m_big]
-    mov edx, M_BIG_SZ
-    mov ebx, 1
-    jmp die
-err_undef:
-    lea rsi, [rip+m_undef]
-    mov edx, M_UNDEF_SZ
-    mov ebx, 1
-    jmp die
-err_vars:
-    lea rsi, [rip+m_vars]
-    mov edx, M_VARS_SZ
-    mov ebx, 1
-    jmp die
-err_dup:
-    lea rsi, [rip+m_dup]
-    mov edx, M_DUP_SZ
-    mov ebx, 1
-    jmp die
-err_num:
-    lea rsi, [rip+m_num]
-    mov edx, M_NUM_SZ
-    mov ebx, 1
-    jmp die
-err_unasg:
-    lea rsi, [rip+m_unasg]
-    mov edx, M_UNASG_SZ
-    mov ebx, 1
-    jmp die
-err_acc:
-    lea rsi, [rip+m_acc]
-    mov edx, M_ACC_SZ
-    mov ebx, 1
-    jmp die
-err_use:
-    lea rsi, [rip+m_use]
-    mov edx, M_USE_SZ
-    mov ebx, 1
-    jmp die
-err_res:
-    lea rsi, [rip+m_res]
-    mov edx, M_RES_SZ
-    mov ebx, 1
-    jmp die
-err_prog:
-    lea rsi, [rip+m_prog]
-    mov edx, M_PROG_SZ
-    mov ebx, 1
-    jmp die
-err_bufs:
-    lea rsi, [rip+m_bufs]
-    mov edx, M_BUFS_SZ
-    mov ebx, 1
-    jmp die
-err_label:
-    lea rsi, [rip+m_label]
-    mov edx, M_LABEL_SZ
-    mov ebx, 1
-    jmp die
-err_fn:
-    lea rsi, [rip+m_fn]
-    mov edx, M_FN_SZ
-    mov ebx, 1
-    jmp die
-err_argc:
-    lea rsi, [rip+m_argc]
-    mov edx, M_ARGC_SZ
-    mov ebx, 1
-    jmp die
-err_read:
-    lea rsi, [rip+m_read]
-    mov edx, M_READ_SZ
+# ---- errors: one line on stderr, "ailc: <place>: <message> <name>", then
+# exit. Source problems exit 1, I/O problems 2. The place is the path of a
+# file read by use and a colon, if the fault is in one, and the line number;
+# it is taken from epos, or from the input cursor while that is zero.
+.macro fail label, text, how
+\label:
+    lea rax, [rip+\text]
+    mov edx, \text\()_sz
+    jmp \how
+.endm
+    fail err, m_syntax, die_at
+    fail err_stmt, m_stmt, die_at
+    fail err_place, m_place, die_at
+    fail err_end, m_end, die_at
+    fail err_as, m_as, die_at
+    fail err_noas, m_noas, die_at
+    fail err_lab, m_lab, die_at
+    fail err_count, m_count, die_at
+    fail err_str, m_str, die_at
+    fail err_name, m_name, die_at
+    fail err_vars, m_vars, die_at
+    fail err_num, m_num, die_at
+    fail err_bufs, m_bufs, die_at
+    fail err_res, m_res, die_at
+    fail err_unasgj, m_unasg, die_at
+    fail err_accl, m_acc, die_at
+    fail err_dup, m_dup, die_name       # these have the name at fault in r8/r9
+    fail err_undef, m_undef, die_name
+    fail err_unasg, m_unasg, die_name
+    fail err_acc, m_acc, die_name
+    fail err_use, m_use, die_name
+    fail err_label, m_label, die_name
+    fail err_fn, m_fn, die_name
+    fail err_argc, m_argc, die_name
+    fail err_resf, m_res, die_name
+    fail err_big, m_big, die_plain      # these are not about a place
+    fail err_prog, m_prog, die_plain
+    fail err_read, m_read, die_io
+    fail err_write, m_write, die_io
+
+die_io:
     mov ebx, 2
+    jmp 1f
+die_plain:
+    mov ebx, 1
+1:  mov qword ptr [rip+epos], -1
     jmp die
-err_write:
-    lea rsi, [rip+m_write]
-    mov edx, M_WRITE_SZ
-    mov ebx, 2
+die_name:
+    mov [rip+ename], r8
+    mov [rip+enamel], r9
+die_at:
+    mov ebx, 1
 die:
-    mov eax, 1
-    mov edi, 2
-    syscall
+    mov r14, rax                # the message
+    mov r15d, edx
+    mov r12, rsi                # the input cursor, if the place is not given
+    lea rsi, [rip+m_ailc]
+    mov edx, 6
+    call ewrite
+    mov rax, [rip+epos]
+    cmp rax, -1
+    je 7f
+    mov r13d, [rip+curunit]     # the unit being read
+    test rax, rax
+    jz 3f
+    mov r12, rax                # a place given: find the unit that holds it
+    xor r13d, r13d
+    cmp r12, [rip+mainend]
+    jb 3f
+1:  inc r13d
+    cmp r13d, [rip+nuses]
+    ja 7f
+    lea rcx, [rip+ustart-8]
+    cmp r12, [rcx+r13*8]
+    jb 1b
+    lea rcx, [rip+uendp-8]
+    cmp r12, [rcx+r13*8]
+    jae 1b
+3:  lea rcx, [rip+inbuf]        # where the unit starts; a used file has a name
+    test r13d, r13d
+    jz 4f
+    lea rcx, [rip+ustart-8]
+    mov rcx, [rcx+r13*8]
+    push rcx
+    mov eax, r13d
+    dec eax
+    shl rax, 4
+    lea rdx, [rip+uses]
+    mov rsi, [rdx+rax]
+    mov rdx, [rdx+rax+8]
+    call ewrite
+    lea rsi, [rip+m_colon]
+    mov edx, 1
+    call ewrite
+    pop rcx
+4:  mov eax, 1                  # the line: one more than the line ends before
+5:  cmp rcx, r12
+    jae 6f
+    cmp byte ptr [rcx], 10
+    jne 8f
+    inc rax
+8:  inc rcx
+    jmp 5b
+6:  lea rsi, [rip+numbuf+24]    # in decimal
+    mov ecx, 10
+9:  xor edx, edx
+    div rcx
+    add dl, '0'
+    dec rsi
+    mov [rsi], dl
+    test rax, rax
+    jnz 9b
+    lea rdx, [rip+numbuf+24]
+    sub rdx, rsi
+    call ewrite
+    lea rsi, [rip+m_colon]
+    mov edx, 2
+    call ewrite
+7:  mov rsi, r14
+    mov edx, r15d
+    call ewrite
+    cmp qword ptr [rip+enamel], 0
+    je 1f
+    lea rsi, [rip+m_colon+1]
+    mov edx, 1
+    call ewrite
+    mov rsi, [rip+ename]
+    mov rdx, [rip+enamel]
+    call ewrite
+1:  lea rsi, [rip+m_nl]
+    mov edx, 1
+    call ewrite
     mov eax, 60
     mov edi, ebx
     syscall
+
+# write the edx bytes at rsi to stderr
+ewrite:
+    mov eax, 1
+    mov edi, 2
+    syscall
+    ret

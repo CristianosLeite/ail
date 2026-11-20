@@ -1,1 +1,1 @@
-ailc: syntax error
+ailc: tests/lib/broken.ai:2: unknown statement

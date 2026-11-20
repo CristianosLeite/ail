@@ -46,6 +46,11 @@ var nblk blkbase topblk
 var nhn hbkt scope nscope snh
 # rwstart = where the writable segment starts in the image, known in fin
 var rwstart
+# epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
+# address in the source; ename, enamel = the name it is about, or 0;
+# mainend = end of the source from stdin; curunit = 0, or 1 + the file of
+# use being read
+var epos ename enamel mainend curunit
 # the source limit of 8 MiB is in the sizes below: in holds one byte more,
 # out 16 times as much (see OUTSZ in stage0), and each table one entry for
 # every shortest line that makes one
@@ -79,6 +84,10 @@ buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a la
                     # yet defined, length, next node, scope, index in the table of
                     # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
                     # label with jumps but no definition yet)
+buf ustart 9586984  # per file of use: where its bytes start,
+buf uendp 9586984   # and end
+buf ucur 9586984    # per use being compiled: curunit outside it
+buf numbuf 24       # a line number in decimal
 buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
 buf ustack 19173968   # per use being compiled: where its line ended, and the end of
                     # the unit that has it
@@ -94,74 +103,192 @@ buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell 
 buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
                     # imm32 address, 0 for its address or 1 for its length
 
-# ---- errors: source problems exit 1, I/O problems exit 2
+# ---- errors: one line on stderr, "ailc: <place>: <message> <name>", then
+# exit. Source problems exit 1, I/O problems 2. The place is the path of a
+# file read by use and a colon, if the fault is in one, and the line number;
+# it is taken from epos, or from the input cursor while that is zero.
+fn ew p n
+sys write 2 p n
+end
+# print the message m of n bytes with its place and exit with status s
+fn die m n s
+call ew "ailc: "
+jeq epos -1 q
+set ip as pos
+set curunit as u
+if epos
+set epos as pos
+set 0 as u
+jlt pos mainend g
+label a
+add u 1 as u
+jgt u nuses q
+mul u 8 as c
+add c ustart as c
+sub c 8 as c
+load c as c
+jlt pos c a
+mul u 8 as c
+add c uendp as c
+sub c 8 as c
+load c as c
+jge pos c a
+label g
+end
+set in as st
+if u
+mul u 8 as c
+add c ustart as c
+sub c 8 as c
+load c as st
+sub u 1 as c
+mul c 16 as c
+add c uses as c
+load c as pp
+add c 8 as c
+load c as pl
+call ew pp pl
+call ew ":"
+end
+set 1 as ln
+label l
+jge st pos d
+loadb st as c
+ifeq c 10
+add ln 1 as ln
+end
+add st 1 as st
+jmp l
+label d
+add numbuf 24 as e
+set e as b
+label t
+sub b 1 as b
+mod ln 10 as c
+add c 48 as c
+storeb b c
+div ln 10 as ln
+jnz ln t
+sub e b as c
+call ew b c
+call ew ": "
+label q
+call ew m n
+if enamel
+call ew " "
+call ew ename enamel
+end
+call ew "\n"
+sys exit s
+end
 fn err
-sys write 2 "ailc: syntax error\n"
-sys exit 1
+call die "syntax error" 1
 end
-fn ebig
-sys write 2 "ailc: source too big\n"
-sys exit 1
+fn estmt
+call die "unknown statement" 1
 end
-fn eund
-sys write 2 "ailc: undefined variable\n"
-sys exit 1
+fn eplace
+call die "not allowed here" 1
+end
+fn eend
+call die "missing end" 1
+end
+fn eas
+call die "missing as" 1
+end
+fn enoas
+call die "unexpected as" 1
+end
+fn emlab
+call die "missing label" 1
+end
+fn ecount
+call die "wrong operand count" 1
+end
+fn estr
+call die "unterminated string" 1
+end
+fn enam
+call die "expected a name" 1
 end
 fn evar
-sys write 2 "ailc: too many variables\n"
-sys exit 1
-end
-fn edup
-sys write 2 "ailc: duplicate name\n"
-sys exit 1
+call die "too many variables" 1
 end
 fn enum
-sys write 2 "ailc: number too big\n"
-sys exit 1
-end
-fn eunasg
-sys write 2 "ailc: unassigned variable\n"
-sys exit 1
-end
-fn eacc
-sys write 2 "ailc: invalid access\n"
-sys exit 1
-end
-fn euse
-sys write 2 "ailc: cannot read file\n"
-sys exit 1
-end
-fn eres
-sys write 2 "ailc: wrong result count\n"
-sys exit 1
-end
-fn eprog
-sys write 2 "ailc: program too big\n"
-sys exit 1
+call die "number too big" 1
 end
 fn ebuf
-sys write 2 "ailc: buffers too big\n"
-sys exit 1
+call die "buffers too big" 1
+end
+fn eres
+call die "wrong result count" 1
+end
+fn eunasgj
+call die "unassigned variable" 1
+end
+fn eaccl
+call die "invalid access" 1
+end
+fn edup
+set ns as ename
+set nl as enamel
+call die "duplicate name" 1
+end
+fn eund
+set ns as ename
+set nl as enamel
+call die "undefined variable" 1
+end
+fn eunasg
+set ns as ename
+set nl as enamel
+call die "unassigned variable" 1
+end
+fn eacc
+set ns as ename
+set nl as enamel
+call die "invalid access" 1
+end
+fn euse
+set ns as ename
+set nl as enamel
+call die "cannot read file" 1
 end
 fn elab
-sys write 2 "ailc: undefined label\n"
-sys exit 1
+set ns as ename
+set nl as enamel
+call die "undefined label" 1
 end
 fn efn
-sys write 2 "ailc: undefined function\n"
-sys exit 1
+set ns as ename
+set nl as enamel
+call die "undefined function" 1
 end
 fn eargc
-sys write 2 "ailc: wrong argument count\n"
-sys exit 1
+set ns as ename
+set nl as enamel
+call die "wrong argument count" 1
+end
+fn eresf
+set ns as ename
+set nl as enamel
+call die "wrong result count" 1
+end
+fn ebig
+set -1 as epos
+call die "source too big" 1
+end
+fn eprog
+set -1 as epos
+call die "program too big" 1
 end
 fn erd
-sys write 2 "ailc: read error\n"
-sys exit 2
+set -1 as epos
+call die "read error" 2
 end
 fn ewr
-sys write 2 "ailc: write error\n"
-sys exit 2
+set -1 as epos
+call die "write error" 2
 end
 # syntax error unless c is not zero
 fn ok c
@@ -294,7 +421,9 @@ end
 fn rname
 call pk as c
 call low c as c
-call ok c
+ifz c
+call enam
+end
 call name
 end
 # 1 if the name read last is "as"
@@ -314,7 +443,9 @@ end
 fn rdname
 call rname
 call isas as c
-call no c
+if c
+call enam
+end
 end
 # the number at the cursor: decimal, or hexadecimal after "0x", either one
 # after an optional "-"; it must fit 64 bits
@@ -838,14 +969,16 @@ end
 fn sbytes
 label a
 call pk as c
-eq c 256 as d
-call no d
+ifeq c 256
+call estr
+end
 call adv
 jeq c 34 x
 jne c 92 k
 call pk as c
-eq c 256 as d
-call no d
+ifeq c 256
+call estr
+end
 call adv
 ifeq c 110
 set 10 as c
@@ -909,8 +1042,9 @@ label g
 jlt i 6 b
 ret 7
 end
-lt ai 7 as c
-call ok c
+ifge ai 7
+call ecount
+end
 label b
 ret i
 end
@@ -1233,14 +1367,14 @@ load opd as c
 ifeq c 3
 and w 256 as d
 if d
-call eacc
+call eaccl
 end
 and w 255 as d
 add opd 8 as c
 load c as c
 gt d c as d
 jz d x
-call eacc
+call eaccl
 end
 jne c 2 x
 mul nchks 32 as p
@@ -1257,7 +1391,10 @@ load c as c
 add p 8 as p
 store p c
 add p 8 as p
-store p w
+store4 p w
+add p 4 as p
+sub ip in as c
+store4 p c
 add nchks 1 as nchks
 label x
 end
@@ -1418,14 +1555,19 @@ add r 2 as c
 loadb c as c
 and c 4 as c
 if c
-call ok ai
+ifz ai
+call ecount
+end
 jmp k
 end
 and f 32 as c
 if c
-call ok ai
-gt ai 6 as c
-call no c
+ifz ai
+call ecount
+end
+ifgt ai 6
+call ecount
+end
 ifz fnres
 set ai as fnres
 end
@@ -1433,9 +1575,9 @@ jeq fnres ai k
 call eres
 end
 loadb r as c
-set ai as i
-eq c i as c
-call ok c
+ifne c ai
+call ecount
+end
 label k
 and f 128 as c
 if c
@@ -1445,8 +1587,9 @@ and f 32 as c
 jz c m
 and f 16 as c
 if c
-gt ai 6 as c
-call no c
+ifgt ai 6
+call ecount
+end
 set 1 as fntail
 end
 call frame 196
@@ -1472,7 +1615,9 @@ add cur 2 as c
 loadb c as c
 and c 2 as c
 if c
-call no ai
+if ai
+call ecount
+end
 eq ncap 1 as c
 call ok c
 set 0xffffffff as i
@@ -1512,6 +1657,7 @@ add p fixs as p
 label a
 jz n x
 call getn p
+set ns as epos
 call llab as c
 ifeq c -1
 call elab
@@ -1531,6 +1677,7 @@ add p 32 as p
 sub n 1 as n
 jmp a
 label x
+set 0 as epos
 end
 
 # ---- start: a closed output pipe must be a write error, not a death
@@ -1553,6 +1700,7 @@ jmp rd
 end
 set p as ie
 set p as srcend
+set p as mainend
 set in as ip
 set out as op
 call cp hdr 176
@@ -1580,9 +1728,16 @@ jne c 13 n2
 call crlf
 jmp n2
 end
-call rname
+call pk as c
+call low c as d
+ifz d
+call estmt
+end
+call name
 call kw as r
-call ok r
+ifz r
+call estmt
+end
 add r 1 as f
 loadb f as f
 ifeq f 255
@@ -1610,14 +1765,17 @@ call ok d
 call blanks
 and f 32 as d
 if d
-set infn as d
-call ok d
+ifz infn
+call eplace
+end
 end
 add cur 2 as d
 loadb d as d
 and d 16 as d
 if d
-call no infn
+if infn
+call eplace
+end
 end
 and f 16 as d
 if d
@@ -1640,8 +1798,13 @@ jmp tokend
 # the end of a unit of source: go on after the use that named it, or finish
 label uend
 jz nustk fin
-call no infn
+if infn
+call eend
+end
 sub nustk 1 as nustk
+mul nustk 8 as p
+add p ucur as p
+load p as curunit
 mul nustk 16 as p
 add p ustack as p
 load p as ip
@@ -1652,7 +1815,9 @@ jmp next
 # "use "<path>"": read the file behind the source read so far and compile
 # it here, unless a use with the same path was compiled before
 label usedef
-call no infn
+if infn
+call eplace
+end
 call blank1
 call pk as c
 eq c 34 as d
@@ -1661,11 +1826,13 @@ call adv
 set ip as p
 label u1
 call pk as c
-eq c 256 as d
-call no d
+ifeq c 256
+call estr
+end
 ifne c 34
-eq c 10 as d
-call no d
+ifeq c 10
+call estr
+end
 call adv
 jmp u1
 end
@@ -1694,6 +1861,7 @@ sub q 1 as q
 jmp u8
 end
 storeb r 0
+set ns as epos
 sys open pathbuf 0 0 as f
 ifslt f 0
 call euse
@@ -1714,6 +1882,18 @@ add srcend c as srcend
 jmp u4
 end
 sys close f
+set 0 as epos
+mul nuses 8 as p
+add p ustart as c
+sub c 8 as c
+store c r
+add p uendp as c
+sub c 8 as c
+store c srcend
+mul nustk 8 as p
+add p ucur as p
+store p curunit
+set nuses as curunit
 mul nustk 16 as p
 add p ustack as p
 store p ip
@@ -1750,8 +1930,14 @@ label a1
 set cur as r
 add r 1 as f
 loadb f as f
-and f 9 as f
-call no f
+and f 8 as d
+if d
+call emlab
+end
+and f 1 as d
+if d
+call eas
+end
 call eop
 add cur 2 as f
 loadb f as f
@@ -1943,7 +2129,9 @@ label capture
 add cur 1 as r
 loadb r as r
 and r 2 as r
-call no r
+if r
+call enoas
+end
 label cp0
 call blanks
 set ip as q
@@ -2058,7 +2246,9 @@ jmp next
 # "local <name> <size>": bytes in the frame of the open function; the name
 # takes one of its variables, whose value is the address
 label localdef
-call ok infn
+ifz infn
+call eplace
+end
 call blank1
 set nv as q
 call defvar as r
@@ -2252,7 +2442,7 @@ load d as d
 xor asg -1 as f
 and d f as d
 if d
-call eunasg
+call eunasgj
 end
 jne pass 1 j2
 add r 24 as r
@@ -2295,8 +2485,9 @@ jmp next
 # "fn <name> <parameter>...": jump over the body, save the variable
 # registers and open a scope whose first variables are the parameters
 label fndef
-set infn as d
-call no d
+if infn
+call eplace
+end
 jnz pass f0
 set ip as sip
 set op as sop
@@ -2401,8 +2592,9 @@ jmp next
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
 jgt nblk blkbase blkend
-set infn as d
-call ok d
+ifz infn
+call eplace
+end
 call eol
 set fnres as q
 set q as d
@@ -2502,8 +2694,9 @@ jmp next
 # "else": the block so far ends with a jump past the rest, and the jump of
 # its "if" lands here
 label elsedef
-gt nblk blkbase as d
-call ok d
+ifle nblk blkbase
+call eplace
+end
 call eol
 call eb 233
 set op as r
@@ -2511,7 +2704,9 @@ call z 4
 call blktop as p
 add p 16 as q
 load4 q as d
-call no d
+if d
+call eplace
+end
 store p r
 add p 8 as q
 load q as f
@@ -2527,9 +2722,12 @@ jmp next
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
 label fin
-set infn as d
-call no d
-call no nblk
+if infn
+call eend
+end
+if nblk
+call eend
+end
 call cp exit0 9
 sub op out as c
 add c 4095 as c
@@ -2541,6 +2739,7 @@ set ncalls as r
 label c1
 jz r c2
 call getn p
+set ns as epos
 call lfn as c
 ifeq c -1
 call efn
@@ -2562,7 +2761,7 @@ add p 28 as q
 load4 q as q
 gt q d as d
 if d
-call eres
+call eresf
 end
 add c 16 as c
 load c as c
@@ -2599,6 +2798,7 @@ add q rwstart as q
 jmp r7
 end
 call getn p
+set ns as epos
 call lbuf as c
 ifeq c -1
 call eund
@@ -2653,6 +2853,9 @@ set nchks as r
 label k1
 jz r k2
 call getn p
+add p 28 as d
+load4 d as d
+add d in as epos
 call lbuf as c
 jeq c -1 k4
 call gent c as c
@@ -2695,6 +2898,7 @@ add p 32 as p
 sub r 1 as r
 jmp k1
 label k2
+set -1 as epos
 sub op out as q
 add out 96 as p
 store p q

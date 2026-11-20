@@ -83,8 +83,8 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_lea` | emit `lea <argument register>, [rip+rel32]` with the distance left open, and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_res`, `err_prog`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
-| `err_read`, `err_write` | I/O errors: print a message, exit 2 |
+| `err`, `err_stmt`, `err_place`, ..., `err_argc` | one stub per message, made by the macro `fail`: load the message and jump to the kind of `die` that fits |
+| `die_at`, `die_name`, `die_plain`, `die_io`, `die`, `ewrite` | print `ailc: `, the place, the message and the name, and exit with status 1 or 2 |
 
 ## Output file layout
 
@@ -359,6 +359,17 @@ Labels, functions and global names are found through one hash table; only the va
 - **Pending labels.** A jump to a label that is not defined yet finds or adds a node of kind `NS_PEND` for the name and and-s `asg` into its mask (`HN_MASK`). `labasg` reads that mask when the label is defined, instead of searching all jumps of the scope for the name.
 
 For two keys with the same name, a different kind or scope always gives a different bucket, because both are mixed in by exclusive or and the fold is linear over it. The comparisons of kind and scope in `hfind` can therefore never decide a lookup today; they stay so that a change of the hash cannot make names of different kinds meet. The comparison of lengths does decide: `tools/hashcol.py` finds a name and a longer one that starts with it in one bucket, and `tests/hash_collision_prefix` uses the pair.
+
+## Errors
+
+Every error ends the compiler through `die`, which writes one line to stderr in pieces: `ailc: `, the place, the message, the name, a line end.
+
+- **Message.** Each has a stub made by the macro `fail`, which loads the text and its length and jumps to one of four entries: `die_at` for a fault at a place, `die_name` when the name at fault is in `r8`/`r9`, `die_plain` and `die_io` for faults without a place, the latter with exit status 2.
+- **Place.** `epos` says where: 0 means the input cursor, which is where parsing stopped, in the unit `curunit`; -1 means nowhere; any other value is an address in the source. The routines that run after a line was parsed set it from the name in the entry they work on: `resolve` for an undefined label, the loops of `fin` for calls and names, and for the access checks the position that `memchk` stored in the entry. For such an address `die` finds the unit whose bytes hold it (`mainend`, `ustart`, `uendp`).
+- **Line.** `die` counts the line ends from the start of the unit to the place. Nothing is counted while the source compiles, so a correct program pays nothing for it.
+- **Unit.** `usedef` records where each file lies and makes it the current unit; `unitend` goes back to the unit that named it (`ucur`). A used file is printed as the path of its `use`.
+
+The output carries no debugging information, by decision: sections and a symbol table would be the first bytes in the file that the program does not need to run.
 
 ## Capacity
 

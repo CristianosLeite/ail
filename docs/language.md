@@ -713,64 +713,66 @@ A string literal is the two values that `print` takes. The library defines the v
 
 ## Errors
 
-The compiler prints one line on stderr and exits with a non-zero status. No line number is reported.
+The compiler stops at the first fault it finds, prints one line on stderr and exits with a non-zero status:
 
-| Message | Status | Cause |
-|---|---|---|
-| `ailc: syntax error` | 1 | see below |
-| `ailc: undefined variable` | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration. It is reported after the whole source has been read, so any other error comes first |
-| `ailc: unassigned variable` | 1 | a variable read, or a jump back to a label, on a way that may not have assigned it; see [Control flow](#control-flow) |
-| `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included |
-| `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
-| `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `ailc: undefined function` | 1 | a `call`, `tail` or `ref` of a function that the program never defines |
-| `ailc: wrong argument count` | 1 | a `call` or `tail` whose number of values differs from the number of parameters |
-| `ailc: wrong result count` | 1 | two `ret` statements of one function with different numbers of values, or a `call` with more names after `as` than the function has results |
-| `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
-| `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
-| `ailc: buffers too big` | 1 | a buffer larger than 2 GiB, buffers that together with the code exceed that, or the locals of a function exceeding it |
-| `ailc: source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes) |
-| `ailc: program too big` | 1 | the compiled code does not fit; with the source limit this cannot happen, and the message exists so that a mistake in that reckoning is an error and not a damaged program |
-| `ailc: cannot read file` | 1 | the path of a `use` cannot be opened or read |
-| `ailc: read error` | 2 | reading stdin failed |
-| `ailc: write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included |
+```
+ailc: 12: undefined label done
+ailc: lib/io.ai:7: wrong operand count
+ailc: source too big
+```
+
+After `ailc: ` comes the place: the line number, with the path of the file in front if the line is in a file that a `use` named, as the path was written there. Then the message, and for some messages the name it is about. The lines of each file count from 1. Messages that are not about a place have none.
+
+A fault that can only be known when the whole source has been read is still reported where it was written: an undefined label, function or name at the line that uses it, a wrong count at the call, an invalid access at the load or store. Such faults are found after all the others, so a source with two faults may report the later line first.
 
 Status 1 means the source is at fault; status 2 means the environment is.
 
-Causes of a syntax error:
+| Message | Status | Cause |
+|---|---|---|
+| `unknown statement` | 1 | a line that does not start with a statement keyword |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `use` or `args` inside one; `end` with no block and no function open; `else` without an open block, or a second `else` in one |
+| `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
+| `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
+| `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
+| `missing label` | 1 | a jump whose values are not followed by a label name |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; more than seven values after `sys` |
+| `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
+| `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
+| `syntax error` | 1 | anything else that is not a statement of the language; see below |
+| `undefined variable` *name* | 1 | a name used as a value that is no variable of its scope at that line and that no `buf` or `data` declares anywhere in the source; a `var` or `const` used before its declaration |
+| `unassigned variable` *name* | 1 | a variable read on a way that may not have assigned it. Without a name: a jump back to a label that takes more variables as assigned than the jump has; see [Control flow](#control-flow) |
+| `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
+| `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
+| `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
+| `undefined function` *name* | 1 | a `call`, `tail` or `ref` of a function that the program never defines |
+| `wrong argument count` *name* | 1 | a `call` or `tail` whose number of values differs from the number of parameters of the function named |
+| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; with the name of the function, a `call` with more names after `as` than it has results |
+| `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
+| `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
+| `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |
+| `cannot read file` *path* | 1 | the path of a `use` cannot be opened or read |
+| `source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes); no place |
+| `program too big` | 1 | the compiled code does not fit; with the source limit this cannot happen, and the message exists so that a mistake in that reckoning is an error and not a damaged program; no place |
+| `read error` | 2 | reading stdin failed; no place |
+| `write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included; no place |
 
-- a line that does not start with a statement keyword
+What remains a plain `syntax error`:
+
 - a keyword not followed by a space or tab
 - `sys` not followed by an integer, the name of a `const` or a syscall name
-- `args` inside a function, with a value or without `as`
-- the wrong number of operands: `set`, `len`, the loads, `itof`, `ftoi` and `fsqrt` take one, the stores, the arithmetic statements, the comparisons and `xadd` take two, signed and floating-point ones included, and `cas` takes three
-- `set`, `len`, an arithmetic statement, a comparison or a load without `as`, or a store with `as`
-- `len` of a number, a `var` or a `const`
-- `local` outside a function, without a name and a size (an integer or a `const`), or followed by anything but a comment
-- `at` without a name of a buffer, data or local first, then exactly two values and `as`
-- `alloc` without exactly one value and `as`, `free` without exactly one value or with `as`
-- `use` without a path in quotes on the same line, with an empty path or one of more than 4095 bytes, inside a function, or followed by anything but a comment; a file that ends inside a function
-- `var` without a name, or with something that is not a name or is `as`
-- `const` without a name and an integer, with the name `as`, or followed by anything but a comment
-- `data` without an item, with an item that is not a string or an integer from 0 to 255, with the name `as`, or followed by anything but a comment
-- `buf` without a name and a size (an integer or a `const`), with the name `as`, or followed by anything but a comment
-- `label` without a name, or followed by anything but a comment
-- `jmp` with a value, `jz` or `jnz` without exactly one, a compare-and-jump without exactly two, any of them without a label name or with `as`, or followed by anything but a comment
-- an `if` form without its one or two values or with `as`, `else` without an open block or twice in one, a block without its `end`
-- `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
-- `end` with no block open and outside a function, or followed by anything but a comment
-- `ret` outside a function, without a value or with more than six, or with `as`
-- more than one name after `as` on a statement that is not `call` or `callp`, or more than six on those
-- `ref` without a function name and `as` with one name, or with a value; `callp` without a value
-- `call` or `tail` without a function name; `tail` outside a function, with `as` or with more than six values (a string counts as two)
+- `len` of a number, a `var` or a `const`; `at` whose first value is not the name of a buffer, data or local
+- a size that is neither an integer nor a `const` after `buf` or `local`; a `const` without an integer
+- `data` without an item or with an item that is not a string or an integer from 0 to 255
+- `use` without a path in quotes, with an empty path or one of more than 4095 bytes
+- a statement that defines something followed by anything but a comment: `buf`, `var`, `const`, `data`, `label`, `local`, `use`, `fn`, `else`, `end`
+- more than one name after `as` on a statement that is not `call` or `callp`, more than six on those, or anything but a comment after the names
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too
 - `\x` in a string without two hexadecimal digits after it
 - an argument that is not an integer, a string, a variable name or a global name
 - `-` or `0x` without a digit after it
-- `as` without a name, with the name `as`, or followed by anything but a comment
-- more than seven values after `sys` (the syscall number plus six arguments; a string counts as two)
-- a string with no closing quote
+
+The output has no debugging information: a fault at run time is reported by the kernel as a signal, with no line. The exit status says which: 139 for an invalid memory access, 136 for a division by zero, 132 for the trap of [`at`](#at).
 
 ## Examples
 

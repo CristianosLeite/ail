@@ -1,0 +1,5 @@
+sys getpid as p
+if p
+set 1 as value
+end
+sys exit value

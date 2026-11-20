@@ -29,6 +29,8 @@ make test           # runs the tests in tests/ with both compilers and compares 
 make test T=hello   # runs one test
 ```
 
+A faulty program is refused with one line that says where and why, for example `ailc: 12: undefined label done`.
+
 To compile your own program, give the compiler source on stdin and take the executable from stdout:
 
 ```

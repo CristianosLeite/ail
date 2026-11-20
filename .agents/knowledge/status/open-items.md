@@ -8,7 +8,7 @@
 - [ ] 2026-11-19 — Put a differential fuzz of the two compilers in the suite ([page](../architecture/stage1-self-hosting.md))
 - [x] 2026-11-19 — Lift the limit of six variables per function (spilling to the stack) (stage1 did not need it) ([page](../architecture/language-extensions.md))
 - [x] 2026-11-19 — Decide what deep recursion should do: nothing checks for stack overflow, the program dies with SIGSEGV ([page](../architecture/language-extensions.md))
-- [ ] 2026-11-19 — Report a line number on compile errors ([page](../architecture/stage0-design-decisions.md))
+- [x] 2026-11-19 — Report a line number on compile errors ([page](../architecture/language-extensions.md))
 - [ ] 2026-11-19 — Automate the Makefile failed-build check, which the test runner cannot express (compiler I/O errors are in `tests/io.sh` since 2026-11-19) ([page](../architecture/stage0-design-decisions.md))
 - [ ] 2026-11-19 — Check emitted bytes in tests (every displacement of a full fixup table), which the runner cannot do today ([page](../testing/stage0-test-suite.md))
 - [ ] 2026-11-19 — Compare the tiktoken counts with Claude's tokenizer ([page](../architecture/token-cost-measurement.md))

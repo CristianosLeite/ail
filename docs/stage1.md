@@ -18,7 +18,8 @@ What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `euse`, `eres`, `eprog`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `estmt`, `eplace`, ..., `erd`, `ewr` | one function per message, as the stubs of stage0: set the name or drop the place if the message wants that, and call `die`; a function cannot jump out, so every error is a call that does not return |
+| `die`, `ew` | print the line of an error as stage0 does, from `epos`, `curunit` and the name in `ename`, and exit |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `ochk` | `outchk` of stage0 |
