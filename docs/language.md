@@ -512,7 +512,9 @@ ret acc
 end
 ```
 
-`tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. For the same reason it must not pass the address of a `local`. No way leads to the line after it.
+`tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. No way leads to the line after it.
+
+**In a function that has a `local`** the frame is not given up: the callee may be reading the local, through an address among the values, in a variable or in memory, which the compiler cannot follow. There `tail` is the call followed by the return of all its results, and the frame stays until the callee has returned. The program means the same; what it loses is the loop: each round of a function that has a local and ends with a `tail` to itself uses a frame. A function that is to run without a growing stack has no `local`, and keeps such bytes in a `buf` or an `alloc`.
 
 ### `buf`
 

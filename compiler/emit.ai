@@ -625,6 +625,27 @@ if ai>6
 call ecount
 end
 fntail=1
+if fnlocal
+# a tail in a function with a local: the address of the local may be
+# among the values, or in memory the callee reads, so the frame stays
+# until the callee has returned: its call, then the return, with the
+# results where the callee left them
+call eb 232
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai
+store4 p+28 ncap
+call z 4
+ncalls=n+1
+call frame 196
+call godead
+call popskip as n
+call cp retc+n 11-n
+ret 0
+end
 end
 call frame 196
 call godead

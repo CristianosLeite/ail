@@ -264,7 +264,5 @@ fn asyncfirst asynca asyncb
 local asyncp 16
 store asyncp asynca
 store asyncp+8 asyncb
-# not a tail call, which would give the local back before it is read
-call asyncany asyncp 2 as asynct
-ret asynct
+tail asyncany asyncp 2
 end
