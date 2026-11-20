@@ -37,6 +37,8 @@ All three are done as of 2026-11-20: the corpus is 970 tokens against 1118 for C
 
 ## Supporting work
 
+- Asynchronous execution (2026-11-20): `async fn` and `await` compile a function into a task that one thread polls, with its variables in a record on the heap and no stack of its own; `lib/async/` has the runtime, written in AIL after the model of Tokio: the queue, timers, an `epoll` driver for sockets, work handed to the pool of `spawn`, cancelling, stopping, channels and the first of several. A TCP echo server is 245 tokens against 481 in C on `epoll`, and carries the same 280000 round trips a second on one thread ([results](performance.md#async-2026-11-20)).
+
 - Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 13% fewer tokens than C and 19% fewer than Rust on ten programs (it cost 17% and 10% more before expressions). Use `tools/tokens.sh` to choose between syntax alternatives.
 - Elapsed time is measured against the same programs built with `gcc -O3` and `rustc -O` ([results](performance.md)): an AIL program starts in a third of the time of the C one; the five CPU-bound programs take 1.04 times as long as C in the geometric mean, four of them within 6% and one 13% behind (the mean was 1.74 before the compiler chose instructions).
 - Compile errors name the line, the file, the name at fault and a specific cause, since the error message is what an AI uses to repair its program.

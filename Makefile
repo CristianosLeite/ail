@@ -77,7 +77,7 @@ ifeq ($(T),)
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; \
-	tests/par.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
+	tests/par.sh || f=1; AILC=$(B)/ailc tests/async.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; exit $$f

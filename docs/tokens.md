@@ -158,3 +158,13 @@ What this decides:
 - The two forms of `await` are told apart by the first word: a variable of the scope, or a global name, is a handle; any other name is a function. A function hidden that way is called with `call` and its handle awaited.
 - The functions that wait for time and for descriptors stay functions that return a handle, so both forms work on them and nothing about them is special: `await asyncsleep 100`, or `call asyncsleep 100 as h` and later `await h` to wait for several things at once.
 - A task that nobody awaits is two lines, `call conn c as k` and `call asyncdetach k`, 11 tokens. It occurs once in a server; a statement of its own is left out until programs show it paying.
+
+With the statements in the compiler, the programs of `bench/async/` as they are run and measured ([performance](performance.md#async-2026-11-20)), comments left out:
+
+| program | AIL | C |
+|---|---:|---:|
+| `timer`: two tasks that print at their own pace | 78 | |
+| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 245 | 481 |
+| `ping`: load for it, with the time of every round trip and its distribution | 614 | |
+
+The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 245 tokens, 119 are the two functions that serve, 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.

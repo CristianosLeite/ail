@@ -266,7 +266,7 @@ a small internal interface for compiler-generated code.
    waiting on the first of several operations after those rules are tested.
    Evaluate a multithreaded async scheduler after measuring the single-thread
    executor and defining which task state can move across threads.
-5. [ ] Test suspension and resumption across branches and loops, propagation
+5. [x] Test suspension and resumption across branches and loops, propagation
    of results and errors, cancellation before and after readiness, shutdown
    with live tasks, and progress under load. Check that synchronous programs
    start no async runtime. Add a timer example and a concurrent TCP echo
