@@ -170,8 +170,8 @@ data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185 65 187 0 185
 data argnum 0 7 6 2 10 8 9 11 1
 # per variable: x86 register number
 data varnum 3 5 12 13 14 15
-# mov eax,60 ; xor edi,edi ; syscall
-data exit0 184 60 0 0 0 49 255 15 5
+# mov eax,231 ; xor edi,edi ; syscall: exit_group, which ends every thread
+data exit0 184 231 0 0 0 49 255 15 5
 # the names of the comparisons, by operator number, three bytes each: the
 # statements that compare and jump are named with them
 data exkw "muldivmodaddsubshlshrandxoror_eq_ne_lt_le_gt_ge_"

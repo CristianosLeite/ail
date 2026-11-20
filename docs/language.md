@@ -12,7 +12,7 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 ## Program structure
 
-A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`.
+A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the syscall `exit_group` with status 0, which ends the whole process. A `sys exit` written in the program ends only the thread that runs it, which is the process when there is one thread; a program with other threads ends with `sys exit_group`.
 
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 

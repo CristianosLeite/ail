@@ -78,7 +78,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |
 | `# ...` | Comment to end of line |
 
-One statement per line. The program starts at the first line and `exit(0)` is appended at the end.
+One statement per line. The program starts at the first line and `exit(0)` is appended at the end (the syscall `exit_group`, which ends every thread).
 
 ## Documentation
 

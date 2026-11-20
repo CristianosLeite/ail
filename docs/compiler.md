@@ -29,7 +29,7 @@ There is one pass over the top level and two over each function, and no intermed
 1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
-4. Append the code for `exit(0)`.
+4. Append the code for `exit_group(0)`.
 5. Fill in the displacement of every top-level jump from the label table and of every call from the function table. Place the writable segment on the page after the code and fill in the distance to every buffer, data name and var cell, and the lengths of names used before their declaration.
 6. Patch the segment sizes and the address of the second segment in the header, write the buffer to stdout, exit.
 
@@ -64,7 +64,7 @@ The top level uses the six variables `c d r f p q`, which are the ones that get 
 | `earg` | an argument that is an expression: parse it and compute it into the register of its position |
 | `xarg` | a value of a statement that is compiled like an expression: parse it, compute nothing yet |
 | `asgn` | `name=expression` and `name+=expression`: compute and store |
-| `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
+| `fin` | emit `exit_group(0)`, patch the top-level jumps, the calls, the uses of names and the sizes, write the output |
 
 Everything else is a function:
 
@@ -162,7 +162,7 @@ The bytes lie just behind the `lea`, at a distance that is known as soon as the 
 
 **End of statement.** The instruction bytes of the statement, copied from its `optab` entry by `eop`; for `sys` that is `syscall` (`0F 05`). With `as`, they are followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
-**End of program.** `mov eax, 60` / `xor edi, edi` / `syscall`.
+**End of program.** `mov eax, 231` / `xor edi, edi` / `syscall`: `exit_group(0)`, which ends every thread of the process, where `exit` (60) would end only the one that reached the last line and leave a program with other threads running.
 
 ## Operations
 
@@ -242,7 +242,7 @@ dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
 e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
 e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
 e8:  0f 05               syscall
-ea:  b8 3c 00 00 00      mov  eax, 60         ; implicit exit(0), never reached here
+ea:  b8 e7 00 00 00      mov  eax, 231        ; implicit exit_group(0), never reached here
 ef:  31 ff               xor  edi, edi
 f1:  0f 05               syscall
 ```

@@ -22,7 +22,7 @@ mkdir -p build/tests
 tmp=$(mktemp -d build/tests/insn.XXXXXX) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
-exit0=b83c00000031ff0f05      # mov eax, 60 ; xor edi, edi ; syscall
+exit0=b8e700000031ff0f05      # mov eax, 231 ; xor edi, edi ; syscall
 
 hexof() {
     od -An -v -tx1 "$@" | tr -d ' \n'
