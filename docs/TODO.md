@@ -191,6 +191,29 @@ command arguments, exit statuses and output formats where callers rely on
 them. Update the documented commands and retire each Python entry point after
 its AIL replacement passes the corresponding checks.
 
+## Source style and editor tooling
+
+- [ ] Document the indentation convention. Use one tab per syntactic block
+  level and display tabs at a width of two columns in VS Code. Keep top-level
+  statements at column one. Indent the bodies of `fn`, `if` (including its
+  comparison forms), `else` and `while`. Align `else` and `end` with the
+  matching opener. A `label` stays at its current block depth. Keep expressions
+  and assignments compact, as in `n-=1`. Indentation is a style convention
+  and has no effect on how the compiler parses blocks.
+- [ ] Write an AIL formatter that changes only leading spaces and tabs. Add
+  `--check` to report indentation violations without rewriting files, as the
+  first lint rule. Verify that formatting is idempotent and that formatted
+  examples compile to the same bytes.
+- [ ] Add a VS Code extension for `.ai` files with syntax highlighting, block
+  folding and formatting through the same AIL formatter.
+- [ ] Apply the convention to the examples first. Reindent the compiler in a
+  separate formatting commit and verify the bootstrap fixed point.
+
+On the ten examples, the `o200k_base` tokenizer counted 970 tokens without
+indentation, 990 with one tab per level (+2.1%), and 1,024 with either two or
+four spaces per level (+5.6%), excluding comments. All variants compiled to
+byte-identical executables. See [token cost](tokens.md) for the corpus.
+
 ## Parallel execution
 
 - [x] Define compact `spawn` and `join` forms for independent tasks. Have
