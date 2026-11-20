@@ -155,7 +155,7 @@ symbols by file purpose because `use` brings names into one program-wide scope.
    tools on representative sources. Retain the byte-for-byte, idempotence
    and compiled-behavior checks in `tests/infix.sh` and switch it to the AIL
    executable after it passes them.
-3. [ ] Port `randvars.py`. Use a documented deterministic PRNG and keep the
+3. [x] Port `randvars.py`. Use a documented deterministic PRNG and keep the
    evaluator independent of the compiler and source emitters. Retain the
    three source forms, the byte comparison of the first two, expected exit
    statuses, and saved failure sources. Replay selected Python-generated
