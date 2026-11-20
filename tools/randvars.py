@@ -3,12 +3,15 @@
 Usage: randvars.py <compiler> <count> <seed> [top]
 
 Each program is arithmetic on up to 40 variables with nested loops and
-blocks, in a function or (with "top") at top level. It is written twice
-from one tree: with statements (`add a b as x`, labels and jumps) and
-with expressions (`x=a+b`, `x+=e`, `while`, `if` on a comparison). The
-same tree is run in Python, with 64-bit wrapping, to get the exit status
-that both must give, so the expected result does not come from a
-compiler. A program that fails is kept as
+blocks, in a function or (with "top") at top level. It is written three
+times from one tree: with statements (`add a b as x`, labels and jumps);
+line for line the same with each statement spelled as an expression
+(`x=a+b`, `jz a<b l`); and with nested expressions, `x+=e`, `while` and
+`if` on a comparison. The same tree is run in Python, with 64-bit
+wrapping, to get the exit status that all must give, so the expected
+result does not come from a compiler. The first two must also compile to
+the same file, byte for byte: a statement and the expression that says
+the same are one thing to the compiler. A program that fails is kept as
 build/randvars/seed<seed>[-top]-<n>-<form>.ai. `make test` runs it with a
 fixed seed in both modes.
 """
@@ -121,12 +124,26 @@ def run(block, env):
             run(st[3], env)
 
 
-class Old:
-    """the statement form: one operation a line, labels and jumps"""
+INV = {"eq": "ne", "ne": "eq", "lt": "ge", "ge": "lt", "le": "gt", "gt": "le"}
 
-    def __init__(self):
+
+class Old:
+    """the statement form: one operation a line, labels and jumps; with
+    flat, each line that computes is spelled as an expression instead"""
+
+    def __init__(self, flat=False):
         self.lines = []
         self.nlab = 0
+        self.flat = flat
+
+    def op(self, o, a, b, dst):
+        if self.flat:
+            if dst == a and o in ARITH:
+                self.lines.append("%s%s=%s" % (dst, OPS[o][0], b))
+            else:
+                self.lines.append("%s=%s%s%s" % (dst, a, OPS[o][0], b))
+        else:
+            self.lines.append("%s %s %s as %s" % (o, a, b, dst))
 
     def label(self):
         self.nlab += 1
@@ -138,7 +155,7 @@ class Old:
             return e
         a = self.value(e[1], k)
         b = self.value(e[2], k + 1)
-        self.lines.append("%s %s %s as t%d" % (e[0], a, b, k))
+        self.op(e[0], a, b, "t%d" % k)
         return "t%d" % k
 
     def block(self, b):
@@ -146,21 +163,37 @@ class Old:
             if st[0] == "set":
                 e = st[2]
                 if isinstance(e, str):
-                    self.lines.append("set %s as %s" % (e, st[1]))
+                    self.lines.append(("%s=%s" % (st[1], e)) if self.flat
+                                      else "set %s as %s" % (e, st[1]))
                 else:
                     a = self.value(e[1], 0)
                     c = self.value(e[2], 1)
-                    self.lines.append("%s %s %s as %s" % (e[0], a, c, st[1]))
+                    self.op(e[0], a, c, st[1])
             elif st[0] == "loop":
                 l = self.label()
-                self.lines.append("set %d as %s" % (st[1], st[2]))
+                self.lines.append(("%s=%d" % (st[2], st[1])) if self.flat
+                                  else "set %d as %s" % (st[1], st[2]))
                 self.lines.append("label " + l)
                 self.block(st[3])
-                self.lines.append("sub %s 1 as %s" % (st[2], st[2]))
+                self.op("sub", st[2], "1", st[2])
                 self.lines.append("jnz %s %s" % (st[2], l))
             else:
                 l = self.label()
-                self.lines.append("jz %s %s" % (self.value(st[1], 0), l))
+                c = st[1]
+                if not isinstance(c, str) and c[0] in INV and \
+                        isinstance(c[1], str) and isinstance(c[2], str) and \
+                        (c[1][0] in "vpc" or c[2][0] in "vpc"):
+                    # a comparison of two plain values, not both numbers
+                    # (the compiler computes an expression of numbers, and
+                    # leaves a statement that compares them to run): one
+                    # statement, or the jump on the expression that says
+                    # the same
+                    if self.flat:
+                        self.lines.append("jz %s%s%s %s" % (c[1], OPS[c[0]][0], c[2], l))
+                    else:
+                        self.lines.append("j%s %s %s %s" % (INV[c[0]], c[1], c[2], l))
+                else:
+                    self.lines.append("jz %s %s" % (self.value(c, 0), l))
                 self.block(st[2])
                 if st[3] is not None:
                     m = self.label()
@@ -228,23 +261,27 @@ def program(rng, top):
     for v in final:
         h = (h + env[v]) & M
     want = h % 251
-    old, new = Old(), New(rng)
+    old, flat, new = Old(), Old(True), New(rng)
     old.block(body)
+    flat.block(body)
     new.block(body)
     old.lines.append("set 0 as h")
+    flat.lines.append("h=0")
     for v in final:
         old.lines.append("add h %s as h" % v)
+        flat.lines.append("h+=%s" % v)
     old.lines.append("mod h 251 as h")
+    flat.lines.append("h%=251")
     new.lines.append("h=(%s)%%251" % "+".join(final) if final else "h=0")
     out = []
-    for lines in (old.lines, new.lines):
+    for lines in (old.lines, flat.lines, new.lines):
         if top:
             src = lines + ["sys 60 h"]
         else:
             src = ["fn f " + " ".join(params)] + lines + ["ret h", "end",
                    "call f %s as r" % " ".join(map(str, args)), "sys 60 r"]
         out.append("\n".join(src) + "\n")
-    return out[0], out[1], want, len(g.names) + len(params) + g.ncnt + NTEMP + 1
+    return out[0], out[1], out[2], want, len(g.names) + len(params) + g.ncnt + NTEMP + 1
 
 
 def main():
@@ -263,12 +300,18 @@ def main():
         return path
 
     for i in range(n):
-        old, new, want, nv = program(rng, top)
+        old, flat, new, want, nv = program(rng, top)
         if nv > 60:      # too many variables for a scope
             continue
         done += 1
-        for form, src in (("statements", old), ("expressions", new)):
+        files = {}
+        for form, src in (("statements", old), ("flat", flat), ("expressions", new)):
             p = subprocess.run([cc], input=src.encode(), capture_output=True)
+            files[form] = p.stdout
+            if form == "flat" and p.returncode == 0 and files["flat"] != files["statements"]:
+                print("FAIL randvars %d: statements and their expressions give other bytes (kept as %s, %s)"
+                      % (i, keep(i, "statements", old), keep(i, form, src)))
+                bad += 1
             if p.returncode != 0:
                 print("FAIL randvars %d as %s: does not compile: %s (kept as %s)"
                       % (i, form, p.stderr.decode().strip(), keep(i, form, src)))
@@ -285,7 +328,7 @@ def main():
                       % (i, form, got, want, keep(i, form, src)))
                 bad += 1
     if not bad:
-        print("ok   %s (%d run, as statements and as expressions)" % (what, done))
+        print("ok   %s (%d run, as statements, the same bytes line by line as expressions, and nested)" % (what, done))
     if os.path.exists(exe):
         os.remove(exe)
     os.rmdir(tmp)

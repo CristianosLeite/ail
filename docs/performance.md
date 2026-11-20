@@ -68,4 +68,6 @@ What the figures say about the code the compiler writes today:
 - `isort` is three times slower: its inner loop has nothing but moves, a load, a store, a comparison and two jumps, so the copies through `rax` and `rdi` and the jump to the test at the top are the whole cost.
 - `sieve` is 20% slower for the same reason, less so because its inner loop waits for memory.
 
-So the work is in three places: a constant operand used as an immediate, with division and remainder by a power of two as a shift and a mask; operands used where they are instead of copied; and a loop with its test at the end.
+After the statements were compiled like expressions (2026-11-20, a quick run of three rounds, same machine), the same sources, still written with one operation a line, gave `compute` 1.00, `fnv` 1.00, `sieve` 1.08, `collatz` 1.15 and `isort` 2.24, a geometric mean of 1.23.
+
+Before that, the work was in three places: a constant operand used as an immediate, with division and remainder by a power of two as a shift and a mask; operands used where they are instead of copied; and a loop with its test at the end.

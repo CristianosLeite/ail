@@ -58,6 +58,9 @@ var xfree xpref nxs xspl xlk xla xlb xlc xrk xra xrb xrc xskip xcl xct
 # 16), whether the operator at hand is the last, and whether the result is
 # already in the register
 var xtr xlast xtin
+# the kind of the statement at hand if it is compiled like an expression
+# (else 0), and the operator of one that computes
+var xst xso
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -116,6 +119,7 @@ buf calls 38347936    # 1198373 calls of 32 bytes: name, length, rel32 address, 
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
 buf exs 8388609      # and as many operators or open parentheses, a byte each
+buf xrows 128        # the rows of the statements of the sixteen operators
 buf exnm 8           # the name of a statement that compares and jumps
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
 buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
@@ -2309,39 +2313,170 @@ call epop 0
 end
 call anext
 end
-# A comparison that is the whole value of if, ifz, jz or jnz is not turned
-# into 1 or 0 and tested: the statement becomes the one that compares and
-# jumps (ifeq, jlt, ...), or its opposite for ifz and jz. The two sides are
-# compared here, where they are, and xskip makes eop leave out the cmp of
-# the row and copy only its jump. 1 if that was done.
-fn excond
-if ai
+# The statements that only compute or compare are compiled like
+# expressions: their values are parsed into ex, each as an expression, and
+# no code is written until the statement is complete. xclass says which
+# kind the statement at cur is: 1 it computes and keeps the result with as
+# (set, and the sixteen whose operators an expression has: xso is the
+# operator, -1 for set), 2 it compares two values and jumps or opens a
+# block, 3 it tests one value and does. 0 is every other statement, and any
+# line with a string, which is compiled the old way, by the bytes of its
+# row.
+fn xclass
+set ip as p
+label s
+jge p ie e
+loadb p as c
+jeq c 34 z
+jeq c 10 e
+jeq c 35 e
+add p 1 as p
+jmp s
+label e
+add cur 1 as q
+load2 q as f
+loadb cur as n
+add cur 3 as q
+loadb q as l
+ifeq f 1
+ifz l
+ifeq n 1
+set -1 as xso
+ret 1
+end
+end
+ifeq n 2
+load xrows as q
+ifz q
+# the rows of the sixteen operators, found once by their names
+set ns as sn
+set nl as sl
+set 0 as i
+label b
+iflt i 16
+mul i 3 as q
+add q exkw as q
+set q as ns
+set 3 as q
+ifge i 9
+set 2 as q
+end
+set q as nl
+call kw as r
+mul i 8 as q
+add q xrows as q
+store q r
+add i 1 as i
+jmp b
+end
+set sn as ns
+set sl as nl
+end
+set 0 as i
+label a
+iflt i 16
+mul i 8 as q
+add q xrows as q
+load q as q
+ifeq q cur
+set i as xso
+ret 1
+end
+add i 1 as i
+jmp a
+end
+end
 ret 0
 end
-iflt nex 2
+ifeq l 5
+add cur 4 as q
+load4 q as c
+ifeq n 2
+ifeq c 0x0ff83948
+ret 2
+end
+end
+ifeq n 1
+ifeq c 0x0fc08548
+ret 3
+end
+end
+end
+label z
 ret 0
 end
+# a statement of kind 1 is complete, with its name after as: apply its
+# operator and keep the result
+fn xcap
+loadb cur as n
+ifne ai n
+call ecount
+end
+ifne xso -1
+call exred xso
+end
+load caps as f
+add caps 8 as p
+load p as p
+call xstore f p
+end
+# A statement of kind 2 or 3 is complete: compare its values where they
+# are, or test its one value, and make eop leave out the cmp or test of the
+# row and copy only its jump (xskip). A comparison that is the whole value
+# of if, ifz, jz or jnz is not turned into 1 or 0 and tested: the statement
+# becomes the one that compares and jumps (ifeq, jlt, ...), or its opposite
+# for ifz and jz. The name read last, the label of a jump, is kept.
+fn xjcond
+ifz xst
+ret 0
+end
+loadb cur as n
+ifne ai n
+ret 0
+end
+set ns as sn
+set nl as sl
+set nex as h
+load exv as e
+add e 1 as e
+ifeq xst 3
 sub nex 1 as h
 mul h 32 as p
 add p ex as p
+load p as k
 add p 8 as q
 load q as o
+ifne k 6
+set 0 as o
+end
 iflt o 10
-ret 0
+call xinit 0x0fc1 16
+call xgen 0 nex
+sub nxs 1 as nxs
+load exv as k
+add exv 8 as q
+load q as a
+add exv 16 as q
+load q as b
+add exv 24 as q
+load q as c
+set 16 as r
+ifeq k 7
+set a as r
 end
-loadb cur as c
-ifne c 1
-ret 0
+ifeq k 4
+call vplace a as kk pp
+ifz kk
+set pp as r
 end
-add cur 3 as q
-loadb q as c
-ifne c 5
-ret 0
 end
-add cur 4 as q
-load4 q as c
-ifne c 0x0fc08548
-ret 0
+ifeq r 16
+call xalloc as r
+call xld k a b c r
+end
+call orr 133 r r
+set 3 as xskip
+jmp x
 end
 # test rax, rax and a jump: 132 if it is taken on zero
 add cur 8 as q
@@ -2383,14 +2518,17 @@ set r as cur
 add p 16 as q
 load q as e
 add e 1 as e
+set 2 as ai
+end
 call xinit 0x0fc1 16
 call xgen 0 e
 call xgen e h
 call xpop2
 call xcmp as s x y
 set 3 as xskip
-set 2 as ai
-ret 1
+label x
+set sn as ns
+set sl as nl
 end
 # after the name that starts a line: 0, or 1 for "=", or 2 + an operator
 # for the operator and "=", with the cursor behind the "="
@@ -2468,14 +2606,6 @@ ifne f -1
 call exred f
 end
 call eol
-add exv 8 as q
-load q as k0
-add q 8 as q
-load q as k1
-add q 8 as q
-load q as k2
-add q 8 as q
-load q as k3
 set ts as ns
 set tl as nl
 call lbuf as r
@@ -2486,10 +2616,7 @@ load d as d
 ifeq d 1
 add p 16 as p
 load p as p
-call xinit 0x0fc1 0
-call xgen 0 nex
-call xfin 0
-call emem 0 1 p 137
+call xstore 1 p
 ret 0
 end
 end
@@ -2511,6 +2638,26 @@ load d as c
 add c 1 as c
 store d c
 end
+end
+call xstore 0 i
+end
+# keep the expression in ex, whose value is alone on exv: in the cell i of
+# a var (f = 1), or in variable i, which is thereby assigned
+fn xstore f i
+add exv 8 as q
+load q as k0
+add q 8 as q
+load q as k1
+add q 8 as q
+load q as k2
+add q 8 as q
+load q as k3
+if f
+call xinit 0x0fc1 0
+call xgen 0 nex
+call xfin 0
+call emem 0 1 i 137
+ret 0
 end
 shl 1 i as d
 or asg d as asg
@@ -3433,6 +3580,11 @@ if infn
 call eplace
 end
 end
+call xclass as d
+set d as xst
+if d
+call exinit
+end
 and f 16 as d
 if d
 call rname
@@ -3579,6 +3731,7 @@ jeq c 35 a1
 call blank c as d
 jnz d a2
 ifne c 13
+jnz xst xarg
 jeq c 34 str
 call excomp as d
 jnz d earg
@@ -3602,6 +3755,7 @@ and f 1 as d
 if d
 call eas
 end
+call xjcond
 call eop
 add cur 2 as f
 loadb f as f
@@ -3644,9 +3798,31 @@ end
 end
 call exinit
 call exparse 0
-call excond as d
-jnz d tokend
 call exarg
+jmp tokend
+
+# a value of a statement that is compiled like an expression: parsed now,
+# computed when the statement is complete. A name may be as, or the label
+# of a jump that has its values.
+label xarg
+call low c as d
+if d
+set ip as q
+call name
+set cur as r
+add r 1 as f
+loadb f as f
+and f 8 as f
+if f
+loadb r as f
+jge ai f jtarget
+end
+call isas as d
+jnz d capture
+set q as ip
+end
+call exparse ai
+add ai 1 as ai
 jmp tokend
 
 label num
@@ -3875,6 +4051,10 @@ jnz d cp0
 call err
 label cp4
 call eol
+if xst
+call xcap
+jmp next
+end
 call eop
 set 0 as r
 label cp5
@@ -4158,6 +4338,7 @@ load q as d
 and d asg as d
 store q d
 label j2
+call xjcond
 call eop
 set nfix as r
 mul r 32 as p
@@ -4481,6 +4662,11 @@ set 0 as ncap
 store opd 0
 add opd 32 as d
 store d 0
+call xclass as d
+set d as xst
+if d
+call exinit
+end
 jmp arg
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF

@@ -76,12 +76,12 @@ check bytes_calls '
     function code(   i) { b("233 3 0 0 0 49 192 195")
         for (i = 0; i < K; i++) { printf "%c", 232; r4(181 - (184 + 5 * i + 5)) } }'
 
-# the address of a buffer: lea rax, [rip+rel32] / mov rbx, rax
+# the address of a buffer: lea rbx, [rip+rel32]
 check bytes_buffer_addresses '
     function init() { K = 762600; MEM = 8 }
     function source(   i) { print "buf b 8"; for (i = 0; i < K; i++) print "set b as x" }
     function code(   i) { for (i = 0; i < K; i++) {
-        printf "%c%c%c", 72, 141, 5; r4(rw - (176 + 10 * i + 7)); printf "%c%c%c", 72, 137, 195 } }'
+        printf "%c%c%c", 72, 141, 29; r4(rw - (176 + 7 * i + 7)) } }'
 
 # the cell of a var, read and written: mov rax, [rip+rel32] / mov [rip+rel32], rax
 check bytes_var_cells '
