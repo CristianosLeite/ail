@@ -71,6 +71,7 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a b` | Return one to six values from the function; reaching `end` returns 0 |
 | `ref f as p`, `callp p a b as x` | The address of a function, and a call through an address |
+| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/task.ai"`) |
 | `tail f a b` | Call `f` and return its result without growing the stack |
 | `call f a b as x y` | Call `f` with as many values as it has parameters; `as` names a variable per result and is optional |
 | `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |

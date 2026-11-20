@@ -188,7 +188,7 @@ its AIL replacement passes the corresponding checks.
 
 ## Parallel execution
 
-- [ ] Define compact `spawn` and `join` forms for independent tasks. Have
+- [x] Define compact `spawn` and `join` forms for independent tasks. Have
   `spawn` submit a function and return a task handle, and have `join` wait
   for its result. Define handle lifetime, error handling and the visibility of
   writes after `join`. Specify how long memory passed to a task must stay valid.

@@ -564,6 +564,30 @@ label h
 jz f&16 w
 i=ai
 loadb cur+2 as c
+if c&32
+if c&2
+# spawn: the row was lea rax, [rip+rel32] for the function, recorded with
+# the count of the values so that it is checked; then the call
+if ai>6
+call ecount
+end
+call ok ncap==1
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai-1
+store4 p+28 0
+call z 4
+ncalls=n+1
+call eb 232
+i=0xffffffff
+end
+cn=kwn
+cl=kwl
+jmp g
+end
 if c&2
 if ai
 call ecount
@@ -571,6 +595,7 @@ end
 call ok ncap==1
 i=0xffffffff
 end
+label g
 n=ncalls
 p=n*32+calls
 store p cn

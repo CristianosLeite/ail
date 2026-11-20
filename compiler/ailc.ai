@@ -12,6 +12,8 @@ var ip ie op ai nv cur ns nl
 # the counters and the saved scope of stage0, under its names: nbufs counts
 # the global names and ngv those that are vars; cn, cl = name of this call
 var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
+# kwn, kwl = the keyword of a spawn or join, the name of the function they call
+var kwn kwl
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
@@ -243,6 +245,15 @@ if d
 call exinit
 end
 if f&16
+loadb cur+2 as d
+if d&32
+# spawn and join call the function named like them; join has only values,
+# spawn the name of a function, whose address is the value before its own
+kwn=ns
+kwl=nl
+jz d&2 arg
+ai=1
+end
 call rname
 cn=ns
 cl=nl

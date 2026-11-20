@@ -84,11 +84,11 @@ In the place of the number, and only there, `sys` accepts these names for the ke
 | `mprotect` 10 | `munmap` 11 | `brk` 12 | `rt_sigaction` 13 |
 | `ioctl` 16 | `pipe` 22 | `nanosleep` 35 | `getpid` 39 |
 | `socket` 41 | `connect` 42 | `accept` 43 | `bind` 49 |
-| `listen` 50 | `fork` 57 | `execve` 59 | `exit` 60 |
-| `wait4` 61 | `kill` 62 | `rename` 82 | `mkdir` 83 |
-| `rmdir` 84 | `unlink` 87 | `chmod` 90 | `gettimeofday` 96 |
-| `getuid` 102 | `clock_gettime` 228 | `exit_group` 231 | `openat` 257 |
-| `getrandom` 318 | | | |
+| `listen` 50 | `clone` 56 | `fork` 57 | `execve` 59 |
+| `exit` 60 | `wait4` 61 | `kill` 62 | `rename` 82 |
+| `mkdir` 83 | `rmdir` 84 | `unlink` 87 | `chmod` 90 |
+| `gettimeofday` 96 | `getuid` 102 | `futex` 202 | `sched_getaffinity` 204 |
+| `clock_gettime` 228 | `exit_group` 231 | `openat` 257 | `getrandom` 318 |
 
 ```
 sys write 1 "hello\n"
@@ -398,6 +398,34 @@ callp f 10 as x         # the same as: call inc 10 as x
 ```
 
 Nothing is known about the function at a `callp`: the number of values is not checked against its parameters, nor the names after `as` against its results, and an address that is not a function's is a fault at run time. Otherwise `callp` is a `call`: it has an optional `as` with one name per result wanted, and a string counts as two values.
+
+#### Tasks
+
+```
+use "lib/task.ai"
+spawn name x y as h
+join h as result
+```
+
+`spawn` submits the function `name` with up to five values as a task and keeps a handle of it; `join` waits until the task has run and keeps the first result of the function. Tasks are independent pieces of work that may run at the same time as the code that spawned them:
+
+```
+use "lib/task.ai"
+fn work a b
+ret a*b
+end
+spawn work 6 7 as h
+join h as x             # 42
+```
+
+The two statements are calls of the functions `spawn` and `join` of the program, which `lib/task.ai` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
+
+- **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 64 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
+- **The result** is the first value the function returns, 0 if it reaches its `end`. Further results are lost; a task with more to give writes it to memory it was passed.
+- **When it runs** is not defined: at some time between its `spawn` and the return of its `join`, on another thread or inside `join` itself. A program must be right in every such order.
+- **Memory**: a task shares all memory with the rest of the program, `var` cells and buffers included. What a task wrote is there for the code after its `join`. Before that, a cell that the task and other code both touch, one of them writing, is only safe through [`xadd` and `cas`](#atomic-operations). Memory whose address is passed to a task must stay valid until its `join` has returned: a `buf` always is, an `alloc` until its `free`, and a `local` if the function that owns it joins the task before it returns.
+- **Errors**: a task has no failure of its own. What it reports, it reports in its result. A fault in a task (a trap of `at`, a division by zero, a bad address) ends the whole program, as anywhere else.
+- **The end of the program**: reaching the last line ends the program with every task, run or not. So does `sys exit_group`; `sys exit` ends only the thread that runs it.
 
 #### Recursion and the stack
 
@@ -797,7 +825,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; `spawn` with more than five values; more than seven values after `sys` |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -806,8 +834,8 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `undefined function` *name* | 1 | a `call`, `tail` or `ref` of a function that the program never defines |
-| `wrong argument count` *name* | 1 | a `call` or `tail` whose number of values differs from the number of parameters of the function named |
+| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
+| `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; with the name of the function, a `call` with more names after `as` than it has results |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |

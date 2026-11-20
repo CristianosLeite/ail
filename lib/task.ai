@@ -1,0 +1,53 @@
+# lib/task.ai -- tasks: the functions that the statements spawn and join
+# call. Put  use "lib/task.ai"  in a program that has them, compiled from
+# the top of the repository.
+#
+# A task is a record of 64 bytes from alloc, and its handle the address:
+#    0  state: 0 waiting, 1 taken, 2 done
+#    8  result
+#   16  function
+#   24  the five values
+
+# "spawn f a b c d e as t": a task that will call the function at p with
+# the five values; 0 if there is no memory for it
+fn spawn p a b c d e
+alloc 64 as t
+ifz t
+ret 0
+end
+store t+16 p
+store t+24 a
+store t+32 b
+store t+40 c
+store t+48 d
+store t+56 e
+ret t
+end
+
+# run the task t, which the caller has taken
+fn taskrun t
+load t+16 as p
+load t+24 as a
+load t+32 as b
+load t+40 as c
+load t+48 as d
+load t+56 as e
+callp p a b c d e as x
+store t+8 x
+store t 2
+end
+
+# "join t as x": the result of the task t, run here if nothing took it;
+# the task is gone afterwards. The result of no task is 0.
+fn join t
+ifz t
+ret 0
+end
+cas t 0 1 as k
+if k
+call taskrun t
+end
+load t+8 as x
+free t
+ret x
+end

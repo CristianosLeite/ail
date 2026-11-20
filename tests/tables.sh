@@ -29,9 +29,9 @@ BEGIN {
     # x86-64 Linux, from asm/unistd_64.h
     split("read 0 write 1 open 2 close 3 stat 4 fstat 5 lseek 8 mmap 9 mprotect 10 " \
           "munmap 11 brk 12 rt_sigaction 13 ioctl 16 pipe 22 nanosleep 35 getpid 39 " \
-          "socket 41 connect 42 accept 43 bind 49 listen 50 fork 57 execve 59 exit 60 " \
+          "socket 41 connect 42 accept 43 bind 49 listen 50 clone 56 fork 57 execve 59 exit 60 " \
           "wait4 61 kill 62 rename 82 mkdir 83 rmdir 84 unlink 87 chmod 90 " \
-          "gettimeofday 96 getuid 102 clock_gettime 228 exit_group 231 openat 257 " \
+          "gettimeofday 96 getuid 102 futex 202 sched_getaffinity 204 clock_gettime 228 exit_group 231 openat 257 " \
           "getrandom 318", k, " ")
     for (i = 1; k[i] != ""; i += 2) { sysnum[k[i]] = k[i + 1]; nsys++ }
 }
@@ -74,7 +74,7 @@ $1 != "data" { bad("not a data line"); next }
         if (cnt != ++nown) bad("own statements not numbered in order: " name)
     } else {
         if (nown) bad("statement after the ones parsed on their own: " name)
-        if (f2 > 31) bad("unknown flag: " name)
+        if (f2 > 63) bad("unknown flag: " name)
         if (f1 % 4 == 3) bad("as both required and forbidden: " name)
         if (cnt > 4) bad("operand count: " name)
     }

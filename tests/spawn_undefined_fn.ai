@@ -1,0 +1,2 @@
+use "lib/task.ai"
+spawn w 1 as h
