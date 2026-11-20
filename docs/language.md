@@ -514,6 +514,8 @@ end
 
 `tail` is only allowed inside a function, takes no `as` and at most six values, since values on the stack would lie in the frame it gives up. No way leads to the line after it.
 
+A `tail` is a return, so its target has as many results as the function it stands in: as the `ret` statements of that function take values, and if it has none, the number of results of the function is that of the target, through as many functions as only pass on. A target with another number is the error `wrong result count`, at the `tail`. Functions that only tail to each other and reach no `ret` never return; they fit any number.
+
 **In a function that has a `local`** the frame is not given up: the callee may be reading the local, through an address among the values, in a variable or in memory, which the compiler cannot follow. There `tail` is the call followed by the return of all its results, and the frame stays until the callee has returned. The program means the same; what it loses is the loop: each round of a function that has a local and ends with a `tail` to itself uses a frame. A function that is to run without a growing stack has no `local`, and keeps such bytes in a `buf` or an `alloc`.
 
 ### `buf`
@@ -1200,7 +1202,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
 | `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
-| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results |
+| `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |
