@@ -18,7 +18,7 @@ What stage0 reaches with `call` is a function:
 
 | Function | Job |
 |---|---|
-| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `euse`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
+| `err`, `ebig`, `eund`, `evar`, `edup`, `enum`, `eunasg`, `eacc`, `euse`, `eres`, `ebuf`, `elab`, `efn`, `eargc`, `erd`, `ewr` | print one message and exit; a function cannot jump out, so every error is a call that does not return |
 | `ok`, `no`, `nodup` | syntax error unless a value is not zero, or is zero; duplicate name unless a lookup found nothing |
 | `pk`, `adv` | the byte at the input cursor, or 256 at the end of the input; advance the cursor |
 | `low`, `dig`, `blank` | character classes |
@@ -31,7 +31,7 @@ What stage0 reaches with `call` is a function:
 | `putn`, `getn` | write the name read last into a table entry, or read it back |
 | `defvar`, `kw` | find or add a variable; find the statement row of a keyword |
 | `areg`, `aidx`, `anext` | x86 register number of an argument position; `argidx` and `argnext` of stage0 |
-| `vplace`, `vmov`, `emem`, `frame`, `popskip`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame`, `popskip` and `alloc` of stage0; `vplace` returns one number: a register below 16, else 16 plus a distance from `rsp`, else the address of a cell, else for a local 0x40000001 plus a distance from `rsp` |
+| `vplace`, `vmov`, `emem`, `frame`, `popskip`, `alloc` | `varplace`, `emit_varmov`, `emit_mem`, `emit_frame`, `popskip` and `alloc` of stage0; `vplace` returns two results, the kind and the value, as `varplace` does in `edx` and `ecx` |
 | `eb`, `e4`, `z`, `cp` | append a byte, four bytes, a gap, or a copy; a displacement is patched with `store4` |
 | `mrr`, `mov`, `eop`, `resolve` | `emit_mov_rr`, `emit_mov`, `emit_op` and `resolve` of stage0 |
 | `atfirst`, `addref` | as in stage0; the state `atname` is at top level |
@@ -57,7 +57,7 @@ The counters and the saved scope of stage0 are `var`s too, under its names (`nbu
 
 ## Read-only tables
 
-The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
+The tables that stage0 keeps in `.rodata` are `data` statements in a file of their own, `stage1/tables.ai`, which the last line of `stage1/ailc.ai` names with `use "stage1/tables.ai"`. The path is relative to the directory the compiler runs in, so stage1 is compiled from the top of the repository, as the Makefile does. They stand after the code that uses them, under the names stage0 uses: `hdr`, `optab`, `fnpush`, `pushlen`, `zeroes`, `zerolen`, `probe`, `regtab`, `argnum`, `varnum` and `exit0`, plus `retc` for the code of `ret`, which stage0 takes from inside its row. A table is a run of `data` lines, one row a line, with the name on the first.
 
 The statement table has the rows of `optab` in stage0, each written as its name length, its name as a string, the operand count, the two flag bytes, the code length and the code. It has nine more rows whose flags are 255 for the statements parsed on their own (128 alone is `IS_MEM`): the operand count of such a row says which (1 `fn`, 2 `buf`, 3 `end`, 4 `label`, 5 `data`, 6 `var`, 7 `const`, 8 `local`, 9 `use`), so `next` finds every keyword with the one search `kw`.
 

@@ -1,0 +1,14 @@
+# reaching end clears all six result registers, which still hold the
+# values the function was called with
+fn f a b c d e g
+jz a z
+ret 1 2 3 4 5 6
+label z
+end
+call f 0 9 9 9 9 9 as p q r s t u
+add p q as p
+add p r as p
+add p s as p
+add p t as p
+add p u as p
+sys 60 p

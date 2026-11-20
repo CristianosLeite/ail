@@ -1,0 +1,10 @@
+# results that are not named are dropped
+fn f
+ret 5 6 7
+end
+call f as a
+call f as b c
+call f
+add a b as a
+add a c as a
+sys 60 a

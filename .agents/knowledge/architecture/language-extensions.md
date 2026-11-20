@@ -160,7 +160,28 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 - The mutation script now takes a third target, the tables file, and points the `use` of a
   scratch copy of the main file at the mutated tables.
 
+### Function composition: several results, functions as values (2026-11-19)
+- Evaluated three extensions separately. Added: `ret a b` with `call f x as q r` (up to six
+  results, in the registers of the values), and `ref name as p` with `callp p values`. Rejected:
+  functions defined inside functions.
+- A function has one result count: every `ret` must agree, `end` returns that many zeros, and a
+  call may name fewer variables than results but not more (`wrong result count`). A function
+  whose only exit is `tail` passes on any number.
+- `callp` is unchecked: no value count, no result count.
+- Stage1's `vplace` returns kind and value as two results; the encoding of both in one number
+  with magic offsets is gone.
+- The suite went from 596 to 628 tests.
+
 ## Why
+- **Results in the argument registers:** `ret` already loads its values through the argument
+  parser, so several values need no new mechanism, only the count.
+- **Fewer names than results is allowed:** dropping a result is what a call without `as` does.
+- **`callp` unchecked:** an address has no signature, and carrying one would be the type system
+  the language does not have.
+- **No nested functions:** names of functions are global and flat, a helper inside a function
+  could not use its variables without closures, and writing it outside costs the same tokens.
+- **One surviving mutation pushes an unused value for `callp`** (the push decision off by one):
+  the stack stays balanced and the callee reads its values from the top, so nothing shows.
 - **Textual inclusion, not separate compilation:** functions, buffers and data can already be
   used before they are declared, so one stream with a fixup at the end is a complete linker for
   this language. Object files and symbols would add a format and a second tool.

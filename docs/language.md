@@ -178,11 +178,27 @@ call name x y as result
 call name x y
 ```
 
+A function can also return several values, and a `call` names one variable for each:
+
+```
+ret a b
+call name x y as q r
+```
+
 `fn` starts a function and `end` closes it. The names after the function name are its parameters; there may be none and at most 64. A function cannot be defined inside another one. Where a function stands does not matter: top-level execution skips its body, and a `call` may come before or after the definition.
 
 `call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is any [argument](#arguments), and the number of values must equal the number of parameters; a string is two values, its address and its length, so that a function taking `p n` can be called with a literal.
 
-`ret value` returns that one value to the caller and is only allowed inside a function. Reaching `end` returns `0`.
+`ret` returns its values to the caller and is only allowed inside a function. It takes one to six values, and every `ret` of a function must take the same number: that is the number of results of the function. Reaching `end` returns `0` for each of them. A `call` may name fewer variables after `as` than the function has results, and the rest are dropped; naming more is the error `wrong result count`.
+
+```
+fn divmod a b
+div a b as q
+mod a b as r
+ret q r
+end
+call divmod 47 5 as q r     # q = 9, r = 2
+```
 
 ```
 fn fact n
@@ -207,7 +223,23 @@ Each function has its own variables and its own labels:
 
 Function names follow the rules of variable names but are a separate name space: a function may share its name with a variable, a buffer, a data name or a label, and may be called `as`. Each name is defined once. There is no limit on the number of functions or calls.
 
-Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits; the caller pushes any further values on the stack, in order, and removes them after the call. The result comes back in `rax`. The function saves those of the six variable registers that it uses when it starts and restores them when it returns.
+Calling convention: the first six values travel in `rax`, `rdi`, `rsi`, `rdx`, `r10` and `r8`, in order, with all 64 bits; the caller pushes any further values on the stack, in order, and removes them after the call. The results come back in the same six registers, the first in `rax`. `callp` has the address in `rcx`. The function saves those of the six variable registers that it uses when it starts and restores them when it returns.
+
+#### Functions as values
+
+```
+ref name as p
+callp p x y as result
+```
+
+`ref` keeps the address of a function in a variable, and `callp` calls the function whose address is its first value, passing the values after it. The function may be defined later. This is how a table of functions or a callback is written:
+
+```
+ref inc as f
+callp f 10 as x         # the same as: call inc 10 as x
+```
+
+Nothing is known about the function at a `callp`: the number of values is not checked against its parameters, nor the names after `as` against its results, and an address that is not a function's is a fault at run time. Otherwise `callp` is a `call`: it has an optional `as` with one name per result wanted, and a string counts as two values.
 
 #### Recursion and the stack
 
@@ -219,7 +251,7 @@ When the stack runs out, the program dies with `SIGSEGV` (exit status 139 in a s
 tail name x y
 ```
 
-`tail` calls a function and returns its result, as `call name x y as r` followed by `ret r` would, but it releases the frame of the current function first and jumps: the callee returns directly to the caller's caller, and the stack does not grow. A function that ends each round with a `tail` to itself is a loop, however many rounds it takes:
+`tail` calls a function and returns its results, all of them, as `call name x y as r` followed by `ret r` would for one, but it releases the frame of the current function first and jumps: the callee returns directly to the caller's caller, and the stack does not grow. A function that ends each round with a `tail` to itself is a loop, however many rounds it takes:
 
 ```
 fn count n acc
@@ -466,7 +498,7 @@ sys 60 n                 # exit(4)
 
 A variable is a name for a 64-bit value, held in a machine register when one is free. A name starts with a lowercase letter and continues with lowercase letters, digits and `_`. `as` is reserved.
 
-`as name` at the end of a statement defines the variable and stores the statement's result in it. For `sys` that is the syscall's raw return value: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. `as` is the only way to set a variable; `set 5 as x` sets one to a constant.
+`as name` at the end of a statement defines the variable and stores the statement's result in it; after a `call`, several names take the several results of the function. For `sys` that is the syscall's raw return value: the result, or a negative error number. Nothing but a comment may follow it on the line. Using `as` with a name that already exists overwrites that variable. `as` is the only way to set a variable; `set 5 as x` sets one to a constant.
 
 A variable used as an argument passes its full 64-bit value and counts as one argument. It must be defined by an earlier `as`, and it cannot be the syscall number.
 
@@ -537,8 +569,9 @@ The compiler prints one line on stderr and exits with a non-zero status. No line
 | `ailc: too many variables` | 1 | a 65th variable name at top level or in one function, parameters included |
 | `ailc: duplicate name` | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `ailc: undefined label` | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `ailc: undefined function` | 1 | a `call` of a function that the program never defines |
-| `ailc: wrong argument count` | 1 | a `call` whose number of values differs from the number of parameters |
+| `ailc: undefined function` | 1 | a `call`, `tail` or `ref` of a function that the program never defines |
+| `ailc: wrong argument count` | 1 | a `call` or `tail` whose number of values differs from the number of parameters |
+| `ailc: wrong result count` | 1 | two `ret` statements of one function with different numbers of values, or a `call` with more names after `as` than the function has results |
 | `ailc: invalid access` | 1 | a load or store through a known address that leaves its buffer, data or string, or a store into data or a string; see [`load` and `store`](#load-and-store). Reported after the whole source has been read |
 | `ailc: number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `ailc: buffers too big` | 1 | a buffer larger than about 3.7 GiB, or buffers that together exceed that; the locals of a function exceeding about 2 GiB |
@@ -569,7 +602,9 @@ Causes of a syntax error:
 - `jmp` with a value, `jz` or `jnz` without exactly one, any of them without a label name or with `as`, or followed by anything but a comment
 - `fn` without a name, inside another function, or with a parameter that is not a name or is `as`; a function without its `end`
 - `end` outside a function, or followed by anything but a comment
-- `ret` outside a function, without exactly one value, or with `as`
+- `ret` outside a function, without a value or with more than six, or with `as`
+- more than one name after `as` on a statement that is not `call` or `callp`, or more than six on those
+- `ref` without a function name and `as` with one name, or with a value; `callp` without a value
 - `call` or `tail` without a function name; `tail` outside a function, with `as` or with more than six values (a string counts as two)
 - two tokens with no space or tab between them
 - a byte other than space or tab used as a separator, or a CR not followed by LF, in a comment too

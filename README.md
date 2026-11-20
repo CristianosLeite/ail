@@ -63,9 +63,10 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `jmp l`, `jz a l`, `jnz a l` | Jump to label `l`: always, if `a` is zero, if `a` is not zero |
 | `use "lib/io.ai"` | Compile another file here, once per path |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
-| `ret a` | Return `a` from the function; reaching `end` returns 0 |
+| `ret a b` | Return one to six values from the function; reaching `end` returns 0 |
+| `ref f as p`, `callp p a b as x` | The address of a function, and a call through an address |
 | `tail f a b` | Call `f` and return its result without growing the stack |
-| `call f a b as x` | Call `f` with as many values as it has parameters; `as x` keeps the result and is optional |
+| `call f a b as x y` | Call `f` with as many values as it has parameters; `as` names a variable per result and is optional |
 | `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |
 | `x` | Variable (64-bit) or buffer name (its address) |
 | `"text"` | Two arguments: address and length. Escapes: `\n \t \0 \\ \"` |

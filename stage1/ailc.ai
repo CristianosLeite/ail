@@ -34,6 +34,9 @@ var fnregs
 # srcend = end of all source read so far; nuses = files compiled through
 # use; nustk = uses being compiled
 var srcend nuses nustk
+# fnres = results of the open function, 0 until its first ret; fntail = 1
+# once it has a tail; ncap = names after "as" in this statement
+var fnres fntail ncap
 buf in 65537
 buf out 1048576
 buf sig 32          # struct sigaction
@@ -64,8 +67,10 @@ buf labs 327720     # 8193 labels of 40 bytes: name, length, address in out, pla
                     # source, variables assigned on every way to it
 buf fixs 349536     # 10923 jumps of 32 bytes: label name, length, rel32 address,
                     # variables assigned at the jump
-buf funs 233024     # 7282 functions of 32 bytes: name, length, entry, parameters
-buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, values
+buf funs 291280     # 7282 functions of 40 bytes: name, length, entry, parameters, results
+buf calls 299616    # 9363 calls of 32 bytes: name, length, rel32 address, then two
+                    # 4-byte counts: values (all ones for ref) and names after "as"
+buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
 buf refs 1048608    # 32769 uses of a name not declared yet, 32 bytes: name, length,
                     # imm32 address, 0 for its address or 1 for its length
 
@@ -104,6 +109,10 @@ sys 60 1
 end
 fn euse
 sys 1 2 "ailc: cannot read file\n"
+sys 60 1
+end
+fn eres
+sys 1 2 "ailc: wrong result count\n"
 sys 60 1
 end
 fn ebuf
@@ -483,7 +492,7 @@ ret i
 end
 fn lfn
 set nfuncs as n
-call look funs n 32 as i
+call look funs n 40 as i
 ret i
 end
 # write the name read last into the table entry p, or read it back from it
@@ -551,9 +560,9 @@ add p vlast as p
 store p ip
 ret i
 end
-# where variable i of the current scope lives: its x86 register (below 16),
-# 16 + its distance from rsp, the address of its cell, or for a local
-# 0x40000000 + 1 + the distance of its bytes from rsp
+# where variable i of the current scope lives, as two results: 0 and its
+# x86 register, 1 and the address of its cell, 2 and its distance from rsp,
+# or for a local 3 and the distance of its bytes from rsp
 fn vplace i
 jnz infn f
 lt i 6 as c
@@ -561,12 +570,12 @@ jz c m
 label r
 add i varnum as i
 loadb i as i
-ret i
+ret 0 i
 label m
 mul i 8 as i
 add i topcell as i
 load i as i
-ret i
+ret 1 i
 label f
 mul i 8 as c
 add c vlocal as c
@@ -574,9 +583,9 @@ load c as c
 jz c h
 mul fnslots 8 as i
 add i c as i
+sub i 1 as i
 add i pushed as i
-add i 0x40000000 as i
-ret i
+ret 3 i
 label h
 eq pass 1 as c
 jz c g
@@ -588,9 +597,9 @@ loadb i as i
 lt i 6 as c
 jnz c r
 mul i 8 as i
-sub i 32 as i
+sub i 48 as i
 add i pushed as i
-ret i
+ret 2 i
 end
 # the optab row of the name read last, at its operand count, or 0
 fn kw
@@ -724,29 +733,51 @@ or s 192 as s
 call eb s
 end
 # the row of regtab and argnum for the next value of the statement: its
-# position, or 7 (r11) for a value of a call after the sixth
+# position, or 7 (r11) for a value of a call after the sixth. For callp the
+# first value, the address, takes row 8 (rcx) and the rest are those of a call
 fn aidx
+add cur 2 as c
+loadb c as c
+and c 4 as c
+jz c d
+jnz ai e
+ret 8
+label e
+sub ai 1 as i
+jmp g
+label d
+set ai as i
 add cur 1 as c
 loadb c as c
 and c 16 as c
 jz c a
-lt ai 6 as c
+label g
+lt i 6 as c
 jnz c b
 ret 7
 label a
 lt ai 7 as c
 call ok c
 label b
-ret ai
+ret i
 end
 # the value is in its register: push it if it goes on the stack, count it
 fn anext
-lt ai 6 as c
-jnz c x
+set ai as i
+add cur 2 as c
+loadb c as c
+and c 4 as c
+jz c a
+sub i 1 as i
+jmp b
+label a
 add cur 1 as c
 loadb c as c
 and c 16 as c
 jz c x
+label b
+slt i 6 as c
+jnz c x
 call eb 65
 call eb 83
 add pushed 8 as pushed
@@ -791,9 +822,9 @@ add op 8 as op
 label x
 call anext
 end
-# a 64-bit mov between the register g and memory at the place p (as vplace
-# gives it); o = 139 to load the register, 137 to store it
-fn emem g p o
+# a 64-bit mov between the register g and memory: the address p (k = 1) or
+# rsp + p (k = 2); o = 139 to load the register, 137 to store it
+fn emem g k p o
 shr g 3 as c
 shl c 2 as c
 or c 72 as c
@@ -801,8 +832,8 @@ call eb c
 call eb o
 and g 7 as g
 shl g 3 as g
-lt p 0x100000 as c
-jnz c s
+eq k 1 as c
+jz c s
 or g 4 as g
 call eb g
 call eb 37
@@ -812,20 +843,13 @@ label s
 or g 132 as g
 call eb g
 call eb 36
-sub p 16 as p
 call e4 p
 end
-# the same between the register g and variable i of the current scope
+# the same between the register g and variable i of the current scope; a
+# local is not stored to, and loading it gives its address (lea, 141)
 fn vmov i g o
-call vplace i as p
-lt p 0x40000000 as c
-jnz c n
-sub p 0x3ffffff1 as p
-call emem g p 141
-ret 0
-label n
-lt p 16 as c
-jz c m
+call vplace i as k p
+jnz k m
 eq o 139 as c
 jz c s
 call mrr g p
@@ -834,13 +858,18 @@ label s
 call mrr p g
 ret 0
 label m
-call emem g p o
+ne k 3 as c
+jnz c n
+call emem g 2 p 141
+ret 0
+label n
+call emem g k p o
 end
 # mov <register of the next argument>, [a]: read the cell of a var
 fn ldvar a
 call aidx as i
 call areg i as r
-call emem r a 139
+call emem r 1 a 139
 call anext
 end
 # 1 if the statement is at and this is its first value, which must be a name
@@ -1234,6 +1263,25 @@ add r 1 as f
 loadb f as f
 and f 20 as c
 jnz c k
+add r 2 as c
+loadb c as c
+and c 4 as c
+jz c k1
+call ok ai
+jmp k
+label k1
+and f 32 as c
+jz c k2
+call ok ai
+gt ai 6 as c
+call no c
+jnz fnres k3
+set ai as fnres
+label k3
+eq fnres ai as c
+jnz c k
+call eres
+label k2
 loadb r as c
 set ai as i
 eq c i as c
@@ -1249,6 +1297,7 @@ and f 16 as c
 jz c o
 gt ai 6 as c
 call no c
+set 1 as fntail
 label o
 call frame 196
 call godead
@@ -1267,8 +1316,17 @@ add r 4 as p
 call cp p c
 label h
 and f 16 as f
-jz f x
+jz f w
 set ai as i
+add cur 2 as c
+loadb c as c
+and c 2 as c
+jz c v
+call no ai
+eq ncap 1 as c
+call ok c
+set 0xffffffff as i
+label v
 set ncalls as n
 mul n 32 as p
 add p calls as p
@@ -1281,9 +1339,12 @@ set op as c
 add p 16 as r
 store r c
 add p 24 as r
-store r i
+store4 r i
+add p 28 as r
+store4 r ncap
 call z 4
 add n 1 as ncalls
+label w
 jz pushed x
 call eb 72
 call eb 129
@@ -1405,6 +1466,7 @@ jmp usedef
 label n6
 set r as cur
 set 0 as ai
+set 0 as ncap
 store opd 0
 add opd 32 as d
 store d 0
@@ -1605,6 +1667,10 @@ sub p out as p
 add p 0x400000 as p
 call mov p
 and r 20 as d
+jnz d s1
+add cur 2 as d
+loadb d as d
+and d 4 as d
 jz d tokend
 label s1
 call mov q
@@ -1749,6 +1815,7 @@ add cur 1 as r
 loadb r as r
 and r 2 as r
 call no r
+label cp0
 call blanks
 set ip as q
 call rdname
@@ -1762,26 +1829,70 @@ eq d 1 as d
 jz d cp1
 add p 16 as p
 load p as p
-call eol
-call eop
-call emem 0 p 137
-jmp next
+set 1 as f
+jmp cp3
 label cp1
 set q as ip
-call defvar as r
-mul r 8 as d
+call defvar as p
+mul p 8 as d
 add d vlocal as d
 load d as d
 jz d cp2
 call edup
 label cp2
+set 0 as f
+label cp3
+lt ncap 6 as d
+call ok d
+mul ncap 16 as d
+add d caps as d
+store d f
+add d 8 as d
+store d p
+add ncap 1 as ncap
+call blanks
+call pk as c
+eq c 256 as d
+jnz d cp4
+eq c 10 as d
+jnz d cp4
+eq c 13 as d
+jnz d cp4
+eq c 35 as d
+jnz d cp4
+add cur 1 as d
+loadb d as d
+and d 16 as d
+jnz d cp0
+add cur 2 as d
+loadb d as d
+and d 4 as d
+jnz d cp0
+call err
+label cp4
 call eol
 call eop
-shl 1 r as d
+set 0 as r
+label cp5
+ge r ncap as d
+jnz d next
+mul r 16 as d
+add d caps as d
+load d as f
+add d 8 as d
+load d as p
+call areg r as q
+jnz f cp6
+shl 1 p as d
 or asg d as asg
-call prop r
-call vmov r 0 137
-jmp next
+call prop p
+call vmov p q 137
+jmp cp7
+label cp6
+call emem q 1 p 137
+label cp7
+add r 1 as r
+jmp cp5
 
 # "buf <name> <size>"
 label bufdef
@@ -2095,13 +2206,15 @@ set 0 as fnlocal
 set 0 as nloops
 label f0
 set 0 as loccur
+set 0 as fnres
+set 0 as fntail
 call clrloc
 call blank1
 call rname
 call lfn as r
 call nodup r
 set nfuncs as r
-mul r 32 as p
+mul r 40 as p
 add p funs as p
 call putn p
 call eb 233
@@ -2157,9 +2270,8 @@ sub fnnpar r as d
 add d fnslots as d
 add d fnregs as d
 mul d 8 as d
-add d 16 as d
 add d fnlocal as d
-call emem 11 d 139
+call emem 11 2 d 139
 call vmov r 11 137
 jmp f1
 label f2
@@ -2177,8 +2289,23 @@ label fnend
 set infn as d
 call ok d
 call eol
-call eb 49
-call eb 192
+set fnres as q
+set q as d
+jnz q e0
+set 1 as q
+set 1 as d
+jz fntail e0
+set 6 as d
+label e0
+sub nfuncs 1 as p
+mul p 40 as p
+add p funs as p
+add p 32 as p
+store p d
+add q zerolen as p
+sub p 1 as p
+loadb p as p
+call cp zeroes p
 call frame 196
 call popskip as q
 add retc q as d
@@ -2244,16 +2371,26 @@ ne c 99999 as d
 jnz d c3
 call efn
 label c3
-mul c 32 as c
+mul c 40 as c
 add c funs as c
+add p 24 as q
+load4 q as q
+eq q 0xffffffff as d
+jnz d c5
 add c 24 as d
 load d as d
-add p 24 as q
-load q as q
 eq d q as d
 jnz d c4
 call eargc
 label c4
+add c 32 as d
+load d as d
+add p 28 as q
+load4 q as q
+gt q d as d
+jz d c6
+call eres
+label c6
 add c 16 as c
 load c as c
 add p 16 as q
@@ -2261,6 +2398,16 @@ load q as q
 sub c q as c
 sub c 4 as c
 store4 q c
+jmp c7
+label c5
+add c 16 as c
+load c as c
+sub c out as c
+add c 0x400000 as c
+add p 16 as q
+load q as q
+store4 q c
+label c7
 add p 32 as p
 sub r 1 as r
 jmp c1

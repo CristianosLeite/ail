@@ -55,7 +55,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `strbytes`, `hexdig` | copy the bytes of a string up to its closing quote, decoding the escapes; read one hexadecimal digit |
 | `atname`, `atfirst`, `addref` | the first value of `at`; refuse a number or a string there; record a fixup in `refs` |
 | `ident` | a name as an argument: pass a variable, the address of a buffer or of data, the cell of a `var`, the value of a `const`, or for `len` a size; hand over to `capture` on `as`, or to `jtarget` when a jump has its operands |
-| `capture` | `as <name>`: call `emit_op` and store `rax` in the cell of the `var` with that name, or else in the variable, defined if new |
+| `capture` | `as <name>...`: call `emit_op` and store each result register in the cell of the `var` with that name, or else in the variable, defined if new |
 | `varplace`, `emit_varmov`, `emit_mem` | where a variable lives; a `mov` between a variable and a register; a `mov` between a register and memory |
 | `alloc`, `emit_frame`, `popskip` | place the variables of a function after its first pass; reserve or release its frame; how many of the pops a return leaves out |
 | `defvar` | read a variable name and find it in the pool of the current scope, or add it |
@@ -79,7 +79,7 @@ The memory cell `curop` points at the operation-table entry of the statement bei
 | `emit_mov` | emit `mov <argument register>, <value>` and advance `ebx` |
 | `argidx`, `argnext` | the register row of the next value; count the value, and push it if it is a call value after the sixth |
 | `fin` | emit `exit(0)`, patch the top-level jumps, the calls, the forward uses of names and the sizes, write the output |
-| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
+| `err`, `err_big`, `err_undef`, `err_vars`, `err_dup`, `err_num`, `err_unasg`, `err_acc`, `err_use`, `err_res`, `err_bufs`, `err_label`, `err_fn`, `err_argc` | source errors: print a message, exit 1 |
 | `err_read`, `err_write` | I/O errors: print a message, exit 2 |
 
 ## Output file layout
@@ -157,6 +157,8 @@ Every statement except `use`, `buf`, `data`, `var`, `const`, `local`, `label`, `
 | `jmp` | `jmp rel32` |
 | `jz` `jnz` | `test rax, rax` / `jz` or `jnz rel32` |
 | `call` | `call rel32` |
+| `ref` | `mov eax, imm32`, the address of the function |
+| `callp` | `call rcx` |
 | `ret` | `pop r15` / `pop r14` / `pop r13` / `pop r12` / `pop rbp` / `pop rbx` / `ret`, without the pops of registers the function does not use |
 | `tail` | the same pops, then `jmp rel32` |
 
@@ -277,11 +279,13 @@ mov  <variable i>, <argument i>            ; one per parameter
 
 **Scope.** `fndef` saves `ebp` in `topvars`, clears it and sets `infn`, which makes `lookup_var` use the second half of `vars`. It also sets `labbase` and `fixbase` to the current ends of `labels` and `fixs`: the function's labels and jumps are stacked on top of the top-level ones collected so far. `fnend` calls `resolve` for exactly that part, then cuts both tables back to the bases and restores `ebp`. That is all that makes labels and variables local, and it is why functions do not nest: there is one saved scope.
 
-**Return.** `ret` is a row with one operand, which lands in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, without the pops of the registers the function does not use, after `add rsp, frame` when the function has a frame. `fnend` emits `xor eax, eax` and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
+**Return.** `ret` is a row whose one to six values land in the argument registers, the first in `rax`, and whose instruction bytes are the six `pop`s in reverse order and `ret`. They are inlined at every `ret`, without the pops of the registers the function does not use, after `add rsp, frame` when the function has a frame. `emit_op` keeps the number of values of the first `ret` of the function in `fnres` and reports `wrong result count` for a `ret` that differs. `fnend` writes the count into `funres` (1 for a function without `ret`, 6 for one that only has a `tail`, whose results are those of another function), emits `xor` for each result register (`zeroes`, `zerolen`) and the same bytes, taken from the row at `retcode`, and then fills in the jump that `fndef` left before the entry. A `ret` outside a function is rejected in `next` by the flag `IS_RET`.
 
-**Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. Every value after those is loaded into `r11`, row 7 of `regtab` and `argnum`, and pushed (`argidx`, `argnext`); `pushed` counts the bytes, `varplace` adds it to the distance of a stack slot, and `emit_op` emits `add rsp, pushed` after the `call`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores `rax` as after any statement.
+**Call.** `next` reads the function name of a `call` into `callname` before the values. The values land in argument positions 0 to 5: `rax`, `rdi`, `rsi`, `rdx`, `r10`, `r8`. Every value after those is loaded into `r11`, row 7 of `regtab` and `argnum`, and pushed (`argidx`, `argnext`); `pushed` counts the bytes, `varplace` adds it to the distance of a stack slot, and `emit_op` emits `add rsp, pushed` after the `call`. At the end of the statement `emit_op` copies the row's single byte `E8`, appends the name, the address of the displacement and the number of values to `calls`, and skips four bytes. With `as`, `capture` then stores the results: it collects the names after `as` in `caps` (a variable or the cell of a var each, at most six, more than one only for `call` and `callp`), calls `emit_op`, and stores the register of value position `k` into name `k`. The number of names goes into the `calls` entry beside the number of values.
 
-`fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, and otherwise the displacement is written like a jump's. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
+`fin` walks `calls` once every function is known: a name missing from `funcs` is `undefined function`, a value count that differs from `funargs` is `wrong argument count`, more names than `funres` is `wrong result count`, and otherwise the displacement is written like a jump's. An entry whose value count is all ones comes from `ref`: its four bytes are the operand of `mov eax, imm32` and get the address the function is loaded at.
+
+**Indirect call.** `callp` is a row flagged `IS_PTR` with the bytes of `call rcx`. `argidx` sends its first value to `rcx`, row 8 of `regtab` and `argnum`, and treats the values after it as those of a call, one position lower; `argnext` and the removal of pushed values follow. Nothing is recorded, so nothing is checked. Calls have their own list because the jumps of a function are dropped from `fixs` at its `end`, while a call may refer to a function defined later.
 
 Because the callee saves every variable register it uses, the caller emits nothing but the `call`. `alloc` counts the registers in `fnregs`; since it always takes the lowest free one, they are the first `fnregs` of the six. `fndef` copies that many pushes (`pushlen` gives the bytes) and `popskip` tells `ret`, `tail` and `end` how many bytes of the six pops to leave out. The first pass works with all six; its code is dropped.
 

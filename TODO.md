@@ -58,7 +58,7 @@ bootstrap fixed point. See the [roadmap](docs/roadmap.md) for project history.
 
 - [x] Support multiple source units with a compact mechanism for sharing code and
   data. The compiler consumes one source stream with no imports or linking.
-- [ ] Extend function composition where it saves tokens. Functions are flat,
+- [x] Extend function composition where it saves tokens. Functions are flat,
   `call` requires a static name, and `ret` carries one value. Evaluate local
   helper definitions, indirect calls and multiple results independently.
 - [ ] Measure the cost of explicit labels, jumps and comparison temporaries in

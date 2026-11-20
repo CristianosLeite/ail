@@ -1,0 +1,17 @@
+var gv
+fn f
+ret 1 2 3
+end
+set 1 as a
+set 1 as b
+set 1 as c
+set 1 as d
+set 1 as e
+set 1 as g
+call f as h gv i
+mul gv 10 as x
+mul i 100 as y
+add h x as h
+add h y as h
+add h a as h
+sys 60 h

@@ -36,6 +36,8 @@
 .equ IS_MEM,  128               # a load or a store: the first operand is an address
 .equ IS_AT,   256               # at: the first operand is a name, passed as address
                                 # and size; in the second flag byte, as 1
+.equ IS_REF,  512               # ref: the address of the function, not a call of it
+.equ IS_PTR,  1024              # callp: the first value is the function's address
 .equ K_CONST, 1                 # what is known of a value: a number,
 .equ K_ADDR,  2                 # a global name plus a number,
 .equ K_LIT,   3                 # or the bytes of a string
@@ -119,6 +121,11 @@ callname: .skip 16              # function name of this call: address, length
 funcs:  .skip NFUNCS * 16       # per function: name address in inbuf, name length
 funaddr: .skip NFUNCS * 8       # per function: its entry address in outbuf
 funargs: .skip NFUNCS           # per function: number of parameters
+funres: .skip NFUNCS            # per function: number of results
+fnres:  .skip 4                 # results of the open function, 0 until its first ret
+fntail: .skip 4                 # 1 once the open function has a tail
+caps:   .skip 6 * 16            # the names after "as": 0 and a variable, or 1 and
+ncap:   .skip 4                 # the cell of a var; and how many
 nfuncs: .skip 4                 # number of functions defined so far
 calls:  .skip NCALLS * 32       # per call: function name address and length,
                                 # address of its rel32 in outbuf, value count
@@ -413,6 +420,16 @@ free_end:
     .word IS_CALL
     .byte 1,  0xE8                      # call rel32
     .byte 3
+    .ascii "ref"                                    # mov eax, <address of the function>
+    .byte 0
+    .word AS_REQ | IS_CALL | IS_REF
+    .byte 1,  0xB8
+    .byte 5
+    .ascii "callp"                                  # call rcx
+    .byte 0
+    .word IS_PTR
+    .byte 2,  0xFF,0xD1
+    .byte 3
     .ascii "ret"
     .byte 1
     .word AS_NONE | IS_RET
@@ -432,6 +449,10 @@ retcode:                        # pop r15 ; pop r14 ; pop r13 ; pop r12 ;
 fnpush:
     .byte 0x53, 0x55, 0x41,0x54, 0x41,0x55, 0x41,0x56, 0x41,0x57
 .equ FNPUSHSZ, . - fnpush
+# xor eax,eax ; xor edi,edi ; xor esi,esi ; xor edx,edx ; xor r10d,r10d ;
+# xor r8d,r8d -- and how many of those bytes clear the first n results
+zeroes: .byte 0x31,0xC0, 0x31,0xFF, 0x31,0xF6, 0x31,0xD2, 0x45,0x31,0xD2, 0x45,0x31,0xC0
+zerolen: .byte 2, 4, 6, 8, 11, 14
 # bytes of fnpush that save the first n registers; 10 minus that many bytes
 # of the pops restore all but those
 pushlen: .byte 0, 1, 2, 4, 6, 8, 10
@@ -459,9 +480,10 @@ regtab:
     .byte 0x41, 0xB8            # r8
     .byte 0x41, 0xB9            # r9
     .byte 0x41, 0xBB            # r11: a call value that goes on the stack
+    .byte 0,    0xB9            # rcx: the function address of callp
 
 # syscall arg index -> x86 register number, parallel to regtab
-argnum: .byte 0, 7, 6, 2, 10, 8, 9, 11
+argnum: .byte 0, 7, 6, 2, 10, 8, 9, 11, 1
 # variable index -> x86 register number: rbx rbp r12 r13 r14 r15
 varnum: .byte 3, 5, 12, 13, 14, 15
 
@@ -487,6 +509,8 @@ m_acc:    .ascii "ailc: invalid access\n"
 .equ M_ACC_SZ, . - m_acc
 m_use:    .ascii "ailc: cannot read file\n"
 .equ M_USE_SZ, . - m_use
+m_res:    .ascii "ailc: wrong result count\n"
+.equ M_RES_SZ, . - m_res
 m_num:    .ascii "ailc: number too big\n"
 .equ M_NUM_SZ, . - m_num
 m_label:  .ascii "ailc: undefined label\n"
@@ -616,6 +640,7 @@ next:
     add rdx, rax
     jmp 6b
 9:  xor ebx, ebx
+    mov dword ptr [rip+ncap], 0
     mov qword ptr [rip+opd], 0  # nothing known of the values yet
     mov qword ptr [rip+opd+32], 0
     cmp rsi, r15                # keyword must be followed by a blank
@@ -868,6 +893,8 @@ str:
     pop rax
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], IS_SYS | IS_CALL
+    jnz 1f
+    test byte ptr [rdx+2], IS_PTR >> 8
     jz tokend
 1:  call emit_mov               # length
     jmp tokend
@@ -1198,41 +1225,77 @@ capture:
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], AS_NONE
     jnz err
-    call blanks
+1:  call blanks
     push rsi
     call rdname
     call lookup_buf
-    jc 1f
+    jc 2f
     lea rcx, [rip+bufkind]
     cmp byte ptr [rcx+rax], G_VAR
-    jne 1f
-    pop rcx                     # a var: store rax in its cell
+    jne 2f
+    pop rcx                     # a var: the result goes to its cell
     lea rcx, [rip+bufaddr]
     mov ecx, [rcx+rax*4]
-    push rcx
-    call eol
-    call emit_op
-    pop rcx
-    xor eax, eax
     mov edx, 1
-    mov r9d, 0x89
-    call emit_mem               # mov [cell], rax
-    jmp next
-1:  pop rsi
+    jmp 3f
+2:  pop rsi
     call defvar
     lea rcx, [rip+vlocal]       # a local is an address, not a variable to assign
     cmp dword ptr [rcx+rax*4], 0
     jne err_dup
-    push rax
-    call eol
+    mov ecx, eax
+    xor edx, edx
+3:  mov eax, [rip+ncap]
+    cmp eax, 6
+    jae err
+    shl eax, 4
+    lea r10, [rip+caps]
+    mov [r10+rax], rdx
+    mov [r10+rax+8], rcx
+    inc dword ptr [rip+ncap]
+    call blanks                 # another name: a call may have several results
+    cmp rsi, r15
+    jae 4f
+    mov al, [rsi]
+    cmp al, 10
+    je 4f
+    cmp al, 13
+    je 4f
+    cmp al, '#'
+    je 4f
+    mov rdx, [rip+curop]
+    test byte ptr [rdx+1], IS_CALL
+    jnz 1b
+    test byte ptr [rdx+2], IS_PTR >> 8
+    jnz 1b
+    jmp err
+4:  call eol
     call emit_op
-    pop rax
+    xor r12d, r12d              # result k comes in the register of value k
+5:  cmp r12d, [rip+ncap]
+    jae next
+    mov eax, r12d
+    shl eax, 4
+    lea r10, [rip+caps]
+    mov rdx, [r10+rax]
+    mov rcx, [r10+rax+8]
+    lea r11, [rip+argnum]
+    movzx r13d, byte ptr [r11+r12]
+    test edx, edx
+    jnz 6f
+    mov eax, ecx
     bts [rip+asg], rax          # assigned from here on
     call propagate
-    xor ecx, ecx
+    mov ecx, r13d
     mov r9d, 0x89
-    call emit_varmov            # mov <variable>, rax
-    jmp next
+    call emit_varmov            # mov <variable>, <result register>
+    jmp 7f
+6:  mov eax, r13d
+    mov edx, 1
+    mov r9d, 0x89
+    call emit_mem               # mov [cell], <result register>
+7:  inc r12d
+    jmp 5b
 
 # note that the next value is the address of the global name r8/r9. Keeps rax.
 opdaddr:
@@ -1886,6 +1949,8 @@ fndef:
     mov dword ptr [rip+fnlocal], 0
     mov dword ptr [rip+nloops], 0
 1:  mov dword ptr [rip+loccur], 0
+    mov dword ptr [rip+fnres], 0
+    mov dword ptr [rip+fntail], 0
     call clrloc
     call blank1
     cmp rsi, r15
@@ -1983,8 +2048,24 @@ fnend:
     cmp dword ptr [rip+infn], 0
     je err
     call eol
-    mov word ptr [rdi], 0xC031  # xor eax, eax
-    add rdi, 2
+    mov eax, [rip+fnres]        # a function without ret has one result, or if
+    mov edx, eax                # it has a tail, those of the function it jumps
+    test eax, eax               # to: unknown here, so any number may be named
+    jnz 1f
+    mov eax, 1
+    mov edx, 1
+    cmp dword ptr [rip+fntail], 0
+    je 1f
+    mov edx, 6
+1:  mov ecx, [rip+nfuncs]
+    lea r10, [rip+funres-1]
+    mov [r10+rcx], dl
+    push rsi                    # reaching end returns zero in every result
+    lea rsi, [rip+zeroes]
+    lea rcx, [rip+zerolen]
+    movzx ecx, byte ptr [rcx+rax-1]
+    rep movsb
+    pop rsi
     mov al, 0xC4
     call emit_frame
     push rsi
@@ -2328,7 +2409,26 @@ emit_op:
     mov rdx, [rip+curop]
     test byte ptr [rdx+1], IS_SYS | IS_CALL
     jnz 1f                      # sys and call take any number of arguments
-    cmp bl, [rdx]
+    test byte ptr [rdx+2], IS_PTR >> 8
+    jz 6f
+    test ebx, ebx               # callp too, after the address
+    jz err
+    jmp 1f
+6:  test byte ptr [rdx+1], IS_RET
+    jz 6f
+    test ebx, ebx               # ret: one to six results, the same number at
+    jz err                      # every ret of the function
+    cmp ebx, 6
+    ja err
+    mov eax, [rip+fnres]
+    test eax, eax
+    jnz 7f
+    mov [rip+fnres], ebx
+    mov eax, ebx
+7:  cmp eax, ebx
+    jne err_res
+    jmp 1f
+6:  cmp bl, [rdx]
     jne err
     test byte ptr [rdx+1], IS_MEM
     jz 1f
@@ -2339,6 +2439,7 @@ emit_op:
     jz 4f
     cmp ebx, 6                  # tail: the values must be in registers, since
     ja err                      # the frame that would hold the others is gone
+    mov dword ptr [rip+fntail], 1
 4:  mov al, 0xC4                # ret: release the stack slots first
     call emit_frame
     call godead                 # and nothing falls through to the next line
@@ -2358,8 +2459,15 @@ emit_op:
     pop rsi
 5:
     test byte ptr [rdx+1], IS_CALL
-    jz 2f
-    mov eax, [rip+ncalls]
+    jz 8f
+    test byte ptr [rdx+2], IS_REF >> 8
+    jz 9f
+    test ebx, ebx               # ref takes the name alone and gives one value
+    jnz err
+    cmp dword ptr [rip+ncap], 1
+    jne err
+    mov ebx, -1                 # recorded as a call with no count: an address
+9:  mov eax, [rip+ncalls]
     shl eax, 5
     lea rcx, [rip+calls]
     add rcx, rax
@@ -2369,9 +2477,11 @@ emit_op:
     mov [rcx+8], rax
     mov [rcx+16], rdi
     mov [rcx+24], ebx
+    mov eax, [rip+ncap]
+    mov [rcx+28], eax
     add rdi, 4
     inc dword ptr [rip+ncalls]
-    mov eax, [rip+pushed]       # drop the values that went on the stack
+8:  mov eax, [rip+pushed]       # drop the values that went on the stack
     test eax, eax
     jz 2f
     mov word ptr [rdi], 0x8148  # add rsp, imm32
@@ -2386,9 +2496,17 @@ emit_op:
 argidx:
     mov ecx, ebx
     mov rdx, [rip+curop]
-    test byte ptr [rdx+1], IS_CALL
+    test byte ptr [rdx+2], IS_PTR >> 8
+    jz 3f
+    test ebx, ebx               # callp: the address goes to rcx, row 8, and
+    jnz 4f                      # the values after it are those of a call
+    mov ecx, 8
+    ret
+4:  dec ecx
+    jmp 5f
+3:  test byte ptr [rdx+1], IS_CALL
     jz 1f
-    cmp ebx, 6
+5:  cmp ecx, 6
     jb 2f
     mov ecx, 7
     ret
@@ -2398,11 +2516,16 @@ argidx:
 
 # the value is in its register: push it if it goes on the stack, count it
 argnext:
-    cmp ebx, 6
-    jb 1f
     mov rdx, [rip+curop]
-    test byte ptr [rdx+1], IS_CALL
+    mov eax, ebx
+    test byte ptr [rdx+2], IS_PTR >> 8
+    jz 2f
+    dec eax
+    jmp 3f
+2:  test byte ptr [rdx+1], IS_CALL
     jz 1f
+3:  cmp eax, 6
+    jl 1f
     mov word ptr [rdi], 0x5341  # push r11
     add rdi, 2
     add dword ptr [rip+pushed], 8
@@ -2487,17 +2610,30 @@ fin:
     mov r9, [rbx+8]
     call lookup_fn
     jc err_fn
+    cmp dword ptr [rbx+24], -1
+    je 3f
     lea rcx, [rip+funargs]
     movzx ecx, byte ptr [rcx+rax]
     cmp ecx, [rbx+24]
     jne err_argc
+    lea rcx, [rip+funres]       # no more names after "as" than it has results
+    movzx ecx, byte ptr [rcx+rax]
+    cmp [rbx+28], ecx
+    ja err_res
     lea rcx, [rip+funaddr]
     mov rax, [rcx+rax*8]
     mov rcx, [rbx+16]
     sub rax, rcx
     sub rax, 4                  # relative to the end of the rel32
     mov [rcx], eax
-    add rbx, 32
+    jmp 4f
+3:  lea rcx, [rip+funaddr]      # ref: the address the function is loaded at
+    mov rax, [rcx+rax*8]
+    sub rax, r14
+    add rax, BASE
+    mov rcx, [rbx+16]
+    mov [rcx], eax
+4:  add rbx, 32
     dec ebp
     jmp 1b
 2:  lea rbx, [rip+refs]         # every global name is known now: fill in the
@@ -2642,6 +2778,11 @@ err_acc:
 err_use:
     lea rsi, [rip+m_use]
     mov edx, M_USE_SZ
+    mov ebx, 1
+    jmp die
+err_res:
+    lea rsi, [rip+m_res]
+    mov edx, M_RES_SZ
     mov ebx, 1
     jmp die
 err_bufs:
