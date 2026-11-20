@@ -248,7 +248,7 @@ a small internal interface for compiler-generated code.
    write. Define how operations retry after `EAGAIN`, handle partial reads
    and writes, and remove registrations when cancelled. Test descriptor
    reuse and races between I/O readiness, deadline expiry and cancellation.
-3. [ ] Integrate native async syntax. Prototype `async fn name ...` and
+3. [x] Integrate native async syntax. Prototype `async fn name ...` and
    `await h as result`, and measure their token cost on timers and network
    programs before settling the syntax. Define how a call creates a future,
    which operation schedules it as a concurrent task, and how synchronous

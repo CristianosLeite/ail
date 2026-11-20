@@ -101,6 +101,7 @@ data 4 "tail" 0 50 0 11 65 95 65 94 65 93 65 92 93 91 233
 # spawn and join call the function of the program that has their name
 data 5 "spawn" 0 17 34 3 72 141 5
 data 4 "join" 0 16 32 1 232
+data 5 "await" 0 16 96 0
 data 2 "fn" 1 255 0 0
 data 3 "buf" 2 255 0 0
 data 3 "end" 3 255 0 0
@@ -168,6 +169,13 @@ data retc 65 95 65 94 65 93 65 92 93 91 195
 data asytst 72 133 192 116 0
 data asypoll 83 72 137 195 72 139 67 8 72 133 192 116 2 255 224
 data asyret 72 137 67 16 184 1 0 0 0 91 195
+# await in an async function, with the handle in rax: mov [rbx+48], rax,
+# lea rax, [rip+4], mov [rbx+8], rax, which is the place to go on at, the
+# next instruction; there mov rax, [rbx+48], mov rdi, rbx, call. Behind
+# the call test rdi, rdi, jnz +4, and for a task that is not done
+# xor eax, eax, pop rbx, ret
+data asyawt 72 137 67 48 72 141 5 4 0 0 0 72 137 67 8 72 139 67 48 72 137 223 232
+data asysus 72 133 255 117 4 49 192 91 195
 data fnpush 83 85 65 84 65 85 65 86 65 87
 # xor eax,eax ; xor edi,edi ; xor esi,esi ; xor edx,edx ; xor r10d,r10d ;
 # xor r8d,r8d -- and how many of those bytes clear the first n results

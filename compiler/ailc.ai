@@ -17,6 +17,8 @@ var kwn kwl
 # fnasy = 1 in an async function; asyn, asyl = the word async of it, the
 # name of the function that makes its task
 var fnasy asyn asyl
+# awf = 1 in an await that names a function to call
+var awf
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
@@ -256,6 +258,30 @@ if d&32
 # spawn the name of a function, whose address is the value before its own
 kwn=ns
 kwl=nl
+if d&64
+# await: a word that is a variable or a global name is the handle, like
+# any value; any other name is a function to call, whose result is
+awf=0
+call pk as c
+call low c as d
+jz d arg
+call excomp as d
+jnz d arg
+q=ip
+call name
+call lvar as r
+if r==-1
+call lbuf as r
+end
+if r!=-1
+ip=q
+jmp arg
+end
+awf=1
+cn=ns
+cl=nl
+jmp tokend
+end
 jz d&2 arg
 ai=1
 end

@@ -23,7 +23,7 @@ function bytes(line,    i, w, n, k, s) {
 }
 BEGIN {
     size["hdr"] = 176; size["retc"] = 11; size["fnpush"] = 10; size["zeroes"] = 14
-    size["zerolen"] = 6; size["pushlen"] = 7; size["probe"] = 36; size["asytst"] = 5; size["asypoll"] = 15; size["asyret"] = 11; size["regtab"] = 18
+    size["zerolen"] = 6; size["pushlen"] = 7; size["probe"] = 36; size["asytst"] = 5; size["asypoll"] = 15; size["asyret"] = 11; size["asyawt"] = 23; size["asysus"] = 9; size["regtab"] = 18
     size["argnum"] = 9; size["varnum"] = 6; size["exit0"] = 9
     size["exkw"] = 48; size["xopc"] = 48; size["xord"] = 13
     # x86-64 Linux, from asm/unistd_64.h
@@ -74,7 +74,7 @@ $1 != "data" { bad("not a data line"); next }
         if (cnt != ++nown) bad("own statements not numbered in order: " name)
     } else {
         if (nown) bad("statement after the ones parsed on their own: " name)
-        if (f2 > 63) bad("unknown flag: " name)
+        if (f2 > 127) bad("unknown flag: " name)
         if (f1 % 4 == 3) bad("as both required and forbidden: " name)
         if (cnt > 4) bad("operand count: " name)
     }

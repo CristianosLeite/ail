@@ -460,10 +460,31 @@ async fn mul a b
 ret a*b
 end
 call mul 6 7 as h
-call await h 0 as x     # 42
+await h as x            # 42
+await mul 2 3 as y      # 6: the call and the await in one
 ```
 
-- An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
+`await` waits for a task or an event and keeps its result; `as` is optional and takes one name. It has two forms, told apart by its first word:
+
+- **`await h as x`**: the word is a variable of the scope or a global name, or the value is a number or an expression. It is the handle to wait for.
+- **`await name a b as x`**: any other name is a function. It is called with the values, as `call` does and with the same checks, and its first result is the handle. The function is an async function, or any function that returns a handle, such as `asyncsleep` or `asyncread`: `await asyncsleep 100`. A function with the name of a variable is reached with `call` and an `await` of its handle.
+
+What `await` does depends on where it stands:
+
+- **In an async function** the task waits: if the result is not there yet, the function returns to the code that polls, which runs other tasks, and goes on at the `await` when the result has come. Nothing of the stack is kept over that, and nothing needs to be: the variables and locals are in the record. An `await` may stand anywhere a statement may, in loops and blocks. Started work that is awaited later runs meanwhile:
+
+```
+call fetch a as h
+call fetch b as g       # both are under way
+await h as x
+await g as y
+```
+
+- **At top level and in a plain function** there is no task to put aside: `await` polls tasks until the one it waits for is done, and that is how a program runs its tasks. If nothing can happen any more before that, the result is -35.
+
+The statement is a call of the function `await` of the program, which `lib/async/task.ai` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
+
+- An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, `spawn` and `join` included, which hold the thread while they wait, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
 - The task is made by the function `async` of the program, which `lib/async/task.ai` defines; without that `use` an async function is an `undefined function async`.
 - **Its variables live in the record of the task**, not in registers and not on the stack, so that they are there when the task goes on after a wait: every use of a variable is a use of memory. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
 - The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
@@ -943,7 +964,7 @@ call procwait p 10000 as r
 
 ## The async library
 
-`lib/async/task.ai` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime that a function is run by once it is written as a poll function, by hand here; a program gets it with `use "lib/async/task.ai"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
+`lib/async/task.ai` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.ai"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
 
 | Function | Does |
 |---|---|
@@ -1073,7 +1094,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `spawn` with more than five values; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys` |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |

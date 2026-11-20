@@ -1,11 +1,14 @@
 # tools/randvars.ai -- check generated code with random programs whose
 # result is computed here.
 #
-#   build/tools/randvars <compiler> <count> <seed> [top]
-#   build/tools/randvars dump <directory> <count> <seed> [top]
+#   build/tools/randvars <compiler> <count> <seed> [top|async]
+#   build/tools/randvars dump <directory> <count> <seed> [top|async]
 #
 # Each program is arithmetic on up to 40 variables with nested loops and
-# blocks, in a function or (with "top") at top level. It is written three
+# blocks, in a function or (with "top") at top level, or (with "async")
+# in an async function, a task of lib/async/task.ai that gives the thread
+# back before every third statement and so goes on in the middle of its
+# loops and blocks with its variables in its record. It is written three
 # times from one tree: with statements ("add a b as x", labels and jumps);
 # line for line the same with each statement spelled as an expression
 # ("x=a+b", "jz a<b l"); and with nested expressions, "x+=e", "while" and
@@ -41,6 +44,9 @@ use "tools/lib/rng.ai"
 # c1, ...; the buffer that the writing functions add to, whether they
 # spell statements as expressions, and the number of the last label
 var gnn gncnt gob gflat gnlab
+# gasy = 1 for programs in an async function; gny counts the statements
+# written, of which every third is behind a wait
+var gasy gny
 
 # the state of the random numbers
 buf rs 8
@@ -502,8 +508,19 @@ call addn gob l
 call o "\n"
 end
 
+# in an async function, a wait before every third statement
+fn oyield
+if gasy
+gny+=1
+ifz gny%3
+call o "await asyncyield\n"
+end
+end
+end
+
 fn oblock st
 while st
+call oyield
 call cp st as p
 load p as k
 load p+8 as a
@@ -655,6 +672,7 @@ end
 
 fn nblock st
 while st
+call oyield
 call cp st as p
 load p as k
 load p+8 as a
@@ -778,6 +796,9 @@ i+=1
 end
 # the head of a function, the same in all three
 ifz top
+if gasy
+call add bold "use \"lib/async/task.ai\"\nasync "
+end
 call add bold "fn f "
 i=0
 while i<np
@@ -797,12 +818,15 @@ end
 gob=bold
 gflat=0
 gnlab=0
+gny=0
 call oblock body
 gob=bflat
 gflat=1
 gnlab=0
+gny=0
 call oblock body
 gob=bnew
+gny=0
 call nblock body
 call add bold "set 0 as h\n"
 call finals bold mask "add h " " as h\n"
@@ -827,7 +851,12 @@ call bycut tailb 0
 if top
 call add tailb "sys 60 h\n"
 else
-call add tailb "ret h\nend\ncall f "
+call add tailb "ret h\nend\n"
+if gasy
+call add tailb "await f "
+else
+call add tailb "call f "
+end
 i=0
 while i<np
 if i
@@ -868,7 +897,7 @@ ret v 1
 end
 
 fn usage
-call die "usage: randvars <compiler> <count> <seed> [top]\n       randvars dump <directory> <count> <seed> [top]\n"
+call die "usage: randvars <compiler> <count> <seed> [top|async]\n       randvars dump <directory> <count> <seed> [top|async]\n"
 end
 
 fn failtmp
@@ -958,6 +987,9 @@ call addn b seed
 if top
 call add b "-top"
 end
+if gasy
+call add b "-async"
+end
 call add b "-"
 call addn b i
 call add b "-"
@@ -1008,7 +1040,19 @@ call num ap an as seed ok2
 if (ok==0)|(ok2==0)
 call usage
 end
-top=n>4+dump
+top=0
+if n>4+dump
+top=1
+call argv 4+dump as ap an
+if an==5
+load4 ap as v
+loadb ap+4 as c
+if (v==0x6e797361)&(c==99)
+top=0
+gasy=1
+end
+end
+end
 call rngseed rs seed
 if dump
 call argv 2 as dp dn
@@ -1199,6 +1243,9 @@ call add msg " programs, seed "
 call addn msg seed
 if top
 call add msg ", top level"
+end
+if gasy
+call add msg ", async"
 end
 call add msg " ("
 call addn msg done

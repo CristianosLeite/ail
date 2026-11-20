@@ -642,6 +642,59 @@ label h
 jz f&16 w
 i=ai
 loadb cur+2 as c
+if c&64
+# await. With a function, first its call, checked like any call, and the
+# values it pushed off the stack, since the task may return here. Then
+# the handle, in rax, and the task that asks, or 0, to the function await
+# of the program; in an async function around that the code that lets
+# the task go on here, and return 0 while the result is not there
+if ncap>1
+call err
+end
+if awf
+call eb 232
+n=ncalls
+p=n*32+calls
+store p cn
+store p+8 cl
+store p+16 op
+store4 p+24 ai
+store4 p+28 1
+call z 4
+ncalls=n+1
+if pushed
+call eb 72
+call eb 129
+call eb 196
+call e4 pushed
+pushed=0
+end
+else
+if ai!=1
+call ecount
+end
+end
+if fnasy
+call cp asyawt 23
+else
+call eb 49
+call eb 255
+call eb 232
+end
+n=ncalls
+p=n*32+calls
+store p kwn
+store p+8 kwl
+store p+16 op
+store4 p+24 2
+store4 p+28 ncap
+call z 4
+ncalls=n+1
+if fnasy
+call cp asysus 9
+end
+ret 0
+end
 if c&32
 if c&2
 # spawn: the row was lea rax, [rip+rel32] for the function, recorded with
