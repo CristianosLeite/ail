@@ -89,6 +89,7 @@ keeps() {
     say "infix_$1" $?
 }
 keeps var_after_tab '\tvar shared\n'
+keeps var_before_comment 'var other shared#set by the program\n'
 # and so is a var of a file named on the command line, for a source that
 # is itself named by that file: without it the write is folded away
 r=0

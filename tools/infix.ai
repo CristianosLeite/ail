@@ -221,9 +221,11 @@ else
 if c==35
 ret 0
 end
+# a name ends at a comment as well: "var a#b" declares a
 q=p
 while q<e
 loadb q as c
+jeq c 35 named
 call scspace c as r
 jnz r named
 q+=1
