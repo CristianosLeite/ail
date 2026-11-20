@@ -242,7 +242,7 @@ a small internal interface for compiler-generated code.
    Coalesce repeated wakeups and preserve wakeups that arrive during a poll.
    Keep runtime initialization on demand for programs that execute async code.
    [Tokio's poll and wake model](https://tokio.rs/tokio/tutorial/async)
-2. [ ] Add the Linux I/O driver and timers. Keep the executor, `epoll` driver,
+2. [x] Add the Linux I/O driver and timers. Keep the executor, `epoll` driver,
    and monotonic deadline queue in separate AIL files under `lib/async/`.
    Start with sleep, timeouts and nonblocking TCP accept, connect, read and
    write. Define how operations retry after `EAGAIN`, handle partial reads

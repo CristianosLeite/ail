@@ -37,6 +37,10 @@
 #   32  eight lists of free records, of 128 bytes and each twice the one
 #       before
 #   96  tasks made and not done
+#  104  the function that sleeps for the one at 24, when files are
+#       waited for: 0 while only timers are
+#  112  how many things are expected of the outside world besides timers
+#  120  polls since the outside world was last looked at
 buf asyncq 128
 
 # a record of at least asyncz bytes, with the class of its size as its
@@ -175,19 +179,34 @@ ret 1
 end
 
 # poll the first task of the queue: 1 if one was polled. With an empty
-# queue, wait for the outside world if anything is expected of it and
-# try again; 0 if nothing can happen any more.
+# queue, wait for the outside world if anything is expected of it, and 1
+# then too: the caller may be waiting for just that. 0 if nothing can
+# happen any more. Every 61st poll looks at
+# the outside world without waiting, so that tasks that always have
+# something to do do not keep a timer or a file from being seen.
 fn asyncstep
 label asynctop
 load asyncq as asynct
-ifz asynct
 load asyncq+24 as asynch
+ifz asynct
 ifz asynch
 ret 0
 end
+store asyncq+120 0
 callp asynch 1 as asyncr
-jnz asyncr asynctop
-ret 0
+ret asyncr
+end
+if asynch
+load asyncq+120 as asyncn
+asyncn+=1
+if asyncn==61
+asyncn=0
+store asyncq+120 0
+callp asynch 0
+load asyncq as asynct
+else
+store asyncq+120 asyncn
+end
 end
 load asynct+32 as asyncx
 store asyncq asyncx
@@ -255,6 +274,28 @@ call asyncstep as asyncr
 jnz asyncr asyncagain
 end
 ret -35 1
+end
+
+# "call asynccancel h": end what is waited for with the result -125:
+# an event, which is first taken from where it waits (the function at
+# 56 of its record does that), or a task, which is not polled again and
+# no longer awaits what it awaited. 1, or 0 if it was done.
+fn asynccancel asynct
+load asynct+24 as asyncs
+if asyncs&4
+ret 0
+end
+load asynct+56 as asynch
+if asynch
+store asynct+56 0
+callp asynch asynct
+end
+load asynct+48 as asyncw
+if asyncw
+store asyncw+40 0
+store asynct+48 0
+end
+tail asyncfinish asynct -125
 end
 
 # poll tasks until nothing can happen any more; the result is the number

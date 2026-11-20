@@ -1,0 +1,123 @@
+# sixteen megabytes through a socket and back: one task accepts and echoes,
+# one reads what comes back, and the code that is no task writes, with
+# writes that take fewer bytes than asked when the socket is full
+use "lib/io.ai"
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/io.ai"
+const size 16777216
+buf src size
+buf dst size
+buf eb 65536
+var partial
+# values: 64 listener, 72 connection, 80 what it waits for
+fn server t
+label top
+load t+8 as s
+ifz s
+load t+64 as l
+call asyncaccept l as h
+store t+80 h
+store t+8 1
+jmp top
+end
+load t+80 as h
+call await h t as v r
+ifz r
+ret 0
+end
+if s==1
+store t+72 v
+end
+load t+72 as c
+if s==2
+if v-1>size
+call asyncclose c
+ret 1
+end
+call asyncwriteall c eb v as h
+store t+80 h
+store t+8 3
+jmp top
+end
+call asyncread c eb 65536 as h
+store t+80 h
+store t+8 2
+jmp top
+end
+# values: 64 connection, 72 bytes so far, 80 what it waits for
+fn reader t
+label top
+load t+80 as h
+load t+72 as n
+if h
+call await h t as v r
+ifz r
+ret 0
+end
+n+=v
+store t+72 n
+if v-1>size
+store t+16 n
+ret 1
+end
+end
+if n==size
+store t+16 n
+ret 1
+end
+load t+64 as c
+call asyncread c dst+n size-n as h
+store t+80 h
+jmp top
+end
+i=0
+while i<size
+store src+i i*0x9e3779b97f4a7c15
+i+=8
+end
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+ref server as p
+call async 88 p as sv
+store sv+64 l
+call asyncconnect 0x7f000001 port as h
+call await h 0 as c
+ref reader as p
+call async 88 p as rd
+store rd+64 c
+store rd+72 0
+store rd+80 0
+n=0
+while n<size
+call asyncwrite c src+n size-n as h
+call await h 0 as v
+if v>-4096
+call die "write failed\n"
+end
+if v<size-n
+partial+=1
+end
+n+=v
+end
+call await rd 0 as got
+i=0
+bad=0
+while i<size
+load src+i as a
+load dst+i as b
+bad+=a!=b
+i+=8
+end
+call asyncclose c
+call await sv 0
+call asyncclose l
+call asyncrun as left
+call putn got
+call print " "
+call putn bad
+call print " "
+call putn partial>0
+call print " "
+call putn left
+call print "\n"

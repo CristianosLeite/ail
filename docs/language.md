@@ -924,6 +924,7 @@ call procwait p 10000 as r
 | `await h s` | two results: the result of the task `h` and 1, or 0 and 0 if `h` is not done, after which the task `s` is woken when it is. With `s` 0, for code that is no task, it polls tasks until `h` is done |
 | `asyncwake h` | puts the task in the queue, to be polled again |
 | `asyncfinish h v` | ends the task or event `h` with the result `v` and wakes the task that awaits it; returns 1, or 0 if it was done already |
+| `asynccancel h` | ends the event `h` with the result -125; returns 1, or 0 if it was done |
 | `asyncrun` | polls tasks until nothing can happen any more; returns the number of tasks that are not done |
 | `asyncstep` | polls one task; returns 1, or 0 if nothing can happen |
 | `asyncyield` | makes a task that is done at its first poll, with the result 0; a task that awaits it lets the tasks in the queue run first |
@@ -955,7 +956,66 @@ call await h 0 as x     # 42
 - **Errors**: a task has no failure of its own; what it reports, it reports in its result, by convention a negative number as the kernel's are.
 - **Order**: tasks are polled in the order in which they were made or woken. Nothing runs at the same time as anything else, so tasks share memory without `xadd` and `cas`; the functions of this library are for one thread, the one that polls.
 - **The costs**: a record is the next power of two from 128 bytes that holds the task. Records up to 4096 bytes are cut from blocks of 64 KiB that are never given back, and all up to 16384 bytes are used again by the next task of their size; larger ones are an `alloc` and a `free` each.
-- **Names**: the library owns `async`, `await` and every name that starts with `async`; a program has no `var` of such a name.
+- **Cancelling**: `asynccancel h` ends an event with the result -125 (`ECANCELED`) after taking it from where it waits, and returns 1, or 0 if it was done. The result is still awaited, which releases the handle.
+- **Names**: the library owns `async`, `await` and every name that starts with `async`, in all its files; a program has no `var` of such a name.
+
+### Timers
+
+`lib/async/time.ai`, used after `lib/async/task.ai`, makes events of time.
+
+| Function | Does |
+|---|---|
+| `asyncsleep ms` | an event that is done, with the result 0, when `ms` milliseconds have passed |
+| `asynctimeout h ms` | a task to await in the place of `h`: its result is that of `h` if `h` is done within `ms` milliseconds, else -62 (`ETIME`), after `h` was cancelled |
+| `asyncclock` | the clock that only goes forward (`CLOCK_MONOTONIC`), in nanoseconds |
+
+```
+call asyncread fd b 512 as h
+call asynctimeout h 2000 as g
+call await g 0 as n     # the bytes read, or -62 after two seconds
+```
+
+- When no task can be polled, the thread sleeps until the earliest timer is due; with no timer and nothing else to wait for, nothing can happen and `asyncrun` returns. A timer is never early; it is late by what the tasks polled before it take.
+- Tasks that always have something to do do not keep timers and files from being seen: every 61st poll looks at both without sleeping.
+- After `asynctimeout` the handle `h` belongs to the limit: it is not awaited or cancelled any more, and cancelling the limit cancels it. Whether the result or the time came first is decided when the limit is polled; if both have come by then, the result counts.
+- The timers that run are 16 bytes each in a heap, besides their events.
+
+### Files and sockets
+
+`lib/async/io.ai`, used after the other two, makes events of the work of the kernel on a descriptor.
+
+| Function | Does |
+|---|---|
+| `asyncread fd p n` | an event whose result is that of `read`: the number of bytes now at `p`, at most `n`, 0 at the end; or a negative error number |
+| `asyncwrite fd p n` | the same for `write`: how many of the `n` bytes were taken, which may be fewer |
+| `asyncwriteall fd p n` | an event that is done when all `n` bytes are written, with the result `n`, or after an error, with the error |
+| `asyncaccept fd` | an event whose result is the descriptor of the next connection to the listening socket `fd` |
+| `asyncconnect ip port` | an event whose result is a socket connected to that port of the IPv4 address `ip`, a number (`0x7f000001` is 127.0.0.1), or the error, after which there is no socket |
+| `asynclisten ip port` | a socket that listens there (`ip` 0: on every address; `port` 0: on a port the kernel chooses), with `SO_REUSEADDR`; the descriptor or a negative error number, at once |
+| `asyncport fd` | the port of a socket |
+| `asyncclose fd` | closes the descriptor, after ending the events that wait for it with the result -125; returns what `close` returns |
+
+```
+use "lib/async/task.ai"
+use "lib/async/time.ai"
+use "lib/async/io.ai"
+buf b 512
+call asynclisten 0 8080 as l
+call asyncaccept l as h
+call await h 0 as c         # a connection
+call asyncread c b 512 as h
+call await h 0 as n
+call asyncwriteall c b n as h
+call await h 0
+call asyncclose c
+```
+
+- **An operation asks the kernel first** and is done at once if the kernel does the work at once. Only when the kernel says "not now" (`EAGAIN`) does the event wait, and the kernel is asked again when `epoll` reports the descriptor ready. So a read gives what is there, which may be less than `n`, and `asyncwrite` what the kernel had room for; a loop, or `asyncwriteall`, sends the rest.
+- **Order**: events that wait to read from (or accept on) a descriptor are served in the order they were made, and the same for those that write; a new one waits behind them.
+- **A descriptor the library is given** is made non-blocking (`O_NONBLOCK`, which every holder of the open file sees) and registered with `epoll` once, for both directions and changes only (`EPOLLET`). A plain file is not something `epoll` watches: its operations are done at once. Close such a descriptor with `asyncclose`, which forgets it; a number that the kernel gives out again is then a new file.
+- **Cancelling** an event that waits (`asynccancel`, or the limit of `asynctimeout`) takes it out of its list; bytes that come later are there for the next read. A connect that is cancelled closes its socket. The bytes of a read or write must stay valid until the event is done or cancelled.
+- **Errors** are the kernel's, negated: -104 for a connection that was reset, -111 for a port where nobody listens, -9 for a descriptor that is none.
+- **The costs**: an event is a record of 128 bytes, used again; a descriptor is another, and 8 bytes in a table that is as long as the highest descriptor seen. An operation that the kernel does at once is one system call; one that waits is two, and its share of an `epoll_wait` that reports up to 64 descriptors.
 
 ## Comments
 
