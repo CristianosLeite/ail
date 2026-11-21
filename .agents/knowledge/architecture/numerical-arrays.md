@@ -57,6 +57,9 @@ when first measured, 2.18 times since the loops take two doubles at once.
 - `ndrun` turns a run round when the result has the stride -8 and the others -8 or 0, so
   views taken backwards use the packed loops: 3.7 to 4.0 times less time at a thousand
   numbers. Mixed strides still go one element at a time.
+- `ndelem` has a short way (`ndlike`) for doubles on one axis apart from the result: 19 ns
+  a call instead of 64 at 16 elements. The harness clock is a system call in AIL, 91 ns a
+  run against 12 ns in C: rows of `perf` with many short runs overstate AIL / C by that.
 - Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,
   it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
   5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30

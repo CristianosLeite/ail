@@ -516,6 +516,22 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 	ret 0
 end
 
+# how the array nda goes along a result of one axis and ndn doubles
+# that lie one behind the other, by its 176 bytes alone: 0 without
+# axes, 8 with one axis of ndn elements that lie so too, else 1
+fn ndlike nda ndn
+	load nda+16 as ndr
+	ifz ndr
+		ret 0
+	end
+	load nda+48 as ndm
+	load nda+112 as nds
+	if (ndr==1)&(ndm==ndn)&(nds==8)
+		ret 8
+	end
+	ret 1
+end
+
 # make each element of ndo the result of the operation ndk on the
 # elements of nda and ndb: 0 add, 1 subtract, 2 multiply, 3 divide,
 # 4 the element of nda, 5 that as an integer, 6 that as a double
@@ -526,6 +542,30 @@ fn ndelem ndo nda ndb ndk
 	load ndb+8 as ndy
 	ifz (ndt!=0)&(ndx!=0)&(ndy!=0)
 		ret 0
+	end
+	# the short way of doubles on one axis, one behind the other, each
+	# of the two others like the result or without axes, and both apart
+	# from it: there is nothing to walk, to broadcast or to refuse
+	if (ndk<4)&(ndt==1)&(ndx==1)&(ndy==1)
+		load ndo+16 as ndr
+		load ndo+48 as ndn
+		load ndo+112 as nds
+		if (ndr==1)&(ndn!=0)&(nds==8)
+			call ndlike nda ndn as ndsa
+			call ndlike ndb ndn as ndsb
+			if (ndsa!=1)&(ndsb!=1)
+				load ndo as ndp
+				load nda as ndq
+				load ndb as ndu
+				nde=ndp+ndn*8
+				ndi=ndq+8+(ndn-1)*ndsa
+				ndj=ndu+8+(ndn-1)*ndsb
+				if ((ndq>=nde)|(ndi<=ndp))&((ndu>=nde)|(ndj<=ndp))
+					call ndrun ndk ndn ndp 8 ndq ndsa ndu ndsb
+					ret 1
+				end
+			end
+		end
 	end
 	if ndk<5
 		ifz (ndt==ndx)&(ndt==ndy)

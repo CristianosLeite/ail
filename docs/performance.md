@@ -835,3 +835,29 @@ Five questions that the measurements above left, each with the same method: the 
 | scale, 1000000 x 20 | 27.72 | 12.20 | 12.16 |
 
 3.7 to 4.0 times less at a thousand numbers, 2.0 to 2.3 times less at a million, and the time of the arrays forwards. A result backwards of arrays forwards, and any other mix of strides, goes one element at a time as before. Kept.
+
+**What a call costs before its loop.** A call of `ndadd` checks kinds, lengths and shared storage and starts a walk before the first element, and the programs of the harness wrap their three arrays (`ndwrap`) inside the timed region at every run. `ndelem` now takes a short way first: for the four operations on doubles, a result of one axis whose elements lie one behind the other, and two others that are each like it or without axes and apart from it by their addresses, there is nothing to walk, to broadcast or to refuse, and `ndrun` is called at once. Everything else, the result in the place of one of the two among it, takes the checks as before.
+
+The clock of the harness has to be taken off to see it: in AIL it is a system call, and a kernel that does nothing takes 91 ns a run there against 12 ns in C, whose library reads the clock without one. The times of a call in nanoseconds with that taken off, one process of a million runs, the median of nine, with the three `ndwrap` inside the clock and outside it (the 176 bytes used again), and for an array times a number (`ndscalar` inside, the array's 176 bytes used again):
+
+| elements | wrap inside, before | after | wrap outside, before | after | times a number, before | after |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 83 | 42 | 56 | 18 | 66 | 19 |
+| 16 | 90 | 43 | 64 | 19 | 75 | 27 |
+| 100 | 110 | 66 | 81 | 43 | 90 | 41 |
+| 1000 | 311 | 263 | 284 | 241 | 302 | 238 |
+
+The checks were 40 ns of a call and are a few; the three `ndwrap` are 25 ns and stay. At 16 elements a call with its arrays ready takes 19 ns instead of 64, and at a thousand 15% less; using the 176 bytes again saves another 8% there. The loop of C on a thousand takes 116 ns by the same reckoning, so the library is at 2.1 to 2.3 times C at that size, and the plain loop of `load`, `fadd` and `store` in AIL takes 526 ns. Skipping the division in `ndcount` for small lengths was tried for the `ndwrap` and gained nothing.
+
+The rows of `perf` for a thousand numbers carry the 91 ns of the clock 20000 times, 1.8 ms of each kernel time in AIL against 0.24 ms in C, so they overstate the ratio; they are left as measured, since every table above has them so. After this change:
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| ndelem add, random, 1000 x 20000 | 7.58 (7.55, 7.63) | 2.81 (2.78, 2.86) | 2.75 (2.71, 2.83) | 2.693 slow |
+| ndelem mul, random, 1000 x 20000 | 7.88 (7.82, 7.99) | 2.81 (2.77, 2.84) | 2.61 (2.58, 2.71) | 2.806 slow |
+| ndelem scale, random, 1000 x 20000 | 7.47 (7.41, 7.52) | 2.52 (2.50, 2.55) | 2.03 (2.01, 2.05) | 2.962 slow |
+| ndelem add, random, 1000000 x 20 | 13.88 (13.54, 15.07) | 14.14 (13.37, 15.10) | 13.30 (12.73, 13.80) | 0.982 |
+| ndelem mul, random, 1000000 x 20 | 14.64 (14.41, 15.31) | 14.09 (13.73, 15.01) | 13.87 (13.71, 14.21) | 1.039 |
+| ndelem scale, random, 1000000 x 20 | 12.13 (11.75, 12.59) | 12.10 (11.52, 12.51) | 11.65 (11.31, 12.15) | 1.002 |
+
+Geometric mean of AIL / C over 6 kernel times: 1.685, from 1.840 over the same six rows of the first round. Kept.

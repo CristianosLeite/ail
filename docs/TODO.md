@@ -369,13 +369,18 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    arrays forwards, with the bits of a loop over the indices
    (`tests/lib_nd_reversed`;
    [results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
-8. [ ] **Reduce setup cost for small contiguous vectors.** Add a direct path
+8. [x] **Reduce setup cost for small contiguous vectors.** Add a direct path
    for nonempty contiguous rank-one doubles when the output is disjoint
    from both inputs, including scalar operands. Share the arithmetic loops
    and preserve shape, broadcasting and alias checks in the general path.
    Reusing descriptors saved 5–9% at 1,000 elements. With descriptors already
    reused, the direct path saved another 11–13% at 1,000 elements and 26–28%
    at 16. Report timings with descriptor setup inside and outside the clock.
+   Done on 2026-11-21: `ndelem` calls `ndrun` at once for such arrays. With
+   the clock of the harness taken off, a call with its descriptors ready
+   takes 19 ns instead of 64 at 16 elements and 15% less at 1,000; setup
+   inside the clock adds 25 ns, 8% at 1,000
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 9. [ ] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
    four `pmadd` operations per iteration, followed by packed and scalar
    tails. A prototype cut single-core kernel time by 19% at side 100 and 7%
