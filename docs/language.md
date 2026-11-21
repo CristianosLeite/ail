@@ -1140,6 +1140,13 @@ call putn a+b
 | `ndat d x` | returns the address of the element whose indices are the words at `x`, and 1, or 0 and 0 if there is none |
 | `ndget d x` | returns that element and 1, or 0 and 0 |
 | `ndset d x v` | makes `v` that element; returns 1, or 0 if there is none |
+| `ndslice d s a lo hi st` | makes `d` a view of `s` with, on the axis `a`, the indices from `lo` up to but not `hi`: every `st`-th from `lo` on, or with a negative `st` from `hi-1` on downwards; returns 1 |
+| `ndtrans d s` | makes `d` a view of `s` with the axes in the reverse order; returns 1 |
+| `ndswap d s a b` | makes `d` a view of `s` with the axes `a` and `b` exchanged; returns 1 |
+| `ndreshape d s r sh` | makes `d` a view of `s` with `r` axes whose lengths are the words at `sh`; returns 1 |
+| `ndcontig d` | returns 1 if the elements lie one behind the other, the last index fastest |
+| `ndcopy d s` | makes `d` an array with storage of its own and the elements of `s`, one behind the other; returns 1 |
+| `ndfill d v` | makes every element of `d` the value `v` |
 
 ```
 use "lib/io.aw"
@@ -1157,8 +1164,9 @@ call putn n
 ```
 
 - **Storage**: the element with the indices `i`, `j`, ... is at the address at 0 plus `i` times the first stride plus `j` times the second, and so on. `ndnew` and `ndwrap` lay the elements one behind the other with the last index running fastest (the last stride is 8, each one before it the next times the length of the next axis), so the elements of such an array are also the words at the address at 0, as many as `ndsize` says. An array without axes is one element. An axis of length 0 gives an array without elements.
-- **Errors**: `ndnew` and `ndwrap` return 0 for more than 8 axes, for an axis or a number of elements of 2^60 or more, `ndnew` when the kernel has no memory and `ndwrap` when the bytes are too few for the elements; the 176 bytes are then as they were, an array that was there with every element. `ndat`, `ndget` and `ndset` test each index against the length of its axis, and the second result says whether there was an element, since an element may be 0. Bytes that are no array and not all zero are a fault of the program.
-- **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
+- **Views**: `ndslice`, `ndtrans`, `ndswap` and `ndreshape` write 176 bytes and move no element: the view has the storage of `s`, so a store through one is seen through the other, and it never owns that storage. A slice with the step -1 is the axis backwards, with a negative stride; `ndslice v a 0 1 3 1` are the rows 1 and 2 of `a`. `ndreshape` needs elements that lie one behind the other (`ndcontig`) and as many of them as the new lengths give; a view that does not lie so, a transposed one or one with a step, is copied first. `d` and `s` may be the same 176 bytes, which then keep the storage if they owned it. `ndcopy` is the one that moves elements: it takes storage for them, and with `d` and `s` the same it frees what `s` owned.
+- **Errors**: `ndnew` and `ndwrap` return 0 for more than 8 axes, for an axis or a number of elements of 2^60 or more, `ndnew` when the kernel has no memory and `ndwrap` when the bytes are too few for the elements; the 176 bytes are then as they were, an array that was there with every element. `ndat`, `ndget` and `ndset` test each index against the length of its axis, and the second result says whether there was an element, since an element may be 0. The functions that make a view return 0 for an axis the array has not got, for `lo` above `hi` or `hi` above the length, a step of 0, lengths that give another number of elements, and for what is no array, `ndcopy` without memory; `d` is then as it was. Bytes that are no array and not all zero are a fault of the program.
+- **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. A view is good as long as the storage it was made of: the array that owns it is freed last, and `ndfree` of a view frees nothing. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
 - **Names**: the library owns every name that starts with `nd`; a program has no `var` of such a name.
 
 ## The async library
