@@ -22,7 +22,8 @@
 # Words are compared as 16 hexadecimal digits, which sort as the numbers
 # do. Two runs each, so that a program which does not start again from
 # its input is seen. The same is asked of the C programs of bench/ if
-# there is a gcc; without one that part is skipped.
+# there is a gcc and of the Rust programs if there is a rustc; without
+# the compiler that part is skipped.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p build/tests
@@ -246,7 +247,7 @@ numbered() {
     done
 }
 
-# each kind program ...: check the programs, and their C forms
+# each kind program ...: check the programs, and their C and Rust forms
 each() {
     kind=$1
     shift
@@ -255,16 +256,26 @@ each() {
         then echo "ok   algo $p"
         else echo "FAIL algo $p"; fail=1
         fi
-        [ -n "$cc" ] || continue
-        if gcc -O1 -o "$tmp/$p" "bench/$p.c" 2> /dev/null && $kind "$tmp/$p"
-        then echo "ok   algo $p.c"
-        else echo "FAIL algo $p.c"; fail=1
+        if [ -n "$cc" ]; then
+            if gcc -O1 -o "$tmp/$p" "bench/$p.c" 2> /dev/null && $kind "$tmp/$p"
+            then echo "ok   algo $p.c"
+            else echo "FAIL algo $p.c"; fail=1
+            fi
+        fi
+        [ -n "$rc" ] || continue
+        if rustc -O -o "$tmp/rs/$p" "bench/$p.rs" 2> /dev/null && $kind "$tmp/rs/$p"
+        then echo "ok   algo $p.rs"
+        else echo "FAIL algo $p.rs"; fail=1
         fi
     done
 }
 
 cc=$(command -v gcc)
 [ -n "$cc" ] || echo "skip algo C programs: no gcc"
+rc=$(command -v rustc)
+[ -n "$rc" ] || echo "skip algo Rust programs: no rustc"
+# a program is known by the name of its file, so the Rust ones are apart
+mkdir "$tmp/rs" || exit 1
 each sorted $sorts
 each searched bsearch
 each hashed hashtab

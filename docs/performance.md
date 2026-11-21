@@ -170,7 +170,7 @@ A program reads five words from stdin: a seed, a count, a shape, a number of run
 
 The inputs are rows of a table in `tools/perf.aw`: a thousand elements with enough runs for some tens of milliseconds, and a million with one to four runs, in up to four shapes. `random` is words of 64 bits; `sorted` and `reversed` rise and fall by steps below 65536; `few` is values below 16 for a sort, steps below 2 for `bsearch`, 128 distinct keys for `hashtab` and at most one neighbour a vertex for `graph`, where `random` is up to 15. A small array lies in the first cache and shows the instructions; a large one shows the memory as well.
 
-Before anything is timed the whole result, not its checksum, must be the same bytes as that of C at the counts 0, 1 and 1000 in the shape of the row. That the results are right, and not only alike, is checked by `tests/algo.sh` in `make test`: the sorts against `sort(1)`, the others against awk programs, the empty and the one-element array among the counts.
+Before anything is timed the whole result, not its checksum, must be the same bytes as that of C at the counts 0, 1 and 1000 in the shape of the row. That the results are right, and not only alike, is checked by `tests/algo.sh` in `make test`: the sorts against `sort(1)`, the others against awk programs, the empty and the one-element array among the counts. Since 2026-11-21 it asks that of the programs in C and Rust as well, where there is a `gcc` and a `rustc`.
 
 The time of the kernels (same machine, CPU and compilers as above; the column `C qsort` is `bench/qsort.c`, the sort of the C library with a comparison function, on the same input):
 
