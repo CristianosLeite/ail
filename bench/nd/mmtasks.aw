@@ -2,13 +2,14 @@
 # in tasks. Stdin is six words of 8 bytes: the rows n of the first
 # matrix, its columns m, the columns l of the second, the threads that
 # may compute (the calling one among them), the tasks, and how often
-# each product is called. It writes four numbers and a newline: the
+# each product is called. It writes five numbers and a newline: the
 # nanoseconds of the fastest ndmatmul, those of the first ndmatmulp,
 # which also starts the threads, those of the fastest later one, and
 # how many elements of the results differ, which must be 0: those of the
 # first ndmatmulp, counted before a later call writes over them, and
 # those of the last, each against the result of ndmatmul and neither
-# inside a clock. The results are written once before any clock, so
+# inside a clock; and last the tasks that ndmatmulp made, which may be
+# fewer than asked for (ndruns). The results are written once before any clock, so
 # that no time is that of memory the kernel had not given yet. bench/nd/mmtasks.sh runs it for
 # the table in docs/performance.md.
 use "lib/io.aw"
@@ -116,4 +117,7 @@ call print " "
 call putn warm
 call print " "
 call putn d+d2+1-ok
+call print " "
+call ndruns n t as rows made
+call putn made
 call print "\n"

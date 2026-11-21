@@ -70,6 +70,11 @@ when first measured, 2.18 times since the loops take two doubles at once.
   microseconds of work (8 tasks, not 64); the first call starts threads, 60 to 180
   microseconds, and pays from a side of about 100. As many tasks as threads; more only
   where a task is milliseconds. A task is a run of rows, so few long rows share out badly.
+- `ndruns` cuts the rows into runs of the rows divided by the tasks, rounded up, so fewer
+  tasks are made than asked for where that does not go round (16 rows, 14 asked: 8). A
+  balanced split that makes every task asked for was measured on 2026-11-21: 5% to 19%
+  faster where a task is 10 microseconds or more, up to 58% slower where it is one, the
+  same on the geometric mean; the split was kept.
 - A program that ran tasks must end with `sys exit_group` or at its last line; a test that
   ended with `sys exit` hung with its workers alive.
 - Left out until a program needs them: elements of 32 bits, indexing by arrays, `.npy`,

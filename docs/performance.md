@@ -896,4 +896,34 @@ A fifth less where the matrices fit the cache and the loop is what costs, less a
 - **More tasks than threads** gain where a task would otherwise be milliseconds: a side of 300 takes 960 microseconds in 64 tasks against 1459 in 20, since the threads of the machine are not equally fast (6 cores of one kind and 8 of another) and short tasks even that out. At a side of 1000 and below a side of 300 it gains nothing.
 - **The shape** counts through the rows of the result, since a task is a run of rows: 16 rows of 250 are at most 16 tasks, 3.9 times faster, where 250 rows of 16, as many products in all, are 8.3 times faster. Many short rows (4000 by 16 by 16) share out as well as a square, 5.9 times.
 
+**Tasks asked for and tasks made.** `ndmatmulp` cuts the rows of the result into runs of the rows divided by the tasks, rounded up, and the last run is what is left (`ndruns`). Where the rows do not go round that is fewer tasks than asked for, which the table above does not show; `bench/nd/mmtasks.sh` now prints both numbers. The tasks made for the rows and the tasks of that table:
+
+| rows of the result | 14 asked | 16 | 20 | 32 | 64 |
+|---|---:|---:|---:|---:|---:|
+| 16 | 8 | 16 | 16 | 16 | 16 |
+| 30 | 10 | 15 | 15 | 30 | 30 |
+| 100 | 13 | 15 | 20 | 25 | 50 |
+| 250 | 14 | 16 | 20 | 32 | 63 |
+| 300 | 14 | 16 | 20 | 30 | 60 |
+| 1000 | 14 | 16 | 20 | 32 | 63 |
+| 4000 | 14 | 16 | 20 | 32 | 64 |
+
+With 2, 4 and 8 tasks every one asked for is made. The split was measured against a balanced one, the rows divided by the tasks rounded down with one row more in the first runs, which makes every task asked for. The fastest later call in microseconds, the median of nine processes of each, run in turn, for the cells where the two make other tasks:
+
+| rows x columns x columns | threads, tasks asked | tasks made | runs rounded up | balanced | balanced / rounded up |
+|---|---|---|---:|---:|---:|
+| 30 x 30 x 30 | 14, 14 | 10, 14 | 8.7 | 9.8 | 1.13 |
+| 30 x 30 x 30 | 20, 20 | 15, 20 | 11.1 | 17.5 | 1.58 |
+| 30 x 30 x 30 | 4, 16 | 15, 16 | 10.6 | 10.5 | 0.99 |
+| 16 x 250 x 250 | 14, 14 | 8, 14 | 71.2 | 57.8 | 0.81 |
+| 100 x 100 x 100 | 14, 14 | 13, 14 | 65.3 | 59.4 | 0.91 |
+| 100 x 100 x 100 | 4, 16 | 15, 16 | 122.0 | 114.0 | 0.93 |
+| 100 x 100 x 100 | 8, 32 | 25, 32 | 72.8 | 63.6 | 0.87 |
+| 100 x 100 x 100 | 20, 64 | 50, 64 | 50.8 | 55.3 | 1.09 |
+| 250 x 250 x 16 | 20, 64 | 63, 64 | 76.9 | 74.9 | 0.97 |
+| 300 x 300 x 300 | 8, 32 | 30, 32 | 1318.9 | 1258.2 | 0.95 |
+| 300 x 300 x 300 | 20, 64 | 60, 64 | 916.5 | 902.6 | 0.98 |
+
+The balanced split is faster where each of its tasks is ten microseconds of work or more and there is a thread for it: 16 rows of 250 on 14 threads take 58 microseconds in 14 tasks against 71 in 8. It is slower where a task is a microsecond, the product of side 30, since there the tasks it adds are what costs, and with 64 tasks on 20 threads at a side of 100. The geometric mean of the eleven ratios is 1.00, and in the 31 cells where both make the same tasks the two differ by what the runs differ. So the split stays: a caller who wants a task for every thread asks for a number the rows go round with, and `ndruns` says what a number gives.
+
 `ndmatmulp` is left as it is: the caller gives the number of tasks, and these figures say which.

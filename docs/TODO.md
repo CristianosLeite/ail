@@ -402,13 +402,20 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     threads and pays from a side of about 100; side 1,000 takes 222 ms on
     one thread and 39 ms in 20 tasks
     ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
-11. [ ] **Report requested and actual matrix task counts.** With 16 result
+11. [x] **Report requested and actual matrix task counts.** With 16 result
     rows and 14 requested tasks, `ndmatmulp` uses blocks of two rows and
     creates eight tasks. Show both counts in `bench/nd/mmtasks.sh` and the
     performance table. Measure the current split before changing it. A
     prototype that distributed the extra rows across blocks reduced the
     warm-pool median from 74.7 to 58.4 microseconds in this case and
     increased it for some other shapes.
+    Done on 2026-11-21: `ndruns` gives the rows of a run and the tasks
+    made, `ndmatmulp` uses it and `bench/nd/mmtasks.sh` prints both
+    counts. A balanced split was 5% to 19% faster where a task is ten
+    microseconds or more, up to 58% slower at a side of 30, and 1.00 on
+    the geometric mean of the eleven cells that differ, so the split
+    stays
+    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 12. [x] **Validate the first parallel matrix result before reusing its
     buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
     compares the output only after later calls have overwritten it.

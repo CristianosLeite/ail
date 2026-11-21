@@ -1,6 +1,7 @@
 # the product of matrices in tasks is the product, bit for bit, for any
 # number of tasks and of threads: none, one, more than rows, more than
-# 64; on views and on integers; and it refuses what ndmatmul refuses
+# 64; on views and on integers; it refuses what ndmatmul refuses; and
+# ndruns gives the runs it cuts the rows into
 use "lib/io.aw"
 use "lib/task.aw"
 use "lib/nd/array.aw"
@@ -25,6 +26,15 @@ fn fill x s
 		store p+i*8 u
 		i+=1
 	end
+end
+# the runs that rows are cut into: equal but the last, so fewer than
+# the tasks asked for where the rows do not go round
+fn runs n t
+	call ndruns n t as c k
+	call print " "
+	call putn c
+	call print " "
+	call putn k
 end
 # how the product in t tasks differs from the one in q
 fn tasks t
@@ -83,6 +93,14 @@ call ndmatmulp v v b 3 as e
 call ndkind b 1 as f
 call ndmatmulp w v b 3 as g
 call putn c+e+g
+call runs 16 14
+call runs 16 16
+call runs 70 69
+call runs 70 1000
+call runs 1000 64
+call runs 70 1
+call runs 70 0
+call runs 0 5
 call print "\n"
 call ndfree a
 call ndfree b

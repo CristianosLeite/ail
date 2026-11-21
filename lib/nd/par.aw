@@ -2,7 +2,7 @@
 # and the three files lib/nd/array.aw, elem.aw and reduce.aw.
 #
 # ndmatmulp is ndmatmul with a number of tasks: the rows of the result
-# are cut into that many runs, as equal as they come, and each run is a
+# are cut into runs (ndruns says how), and each run is a
 # task of lib/task.aw that computes its rows, which no other task
 # touches. The result is the same bits as that of ndmatmul, and what is
 # refused is the same. At most 64 tasks are made, and no more than there
@@ -15,6 +15,25 @@
 # The three arrays must be there until the function returns, which is
 # when every task has ended.
 
+# how ndn rows are cut for ndt tasks: the rows of a run and the number
+# of runs, which is the number of tasks. All runs have the same rows but
+# the last, which has what is left, so there may be fewer runs than
+# tasks asked for: 16 rows for 14 tasks are 8 runs of 2. At most 64
+# runs, no more than rows, and one run of all rows for 0 or 1 task
+fn ndruns ndn ndt
+	if ndt>64
+		ndt=64
+	end
+	if ndt>ndn
+		ndt=ndn
+	end
+	if ndt<2
+		ret ndn 1
+	end
+	ndc=(ndn+ndt-1)/ndt
+	ret ndc (ndn+ndc-1)/ndc
+end
+
 # make ndo the product of the matrices nda and ndb in ndt tasks
 fn ndmatmulp ndo nda ndb ndt
 	local ndh 512
@@ -24,16 +43,10 @@ fn ndmatmulp ndo nda ndb ndt
 	end
 	call ndfill ndo 0
 	load ndo+48 as ndn
-	if ndt>64
-		ndt=64
-	end
-	if ndt>ndn
-		ndt=ndn
-	end
-	if ndt<2
+	call ndruns ndn ndt as ndc ndi
+	if ndi<2
 		tail ndrows ndo nda ndb 0 ndn
 	end
-	ndc=(ndn+ndt-1)/ndt
 	ndi=0
 	ndlo=0
 	while ndlo<ndn
