@@ -402,6 +402,19 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     threads and pays from a side of about 100; side 1,000 takes 222 ms on
     one thread and 39 ms in 20 tasks
     ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+11. [ ] **Report requested and actual matrix task counts.** With 16 result
+    rows and 14 requested tasks, `ndmatmulp` uses blocks of two rows and
+    creates eight tasks. Show both counts in `bench/nd/mmtasks.sh` and the
+    performance table. Measure the current split before changing it. A
+    prototype that distributed the extra rows across blocks reduced the
+    warm-pool median from 74.7 to 58.4 microseconds in this case and
+    increased it for some other shapes.
+12. [ ] **Validate the first parallel matrix result before reusing its
+    buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
+    compares the output only after later calls have overwritten it.
+    Compare the first result against the serial result before running
+    the warm-pool calls. Keep both result checks outside the timed
+    regions and verify that corrupting either result fails the benchmark.
 
 Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
