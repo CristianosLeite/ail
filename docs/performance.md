@@ -162,6 +162,8 @@ The geometric mean is the n-th root by Newton's steps in doubles, where Python u
 
 ## Algorithms, 2026-11-20
 
+*The kernel times of this section were taken with the clock as a system call in AIL, which adds 78 ns a run to AIL alone: rows of a thousand runs or more overstate AIL / C ([the clock of the harness](#the-clock-of-the-harness-2026-11-21)).*
+
 The five CPU-bound programs above are loops over a few variables. The six algorithm programs ask what the compiler makes of code that calls functions and walks arrays: three sorts, a binary search, a hash table and a graph traversal, each the same algorithm with the same arrays in AIL, C and Rust.
 
 A program reads five words from stdin: a seed, a count, a shape, a number of runs and a mode (`bench/algo/harness.aw`, with `harness.h` and `harness.rs` for the other two languages). It makes its input from the seed with splitmix64, so the three languages work on the same words, and then runs its kernel that many times, each time on a fresh copy of the input. The copy, the making of the input, the clearing of a table and the checksum are outside the timed region: the monotonic clock is read just before and just after each call of the kernel (`clock_gettime` in AIL and C, `Instant` in Rust), and the sum over the runs is written behind a checksum of the last result. `perf` sends that output to a file, reads it after every run, requires the checksum of C in it, and reports the time of the kernel apart from the elapsed time of the process, which also has the start of the process and the setup in it.
@@ -628,6 +630,8 @@ Tokio polls tasks on a pool of threads, each with a queue of its own that idle t
 
 ## Numerical arrays, 2026-11-21
 
+*The kernel times of this section were taken with the clock as a system call in AIL, which adds 78 ns a run to AIL alone: rows of a thousand runs or more overstate AIL / C ([the clock of the harness](#the-clock-of-the-harness-2026-11-21)).*
+
 `lib/nd/` is arrays of numbers on the model of NumPy ([the nd library](language.md#the-nd-library)). Three programs time its kernels by the method of the [algorithm programs](#algorithms-2026-11-20): `ndelem` adds and multiplies two arrays element by element and multiplies one by a number, `ndreduce` sums a square of numbers, sums its columns and takes a dot product, `ndmatmul` multiplies two square matrices. In AIL a kernel makes arrays of the memory the harness gives it (`ndwrap`) and calls the library, so what is timed is the library as a program uses it; in C and Rust the kernel is a plain loop over the same doubles in the same order.
 
 The harness gives every language the same doubles (`algonum`: the lowest 20 bits of a word of splitmix64, divided by 1024, less 512), and the kernels add in the same order, so the result is the same bytes in the three, which `perf` requires before it times anything. That the results are right is checked apart: `tests/algo.sh` computes them in awk, and the tests `lib_nd_ref_*` compare the library with what NumPy 2.3.5 computed for arrays of `tests/nd/gen.py`. The counts are a thousand and a million numbers for `ndelem` and sides of 100 and 1000 for the two others.
@@ -808,6 +812,8 @@ A side of 1000 takes 5.5 times less in 20 tasks, a side of 300 seven times less,
 
 ## Array kernels after the first round, 2026-11-21
 
+*The kernel times of this section were taken with the clock as a system call in AIL, which adds 78 ns a run to AIL alone: rows of a thousand runs or more overstate AIL / C ([the clock of the harness](#the-clock-of-the-harness-2026-11-21)).*
+
 Five questions that the measurements above left, each with the same method: the same inputs, the results checked before the times, a change kept where it gains.
 
 **The sum in a floating-point register.** `ndsum` and `nddot` were loops of `fadd`, which takes the sum from a general register to a floating-point one and back for every element. The statements [`fsum` and `fdot`](language.md#a-sum-in-its-order) are that loop as one statement, with the sum in `xmm0` from the first element to the last, the elements added in the same order and a product rounded before it is added: the bits are those of the loop. `ndacc`, which every sum of doubles goes through, is an `fsum`, and `nddot` of arrays that lie one behind the other an `fdot`. The kernels of `ndreduce` before and after, by `build/tools/perf ndreduce`:
@@ -957,3 +963,42 @@ What it changes for a kernel, in ms for all runs, with the C program beside:
 | `ndelem`, 1000000, 20 | 13.54 | 13.89 | | | |
 
 The 1.7 ms that leave the first row are the 78 ns of difference 20000 times and a little more; at a million elements and 20 runs nothing changes. The tables above this section that have rows of many short runs were measured with the system call.
+
+**The tables again.** `build/tools/perf` was run twice on the six algorithm programs and the three array programs, once with the programs built on the harness as it was and once as it is, the same compiler and the same C and Rust programs both times. The geometric mean of AIL / C over the 62 kernel times is 1.201 where the system call gave 1.266, and over the 42 elapsed times 1.164 where it gave 1.230, since the clock is in the time of the process too. The 30 kernel times of a thousand runs or more, in ms for all runs:
+
+| kernel, input, count x runs | AIL, system call | AIL, vDSO | C | AIL / C, system call | AIL / C, vDSO |
+|---|---:|---:|---:|---:|---:|
+| quicksort, random, 1000 x 1000 | 23.10 | 21.22 | 13.56 | 1.710 | 1.565 |
+| quicksort, sorted, 1000 x 1000 | 13.95 | 13.96 | 10.87 | 1.277 | 1.284 |
+| quicksort, reversed, 1000 x 1000 | 11.99 | 11.94 | 8.89 | 1.344 | 1.343 |
+| quicksort, few, 1000 x 1000 | 3.96 | 3.88 | 2.71 | 1.456 | 1.432 |
+| mergesort, random, 1000 x 1000 | 18.82 | 20.07 | 18.33 | 1.033 | 1.095 |
+| mergesort, sorted, 1000 x 1000 | 5.16 | 5.28 | 5.26 | 0.981 | 1.004 |
+| mergesort, reversed, 1000 x 1000 | 5.87 | 4.81 | 5.15 | 1.144 | 0.934 |
+| mergesort, few, 1000 x 1000 | 10.72 | 10.82 | 8.93 | 1.220 | 1.212 |
+| heapsort, random, 1000 x 1000 | 22.52 | 17.81 | 17.25 | 1.297 | 1.032 |
+| heapsort, sorted, 1000 x 1000 | 21.25 | 17.88 | 13.24 | 1.607 | 1.350 |
+| heapsort, reversed, 1000 x 1000 | 16.60 | 13.08 | 11.11 | 1.490 | 1.177 |
+| heapsort, few, 1000 x 1000 | 17.25 | 15.69 | 15.11 | 1.117 | 1.038 |
+| bsearch, random, 1000 x 2000 | 54.32 | 47.06 | 54.70 | 1.000 | 0.860 |
+| bsearch, few, 1000 x 2000 | 54.99 | 45.17 | 52.73 | 1.053 | 0.857 |
+| hashtab insert, random, 1000 x 5000 | 6.43 | 5.37 | 5.49 | 1.178 | 0.978 |
+| hashtab hit, random, 1000 x 5000 | 7.35 | 6.73 | 8.63 | 0.854 | 0.780 |
+| hashtab miss, random, 1000 x 5000 | 10.26 | 9.27 | 9.40 | 1.072 | 0.986 |
+| hashtab insert, few, 1000 x 5000 | 5.19 | 4.94 | 4.22 | 1.239 | 1.171 |
+| hashtab hit, few, 1000 x 5000 | 6.10 | 5.67 | 3.38 | 1.810 | 1.678 |
+| hashtab miss, few, 1000 x 5000 | 6.88 | 6.65 | 3.45 | 1.988 | 1.928 |
+| graph bfs, random, 1000 x 2000 | 15.23 | 13.64 | 10.67 | 1.411 | 1.278 |
+| graph dfs, random, 1000 x 2000 | 24.52 | 20.13 | 15.09 | 1.594 | 1.334 |
+| graph bfs, few, 1000 x 5000 | 12.47 | 12.27 | 7.99 | 1.543 | 1.536 |
+| graph dfs, few, 1000 x 5000 | 14.78 | 14.04 | 7.29 | 2.027 | 1.926 |
+| ndelem add, random, 1000 x 20000 | 7.08 | 5.38 | 2.58 | 2.744 | 2.085 |
+| ndelem mul, random, 1000 x 20000 | 7.39 | 5.37 | 2.58 | 2.875 | 2.081 |
+| ndelem scale, random, 1000 x 20000 | 6.99 | 5.42 | 2.32 | 3.013 | 2.336 |
+| ndreduce sum, random, 100 x 1000 | 4.53 | 4.44 | 4.39 | 1.034 | 1.011 |
+| ndreduce cols, random, 100 x 1000 | 2.91 | 2.79 | 1.33 | 2.188 | 2.098 |
+| ndreduce dot, random, 100 x 1000 | 4.51 | 4.43 | 4.39 | 1.027 | 1.009 |
+
+Over these 30 rows the geometric mean of AIL / C goes from 1.425 to 1.286; over the 32 rows of fewer runs it is 1.133 and 1.126, the same. The clock itself is the runs times 78 ns: 1.6 ms of each `ndelem` row, 0.4 ms of a `hashtab` row, 0.08 ms of a sort. Some rows moved by more than that, `heapsort` by 3 to 5 ms and `bsearch` by 7 to 10, which is no clock: it is what an entry into the kernel before every run does to a kernel of ten microseconds, or the kernels standing elsewhere in the file behind a longer harness, and this run does not tell the two apart ([the move to a library](#the-algorithm-kernels-in-a-library-2026-11-21) measures placement). A few rows went the other way by as much as the runs differ (`mergesort`, random).
+
+The kernel tables of [Algorithms](#algorithms-2026-11-20), [Numerical arrays](#numerical-arrays-2026-11-21) and [Array kernels after the first round](#array-kernels-after-the-first-round-2026-11-21) are left as they were measured, each with a note that its rows of many runs include the system call.

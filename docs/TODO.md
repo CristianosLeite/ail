@@ -460,13 +460,18 @@ library in the same pass and leave the examples as callers.
    and 12; the system call in all three gave 91, 91 and 89, and the
    subtraction would have left the system call in every run
    ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
-2. [ ] **Rerun the kernel tables the clock skewed.** The bias of a row is
+2. [x] **Rerun the kernel tables the clock skewed.** The bias of a row is
    its runs times the difference per run, so it matters for the rows with
    thousands of short runs in the algorithm and array tables and not for
    those at a million elements. Rerun `build/tools/perf` with the corrected
    harness, report the old and new ratios side by side, and note in the
    earlier sections of [performance.md](performance.md) which figures
    included the clock. Leave the historical tables as measured.
+   Done on 2026-11-21: over the 62 kernel times AIL / C is 1.201 where
+   the system call gave 1.266, and over the 30 rows of a thousand runs
+   or more 1.286 against 1.425; the rows of fewer runs did not move.
+   The three earlier sections carry a note
+   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
 3. [ ] **Move the algorithm kernels into a library.** Put the sorts
    (`quicksort`, `mergesort`, `heapsort` and `isort`), the lower-bound
    search, the open-addressing table of `hashtab` and the two traversals
