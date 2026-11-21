@@ -875,3 +875,25 @@ Geometric mean of AIL / C over 6 kernel times: 1.685, from 1.840 over the same s
 | 1000 x 1 | 269.37 | 238.11 | 12% |
 
 A fifth less where the matrices fit the cache and the loop is what costs, less at a side of 1000, where memory has its part, and nothing at 30, whose rows are three rounds and three pairs. `build/tools/perf ndmatmul` then gives 1.769 times C at a side of 100 and 1.323 at 1000, from 1.862 and 1.535. Kept.
+
+**How many tasks for a product.** `bench/nd/mmtasks.aw` times `ndmatmul` and `ndmatmulp` in one process for a shape, a number of threads and a number of tasks, with the results written once before any clock; `bench/nd/mmtasks.sh` runs it for the table. A cell is the first call of `ndmatmulp`, which also starts the threads of the pool, and then the fastest of the later calls, which find them there, in microseconds, the median of five processes; the row `ndmatmul` is the fastest call on one thread, the median of all processes of the shape. It is timed first in its process, and at the smallest shape it varied from 13 to 21 between processes, likely a processor not yet at its speed; the row `1, 1`, the same loop timed later, is the one to compare with there. A shape is the rows and columns of the first matrix and the columns of the second, so the first number is the rows of the result, which are what the tasks share out:
+
+| threads, tasks | 30 x 30 x 30 | 100 x 100 x 100 | 300 x 300 x 300 | 1000 x 1000 x 1000 | 4000 x 16 x 16 | 16 x 250 x 250 | 250 x 250 x 16 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `ndmatmul` | 20 | 297 | 6346 | 223890 | 699 | 242 | 642 |
+| 1, 1 | 14, 13 | 328, 299 | 6462, 6257 | 221941, 221936 | 701, 697 | 239, 230 | 643, 641 |
+| 2, 2 | 62, 14 | 400, 176 | 5125, 3574 | 129074, 122963 | 654, 391 | 301, 141 | 605, 346 |
+| 4, 4 | 81, 11 | 285, 143 | 3324, 2957 | 70601, 72065 | 485, 268 | 240, 119 | 473, 225 |
+| 8, 8 | 120, 9 | 238, 85 | 1981, 1701 | 51048, 51616 | 361, 161 | 202, 66 | 342, 120 |
+| 14, 14 | 122, 9 | 240, 65 | 1402, 1200 | 40490, 43611 | 353, 142 | 213, 69 | 319, 92 |
+| 20, 20 | 128, 11 | 221, 56 | 1584, 1459 | 29680, 39477 | 329, 122 | 220, 59 | 336, 79 |
+| 4, 16 | 104, 13 | 223, 125 | 3109, 2414 | 75650, 75699 | 410, 268 | 265, 116 | 395, 215 |
+| 8, 32 | 177, 16 | 207, 78 | 1604, 1332 | 47720, 49726 | 362, 167 | 214, 84 | 315, 120 |
+| 20, 64 | 184, 26 | 261, 53 | 1243, 960 | 34566, 38559 | 374, 118 | 233, 59 | 304, 77 |
+
+- **With the pool there**, tasks pay from the smallest product measured: 27000 products and sums, 13 microseconds, take 9 in 8 tasks. That is where few tasks are right: 20 tasks are no faster than 4 there, and 64 take twice the time of one thread, each task being 0.2 microseconds of work behind a lock. From a million products on, as many tasks as threads is the size, 5 to 8 times faster on 20 threads.
+- **The first call** starts the threads, about 60 microseconds for the first and 120 to 180 for eight or more. It is slower than one thread up to a side of 100 and gains from there: a program that multiplies once should use tasks from some hundred microseconds of work, a program that multiplies often from ten.
+- **More tasks than threads** gain where a task would otherwise be milliseconds: a side of 300 takes 960 microseconds in 64 tasks against 1459 in 20, since the threads of the machine are not equally fast (6 cores of one kind and 8 of another) and short tasks even that out. At a side of 1000 and below a side of 300 it gains nothing.
+- **The shape** counts through the rows of the result, since a task is a run of rows: 16 rows of 250 are at most 16 tasks, 3.9 times faster, where 250 rows of 16, as many products in all, are 8.3 times faster. Many short rows (4000 by 16 by 16) share out as well as a square, 5.9 times.
+
+`ndmatmulp` is left as it is: the caller gives the number of tasks, and these figures say which.

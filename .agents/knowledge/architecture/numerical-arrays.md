@@ -66,6 +66,10 @@ when first measured, 2.18 times since the loops take two doubles at once.
   it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
   5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30
   with 64 tasks.
+- Tasks for a product (`bench/nd/mmtasks.sh`): with the pool started they pay from 13
+  microseconds of work (8 tasks, not 64); the first call starts threads, 60 to 180
+  microseconds, and pays from a side of about 100. As many tasks as threads; more only
+  where a task is milliseconds. A task is a run of rows, so few long rows share out badly.
 - A program that ran tasks must end with `sys exit_group` or at its last line; a test that
   ended with `sys exit` hung with its workers alive.
 - Left out until a program needs them: elements of 32 bits, indexing by arrays, `.npy`,

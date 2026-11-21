@@ -390,12 +390,18 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    kernel takes 19% less time at side 100, 22% at 300 and 12% at 1,000, and
    the same at 30; `tests/lib_nd_matmul_wide` compares the bits
    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
-10. [ ] **Measure task granularity for matrix multiplication.** Compare
+10. [x] **Measure task granularity for matrix multiplication.** Compare
     `ndmatmul` and `ndmatmulp` over worker and task counts. On the
     i7-12700H, side 1,000 took 252 ms serially and 39 ms with 20 tasks,
     while four tasks beat 20 at side 30. Measure with a cold and a reused
     pool, include rectangular shapes, and document when parallel calls
     pay off.
+    Done on 2026-11-21: `bench/nd/mmtasks.sh` times seven shapes at nine
+    pairs of threads and tasks. With the pool started tasks pay from 13
+    microseconds of work, with few tasks; the first call starts the
+    threads and pays from a side of about 100; side 1,000 takes 222 ms on
+    one thread and 39 ms in 20 tasks
+    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 
 Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
