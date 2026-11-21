@@ -519,7 +519,12 @@ fn ndmatmul ndo nda ndb
 	ifz ndok
 		ret 0
 	end
-	call ndfill ndo 0
+	# a result without elements is done: its rows may be any number
 	load ndo+48 as ndn
+	load ndo+56 as ndl
+	ifz (ndn!=0)&(ndl!=0)
+		ret 1
+	end
+	call ndfill ndo 0
 	tail ndrows ndo nda ndb 0 ndn
 end

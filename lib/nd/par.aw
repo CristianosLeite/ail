@@ -43,8 +43,14 @@ fn ndmatmulp ndo nda ndb ndt
 	ifz ndok
 		ret 0
 	end
-	call ndfill ndo 0
+	# a result without elements is done, before any run of rows is
+	# planned: it may have any number of rows
 	load ndo+48 as ndn
+	load ndo+56 as ndl
+	ifz (ndn!=0)&(ndl!=0)
+		ret 1
+	end
+	call ndfill ndo 0
 	call ndruns ndn ndt as ndc ndi
 	if ndi<2
 		tail ndrows ndo nda ndb 0 ndn

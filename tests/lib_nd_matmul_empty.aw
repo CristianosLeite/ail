@@ -1,5 +1,7 @@
 # a product without elements writes nothing, also where the result is
-# bytes at the address 0: no rows, no columns, and nothing to add over
+# bytes at the address 0: no rows, no columns, and nothing to add over.
+# A result of 2^40 rows without columns is done at once, on one thread
+# and in tasks, and not after a walk over its rows
 use "lib/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
@@ -32,6 +34,15 @@ call ndwrap c 0 0 2 sh as r
 call ndmatmul c a b as u
 call ndmatmulp c a b 4 as v
 call ndfree b
+# 2^40 by 0 times 0 by 0 gives 2^40 by 0
+store sh 0x10000000000
+store sh+8 0
+call ndwrap a 0 0 2 sh as r
+call ndwrap c 0 0 2 sh as r
+store sh 0
+call ndwrap b 0 0 2 sh as r
+call ndmatmul c a b as y
+call ndmatmulp c a b 4 as z
 # 2 by 0 times 0 by 2 gives 2 by 2 of zeros
 store sh 2
 store sh+8 0
@@ -45,6 +56,7 @@ call ndfill c x
 call ndmatmul c a b as w
 call show c
 call putn s+t+u+v+w
+call putn r+y+z
 call print "\n"
 call ndfree c
 sys exit_group 0
