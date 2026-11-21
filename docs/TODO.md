@@ -273,6 +273,76 @@ a small internal interface for compiler-generated code.
    server. Measure source tokens, throughput, latency and memory per task
    on representative workloads before broadening the API.
 
+## Algorithm benchmarks and collection APIs
+
+Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)
+as the starting point. Pass contiguous arrays as an address and an element
+count, use `load` and `store` for 64-bit values, and size runtime buffers with
+`alloc`. The algorithms can use the current language and calling convention.
+
+- [ ] Add quicksort in `examples/quicksort.aw` and `bench/quicksort.c`.
+  Sort unsigned 64-bit values in place with the same pivot rule and three-way
+  partition in both implementations. Use half-open ranges and recurse on the
+  smaller partition while iterating over the larger one to bound stack depth.
+- [ ] Add bottom-up mergesort with one caller-provided scratch array, heapsort
+  with an in-place binary heap, and binary search over sorted arrays. Make
+  binary search return the first index whose value is at least the key, or the
+  element count if there is none. Keep the algorithm and memory layout matched
+  in each AIL and C pair.
+- [ ] Add hash lookup and graph traversal benchmarks. Measure inserts and
+  successful and unsuccessful lookups on the same key sequence and table load.
+  Store graphs as a vertex-offset array and a contiguous neighbor array. Use
+  a queue for BFS and an explicit stack for DFS, with the same neighbor order
+  and visited representation in both implementations.
+- [ ] Extend [`perf`](../tools/perf.aw) for algorithm workloads. Run equivalent
+  C kernels at `-O3` on identical input generated from fixed seeds. Include
+  small and large arrays and random, sorted, reversed and duplicate-heavy
+  inputs. Check full sorted output against an independent reference on test
+  fixtures, including empty and singleton arrays. Validate results before
+  reporting timings. Prepare and reset input outside the timed region. Time
+  the kernel inside each executable with a monotonic clock and report it
+  separately from the existing end-to-end measurement. Preserve CPU
+  affinity, warmups, shuffled runs, and median and quartile reporting. Record
+  source tokens for the kernels and the code needed to call them. Include C
+  `qsort` as an optional baseline for callers of the generic library interface.
+
+Implement the collections as ordinary library functions under `lib/`. Use
+file-prefixed names, caller-owned zero-initialized descriptors and no top-level
+initialization. Start with unsigned 64-bit elements or keys and values. The
+operation names below are proposed. Keep allocation size calculations checked,
+preserve the contents on allocation failure, document the lifetime of any
+exposed storage, and have `free` operations reset the descriptor. Return a
+separate success or found result wherever zero is a valid value.
+
+- [ ] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
+  `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
+  address, length and capacity in a 24-byte descriptor, with length and
+  capacity in elements. Grow geometrically and reuse `bycopy` for relocation
+  if useful. Define `vecreserve` in terms of total capacity and document when
+  growth invalidates addresses into the vector.
+- [ ] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
+  `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
+  values with a head and count. Return failure on full and empty operations.
+  Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
+  the queue usable in synchronous programs through its own functions.
+- [ ] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
+  `heappop h` and `heapfree h`. Store values in a growable array, using the
+  vector storage if it fits the callers. Sift up on insertion and down on
+  removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
+  the in-place max-heap operations of heapsort in its benchmark.
+- [ ] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
+  `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
+  power-of-two capacity, and explicit slot states for empty, occupied and
+  deleted entries so all 64-bit keys are usable. Update existing keys in place,
+  reuse deleted slots, and rebuild when occupied and deleted slots reach the
+  chosen load threshold. Publish resized storage after rehashing succeeds.
+- [ ] Cover each collection in `tests/lib_*`. Check empty operations and zero
+  values, vector growth and bounds, queue wraparound and full behavior, heap
+  ordering with duplicates, and hash collisions, deletion and resizing. Check
+  capacity overflow and reuse after `free`. Document the APIs and storage
+  contracts in [`language.md`](language.md) and record benchmark results in
+  [`performance.md`](performance.md).
+
 ## Redesign
 
 From `REDESIGN.md`; one commit per item.
