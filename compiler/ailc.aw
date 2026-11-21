@@ -112,6 +112,10 @@ var slotp slotr slotpos
 var xgi xgh xgskip
 # the bytes of padding in the function at hand
 var fnpad
+# the awaits of the async function at hand, noted in its first pass: naw
+# of them in awts; awpos = where the names after "as" of the statement at
+# hand begin
+var naw awpos
 # the memory of a load or store: base, index (16 for none) and number
 var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
@@ -147,6 +151,9 @@ buf vdone 64        # per variable: 1 once alloc has looked at it, 2 if it has a
 buf vms 67108864    # 8388608 mentions of variables in the function, a name of one
 # byte with a blank after it, each read at most twice: where, times 256, plus
 # the variable
+buf awts 8388616      # 1048577 awaits of the function ("await a", 8 bytes): where in the
+# source a task may leave, behind the values of the statement and before
+# the names after "as"
 buf loops 22369632    # 1398102 backward jumps of the function: where the source has
 # the label, and the jump
 buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
@@ -743,6 +750,7 @@ jmp tokend
 
 # "as <name>": emit the statement and keep rax in the variable
 label capture
+awpos=ip
 loadb cur+1 as r
 if r&2
 	call enoas
@@ -1094,6 +1102,7 @@ fnregs=6
 fnlocal=0
 nloops=0
 nvm=0
+naw=0
 label f0
 ildp=0
 ilcnt=0
@@ -1222,7 +1231,7 @@ if fnasy
 	store (nfuncs-1)*40+funs+32 1
 	call eb 49
 	call eb 192
-	call cp asyret 11
+	call asyout
 else
 	store (nfuncs-1)*40+funs+32 d
 	loadb q+zerolen-1 as p

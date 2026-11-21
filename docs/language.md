@@ -563,7 +563,7 @@ The statement is a call of the function `await` of the program, which `lib/async
 
 - An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, `spawn` and `join` included, which hold the thread while they wait, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
 - The task is made by the function `async` of the program, which `lib/async/task.aw` defines; without that `use` an async function is an `undefined function async`.
-- **Its variables live in the record of the task**, not in registers and not on the stack, so that they are there when the task goes on after a wait: every use of a variable is a use of memory. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
+- **Its variables live in the record of the task** where they are in use across an `await`, so that they are there when the task goes on after a wait; a use of such a variable is a use of memory, and so is one of a parameter. A variable that no `await` falls into, computed and read between two of them, is in a register as in any function, so a loop between two waits costs what it costs elsewhere. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
 - The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
 
 #### Recursion and the stack

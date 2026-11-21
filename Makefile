@@ -95,7 +95,8 @@ ifeq ($(T),)
 	tests/par.sh || f=1; AILC=$(B)/ailc tests/async.sh || f=1; tests/algo.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; \
-	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; exit $$f
+	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; \
+	$(B)/tools/randvars $(B)/ailc 200 4 asyncs || f=1; exit $$f
 else
 	@f=0; AILC=$(B)/ailc tests/run.sh $(T) || f=1; tests/self.sh $(T) || f=1; exit $$f
 endif

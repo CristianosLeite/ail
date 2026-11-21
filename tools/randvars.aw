@@ -1,14 +1,16 @@
 # tools/randvars.aw -- check generated code with random programs whose
 # result is computed here.
 #
-#   build/tools/randvars <compiler> <count> <seed> [top|async]
-#   build/tools/randvars dump <directory> <count> <seed> [top|async]
+#   build/tools/randvars <compiler> <count> <seed> [top|async|asyncs]
+#   build/tools/randvars dump <directory> <count> <seed> [top|async|asyncs]
 #
 # Each program is arithmetic on up to 40 variables with nested loops and
 # blocks, in a function or (with "top") at top level, or (with "async")
 # in an async function, a task of lib/async/task.aw that gives the thread
 # back before every third statement and so goes on in the middle of its
-# loops and blocks with its variables in its record. It is written three
+# loops and blocks with its variables in its record; with "asyncs" the
+# wait is before every twelfth statement, so that there are variables no
+# wait falls between, which have registers. It is written three
 # times from one tree: with statements ("add a b as x", labels and jumps);
 # line for line the same with each statement spelled as an expression
 # ("x=a+b", "jz a<b l"); and with nested expressions, "x+=e", "while" and
@@ -45,8 +47,8 @@ use "tools/lib/rng.aw"
 # spell statements as expressions, and the number of the last label
 var gnn gncnt gob gflat gnlab
 # gasy = 1 for programs in an async function; gny counts the statements
-# written, of which every third is behind a wait
-var gasy gny
+# written, of which every gper-th is behind a wait
+var gasy gny gper
 
 # the state of the random numbers
 buf rs 8
@@ -512,7 +514,7 @@ end
 fn oyield
 	if gasy
 		gny+=1
-		ifz gny%3
+		ifz gny%gper
 			call o "await asyncyield\n"
 		end
 	end
@@ -897,7 +899,7 @@ fn num p n
 end
 
 fn usage
-	call die "usage: randvars <compiler> <count> <seed> [top|async]\n       randvars dump <directory> <count> <seed> [top|async]\n"
+	call die "usage: randvars <compiler> <count> <seed> [top|async|asyncs]\n       randvars dump <directory> <count> <seed> [top|async|asyncs]\n"
 end
 
 fn failtmp
@@ -989,6 +991,9 @@ fn keep b seed top i f p n
 	end
 	if gasy
 		call add b "-async"
+		if gper!=3
+			call add b "s"
+		end
 	end
 	call add b "-"
 	call addn b i
@@ -1050,6 +1055,16 @@ fn main
 			if (v==0x6e797361)&(c==99)
 				top=0
 				gasy=1
+				gper=3
+			end
+		end
+		if an==6
+			load4 ap as v
+			load2 ap+4 as c
+			if (v==0x6e797361)&(c==0x7363)
+				top=0
+				gasy=1
+				gper=12
 			end
 		end
 	end
@@ -1246,6 +1261,9 @@ fn main
 		end
 		if gasy
 			call add msg ", async"
+			if gper!=3
+				call add msg " with few waits"
+			end
 		end
 		call add msg " ("
 		call addn msg done

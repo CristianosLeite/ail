@@ -1098,3 +1098,16 @@ The compiler is the program with the most such functions. Its source, built by t
 **Bodies in bodies.** A function that had a call compiled in place was itself always called, so one level was all. Such a function is now fit like any other, and bodies are read in bodies, four deep. No program of the tables changed by a byte: their kernels were one level. The tools are deeper. Built by the compiler before and after, on one processor, the median of seven runs: `build/tools/tokens` over the examples 18.8 and 18.2 ms, `infix` on `compiler/expr.aw` 5.6 and 5.4 ms, `randvars dump` of 300 programs 27.0 and 24.9 ms, 3, 4 and 8% less. The compiler compiles itself in the same time, 7.12 and 7.17 ms. The price is bytes again: `perf` is 50086 for 37862, `par` 36067 for 26244, the compiler 66343 for 63207, and the six async programs are each a little smaller.
 
 What stays a call, and why, is in [compiler.md](compiler.md), under "A call compiled in place": a call at the top level, which is compiled in one pass with a register for each of its first six variables and no place used twice, so a body's variables would take the program's registers; a function with more variables at once than registers; and the fifth body in four.
+
+## Registers in an async function, 2026-11-21
+
+Every variable of an async function lived in the record of its task, since a task that waits goes on in a later poll, where the registers hold something else. That is only needed for a variable in use across an `await`. The compiler now notes the awaits of a function in its first pass and keeps in the record what has one in its range, and the parameters; a variable computed and read between two awaits has a register, one of the five behind `rbx`, which holds the record. The poll function saves those it uses when it is entered and gives them back wherever it returns.
+
+`bench/async/calc` is a task that waits and between two waits runs a loop of arithmetic on three such variables, with its sum across the waits. A hundred tasks, a hundred million rounds in all, on one processor, the compiler before and after, three runs each:
+
+| rounds between two waits | before | after |
+|---:|---:|---:|
+| 1000 | 1.41 ns a round | 1.11 |
+| 10 | 2.70 | 2.33 |
+
+A loop between waits is a fifth faster, and still a seventh with a wait every ten rounds. `switch`, a task that only waits and whose one variable is in use across every wait, takes 199 ms for ten million waits where it took 198: a function without such variables saves `rbx` and nothing else, as before. The other programs of [the async section](#async-2026-11-20) have their variables in loops with awaits and are the same code but for that.

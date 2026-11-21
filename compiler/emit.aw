@@ -552,7 +552,31 @@ fn asyent
 		call eb n*8
 	end
 	call eb 195
-	call cp asypoll 15
+	# the poll function: the registers of its variables and rbx, saved
+	# before it goes on where the task left, so that every place it goes
+	# on at has the same stack, and taken back wherever it returns
+	n=fnregs
+	ifz n
+		n=1
+	end
+	loadb n+pushlen as c
+	call cp fnpush c
+	call cp asypoll+1 14
+end
+# the end of a poll: the result of the task to its record and 1, for a
+# ret and for the end of an async function
+fn asyout
+	call cp asyret 9
+	tail asypops
+end
+# the registers that the poll function saved, and its return
+fn asypops
+	n=fnregs
+	ifz n
+		n=1
+	end
+	loadb n+pushlen as c
+	call cp retc+10-c c+1
 end
 # how many bytes of the six pops to leave out: those of the registers that
 # the function does not use and so did not save
@@ -665,7 +689,25 @@ fn alloc
 		if ((t==0)|(u&1))&(u!=0)
 			load x*8+vfirst as lo
 			load x*8+vlast as hi
-			j=fnasy*6
+			# in an async function rbx is the record of the task, and a
+			# variable is in a register only if the task cannot leave while it
+			# is in use: no parameter, which the code that makes the task stores
+			# to the record, and no variable with an await in its range
+			j=0
+			if fnasy
+				j=1
+				if x<fnnpar
+					j=6
+				end
+				i=0
+				while i<naw
+					load i*8+awts as t
+					if (lo<=t)&(hi>t)
+						j=6
+					end
+					i+=1
+				end
+			end
 			label q
 			i=0
 			while i<vhi
@@ -751,7 +793,7 @@ fn eop
 			call eres
 		end
 		call godead
-		call cp asyret 11
+		call asyout
 		jmp h
 	end
 	if f&16
@@ -830,6 +872,16 @@ fn eop
 			end
 		end
 		if fnasy
+			# where the task may leave: the variables in use across this
+			# place live in its record (alloc)
+			if pass==1
+				c=ip
+				if ncap
+					c=awpos
+				end
+				store naw*8+awts c
+				naw+=1
+			end
 			call cp asyawt 23
 		else
 			call eb 49
@@ -846,7 +898,16 @@ fn eop
 		call z 4
 		ncalls=n+1
 		if fnasy
-			call cp asysus 9
+			# return 0 while the second result is 0: the jump over that
+			# return is as long as the pops are
+			call cp asysus 7
+			n=fnregs
+			ifz n
+				n=1
+			end
+			loadb n+pushlen as c
+			storeb op-3 c+3
+			call asypops
 		end
 		ret 0
 	end
