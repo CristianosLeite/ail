@@ -15,7 +15,7 @@
 # the index 0 up. That is the order of a loop in C and not the one of
 # NumPy, which adds in pairs: the last digits of a long sum may differ
 # from NumPy's. ndsumpw adds in pairs, halves of halves down to runs of
-# at most 128 elements. The sum of no element is 0 and the mean of none
+# at most 128 elements, and promises no order within a run. The sum of no element is 0 and the mean of none
 # is 0 divided by 0, no number. What is no number stays none through a
 # sum, an infinity stays one, and two infinities of both signs give no
 # number, as fadd has it.
@@ -25,7 +25,10 @@
 # computed at once (padd, pmadd), which gives the same bits. A sum of
 # all elements and a dot product add each element to the one before:
 # they stay one at a time, with the sum in a floating-point register
-# for a whole run (fsum, fdot).
+# for a whole run (fsum, fdot). A run of the sum in pairs is added two
+# at a time into sixteen sums (ndpack), which are other bits than one
+# after the other gives; integers and doubles that do not lie one
+# behind the other are added one at a time there too (ndacc).
 #
 # nddot takes two arrays of one axis and the same length and returns the
 # sum of the products of their elements and 1, or 0 and 0. ndmatmul takes
@@ -68,9 +71,86 @@ fn ndacc nda ndp ndn nds ndm
 	ret nda
 end
 
+# the sum of the ndn doubles from ndp on, one behind the other, two at
+# a time: sixteen sums in ndkk, from 0, each of every sixteenth double,
+# eight padd a round while there are sixteen doubles, then four padd if
+# there are eight, then up to three pairs, each to two sums that had
+# none of those eight; then the sums added in halves and the last
+# double of an odd count to that. Each padd waits only for the one on
+# its own two sums, so eight go on at once
+fn ndpack ndp ndn
+	local ndkk 128
+	ifz ndn
+		ret 0
+	end
+	store ndkk 0
+	store ndkk+8 0
+	store ndkk+16 0
+	store ndkk+24 0
+	store ndkk+32 0
+	store ndkk+40 0
+	store ndkk+48 0
+	store ndkk+56 0
+	store ndkk+64 0
+	store ndkk+72 0
+	store ndkk+80 0
+	store ndkk+88 0
+	store ndkk+96 0
+	store ndkk+104 0
+	store ndkk+112 0
+	store ndkk+120 0
+	nde=ndp+ndn*8
+	if ndn>=16
+		ndf=nde-120
+		while ndp<ndf
+			padd ndkk ndkk ndp
+			padd ndkk+16 ndkk+16 ndp+16
+			padd ndkk+32 ndkk+32 ndp+32
+			padd ndkk+48 ndkk+48 ndp+48
+			padd ndkk+64 ndkk+64 ndp+64
+			padd ndkk+80 ndkk+80 ndp+80
+			padd ndkk+96 ndkk+96 ndp+96
+			padd ndkk+112 ndkk+112 ndp+112
+			ndp+=128
+		end
+	end
+	if nde-ndp>=64
+		padd ndkk ndkk ndp
+		padd ndkk+16 ndkk+16 ndp+16
+		padd ndkk+32 ndkk+32 ndp+32
+		padd ndkk+48 ndkk+48 ndp+48
+		ndp+=64
+	end
+	ndf=nde-8
+	ndq=ndkk+64
+	while ndp<ndf
+		padd ndq ndq ndp
+		ndq+=16
+		ndp+=16
+	end
+	padd ndkk ndkk ndkk+16
+	padd ndkk+32 ndkk+32 ndkk+48
+	padd ndkk+64 ndkk+64 ndkk+80
+	padd ndkk+96 ndkk+96 ndkk+112
+	padd ndkk ndkk ndkk+32
+	padd ndkk+64 ndkk+64 ndkk+96
+	padd ndkk ndkk ndkk+64
+	load ndkk as ndx
+	load ndkk+8 as ndy
+	fadd ndx ndy as ndx
+	if ndp<nde
+		load ndp as ndy
+		fadd ndx ndy as ndx
+	end
+	ret ndx
+end
+
 # the sum of the ndn elements from ndp on with the stride nds, in pairs
 fn ndpair ndp ndn nds ndm
 	if ndn<=128
+		if (ndm==0)&(nds==8)
+			tail ndpack ndp ndn
+		end
 		tail ndacc 0 ndp ndn nds ndm
 	end
 	ndh=ndn>>1

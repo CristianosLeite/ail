@@ -934,6 +934,18 @@ The balanced split is faster where each of its tasks is ten microseconds of work
 
 `ndmatmulp` is left as it is: the caller gives the number of tasks, and these figures say which.
 
+## The sum in pairs, two doubles at a time, 2026-11-21
+
+`ndsumpw` promises no order within a run of 128 elements, so a run of doubles that lie one behind the other need not be one chain of additions. `ndpack` adds it with `padd`, which adds two doubles in memory to two in memory. One `padd` after the other on the same two sums is no gain: each waits for the store of the one before to come back as a load, about as long as two additions. The sums are therefore sixteen, eight `padd` a round on eight pairs of them, and added in halves at the end. An array of the value 0.1, nanoseconds a call, the best of seven rounds on one processor:
+
+| elements | `ndsum` | `ndsumpw` with `fsum` | four sums | sixteen sums |
+|---:|---:|---:|---:|---:|
+| 1000 | 448 | 414 | 367 | 271 |
+| 10000 | 4385 | 3856 | 4401 | 3279 |
+| 1000000 | 439458 | 327931 | 342890 | 265725 |
+
+With sixteen sums a call takes 0.61 to 0.75 of the time of `ndsum` and 0.66 to 0.85 of what it took with `fsum`; with four it was slower than `fsum` from 10000 elements on, which is why that form was not kept. The result is other bits than before: a million times 0.1 was 2.3e-10 below 100000 and is now 100000. Sums whose every step is exact are the same in any order, and `tests/lib_nd_sum` requires that of every count from 1 to 300, with a stride of 16 as well, which goes one at a time. Integers, and doubles with another stride than 8, are added through `ndacc` as before. The program that timed it is not in the repository; it calls each function 200 million elements' worth of times in a loop around `procnow`.
+
 ## The clock of the harness, 2026-11-21
 
 The harness of the algorithm programs reads the monotonic clock before and after every kernel run. In AIL that was `sys clock_gettime`, a system call; `clock_gettime` of the C library and `Instant::now` of Rust call `__vdso_clock_gettime`, a function the kernel maps into every process that reads the clock without entering the kernel. A kernel that does nothing, run a million times, shows what a run pays for its two readings, in ns a run (the median of nine processes on one CPU, three kernels a process):

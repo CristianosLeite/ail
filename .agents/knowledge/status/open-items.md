@@ -28,4 +28,4 @@
 - [x] 2026-11-20 — "Performance follow-up" of `docs/TODO.md`, items 1 to 4: scaled indexes, registers by weight, a `while` on two comparisons, task sizes ([page](../architecture/generated-code-follow-up.md))
 - [ ] 2026-11-20 — Stack slots take a 4-byte displacement and are loaded again after a store, as `p` in `lookup` of `hashtab` (the loss of `bsearch` at a thousand elements noted here was the place of its code) ([page](../architecture/generated-code-follow-up.md))
 - [x] 2026-11-21 — Item 5 of "Native numerical arrays": blocking and tasks for `ndmatmul`, a loop over words for a number as an operand, packed instructions if the figures ask for them ([page](../architecture/numerical-arrays.md))
-- [ ] 2026-11-21 — `ndsumpw` could add two doubles at once, since it promises no order; `ndsum` and `nddot` are at the time of C since `fsum` and `fdot` ([page](../architecture/numerical-arrays.md))
+- [x] 2026-11-21 — `ndsumpw` adds two doubles at once into sixteen sums (`ndpack`), 0.66 to 0.85 of its time with `fsum`; `ndsum` and `nddot` are at the time of C since `fsum` and `fdot` ([page](../architecture/numerical-arrays.md))

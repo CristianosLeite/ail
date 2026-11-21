@@ -47,7 +47,7 @@ call ndmean k as x l
 call showx x
 call print "\n"
 # one after the other is another number than in pairs: a million
-# elements of 0.1 are 100000 only nearly, and in pairs more nearly
+# elements of 0.1 are 100000 only nearly, and in pairs, here, exactly
 call ndfree b
 call ndvec b 1000000 as m
 itof 1 as x
@@ -66,6 +66,27 @@ fmul q p as q
 call showx x
 call showx q
 call print "\n"
-call ndfree a
+# every count from 1 to 300, whose sums are exact: in pairs the runs
+# of up to 128 doubles are added two at a time, sixteen, eight, two and
+# one a step, and every count must give the sum of one after the other;
+# so must every second element, which is added one at a time
 call ndfree b
+bad=0
+i=1
+while i<=300
+	call ndvec b i as m
+	call ramp b 4 4
+	call ndsum b as x n
+	call ndsumpw b as q o
+	bad+=x!=q
+	call ndslice v b 0 0 i 2 as m
+	call ndsum v as x n
+	call ndsumpw v as q o
+	bad+=x!=q
+	call ndfree b
+	i+=1
+end
+call putn bad
+call print "\n"
+call ndfree a
 sys exit r+s+t+u+w+y+z+c+d+e+f+g+h+l+m+n+o
