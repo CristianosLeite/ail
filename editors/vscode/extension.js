@@ -46,11 +46,13 @@ function folds(lines) {
       continue;
     }
     const k = kind(lines[i]);
-    if ((k === 2 || k === 3) && open.length) {
+    const closes = (k === 2 || k === 3) && open.length > 0;
+    if (closes) {
       const from = open.pop();
       if (i - 1 > from) out.push([from, i - 1]);
     }
-    if (k === 1 || k === 2) open.push(i);
+    // an else of no block opens none, as the formatter has it
+    if (k === 1 || (k === 2 && closes)) open.push(i);
     // the path of a use has no escapes and ends on its line
     instr = !/^[ \t]*use[ \t]/.test(lines[i]) && strend(lines[i], false);
   }

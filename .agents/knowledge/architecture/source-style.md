@@ -42,5 +42,15 @@ Indentation costs 2% in tokens and nothing in the compiled program.
   below C and 17% below Rust, `collatz` two tokens above its C program; echo server 259.
 - The extension is plain JavaScript without a build step or dependency (the user's choice). It
   repeats the line rules of the tool in `extension.js` for folding; they were compared with the
-  tool on every source of the repository with node, which `make test` does not need. It was not
-  loaded into VS Code when written, so the grammar is unverified in the editor.
+  tool on every source of the repository with node, which `make test` does not need.
+- The grammar is checked since 2026-11-21 by `editors/vscode/check.sh` (`test/check.js`), run
+  by hand: VS Code's own runtime (`ELECTRON_RUN_AS_NODE=1 /usr/share/code/code`; the machine
+  has no `node`) with its bundled `vscode-textmate` and `vscode-oniguruma` colours all 1232
+  sources, and every statement of `compiler/tables.aw` must be a keyword, an assigned name a
+  variable, comments and strings what they are, the folds the blocks of the formatter. The
+  first run found 579 lines wrong: `sys` before a number (572) and `call`, `tail`, `jmp`
+  without a name were not coloured, the string of a `use` without its quote ran over the next
+  lines, and an `else` of no block folded. All fixed; it reports 0.
+- The copy installed in `~/.vscode/extensions/ail.ail-0.1.0` on 2026-11-20 was from a vsix
+  older than the grammar; it is now a symlink to `editors/vscode`, as the README says. What
+  the colours look like in the window was not looked at by the agent; that is the user's eye.
