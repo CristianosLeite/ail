@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # a task spawns tasks and joins them, with fewer workers than tasks
 fn fib n
 	if n<2

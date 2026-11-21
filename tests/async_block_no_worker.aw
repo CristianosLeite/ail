@@ -1,6 +1,6 @@
 # work for the pool when the pool has no thread: it is run by the thread
 # that polls, and its event is done like any other
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

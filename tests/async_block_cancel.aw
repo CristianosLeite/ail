@@ -2,7 +2,7 @@
 # its event is -125 at once. Work that a worker is doing cannot be
 # stopped: its event is -125 only when the work has returned, so that
 # memory it was given is not used after the event is done.
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

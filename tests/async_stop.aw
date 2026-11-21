@@ -3,8 +3,8 @@
 # for work of the pool, one in the queue. All are ended, none is left,
 # and the library works again afterwards. The work of the pool is being
 # done and cannot be stopped, so asyncstop returns when it has returned.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

@@ -2,7 +2,7 @@
 # is cut off towards 0, an integer becomes the nearest double; arrays of
 # two kinds in one operation are refused, and ndkind changes how the
 # bits are read and none of them
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

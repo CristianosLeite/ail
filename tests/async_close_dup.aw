@@ -1,7 +1,7 @@
 # a descriptor closed with asyncclose is out of epoll even if a copy of
 # it stays open: the copy, put back on the number, is registered and
 # read like a new file, where the kernel would else say EEXIST (-17)
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

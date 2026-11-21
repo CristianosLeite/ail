@@ -1,7 +1,7 @@
 # sums and means along one axis: of a table the sums of its columns and
 # of its rows, of three axes each of the three, of views, and into a
 # result that is itself a view with a step
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

@@ -3,10 +3,10 @@
 # of this process as its output, and that with the output of this
 # process as its input besides, which must be put in place first. Only
 # two that are each other's need a copy, and such a child ends with 127.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 const setrlimit 160
 data sh "/bin/sh" 0
 data c "-c" 0

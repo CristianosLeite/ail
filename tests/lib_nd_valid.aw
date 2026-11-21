@@ -1,7 +1,7 @@
 # ndvalid says whether 176 bytes written by hand are an array whose
 # elements all lie in its storage: every view the library makes is one,
 # a stride or a start that leads out of the storage is not
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf v 176

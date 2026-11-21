@@ -1,6 +1,6 @@
 # AIL
 
-Proof of concept: a hardware-oriented programming language designed to cost few tokens when an AI writes it. Assembly-like in what it does, modern in how little it makes you write, with no classes or objects. Human readability is not a goal.
+Proof of concept: a hardware-oriented programming language designed to cost few tokens when an AI writes it. Assembly-like in what it does, modern in how little it makes you write, with no classes or objects. Human readability is not a goal, but it’s understandable.
 
 This is a complete program:
 
@@ -12,7 +12,7 @@ It compiles to a 226-byte static, position-independent Linux executable.
 
 ## Status
 
-Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic and comparisons as statements or as infix expressions, byte to 64-bit memory access, labels and jumps, `if` and `while` blocks, and functions with recursion. On ten programs it costs 13% fewer tokens than C and 19% fewer than Rust, and its CPU-bound programs run within 4% of C at `-O3` in the geometric mean; on six algorithm programs that call functions and walk arrays it takes 1.26 times as long as C in their kernels (1.75 before scaled indexes, registers by weight and two-jump loop conditions) ([performance](docs/performance.md)). A library written in AIL has output, byte buffers, files, child processes, tasks on threads, async tasks, and a vector, a queue, a heap and a hash map. The compiler is written in AIL, compiles itself to a byte-identical copy and is built from a released copy of itself; the compiler in assembly that built it first is gone. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](docs/tokens.md) for how AIL compares with C, Rust and assembly.
+Early proof of concept. The language has raw syscalls, up to 64 variables per function, kept in six registers where possible, integer arithmetic and comparisons as statements or as infix expressions, byte to 64-bit memory access, labels and jumps, `if` and `while` blocks, and functions with recursion. On ten programs it costs 13% fewer tokens than C and 19% fewer than Rust, and its CPU-bound programs run within 4% of C at `-O3` in the geometric mean; on six algorithm programs that call functions and walk arrays it takes 1.26 times as long as C in their kernels (1.75 before scaled indexes, registers by weight and two-jump loop conditions) ([performance](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md)). A library written in AIL has output, byte buffers, files, child processes, tasks on threads, async tasks, and a vector, a queue, a heap and a hash map. The compiler is written in AIL, compiles itself to a byte-identical copy and is built from a released copy of itself. See the [roadmap](docs/roadmap.md) for what comes next and the [token measurements](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md) for how AIL compares with C, Rust and assembly.
 
 ## Quick start
 
@@ -70,12 +70,12 @@ Or put it in `examples/foo.aw` and run `make build/foo`.
 | `jlt a b l` | Jump if `a < b`; also `jeq jne jle jgt jge` and signed `jslt jsle jsgt jsge` |
 | `if a` ... `else` ... `end` | Run the lines if `a` is not zero, where `a` may be a comparison, `if n<10`; also `ifz` and `ifeq iflt ...` with two values |
 | `while a` ... `end` | Run the lines as long as `a` is not zero, tested before each round |
-| `use "lib/io.aw"` | Compile another file here, once per path |
+| `use "lib/std/io.aw"` | Compile another file here, once per path |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a b` | Return one to six values from the function; reaching `end` returns 0 |
 | `ref f as p`, `callp p a b as x` | The address of a function, and a call through an address |
 | `async fn f a b` ... `end`, `await f a b as x`, `await h as x` | A function that runs as a task, and the wait for the result of a call or of a handle (`use "lib/async/task.aw"`) |
-| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/task.aw"`) |
+| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/std/task.aw"`) |
 | `tail f a b` | Call `f` and return its result without growing the stack |
 | `call f a b as x y` | Call `f` with as many values as it has parameters; `as` names a variable per result and is optional |
 | `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |
@@ -89,7 +89,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
 - [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.aw`
-- [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, the kernels of the algorithm programs apart from their setup, and the results
+- [Performance](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md): how the examples are timed against C, Rust and assembly, the kernels of the algorithm programs apart from their setup, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
 - [Backlog](docs/TODO.md): the limits of the compiler and the work to lift them, item by item
 - [Redesign](docs/REDESIGN.md): the goals that brought expressions, `while` and the seed-built compiler
@@ -98,10 +98,14 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 - `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.aw` is its first file and names the others (`diag.aw`, `lex.aw`, `names.aw`, `expr.aw`, `emit.aw`, `tables.aw`) with `use`
 - `seed/MANIFEST`: the released compilers a build may start from
-- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort); and the algorithms, a kernel each and its call of `bench/algo/harness.aw`, which makes the input, takes the time and writes the result: `quicksort`, `mergesort` (from the bottom up, with one array to work in), `heapsort`, `bsearch` (the first index whose value is at least the key), `hashtab` (open addressing: inserts, lookups that find and that do not), `graph` (breadth first with a queue, depth first with a stack); and three on arrays of doubles, whose kernels are calls of `lib/nd/`: `ndelem` (sum and product element by element, and times one number), `ndreduce` (the sum of a square, of its columns, and a dot product), `ndmatmul` (the product of two square matrices)
-- `lib/`: the library, files of functions that a program compiles in with `use`: `io.aw` (output, arguments), `bytes.aw` (a buffer of bytes that grows), `file.aw` (whole files, directories), `proc.aw` (child processes, the clock), `task.aw` (`spawn` and `join` on a pool of threads), `vec.aw` (a vector of 64-bit values), `queue.aw` (a queue with a fixed room), `heap.aw` (the smallest value first), `map.aw` (a hash map of 64-bit keys and values), and `async/` (tasks that are polled: timers, sockets, channels); each has a section in the [language reference](docs/language.md)
-- `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements; `bench/algo/` has the harness of the algorithm programs in the three languages, and `bench/qsort.c` the sort of the C library on the input of the sorts; `bench/par/` has programs written without and with tasks, timed by `build/tools/par`; `bench/async/` has programs of async functions: a timer, a TCP echo server (`echod`) with its load (`ping`), and what a wait, a sleeping task and a hop to another thread cost
-- `tools/`: measurements (`tokens.sh`, `bench.sh`), the seed (`seed.sh`); a tool written in AIL is `tools/<name>.aw`, built as `build/tools/<name>` by `make tools` (`hashcol`, which finds two names in one bucket of the compiler's hash, `fuse`, which rewrites a source with compare-and-jump statements and `if` blocks, `infix`, which rewrites statements as expressions, `randvars`, which checks the compiler with random programs, `perf`, which times the examples against C, Rust and assembly and the kernels of the algorithm programs on several inputs, `tokens`, which counts tokens as `tiktoken` does, and `par`, which checks and times the task programs), with what they share in `tools/lib/`
-- `tests/`: one `.aw` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output, `tests/algo.sh` the algorithm programs against `sort` and awk; the tests of a library are the `lib_*` files
+- `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
+- `lib/`: the library, files of functions that a program compiles in with `use`: in `std/`, `io.aw` (output, arguments), `bytes.aw` (a buffer of bytes that grows), `file.aw` (whole files, directories), `proc.aw` (child processes, the clock), `task.aw` (`spawn` and `join` on a pool of threads), `vec.aw` (a vector of 64-bit values), `queue.aw` (a queue with a fixed room), `heap.aw` (the smallest value first), `map.aw` (a hash map of 64-bit keys and values), and `async/` (tasks that are polled: timers, sockets, channels); each has a section in the [language reference](docs/language.md)
+- `tools/`: the seed (`seed.sh`); a tool written in AIL is `tools/<name>.aw`, built as `build/tools/<name>` by `make tools` (`hashcol`, which finds two names in one bucket of the compiler's hash, `fuse`, which rewrites a source with compare-and-jump statements and `if` blocks, `infix`, which rewrites statements as expressions and `randvars`, which checks the compiler with random programs), with what they share in `tools/lib/`
+- `tests/`: one `.aw` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output; the tests of a library are the `lib_*` files
 - `docs/`: documentation
+- [ail-bench](https://github.com/CristianosLeite/ail-bench), a repository of its own: the examples in C, Rust and assembly, the algorithm programs with their harness in the three languages, the task and async programs that are timed, the tools that time them and count their tokens (`perf`, `par`, `tokens`), and the [token](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md) and [time](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md) measurements. It fetches this repository and builds the compiler from it
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents
+
+## License
+
+[MIT](LICENSE).

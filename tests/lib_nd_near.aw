@@ -3,7 +3,7 @@
 # also the largest doubles; an infinity and a number are not, nor the
 # two infinities, nor two numbers whose difference is too large for a
 # double, nor numbers 2^-30 apart, nor a number and what is none
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "tests/lib/ndcheck.aw"
 const one 0x3ff0000000000000

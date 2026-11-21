@@ -1,7 +1,7 @@
 # lengths that do not go together are refused and nothing is written:
 # another length that is not 1, more axes than the result has, a result
 # shorter than what it is made of, and what is no array
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

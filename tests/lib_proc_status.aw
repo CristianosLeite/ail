@@ -1,7 +1,7 @@
 # the exit status of a child, a child that a signal ends, and a program
 # that cannot be started
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 data sh "/bin/sh" 0
 data c "-c" 0
 data s7 "exit 7" 0

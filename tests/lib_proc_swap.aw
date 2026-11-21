@@ -2,10 +2,10 @@
 # output and 1 as its error output the child writes "out" to the error
 # output of this process and "err" to its output; a descriptor that is
 # not open is a child that ends with 127 and runs nothing
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 const dup 32
 const dup2 33
 data sh "/bin/sh" 0

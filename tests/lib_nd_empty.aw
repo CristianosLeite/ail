@@ -1,7 +1,7 @@
 # no element: the sum is 0 and the mean no number; along an axis of
 # length 0 every sum is 0 and every mean no number, and along another
 # axis there is no result to write
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

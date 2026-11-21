@@ -6,6 +6,14 @@ status: current
 ---
 # Language extensions
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** Decisions taken while implementing the backlog in `docs/TODO.md`, one commit per item, in
 both compilers. Each section says what was chosen, why, and what to keep in mind when touching it.
 
@@ -188,7 +196,7 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 ### Cheaper system interfaces (2026-11-20)
 - `sys` accepts 37 built-in names for syscall numbers, in that position only; a const of the
   program with the same name wins. `args as p` gives the initial stack pointer at top level.
-- `lib/io.aw` is the first library file: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`,
+- `lib/std/io.aw` is the first library file: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`,
   `argc`, `argv`. It is tested through `use` like any program (`lib_io_*`).
 - Raw error values stay; with the signed jumps a failed call is one line (`jslt r 0 fail`).
   Registers of omitted arguments stay unset; the reference now says what that means.

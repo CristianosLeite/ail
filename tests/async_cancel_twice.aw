@@ -1,7 +1,7 @@
 # a cancelled task that awaits again after it was told is ended there:
 # the lines behind that await never run, and its result is -125. A task
 # that nobody awaits is told and ended the same way.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 var after

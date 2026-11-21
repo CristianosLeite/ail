@@ -1,7 +1,7 @@
 # after byneed the bytes that were asked for move nothing, and a buffer in
 # a local works once it is zero
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 fn f
 	local b 24
 	store b 0

@@ -2,7 +2,7 @@
 # fails first and also when one fails at the start; in a function, at top
 # level, with every kind of comparison, with values that are expressions,
 # nested, and beside the forms that are computed as a value
-use "lib/io.aw"
+use "lib/std/io.aw"
 fn both a b n
 	i=0
 	j=0

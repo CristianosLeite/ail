@@ -1,6 +1,6 @@
 # die ends the whole program, a worker that is busy included
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 buf up 8
 fn work
 	store up 1

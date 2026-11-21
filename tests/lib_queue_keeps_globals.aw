@@ -1,8 +1,8 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "queue"
 var q n p c i x h
-use "lib/io.aw"
-use "lib/queue.aw"
+use "lib/std/io.aw"
+use "lib/std/queue.aw"
 buf b 32
 q=1
 n=1

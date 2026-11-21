@@ -1,7 +1,7 @@
 # infinities, what is no number and zeros with a sign against NumPy:
 # each result must be the same bits, or no number where NumPy has none,
 # element by element and in sums and means along an axis
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

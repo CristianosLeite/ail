@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # eight tasks that sleep, three workers: at most four run at once (the
 # joining thread runs one that waits), at least two, and no fourth worker
 buf cur 8

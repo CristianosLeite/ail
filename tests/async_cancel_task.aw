@@ -2,7 +2,7 @@
 # give back what it holds; what it awaited is cancelled with it, down a
 # chain of tasks. A task cancelled before it ran gets it at its first
 # await; cancelling a task that is done does nothing.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 var freed

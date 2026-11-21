@@ -1,5 +1,13 @@
 # TODO
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 This backlog records current limits and the work needed to lift them. Favor
 changes that reduce the token cost of real AIL programs. Keep the compiler's
 fixed point and use in its source only what the pinned seed understands.
@@ -132,9 +140,9 @@ Use the existing [`use`](language.md#use) and keep dependencies one way.
 Tool entry points handle arguments, diagnostics and exit status. Put shared
 token and line scanning in `tools/lib/scan.aw` and shared control-flow
 analysis in `tools/lib/flow.aw`. Keep each tool's rewrite rules, generator or
-reporting code with that tool. Add `lib/bytes.aw`, `lib/file.aw` and
-`lib/proc.aw` for byte buffers, file I/O and child processes as callers need
-them. Reuse `lib/io.aw` for arguments and output. Keep Linux syscall details
+reporting code with that tool. Add `lib/std/bytes.aw`, `lib/std/file.aw` and
+`lib/std/proc.aw` for byte buffers, file I/O and child processes as callers need
+them. Reuse `lib/std/io.aw` for arguments and output. Keep Linux syscall details
 in the file and process helpers and the compiler bootstrap independent of
 the tools.
 
@@ -212,7 +220,7 @@ its AIL replacement passes the corresponding checks.
 On the ten examples, the `o200k_base` tokenizer counted 970 tokens without
 indentation, 990 with one tab per level (+2.1%), and 1,024 with either two or
 four spaces per level (+5.6%), excluding comments. All variants compiled to
-byte-identical executables. See [token cost](tokens.md) for the corpus.
+byte-identical executables. See [token cost](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md) for the corpus.
 
 ## Parallel execution
 
@@ -321,14 +329,14 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    NumPy. Check results before timing, report kernel and end-to-end time
    separately, and count caller tokens for equivalent workloads. Document
    the API and results in [language.md](language.md) and
-   [performance.md](performance.md).
+   [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md).
    Done on 2026-11-21: the tests `lib_nd_ref_*` compare the library with
    NumPy 2.3.5 through `tests/lib/ndfix.aw`, which `tests/nd/gen.py`
    writes; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
    kernels take 3.65 times as long as the loops of C in the geometric
    mean of 14 times, 1.24 times where memory is the limit and up to 10
    times at a thousand numbers; a caller is 608 tokens against 636 in C
-   ([results](performance.md#numerical-arrays-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#numerical-arrays-2026-11-21)).
 5. [x] **Optimize based on measurements.** Compare cache blocking for matrix
    multiplication and coarse tasks with disjoint outputs using `spawn` and
    `join`. Use the scalar baseline to evaluate selective SIMD support and
@@ -346,7 +354,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    the product gained 4% and were left out, and `sum` and `dot` stay at
    3.5 times C, since their order of adding is kept. No further dtypes,
    indexing, file formats or array syntax until a program needs them
-   ([results](performance.md#after-the-measurements)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#after-the-measurements)).
 6. [x] **Keep ordered floating-point accumulators in XMM registers.** Prototype
    compiler support for keeping the running value of `ndsum` and `nddot` in
    XMM across iterations. The current `fadd` moves its operands from general
@@ -357,7 +365,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    Done on 2026-11-21: `fsum` and `fdot` are the loop as one statement, with
    the sum in `xmm0` for the whole run and the bits of the loop of `fadd`;
    `sum` and `dot` take 1.00 to 1.03 times the time of C
-   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 7. [x] **Use packed operations on reversed contiguous views.** In `ndrun`,
    start at the lowest address when the result and vector operands all have
    a stride of −8 bytes and any scalar operands have stride zero. Reuse the
@@ -368,7 +376,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    less time at 1,000 elements and 2.0 to 2.3 at a million, the time of the
    arrays forwards, with the bits of a loop over the indices
    (`tests/lib_nd_reversed`;
-   [results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+   [results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 8. [x] **Reduce setup cost for small contiguous vectors.** Add a direct path
    for nonempty contiguous rank-one doubles when the output is disjoint
    from both inputs, including scalar operands. Share the arithmetic loops
@@ -380,7 +388,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    the clock of the harness taken off, a call with its descriptors ready
    takes 19 ns instead of 64 at 16 elements and 15% less at 1,000; setup
    inside the clock adds 25 ns, 8% at 1,000
-   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 9. [x] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
    four `pmadd` operations per iteration, followed by packed and scalar
    tails. A prototype cut single-core kernel time by 19% at side 100 and 7%
@@ -389,7 +397,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    Done on 2026-11-21: four `pmadd` a round, then pairs, then one. The
    kernel takes 19% less time at side 100, 22% at 300 and 12% at 1,000, and
    the same at 30; `tests/lib_nd_matmul_wide` compares the bits
-   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 10. [x] **Measure task granularity for matrix multiplication.** Compare
     `ndmatmul` and `ndmatmulp` over worker and task counts. On the
     i7-12700H, side 1,000 took 252 ms serially and 39 ms with 20 tasks,
@@ -401,7 +409,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     microseconds of work, with few tasks; the first call starts the
     threads and pays from a side of about 100; side 1,000 takes 222 ms on
     one thread and 39 ms in 20 tasks
-    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+    ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 11. [x] **Report requested and actual matrix task counts.** With 16 result
     rows and 14 requested tasks, `ndmatmulp` uses blocks of two rows and
     creates eight tasks. Show both counts in `bench/nd/mmtasks.sh` and the
@@ -415,7 +423,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     microseconds or more, up to 58% slower at a side of 30, and 1.00 on
     the geometric mean of the eleven cells that differ, so the split
     stays
-    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+    ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 12. [x] **Validate the first parallel matrix result before reusing its
     buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
     compares the output only after later calls have overwritten it.
@@ -466,7 +474,7 @@ kernel that does nothing takes 91 ns per run in AIL and 12 ns in C. Kernel
 times summed over many short runs therefore overstate AIL/C: each `ndelem`
 kernel at 1,000 elements and 20,000 runs carries 1.8 ms of clock in AIL
 against 0.24 ms in C. See
-[the call cost measurements](performance.md#array-kernels-after-the-first-round-2026-11-21).
+[the call cost measurements](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#array-kernels-after-the-first-round-2026-11-21).
 The fix touches every algorithm program, so move their kernels into a
 library in the same pass and leave the examples as callers.
 
@@ -486,19 +494,19 @@ library in the same pass and leave the examples as callers.
    costs 13 ns a run in AIL, 12 in C and 12 in Rust, where it was 91, 12
    and 12; the system call in all three gave 91, 91 and 89, and the
    subtraction would have left the system call in every run
-   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#the-clock-of-the-harness-2026-11-21)).
 2. [x] **Rerun the kernel tables the clock skewed.** The bias of a row is
    its runs times the difference per run, so it matters for the rows with
    thousands of short runs in the algorithm and array tables and not for
    those at a million elements. Rerun `build/tools/perf` with the corrected
    harness, report the old and new ratios side by side, and note in the
-   earlier sections of [performance.md](performance.md) which figures
+   earlier sections of [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md) which figures
    included the clock. Leave the historical tables as measured.
    Done on 2026-11-21: over the 62 kernel times AIL / C is 1.201 where
    the system call gave 1.266, and over the 30 rows of a thousand runs
    or more 1.286 against 1.425; the rows of fewer runs did not move.
    The three earlier sections carry a note
-   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#the-clock-of-the-harness-2026-11-21)).
 3. [x] **Move the algorithm kernels into a library.** Put the sorts
    (`quicksort`, `mergesort`, `heapsort` and `isort`), the lower-bound
    search, the open-addressing table of `hashtab` and the two traversals
@@ -510,7 +518,7 @@ library in the same pass and leave the examples as callers.
    Keep each algorithm, its memory layout and its output: `tests/algo.sh`
    must pass unchanged and the results must stay byte-identical to the C
    and Rust programs. Decide how the fixed table of `hashtab` and the
-   in-place heap of `heapsort` relate to `lib/map.aw` and `lib/heap.aw`,
+   in-place heap of `heapsort` relate to `lib/std/map.aw` and `lib/std/heap.aw`,
    and keep them separate where the benchmark layout differs. Add the new
    files to the Makefile prerequisites and to `tests/indent.sh`, test the
    functions on their own in `tests/lib_algo_*` (empty, single, duplicate
@@ -519,7 +527,7 @@ library in the same pass and leave the examples as callers.
    Done on 2026-11-21: `lib/algo/sort.aw`, `search.aw`, `hash.aw` and
    `graph.aw`, a prefix a file since the harness owns `algo`. The six
    harness programs compile to the same bytes as before; the heap and
-   the table stay apart from `lib/heap.aw` and `lib/map.aw`, whose
+   the table stay apart from `lib/std/heap.aw` and `lib/std/map.aw`, whose
    layouts are others ([reference](language.md#the-algo-library)).
 4. [x] **Measure what the move changes.** Check that `place` and `lower`
    are still compiled in place at their calls, which needs the callee
@@ -528,13 +536,13 @@ library in the same pass and leave the examples as callers.
    moved by a few bytes varied by a fifth at 1,000 elements. Report the
    token counts of a caller and of the library separately against the C
    and Rust programs, which keep their kernels inline, and update
-   [tokens.md](tokens.md).
+   [tokens.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md).
    Done on 2026-11-21: the six harness programs are byte for byte the
    files they were, so the calls in place and the times are the same;
    `isort` takes 54.3 ms against 54.6 and from 54.1 to 65.1 over four
    placements. The six callers are 260 tokens against 1613 in C and
    1783 in Rust, and their library functions 1793
-   ([results](performance.md#the-algorithm-kernels-in-a-library-2026-11-21)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#the-algorithm-kernels-in-a-library-2026-11-21)).
 
 ## Algorithm benchmarks and collection APIs
 
@@ -577,23 +585,23 @@ preserve the contents on allocation failure, document the lifetime of any
 exposed storage, and have `free` operations reset the descriptor. Return a
 separate success or found result wherever zero is a valid value.
 
-- [x] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
+- [x] **Growable vector**, `lib/std/vec.aw`. Provide `vecreserve v n`,
   `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
   address, length and capacity in a 24-byte descriptor, with length and
   capacity in elements. Grow geometrically and reuse `bycopy` for relocation
   if useful. Define `vecreserve` in terms of total capacity and document when
   growth invalidates addresses into the vector.
-- [x] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
+- [x] **Bounded queue**, `lib/std/queue.aw`. Provide `queueinit q n`,
   `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
   values with a head and count. Return failure on full and empty operations.
   Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
   the queue usable in synchronous programs through its own functions.
-- [x] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
+- [x] **Min-heap**, `lib/std/heap.aw`. Provide `heappush h x`, `heappeek h`,
   `heappop h` and `heapfree h`. Store values in a growable array, using the
   vector storage if it fits the callers. Sift up on insertion and down on
   removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
   the in-place max-heap operations of heapsort in its benchmark.
-- [x] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
+- [x] **Hash map**, `lib/std/map.aw`. Provide `mapput m k v`, `mapget m k`,
   `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
   power-of-two capacity, and explicit slot states for empty, occupied and
   deleted entries so all 64-bit keys are usable. Update existing keys in place,
@@ -604,7 +612,7 @@ separate success or found result wherever zero is a valid value.
   ordering with duplicates, and hash collisions, deletion and resizing. Check
   capacity overflow and reuse after `free`. Document the APIs and storage
   contracts in [`language.md`](language.md) and record benchmark results in
-  [`performance.md`](performance.md).
+  [`performance.md`](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md).
 
 ## Performance follow-up
 
@@ -622,7 +630,7 @@ bootstrap fixed point, as did three extended `randvars` runs that generated
 Repeat comparisons with the same inputs and affinity, checking output before
 timing and reporting kernel and elapsed times separately. The prototypes
 below were checked byte for byte and timed over 15 rounds with shuffled run
-order. See [benchmark method](performance.md#method).
+order. See [benchmark method](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#method).
 
 1. [x] **Emit scaled indexes in loads and stores.** In
    [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
@@ -631,7 +639,7 @@ order. See [benchmark method](performance.md#method).
    `add` and `mov` to a single indexed `mov`, reducing the sequence from
    10 to 4 bytes. The scaled-index change alone brought the mean AIL/C kernel
    ratio from 1.753 to 1.639. See the
-   [scaled index measurements](performance.md#scaled-indexes-2026-11-20).
+   [scaled index measurements](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#scaled-indexes-2026-11-20).
 2. [x] **Reduce stack accesses in hot loops and evaluate selective inlining.**
    Inspect [`alloc`](../compiler/emit.aw) and the generated code for
    [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
@@ -642,7 +650,7 @@ order. See [benchmark method](performance.md#method).
    generated stack accesses and code size as well as elapsed time.
    Done on 2026-11-20: registers go to the variables that the loops mention
    most, and inlining `place` by hand is then faster in 11 of the 12 kernel
-   times ([results](performance.md#registers-by-weight-2026-11-20)).
+   times ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#registers-by-weight-2026-11-20)).
 3. [x] **Find a profitable lowering for compound loop conditions.** Use
    [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
    its two bounds comparisons into separate branches, cutting kernel time
@@ -652,7 +660,7 @@ order. See [benchmark method](performance.md#method).
    branch layouts across all four input shapes and both input sizes.
    Done on 2026-11-20: a jump for each comparison before the loop and at its
    end, which was faster in all eight inputs once the registers went by
-   weight ([results](performance.md#two-comparisons-in-a-while-2026-11-20)).
+   weight ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#two-comparisons-in-a-while-2026-11-20)).
 4. [x] **Tune task granularity before changing the pool.** Using medians from
    three runs per configuration (`build/tools/par --runs 3`), 160 tasks at
    20 threads gave a 10.21x speedup for `collatz`, 10.86x for `primes` and
@@ -661,10 +669,10 @@ order. See [benchmark method](performance.md#method).
    with 20,000. All three workloads lost to their sequential versions at a
    million tasks. Sweep batch sizes across worker counts and use the results
    to document useful starting sizes for CPU-bound and memory-bound work.
-   [Task benchmark method](performance.md#tasks-2026-11-20)
+   [Task benchmark method](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#tasks-2026-11-20)
    Done on 2026-11-20: `build/tools/par --grid` times every pair; the sizes
    to start from are in
-   [the table and its reading](performance.md#the-size-of-a-task-at-each-number-of-threads)
+   [the table and its reading](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#the-size-of-a-task-at-each-number-of-threads)
    and in the pool section of the language reference. The rerun with
    `--grid --runs 3` gave 10.18x and 11.22x for `collatz` and `primes` at
    2,000 tasks on 20 threads, falling to 2.44x and 3.48x at 200,000 tasks.
@@ -684,7 +692,7 @@ order. See [benchmark method](performance.md#method).
    is the caller's variable. Over eight places of the code `hashtab` takes
    5 to 36% less time, `bsearch` the same, and `heapsort` with `sift` in
    place 7% more at a million elements, so `sift` stays a call
-   ([results](performance.md#calls-compiled-in-place-2026-11-20)). The
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#calls-compiled-in-place-2026-11-20)). The
    same kernel moved by a few bytes varies by a fifth at a thousand
    elements, which the results take into account.
 6. [x] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
@@ -705,7 +713,7 @@ order. See [benchmark method](performance.md#method).
    5% elsewhere, but for the random misses at 1,000 keys, 21% slower, as
    they also are with the old probe merely respelled. The key as a second
    result gains at most 5% with the body in place and is left out
-   ([results](performance.md#the-probe-of-hashtab-in-words-2026-11-20)).
+   ([results](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#the-probe-of-hashtab-in-words-2026-11-20)).
 
 ## Redesign
 

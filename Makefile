@@ -26,24 +26,6 @@ endef
 $(B)/%: examples/%.aw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-# The algorithm programs name their harness with use, so they are built
-# again when it changes.
-$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul collseq collmap): bench/algo/harness.aw
-
-# Their kernels are files of lib/algo/.
-$(patsubst %,$(B)/%,quicksort mergesort heapsort isort): lib/algo/sort.aw
-$(B)/bsearch: lib/algo/search.aw
-$(B)/hashtab: lib/algo/hash.aw
-$(B)/graph: lib/algo/graph.aw
-
-# The collection programs name the collections.
-$(B)/collseq: lib/vec.aw lib/queue.aw lib/heap.aw
-$(B)/collmap: lib/map.aw
-
-# The array programs also name the library of arrays.
-$(patsubst %,$(B)/%,ndelem ndreduce ndmatmul): lib/nd/array.aw lib/nd/elem.aw
-$(patsubst %,$(B)/%,ndreduce ndmatmul): lib/nd/reduce.aw
-
 # The tools written in AIL: tools/<name>.aw is build/tools/<name>, compiled
 # by the compiler after the bootstrap, which needs none of them. A tool
 # names the files of its functions with use, paths from the directory make
@@ -59,15 +41,12 @@ $(B)/tools/%: tools/%.aw $(B)/ailc
 	@mkdir -p $(@D)
 	$(call compile,$(B)/ailc)
 
-TL := lib/io.aw lib/bytes.aw lib/file.aw
+TL := lib/std/io.aw lib/std/bytes.aw lib/std/file.aw
 
-$(B)/tools/hashcol: lib/io.aw
+$(B)/tools/hashcol: lib/std/io.aw
 $(B)/tools/indent: $(TL) tools/lib/dent.aw
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw tools/lib/dent.aw
-$(B)/tools/randvars: $(TL) lib/proc.aw tools/lib/rng.aw
-$(B)/tools/perf: $(TL) lib/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
-$(B)/tools/tokens: $(TL) tools/lib/fmt.aw tools/lib/o200k.aw
-$(B)/tools/par: $(TL) lib/proc.aw tools/lib/fmt.aw
+$(B)/tools/randvars: $(TL) lib/std/proc.aw tools/lib/rng.aw
 
 # The compiler, compiler/ailc.aw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
@@ -96,7 +75,7 @@ ifeq ($(T),)
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
-	tests/par.sh || f=1; AILC=$(B)/ailc tests/async.sh || f=1; tests/algo.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
+	tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; \

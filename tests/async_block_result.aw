@@ -1,6 +1,6 @@
 # work given to the pool: its result is awaited like any other, by a
 # task and by the top level, and many pieces of work are all done
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

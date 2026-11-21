@@ -2,7 +2,7 @@
 # one, every n-th, or from the top downwards with a negative step; it
 # reads and writes the storage of its array, may be empty, and what does
 # not lie in the axis is refused
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf v 176

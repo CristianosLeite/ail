@@ -4,7 +4,7 @@
 # other runs, must not see each other's values. s and k are in use
 # across the awaits; t, u and v are computed and used between two; x
 # is the result of an await, read before the next
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 async fn step n
 	await asyncyield

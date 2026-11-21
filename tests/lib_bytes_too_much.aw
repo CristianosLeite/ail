@@ -1,7 +1,7 @@
 # a request whose length would not fit in 64 bits is refused and leaves
 # the buffer as it was, as is one the kernel has no memory for
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 buf b 24
 call byadd b "x" as a
 load b as p

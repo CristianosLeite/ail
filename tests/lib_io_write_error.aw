@@ -1,5 +1,5 @@
 # a bad file number: 0, and the program goes on
-use "lib/io.aw"
+use "lib/std/io.aw"
 call fdwrite 99 "x" as ok
 add ok 4 as ok
 sys exit ok

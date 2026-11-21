@@ -2,7 +2,7 @@
 # may be something only it can give back; it is told at its next await
 # that would wait. The same through a limit, and for a limit that is
 # cancelled when what it limits is done.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 var got told

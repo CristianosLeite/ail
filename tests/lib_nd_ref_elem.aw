@@ -1,7 +1,7 @@
 # the arithmetic element by element gives the bits NumPy gives: on whole
 # arrays, with a row, a column and a number broadcast, on three axes
 # and on views with negative steps
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndcheck.aw"

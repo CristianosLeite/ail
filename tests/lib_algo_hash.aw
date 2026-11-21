@@ -3,7 +3,7 @@
 # keeps its last value; keys that are not there give -1, also one whose
 # place is the last and whose search goes round. Printed are the place
 # of each key, the values plus one, and the places that stayed free
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/algo/hash.aw"
 buf t 128
 buf q 48

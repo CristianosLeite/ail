@@ -2,8 +2,8 @@
 # are found; with the first taken out the others are still found, and a
 # new key of that place takes the place that was given up, so that the
 # places that hold or held a key do not become more
-use "lib/io.aw"
-use "lib/map.aw"
+use "lib/std/io.aw"
+use "lib/std/map.aw"
 buf m 32
 buf k 40
 # five keys whose hash ends in the same six bits as that of 1

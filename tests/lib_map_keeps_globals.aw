@@ -1,8 +1,8 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "map"
 var m k v p c h d s t x n q i f u new
-use "lib/io.aw"
-use "lib/map.aw"
+use "lib/std/io.aw"
+use "lib/std/map.aw"
 buf b 32
 m=1
 k=1

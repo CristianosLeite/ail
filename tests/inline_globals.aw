@@ -3,7 +3,7 @@
 # the global ones also where the caller has a variable of that name, an
 # access is checked, a call in the body is a call, of a function that
 # stands later too, and one that calls itself goes on calling itself
-use "lib/io.aw"
+use "lib/std/io.aw"
 var total
 buf box 16
 data tab 3 5 7

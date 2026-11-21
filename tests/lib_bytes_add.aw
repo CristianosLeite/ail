@@ -1,6 +1,6 @@
 # bytes, single bytes and numbers are added in order
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 buf b 24
 call byadd b "ab" as r
 call byaddb b 99 as s

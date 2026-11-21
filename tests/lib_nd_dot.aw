@@ -1,6 +1,6 @@
 # the sum of the products of two arrays of one axis, also of views with
 # steps; other lengths and other numbers of axes are refused
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

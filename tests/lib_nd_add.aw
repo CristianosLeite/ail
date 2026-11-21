@@ -1,7 +1,7 @@
 # sum, difference, product and quotient of arrays with the same lengths,
 # element by element, where they lie one behind the other and where
 # they are views with steps; ndput copies
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

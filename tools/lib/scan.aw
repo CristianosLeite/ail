@@ -1,6 +1,6 @@
 # tools/lib/scan.aw -- reading AIL source as bytes, for the tools: the
 # classes of bytes, string literals, and a table of the words met.
-# A program that uses it uses lib/bytes.aw first.
+# A program that uses it uses lib/std/bytes.aw first.
 #
 # The table gives every different word a number from 1 up, in the order
 # the words were first given to scintern, so that a word is compared and
@@ -9,7 +9,7 @@
 # never emptied.
 #
 # Every name of this file starts with "sc"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 # 65536 buckets, each the number of its first word or 0
 buf scbkt 524288

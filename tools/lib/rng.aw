@@ -10,7 +10,7 @@
 # with 64-bit wrapping.
 #
 # Every name of this file starts with "rng"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 fn rngseed rngs rngv
 	store rngs rngv

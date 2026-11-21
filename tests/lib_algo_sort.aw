@@ -2,7 +2,7 @@
 # order, the same words, and leave the words before and behind alone:
 # for no word, one, two, three, 17 and 1000 words that are random,
 # rising, falling (and above 2^63), all the same, few and of all 64 bits
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/algo/sort.aw"
 const guard 0x5a5a5a5a5a5a5a5a
 buf in 8000

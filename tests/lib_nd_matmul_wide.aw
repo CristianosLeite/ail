@@ -3,11 +3,11 @@
 # of the same product into a result with its columns backwards, which
 # is added one double at a time, of the product in tasks, and of the
 # product of views whose elements lie apart
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/nd/par.aw"
 use "tests/lib/ndcheck.aw"
 buf a 176

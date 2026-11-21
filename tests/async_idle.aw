@@ -1,8 +1,8 @@
 # a program that has every file of the runtime compiled in and makes no
 # task runs none of it: no queue, no timer, no epoll object, no eventfd,
 # and the next descriptor the kernel gives out is the first free one
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

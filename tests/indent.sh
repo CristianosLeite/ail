@@ -11,8 +11,8 @@
 # and the tool fails with a message without arguments, for a file it
 # cannot read and for one it cannot write.
 # Last, the sources of the repository must be indented as the tool would
-# indent them: the examples, the compiler, the libraries, the tools, the
-# bench programs and the tests, but for the files that tests/indent/skip
+# indent them: the examples, the compiler, the libraries, the tools
+# and the tests, but for the files that tests/indent/skip
 # lists.
 set -u
 cd "$(dirname "$0")/.." || exit 1
@@ -85,8 +85,8 @@ else
     cmp -s "$tmp/c.aw" "$tmp/c0.aw" || r=1
 fi
 say indent_errors $r
-ls examples/*.aw compiler/*.aw lib/*.aw lib/async/*.aw lib/nd/*.aw lib/algo/*.aw tools/*.aw tools/lib/*.aw \
-    bench/par/*.aw bench/async/*.aw bench/algo/*.aw bench/nd/*.aw tests/*.aw tests/lib/*.aw |
+ls examples/*.aw compiler/*.aw lib/std/*.aw lib/async/*.aw lib/nd/*.aw lib/algo/*.aw tools/*.aw tools/lib/*.aw \
+    tests/*.aw tests/lib/*.aw |
     grep -vxFf tests/indent/skip > "$tmp/list"
 xargs build/tools/indent --check < "$tmp/list" > "$tmp/said" 2>&1
 r=$?

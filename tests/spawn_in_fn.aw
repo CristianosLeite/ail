@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn sq a
 	ret a*a
 end

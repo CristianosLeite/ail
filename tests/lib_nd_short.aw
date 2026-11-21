@@ -5,7 +5,7 @@
 # takes the long way, which allows the result in the place of one of
 # the two and refuses elements that are shifted; an array of one
 # element with an axis still goes with every index
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 buf a 176

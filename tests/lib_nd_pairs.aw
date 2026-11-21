@@ -4,7 +4,7 @@
 # backwards. The matrices backwards are computed one at a time; the
 # arrays of one axis are then computed from their lowest address on,
 # which tests/lib_nd_reversed compares with loops of its own
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

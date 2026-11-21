@@ -12,7 +12,7 @@
 # not zero for any pair of kinds or of the scope numbers in use.
 #
 # No arguments. One line on stdout, the two names; status 0.
-use "lib/io.aw"
+use "lib/std/io.aw"
 
 # the name tried: q, then the letters after it
 buf name 64

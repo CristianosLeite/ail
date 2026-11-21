@@ -1,8 +1,8 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "proc"
 var n e s i c d l p q z pid st pf fd r argv
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 data t "/bin/true" 0
 buf av 16
 n=1

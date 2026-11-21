@@ -2,7 +2,7 @@
 # the time is up are the result and the timer is gone; a read that was
 # cancelled or ran out of time leaves the bytes that come later to the
 # next read
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

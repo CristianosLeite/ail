@@ -1,7 +1,7 @@
 # an array of bytes the caller has: the elements are those bytes, a
 # store through the array is seen in the buffer, bytes that are too few
 # are refused and leave the array as it was, and ndfree frees nothing
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf m 48
 buf a 176

@@ -1,6 +1,6 @@
 # a task that makes another one and awaits it: it is polled again when
 # the other is done, and has the result then
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 fn child t
 	load t+64 as n

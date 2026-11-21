@@ -3,7 +3,7 @@
 # that is handed on untouched is the variable of the outermost caller
 # all the way down, a ret in an inner body ends that body only, and the
 # names after "as" of each call get their values
-use "lib/io.aw"
+use "lib/std/io.aw"
 var seen
 fn one a
 	seen+=1

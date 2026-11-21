@@ -1,7 +1,7 @@
 # splitmix64: the first numbers of the seed 1234567 are the published
 # ones, numbers below a limit are below it and all occur, and the same
 # seed gives the same numbers again
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "tools/lib/rng.aw"
 buf s 8
 buf t 8

@@ -3,8 +3,8 @@
 # with a limit that runs out, with a limit that is cancelled, or by
 # asyncstop, it does not go on before the work has written its last
 # byte: a cancelled task waits for the task it awaits to end.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

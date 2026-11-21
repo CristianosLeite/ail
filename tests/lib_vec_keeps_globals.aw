@@ -1,8 +1,8 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "vec"
 var v n i x p cap len old ok
-use "lib/io.aw"
-use "lib/vec.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
 buf b 24
 v=1
 n=1

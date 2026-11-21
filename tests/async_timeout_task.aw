@@ -1,6 +1,6 @@
 # a limit on a task: when the time is up the result is -62 and the task
 # is cancelled, which it is told; within the time the result is its own
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 async fn slow ms

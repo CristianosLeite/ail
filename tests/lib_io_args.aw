@@ -1,4 +1,4 @@
-use "lib/io.aw"
+use "lib/std/io.aw"
 call argc as n
 call argv 0 as p l
 call argv 1 as q m

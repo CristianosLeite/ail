@@ -1,5 +1,5 @@
 # tools/lib/dent.aw -- the indentation of a source, as docs/language.md
-# has it under "Source style"; needs lib/bytes.aw.
+# has it under "Source style"; needs lib/std/bytes.aw.
 #
 # dtindent writes a text again with one tab for each block a line
 # stands in: the lines between fn (or async fn), while or an if in any

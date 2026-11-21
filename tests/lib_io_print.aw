@@ -1,4 +1,4 @@
-use "lib/io.aw"
+use "lib/std/io.aw"
 call print "hello\n" as ok
 call eprint "to stderr\n" as ok2
 add ok ok2 as ok

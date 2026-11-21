@@ -1,5 +1,17 @@
 # Open items
 
+> Since 2026-11-21 the VS Code extension is in the repository ail-extensions
+> (https://github.com/CristianosLeite/ail-extensions): `editors/vscode/` on this page is a path there, and its check is
+> `make check` there.
+
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 - [x] 2026-11-19 — Measure token cost of AIL syntax with a real tokenizer against C, Rust and assembly ([page](../architecture/token-cost-measurement.md))
 - [x] 2026-11-19 — Self-hosting: stage1 in AIL builds itself to a byte-identical file, with no change to stage0 ([page](../architecture/stage1-self-hosting.md))
 - [x] 2026-11-19 — Constant data: a string as a value outside `sys`, to replace the decimal tables of stage1; goes into both compilers ([page](../architecture/language-extensions.md))
@@ -20,7 +32,7 @@
 - [x] 2026-11-20 — Indentation in `fuse` and `infix`: both write their results through `dtindent` of `tools/lib/dent.aw` since 2026-11-21 ([page](../architecture/source-style.md))
 - [x] 2026-11-20 — The grammar and folding of the VS Code extension checked on every source with the editor's own libraries (`editors/vscode/check.sh`, 2026-11-21; 579 lines were wrong and are fixed); the installed copy is a symlink to `editors/vscode/`, and the user found it working in the editor ([page](../architecture/source-style.md))
 - [x] 2026-11-20 — The variables of an async function that cross no `await` are in registers since 2026-11-21: a loop between two waits is a fifth faster (`bench/async/calc`) ([page](../architecture/async-runtime.md))
-- [x] 2026-11-20 — "Algorithm benchmarks and collection APIs" of `docs/TODO.md`: six programs with C and Rust forms, kernel times in `perf`, `lib/vec.aw`, `queue.aw`, `heap.aw`, `map.aw` ([page](../architecture/algorithms-and-collections.md))
+- [x] 2026-11-20 — "Algorithm benchmarks and collection APIs" of `docs/TODO.md`: six programs with C and Rust forms, kernel times in `perf`, `lib/std/vec.aw`, `queue.aw`, `heap.aw`, `map.aw` ([page](../architecture/algorithms-and-collections.md))
 - [x] 2026-11-20 — Items 5 and 6 of "Performance follow-up": calls of short functions compiled in place, `hashtab` probing in words; the kernels are at 1.20 times C, `hashtab` at 1.24 ([page](../architecture/generated-code-follow-up.md))
 - [x] 2026-11-20 — Kernel times at a thousand elements moved by a fifth with the place of the code: since 2026-11-21 the first line of a loop starts at a multiple of 64, the times of eight places differ by 0.3 to 2.6%, and `perf --places` measures them ([page](../architecture/generated-code-follow-up.md))
 - [x] 2026-11-20 — Calls in place take functions that call or name a `buf`, `data` or `var`, and bodies inside bodies four deep, since 2026-11-21 (the compiler 6% faster, tools 3 to 8%); calls at top level stay calls by decision, and a function that needs a stack slot, as `sift` of `heapsort`, is not compiled in place ([page](../architecture/generated-code-follow-up.md))

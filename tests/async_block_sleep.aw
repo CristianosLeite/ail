@@ -1,6 +1,6 @@
 # four pieces of work that each sleep in the kernel for 50 milliseconds
 # take one such time together, and a task with a timer goes on meanwhile
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

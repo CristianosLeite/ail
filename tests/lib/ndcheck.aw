@@ -1,5 +1,5 @@
 # tests/lib/ndcheck.aw -- compare arrays with the results of
-# tests/lib/ndfix.aw; needs lib/io.aw and lib/nd/array.aw.
+# tests/lib/ndfix.aw; needs lib/std/io.aw and lib/nd/array.aw.
 
 # make chkd an array of the numbers at chkp with chkr axes of the
 # lengths chka, chkb and chkc; they are read-only

@@ -1,5 +1,5 @@
 # the fixture of tests/indent.sh: every kind of line, indented wrongly
-  use "lib/io.aw"
+  use "lib/std/io.aw"
 use "lib/async/task.aw"
 var total
     # a function with blocks in blocks

@@ -21,9 +21,9 @@
 #
 # Status 0, or 1 with a message when a file cannot be read or written,
 # and with --check when a line would change.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 use "tools/lib/dent.aw"
 
 # gcheck: --check was given; gbad: lines that --check printed

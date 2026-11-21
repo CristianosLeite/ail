@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 spawn work 5 as h
 join h as x
 sys exit_group x

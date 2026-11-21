@@ -1,2 +1,2 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 spawn 5 as h

@@ -1,5 +1,9 @@
 # Knowledge index
 
+The benchmarks, the tools that time programs and count tokens, and what was learned about measuring are in the repository ail-bench (https://github.com/CristianosLeite/ail-bench) since 2026-11-21, with a knowledge base of their own. The pages here keep the decisions about the language, the compiler and the libraries that the measurements led to; each page that names a path that moved says so at its top.
+
+The VS Code extension is in the repository ail-extensions (https://github.com/CristianosLeite/ail-extensions) since 2026-11-21, with a knowledge base of its own.
+
 ## architecture
 - [Stage0 design decisions](architecture/stage0-design-decisions.md) — (stage0 was removed 2026-11-20; reasons still hold) why the syntax, the op table, direct ELF output, inline strings, buffers and jump fixups; review findings and known limits
 - [Stage0 functions](architecture/stage0-functions.md) — callee-saved calling convention, one saved scope for labels and variables, separate call fixup list, mutation checks

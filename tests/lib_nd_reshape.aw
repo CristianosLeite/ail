@@ -1,7 +1,7 @@
 # other lengths for the same elements, when they lie one behind the
 # other and are as many; a view whose elements lie apart is refused
 # until it is copied
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf v 176

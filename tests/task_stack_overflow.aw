@@ -1,6 +1,6 @@
 # a task that needs more stack than a worker has faults at the closed page
 # under the stack instead of writing over other memory
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn deep n
 	call deep n+1 as x
 	ret x+n

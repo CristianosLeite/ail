@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 buf cell 8
 buf hs 400
 fn work n

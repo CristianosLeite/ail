@@ -1,6 +1,6 @@
 # the names of the library start with nd, so the vars of a program with
 # short names keep their values through every function of it
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 var d p b o r s n i x j t v z m ok sh
 buf a 176

@@ -1,7 +1,7 @@
 # results and errors go up through tasks as values: the error of a
 # connect that nobody answers, through two async functions; a result
 # through three; and the 0 of a task that reaches its end
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

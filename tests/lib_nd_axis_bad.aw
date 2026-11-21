@@ -1,7 +1,7 @@
 # what a sum along an axis refuses, writing nothing: an axis the array
 # has not got, a result with other lengths or another number of axes,
 # a result in the storage of the array, and what is no array
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

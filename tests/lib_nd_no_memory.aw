@@ -1,7 +1,7 @@
 # with the memory of the process limited to 64 MiB an array of 128 MiB
 # is refused and the one that was there keeps its elements; a smaller
 # one is still made
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 const setrlimit 160
 buf lim 16

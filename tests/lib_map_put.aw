@@ -1,8 +1,8 @@
 # a key has the value put last; the key 0, the value 0 and the largest of
 # both are like any other; a key that is not there gives 0 and 0, in an
 # empty map too, and is not taken out
-use "lib/io.aw"
-use "lib/map.aw"
+use "lib/std/io.aw"
+use "lib/std/map.aw"
 buf m 32
 call mapget m 0 as x a
 call mapdel m 0 as b

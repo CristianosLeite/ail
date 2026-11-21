@@ -1,8 +1,8 @@
 # the names in a directory, without "." and "..", and the error for a
 # path that is none
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 buf b 24
 call filemkdir "build/tests/lib_file_names.d" 493
 call filewrite "build/tests/lib_file_names.d/one" "" as r

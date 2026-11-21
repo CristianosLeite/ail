@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # tasks that nobody joins do not keep the program
 fn work a
 	label l

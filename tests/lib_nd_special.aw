@@ -1,7 +1,7 @@
 # infinities and what is no number go through the kernels as IEEE 754
 # has it: one of them in a sum is the sum, two infinities of both signs
 # are no number, and only the row or column that has one is touched
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

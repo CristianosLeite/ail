@@ -1,7 +1,7 @@
 # two tasks that give the thread back after every letter run in turn: a
 # task that wakes itself while it is polled is polled again, behind the
 # other
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 fn poll t
 	load t+64 as c

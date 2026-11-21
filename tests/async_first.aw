@@ -1,7 +1,7 @@
 # the first of two and of several: the index of the one that is done,
 # which is then awaited at once; the others stay the program's, to await
 # or to cancel; a handle of 0 counts as done
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/chan.aw"

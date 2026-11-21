@@ -1,7 +1,7 @@
 # room whose bytes would not fit in 64 bits is refused, as is room the
 # kernel has no memory for, and the vector stays as it was
-use "lib/io.aw"
-use "lib/vec.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
 buf v 24
 call vecpush v 42 as a
 load v as p

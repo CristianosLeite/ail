@@ -2,7 +2,7 @@
 # without an edge; a tree whose two orders differ; and a cycle with an
 # edge from a vertex to itself, an edge twice and a vertex that nothing
 # leads to. Each vertex is written once and its byte is 1 afterwards
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/algo/graph.aw"
 buf off 56
 buf nbr 64

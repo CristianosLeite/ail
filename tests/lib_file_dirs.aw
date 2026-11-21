@@ -1,8 +1,8 @@
 # a directory is made once, holds a file, cannot be removed while it
 # does, and is gone after the file and it are removed
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 fn show x
 	ifslt x 0
 		call print "-"

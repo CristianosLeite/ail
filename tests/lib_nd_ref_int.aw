@@ -1,7 +1,7 @@
 # integers against NumPy, bit for bit: sums, differences and products
 # that wrap, the sum of all and along an axis, the product of matrices,
 # and the two conversions
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

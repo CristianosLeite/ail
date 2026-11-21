@@ -1,7 +1,7 @@
 # arrays with fewer axes or with an axis of length 1 go with every index
 # of the result there: a row with every row, a column with every
 # column, one number with all, and what has no element gives none
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

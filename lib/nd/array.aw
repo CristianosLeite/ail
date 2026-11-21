@@ -57,7 +57,7 @@
 # the kind of its array when it is made and keeps its own after.
 #
 # Every variable and parameter of this file has a name that starts with
-# "nd"; a program has no var of such a name (see lib/io.aw).
+# "nd"; a program has no var of such a name (see lib/std/io.aw).
 
 # the number of elements of the ndr axes whose lengths are at nds and 1,
 # or 0 and 0 if a length or the number is 2^60 or more

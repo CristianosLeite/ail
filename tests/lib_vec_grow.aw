@@ -2,8 +2,8 @@
 # time, then read by index; the room doubles from 512, the address
 # changes and an index stays good; a reserve of less than there is
 # changes nothing and one of more gives exactly that room
-use "lib/io.aw"
-use "lib/vec.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
 buf v 24
 call vecpush v 1
 load v as p

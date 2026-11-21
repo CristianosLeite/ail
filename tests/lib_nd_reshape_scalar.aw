@@ -2,7 +2,7 @@
 # 176 bytes, where the lengths of an array with axes are: lengths given
 # to it in its place are refused and the element stays; as another array
 # it gets them
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

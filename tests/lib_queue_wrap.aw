@@ -1,8 +1,8 @@
 # the ring goes round many times: a queue of 5 that holds 3 or 4 values
 # while 100000 pass through it, each leaving as it came; the values do
 # not move
-use "lib/io.aw"
-use "lib/queue.aw"
+use "lib/std/io.aw"
+use "lib/std/queue.aw"
 buf q 32
 call queueinit q 5 as r
 load q as p

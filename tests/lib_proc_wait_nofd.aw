@@ -2,8 +2,8 @@
 # the child: with a limit of three open files a child that sleeps a
 # quarter of a second is killed after 20 ms, one that has ended gives
 # its status, one ended by a signal the signal, and no child is -1001
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 const setrlimit 160
 buf lim 16
 buf ts 16

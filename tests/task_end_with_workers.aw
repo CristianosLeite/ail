@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # the last line is reached with idle workers alive: the program ends
 buf hs 64
 fn work a

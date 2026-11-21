@@ -1,5 +1,5 @@
 # a plain file, which epoll does not watch, is read at once
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

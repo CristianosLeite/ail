@@ -4,7 +4,7 @@
 # only walks.
 #
 # Every name of this file starts with "fw"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 # the mark of every position (8 bytes each), the positions still to
 # visit, the number of positions there is room for, and the current mark

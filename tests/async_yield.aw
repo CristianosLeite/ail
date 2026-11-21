@@ -1,5 +1,5 @@
 # a task that awaits asyncyield lets the tasks in the queue run first
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 fn poll t
 	load t+8 as s

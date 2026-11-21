@@ -6,6 +6,14 @@ status: current
 ---
 # Token cost measurement
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** `tools/tokens.sh` counts tokens of the encoding `o200k_base` (since 2026-11-20 with `build/tools/tokens`, the tokenizer in AIL, checked against `tiktoken` fixtures; before that with `tiktoken` itself) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
 11% cheaper than C and 17% cheaper than Rust, indented (13% and 19% without indentation; it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not. Six algorithm programs added on 2026-11-20 are counted apart from that corpus: AIL 1524, C 1613, Rust 1783 (6% and 15% cheaper; `hashtab` went from 230 to 238 when its probe began to count words), with AIL dearer than C in `mergesort` and `graph`, where a `load` and a `store` each take a line that C writes as `*k++ = *j++`.
