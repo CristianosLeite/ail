@@ -1201,6 +1201,39 @@ call putn n
 - **Speed**: arrays whose elements lie one behind the other, each with as many as `o` or with one, are one loop over the words; everything else is a loop along the last axis for each combination of the other indices, at the cost of a call for each.
 - **Errors**: 0 for lengths that do not go together, storage shared as above, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
 
+`lib/nd/reduce.aw`, used after the two, makes one number of many.
+
+| Function | Does |
+|---|---|
+| `ndsum d` | returns the sum of all elements and 1, or 0 and 0 for what is no array |
+| `ndmean d` | returns their mean and 1, or 0 and 0 |
+| `ndsumpw d` | returns the sum, added in pairs, and 1, or 0 and 0 |
+| `ndsumax o d a` | makes each element of `o` the sum of the elements of `d` along its axis `a`; returns 1 |
+| `ndmeanax o d a` | makes each element of `o` their mean; returns 1 |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+buf a 176
+buf c 176
+call ndmat a 3 4
+itof 2 as v
+call ndfill a v
+call ndvec c 4
+call ndsumax c a 0
+call ndsum c as w ok
+ftoi w as n
+call putn n
+```
+
+- **Along an axis**: the result is an array of the caller with the lengths of `d` without the axis `a`: for a table, `ndsumax c t 0` gives the sums of the columns in a `c` as long as a row, and `ndsumax r t 1` those of the rows. An array of one axis gives a result without axes ([`ndscalar`](#the-nd-library) makes one). The result may be a view, and may not share storage with `d`.
+- **Order**: a sum starts from 0 and adds one element after the other in the order of the indices, the last fastest, and along an axis from the index 0 up, as a loop in C does. NumPy adds in pairs, so the last digits of a long sum can differ from its: a million times 0.1 is 100000.0000013 added so and 99999.9999999998 in pairs, which `ndsumpw` does, halves of halves down to runs of 128 elements at most. A mean is the sum divided by the number of elements.
+- **No element**: the sum of no element is 0 and the mean is 0 divided by 0, no number, also for each element of a result along an axis of length 0.
+- **Special values**: what is no number stays so through a sum, an infinity stays one, and infinities of both signs together are no number, as `fadd` has it; a sum along an axis keeps that to the elements it concerns.
+- **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
