@@ -1238,6 +1238,7 @@ call putn n
 | `ndmeanax o d a` | makes each element of `o` their mean; returns 1 |
 | `nddot a b` | returns the sum of the products of the elements of `a` and `b`, two arrays of one axis and the same length, and 1, or 0 and 0 |
 | `ndmatmul o a b` | makes `o` the product of the matrices `a` and `b`; returns 1 |
+| `ndmatmulp o a b t` | the same in `t` tasks, of `lib/nd/par.aw`; returns 1 |
 
 ```
 use "lib/io.aw"
@@ -1263,6 +1264,7 @@ call putn n
 - **Products**: `ndmatmul` takes three arrays of two axes: `n` rows of `m` elements times `m` rows of `l` give a result of `n` rows of `l`, each element the sum over `k` of the element `i`, `k` of `a` times the element `k`, `j` of `b`, added from 0 in the order of `k`, as `nddot` adds in the order of the index. A column or a row is a matrix with one of them (`ndreshape`, or a slice of one index). Any of the three may be a view; the result may not share storage with `a` or `b`, so a matrix is not multiplied in place. Other lengths, another number of axes and such a result are refused with 0 and nothing written; `nddot` returns 0 and 0 for lengths that differ and for arrays that have not one axis.
 - **Speed**: the sums along an axis and the product of matrices compute doubles that lie one behind the other [two at a time](#two-doubles-at-once), since each element of their result is computed alone; the bits are those of one at a time. `ndsum`, `ndmean` and `nddot` add every element to the one sum before it and go one at a time.
 - **Integers**: `ndsum`, `ndsumpw`, `ndsumax`, `nddot` and `ndmatmul` of integers compute in integers, wrapping at 64 bits, and their result is of integers; arrays of two kinds are refused. A mean is always a double: of integers it is the sum of the elements as doubles divided by their number, and the result of `ndmeanax` is an array of doubles whatever `d` is of.
+- **Tasks**: `lib/nd/par.aw`, used after `lib/task.aw` and the three files, has `ndmatmulp o a b t`, the product of matrices in `t` [tasks](#tasks): the rows of the result are cut into `t` runs, as equal as they come, and each task computes its own, which no other touches, so the result is the bits of `ndmatmul` and what is refused is the same. At most 64 tasks are made and no more than there are rows; with 0 or 1 the rows are computed by the caller. The threads are those of the pool (`call workers n`), and the calling thread computes too while it waits; the three arrays must be there until the function returns, when every task has ended. On 20 processors a product of side 1000 takes 43 ms in 20 tasks against 238 ms in one, and one of side 30 gains nothing from more than four ([measurements](performance.md#numerical-arrays-2026-11-21)). A program that has run tasks ends with `sys exit_group` or at its last line, since `sys exit` ends only its own thread.
 - **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
 
 ## The async library

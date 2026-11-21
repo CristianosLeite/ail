@@ -388,15 +388,16 @@ fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 	ret 0
 end
 
-# make ndo the product of the matrices nda and ndb
-fn ndmatmul ndo nda ndb
+# 1 if ndo may be made the product of the matrices nda and ndb: three
+# arrays of one kind and two axes, lengths that go together, and a
+# result apart from both
+fn ndmmok ndo nda ndb
 	load ndo+8 as ndf
 	load nda+8 as ndx
 	load ndb+8 as ndy
 	ifz (ndf!=0)&(ndx==ndf)&(ndy==ndf)
 		ret 0
 	end
-	ndf-=1
 	load ndo+16 as ndt
 	load nda+16 as ndx
 	load ndb+16 as ndy
@@ -427,15 +428,28 @@ fn ndmatmul ndo nda ndb
 	if (ndp<ndhi)&(ndlo<ndq)
 		ret 0
 	end
-	call ndfill ndo 0
+	ret 1
+end
+
+# add to the rows ndlo up to but not ndhi of ndo those of the product of
+# nda and ndb, which ndmmok has allowed; 1
+fn ndrows ndo nda ndb ndlo ndhi
+	load ndo+8 as ndf
+	ndf-=1
+	load nda+56 as ndm
+	load ndb+56 as ndl
+	load ndo+112 as ndso
+	load ndo+120 as ndsp
 	load nda+112 as ndsa
 	load nda+120 as ndsk
 	load ndb+112 as ndsb
 	load ndb+120 as ndsj
 	load ndo as ndp
 	load nda as ndq
-	ndi=0
-	while ndi<ndn
+	ndp+=ndlo*ndso
+	ndq+=ndlo*ndsa
+	ndi=ndlo
+	while ndi<ndhi
 		load ndb as ndr
 		ndu=ndq
 		ndk=0
@@ -451,4 +465,15 @@ fn ndmatmul ndo nda ndb
 		ndi+=1
 	end
 	ret 1
+end
+
+# make ndo the product of the matrices nda and ndb
+fn ndmatmul ndo nda ndb
+	call ndmmok ndo nda ndb as ndok
+	ifz ndok
+		ret 0
+	end
+	call ndfill ndo 0
+	load ndo+48 as ndn
+	tail ndrows ndo nda ndb 0 ndn
 end
