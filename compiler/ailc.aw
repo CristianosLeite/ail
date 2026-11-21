@@ -96,6 +96,11 @@ var xst xso
 # the register whose value the zero flag describes, if nothing was written
 # since the output stood at xflgpos
 var xflg xflgpos
+# the stack slot that the last store of a variable wrote (its distance),
+# the register it wrote, and the output position behind that store: a load
+# of the slot at that position needs no memory. 0 where control may come
+# from elsewhere, as for xflg
+var slotp slotr slotpos
 # the memory of a load or store: base, index (16 for none) and number
 var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
@@ -980,6 +985,7 @@ store p ip
 call labasg
 call clrvk
 xflg=16
+slotpos=0
 p+=8
 store p asg
 call hadd 3 scope r
@@ -1231,10 +1237,11 @@ label e1
 # The calls of a function are compiled in place if it is short and its
 # body adds to no table that the source limit sizes: no call, no global
 # name. Nor if it has a local, a tail, more than six parameters, or is
-# a task.
+# a task, or has more variables at once than registers: such a body
+# takes registers from its caller and was slower in place than called.
 p=(nfuncs-1)*24+finl
 store p 0
-if (fnasy|fntail|fnlocal|ilany)==0
+if (fnasy|fntail|fnlocal|ilany|fnslots)==0
 	if (ncalls==snc)&(nrefs==snr)&(nchks==snk)&(nruns==snu)&(nbufs==snb)
 		load (nfuncs-1)*40+funs+16 as q
 		if (op-q<=inlsz)&(fnnpar<=6)
@@ -1327,6 +1334,7 @@ end
 asg&=q
 label be3
 xflg=16
+slotpos=0
 call clrvk
 dataend=0
 jmp next

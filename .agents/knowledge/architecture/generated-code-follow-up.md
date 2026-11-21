@@ -1,6 +1,6 @@
 ---
 title: Generated code after the algorithm measurements
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/TODO.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
 status: current
 ---
@@ -56,6 +56,18 @@ several places.
   31): 5 to 12% less on a million random keys, 8 tokens more. The random misses at 1000 keys
   are 21% slower with any change to that loop, the old one respelled included.
 
+- Since 2026-11-21 a stack slot has the shortest displacement (none for `[rsp]`, one byte
+  below 128; `frame` an `imm8`), and a slot just stored is not loaded again at the same
+  output position (`slotp`, `slotr`, `slotpos` in `emem`, forgotten where `xflg` is). A
+  function that needs a slot itself is no longer fit for a call in place (`fnslots` at `e1`),
+  which keeps `sortsift` out whatever its size: with the short displacements it would have
+  come under `inlsz`. The compiler went from 49042 to 48210 bytes, the algorithm programs
+  lost a seventh of theirs. Kernel times over C, before and after, one build each:
+  `heapsort` 1.195 and 1.128, `mergesort` 1.040 and 0.995, `hashtab` 1.171 and 1.160,
+  `quicksort`, `graph` and `isort` unchanged, `bsearch` 0.941 and 1.109: its inner loop
+  (`searchlower` in place) has no slot and is the same instructions, moved across the end
+  of a 64-byte line (0x16ee to 0x171b), which is the open item on placement.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are
@@ -100,8 +112,6 @@ several places.
   `docs/TODO.md`).
 - 2026-11-20: `bsearch` at a thousand elements is 22 to 24% slower with registers by weight
   than with scaled indexes alone (0.92 of C); cause unknown.
-- 2026-11-20: a stack slot is addressed with a 4-byte displacement, and a value just stored
-  to a slot is loaded again by the next line.
 
 ## Related
 - [Algorithm benchmarks and collections](algorithms-and-collections.md)

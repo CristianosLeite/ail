@@ -1024,3 +1024,25 @@ The kernels of the algorithm programs moved from `examples/` to [`lib/algo/`](la
 - **The place of the code** still counts for more than the move. With 0, 8, 24 and 40 bytes of `data` before the code, `isort` with its loop in the program takes 54.8, 55.6, 54.0 and 54.2 ms, and with the loop in the library 54.1, 54.1, 60.1 and 65.1: a fifth more at one placement and nothing at another, as the kernels on a thousand elements showed before. A comparison of two builds of a short loop has to be made over several placements; the move itself costs nothing that this shows.
 
 The tokens of a caller and of the library are in [tokens.md](tokens.md#result): a caller is 30 to 79 tokens where the C program is 156 to 345, and the library, whose names all carry a prefix, 1793 where the kernels in the programs were about 1300.
+
+## Stack slots, 2026-11-21
+
+A variable without a register lives in a slot of the frame, and every use of one was `[rsp+disp32]`, eight bytes where five do; a value that one line stored to a slot was loaded from it by the next. `hashfind` of `lib/algo/hash.aw` had both: `mov [rsp+0x0],rax` and then `mov rax,[rsp+0x0]`.
+
+- **The distance is as short as it can be**: none for the first slot, one byte below 128, four from there, and the frame is taken and given back with one byte below 128. The first pass of a function writes other lengths than the second, which does not matter, since its code is thrown away and every jump is filled in by the pass that wrote it.
+- **A slot just stored is not loaded again.** The store notes its slot, its register and the place in the output behind it; a load of that slot at that place is a copy of the register, or nothing. The note holds only while no byte is written, and is dropped where control may arrive from elsewhere with none written: a label, the end of a block, the ends of a body compiled in place.
+- **A function that needs a slot is called, not compiled in place.** `sortsift` was [7% slower in place](#calls-compiled-in-place-2026-11-20), for want of registers, and stayed out only because its code was 165 bytes; with short distances it is under the limit of 160. The rule is now what was meant: a body that needs more than six places at once is not put into its caller.
+
+The compiler is 48210 bytes where it was 49042, and the six algorithm programs each lost about a seventh of their bytes, most of it in the harness. Kernel times over those of C, the geometric mean of each program's rows, one build each:
+
+| program | before | after |
+|---|---:|---:|
+| hashtab | 1.171 | 1.160 |
+| heapsort | 1.195 | 1.128 |
+| quicksort | 1.214 | 1.220 |
+| mergesort | 1.040 | 0.995 |
+| graph | 1.320 | 1.324 |
+| bsearch | 0.941 | 1.109 |
+| isort (elapsed) | 0.994 | 0.990 |
+
+`heapsort` and `mergesort`, whose kernels have variables in slots, gain 6 and 4%. The loop of `bsearch` that takes its time, the body of `searchlower` in place, has every variable in a register and is the same instructions at another address, now across the end of a line of 64 bytes (0x16ee to 0x171b): it is the program whose time [moves most with the place of its code](#the-algorithm-kernels-in-a-library-2026-11-21), and one build each is no comparison for it.

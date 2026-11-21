@@ -167,8 +167,18 @@ fn elea
 end
 # a 64-bit mov between the register g and memory: the cell number p (k = 1,
 # rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
-# register, 137 to store it
+# register, 137 to store it. The distance p takes one byte where it is
+# below 128, and none where it is 0 from rsp. A store notes its slot, its
+# register and the place behind it (slotp, slotr, slotpos), and a load of
+# that slot right there is a mov from the register, or nothing
 fn emem g k p o
+	if (k==2)&(o==139)&(slotpos==op)&(slotp==p)
+		if g!=slotr
+			call mrr g slotr
+		end
+		ret 0
+	end
+	r=g
 	call eb g>>3<<2|72
 	if o==175
 		call eb 15
@@ -187,13 +197,34 @@ fn emem g k p o
 		ret 0
 	end
 	if fnasy
-		call eb g|131
-		call e4 p
-		ret 0
+		if p<128
+			call eb g|67
+			call eb p
+		else
+			call eb g|131
+			call e4 p
+		end
+	else
+		ifz p
+			call eb g|4
+			call eb 36
+		else
+			if p<128
+				call eb g|68
+				call eb 36
+				call eb p
+			else
+				call eb g|132
+				call eb 36
+				call e4 p
+			end
+		end
 	end
-	call eb g|132
-	call eb 36
-	call e4 p
+	if o==137
+		slotp=p
+		slotr=r
+		slotpos=op
+	end
 end
 # the same between the register g and variable i of the current scope; a
 # local is not stored to, and loading it gives its address (lea, 141)
@@ -435,9 +466,15 @@ fn frame o
 		ret 0
 		label s
 		call eb 72
-		call eb 129
-		call eb o
-		call e4 c
+		if c<128
+			call eb 131
+			call eb o
+			call eb c
+		else
+			call eb 129
+			call eb o
+			call e4 c
+		end
 	end
 end
 # The entry of an async function. First the code that a call of it runs,
@@ -928,6 +965,7 @@ fn inlopen i e
 	ilret=0
 	ildep=0
 	xflg=16
+	slotpos=0
 	k=0
 	while k<64
 		call cp4 k*32+vk k*32+ilvk
@@ -1029,6 +1067,7 @@ fn inlclose
 	nv=ilbase
 	vlo=0
 	xflg=16
+	slotpos=0
 	ip=ilip
 	ie=ilie
 	ncap=ilcap
