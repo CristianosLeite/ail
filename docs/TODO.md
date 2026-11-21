@@ -330,7 +330,7 @@ separate success or found result wherever zero is a valid value.
   vector storage if it fits the callers. Sift up on insertion and down on
   removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
   the in-place max-heap operations of heapsort in its benchmark.
-- [ ] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
+- [x] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
   `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
   power-of-two capacity, and explicit slot states for empty, occupied and
   deleted entries so all 64-bit keys are usable. Update existing keys in place,

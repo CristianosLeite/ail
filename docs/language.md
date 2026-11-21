@@ -1084,6 +1084,35 @@ call putn a+b
 - **Ownership**: the caller owns the 24 bytes and ends the heap with `heapfree`.
 - **Names**: the library owns every name that starts with `heap`; a program has no `var` of such a name.
 
+## The map library
+
+`lib/map.aw` keeps a 64-bit value for each of any number of 64-bit keys. The map is 32 bytes that the caller owns, in a `buf` or a `local`: the address of a table, the number of places in it, the number of keys, and the number of places that hold a key or held one. All zero is an empty map, so a `buf` is one as it stands. The functions take the address of those 32 bytes. Every key and every value can be used, 0 too.
+
+| Function | Does |
+|---|---|
+| `mapput m k v` | makes `v` the value of the key `k`, in place of the one it had; returns 1 |
+| `mapget m k` | returns the value of the key `k` and 1, or 0 and 0 if it has none |
+| `mapdel m k` | takes the key `k` out; returns 1, or 0 if it was not there |
+| `mapfree m` | gives the table back to the kernel; the map is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/map.aw"
+buf m 32
+call mapput m 1000003 30
+call mapput m 7 12
+call mapget m 1000003 as a ok
+call mapget m 7 as b ok
+call mapdel m 7
+call putn a+b
+```
+
+- **Table**: a power of two of places, at least 64, each 24 bytes: 0 for a free place, 1 for a key and 2 for a key that was taken out, then the key and the value. A key belongs at the place its hash names (the last step of splitmix64, cut to the table) and stands at the first place from there on, round the end, that held no key when it came; it is looked for up to the first free place. `mapdel` leaves a mark, so that the keys behind are still found, and a new key takes the first marked place on its way.
+- **Growth**: when three quarters of the places hold or held a key, `mapput` of a new key moves all keys to a new table: twice the places if the keys fill half of them, as many otherwise, which only clears the marks. The map is changed when the new table is whole, and the old one is then given back; no address into a table is good after a `mapput`.
+- **Errors**: `mapput` returns 0 when the kernel has no memory for a new table, and the map is then as it was, every key with its value. The second result of `mapget` says whether the key was there, since a value may be 0.
+- **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
+- **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
