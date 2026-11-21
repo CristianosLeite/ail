@@ -289,7 +289,7 @@ count, use `load` and `store` for 64-bit values, and size runtime buffers with
   binary search return the first index whose value is at least the key, or the
   element count if there is none. Keep the algorithm and memory layout matched
   in each AIL and C pair.
-- [ ] Add hash lookup and graph traversal benchmarks. Measure inserts and
+- [x] Add hash lookup and graph traversal benchmarks. Measure inserts and
   successful and unsuccessful lookups on the same key sequence and table load.
   Store graphs as a vertex-offset array and a contiguous neighbor array. Use
   a queue for BFS and an explicit stack for DFS, with the same neighbor order

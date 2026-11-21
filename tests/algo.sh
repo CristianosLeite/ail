@@ -7,6 +7,11 @@
 #   a sort     its result must be what sort(1) makes of its input
 #   bsearch    for each key the index awk finds by looking at every
 #              word from the first: the first that is not smaller
+#   hashtab    for each key that was put in the index of its last
+#              place among the keys, which awk keeps under the digits
+#              of the key, and -1 for each key that was not
+#   graph      the two orders that awk reaches the vertices in, with a
+#              queue and with a stack of its own
 #   checksum   mode 0 must write the checksum of the result, computed
 #              here, and 8 bytes for each of its kernels
 # Words are compared as 16 hexadecimal digits, which sort as the numbers
@@ -85,6 +90,67 @@ searched() {
     done
 }
 
+# hashed program: the last index of each key, then -1 for the others
+hashed() {
+    for s in 0 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in"
+            run "$1" $n $s 2 > "$tmp/res"
+            [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
+            awk -v n=$n 'NR <= n { k[NR - 1] = $0; last[$0] = NR - 1 }
+                END { for (i = 0; i < n; i++) printf "%016x\n", last[k[i]]
+                    for (i = 0; i < n; i++) print "ffffffffffffffff" }' \
+                "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            summed "$1" $n $s 3 || return 1
+        done
+    done
+}
+
+# reached program: the vertices breadth first, then depth first
+reached() {
+    for s in 0 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in"
+            run "$1" $n $s 2 > "$tmp/res"
+            awk -v n=$n 'function hex(s,  i, v) {
+                    v = 0
+                    for (i = 9; i <= 16; i++)
+                        v = v * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+                    return v
+                }
+                NR <= n + 1 { off[NR - 1] = hex($0); next }
+                { nbr[NR - n - 2] = hex($0) }
+                END {
+                    t = 0; h = 0
+                    for (s = 0; s < n; s++) {
+                        if (s in seen) continue
+                        seen[s] = 1; q[t++] = s
+                        while (h < t) {
+                            v = q[h++]
+                            for (e = off[v]; e < off[v + 1]; e++) {
+                                w = nbr[e]
+                                if (!(w in seen)) { seen[w] = 1; q[t++] = w }
+                            }
+                        }
+                    }
+                    for (i = 0; i < n; i++) printf "%016x\n", q[i]
+                    for (s = 0; s < n; s++) {
+                        if (s in done) continue
+                        st[0] = s; p = 1
+                        while (p) {
+                            v = st[--p]
+                            if (v in done) continue
+                            done[v] = 1; printf "%016x\n", v
+                            for (e = off[v]; e < off[v + 1]; e++) st[p++] = nbr[e]
+                        }
+                    }
+                }' "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/res")" -eq $((n * 2)) ] || return 1
+            summed "$1" $n $s 2 || return 1
+        done
+    done
+}
+
 # each kind program ...: check the programs, and their C forms
 each() {
     kind=$1
@@ -106,10 +172,12 @@ cc=$(command -v gcc)
 [ -n "$cc" ] || echo "skip algo C programs: no gcc"
 each sorted $sorts
 each searched bsearch
+each hashed hashtab
+each reached graph
 
 # anything but five whole words is refused
 r=0
-for p in $sorts bsearch; do
+for p in $sorts bsearch hashtab graph; do
     printf 12345678 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
     words 7 268435456 0 1 0 | "build/$p" > "$tmp/res"
