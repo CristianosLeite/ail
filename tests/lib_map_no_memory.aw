@@ -1,0 +1,48 @@
+# with the memory of the process limited to 64 MiB a map grows until the
+# kernel refuses a new table: that put returns 0 and changes nothing,
+# every key still has its value, and a put of a key that is there, which
+# needs no table, still works
+use "lib/io.aw"
+use "lib/map.aw"
+const setrlimit 160
+buf lim 16
+buf m 32
+store lim 0x4000000
+store lim+8 0x4000000
+sys setrlimit 9 lim as r
+if r
+	sys exit 1
+end
+n=0
+r=1
+while r
+	call mapput m n*0x9e3779b97f4a7c15 n as r
+	n+=r
+end
+load m as p
+load m+8 as c
+load m+16 as k
+load m+24 as u
+call mapput m 12345 1 as a
+call mapget m 12345 as x b
+load m as q
+load m+8 as d
+load m+16 as e
+load m+24 as f
+i=0
+while i<n
+	call mapget m i*0x9e3779b97f4a7c15 as x r
+	ifz r&(x==i)
+		sys exit 2
+	end
+	i+=1
+end
+call mapput m 0 77 as g
+call mapget m 0 as x h
+call mapdel m 0x9e3779b97f4a7c15 as j
+call putn n==k
+call putn k==e
+call putn x
+call print "\n"
+call mapfree m
+sys exit a+b+(p==q)+(c==d)+(u==f)+g+h+j

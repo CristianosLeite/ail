@@ -336,7 +336,7 @@ separate success or found result wherever zero is a valid value.
   deleted entries so all 64-bit keys are usable. Update existing keys in place,
   reuse deleted slots, and rebuild when occupied and deleted slots reach the
   chosen load threshold. Publish resized storage after rehashing succeeds.
-- [ ] Cover each collection in `tests/lib_*`. Check empty operations and zero
+- [x] Cover each collection in `tests/lib_*`. Check empty operations and zero
   values, vector growth and bounds, queue wraparound and full behavior, heap
   ordering with duplicates, and hash collisions, deletion and resizing. Check
   capacity overflow and reuse after `free`. Document the APIs and storage
