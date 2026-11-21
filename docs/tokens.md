@@ -43,7 +43,7 @@ Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/token
 | total | 1524 | 1613 | 1783 |
 | relative to AIL | 1.00 | 1.06 | 1.17 |
 
-Since 2026-11-21 there are also two programs that time the collections of `lib/` ([performance.md](performance.md#collections-2026-11-21)): `collseq`, 335 tokens in AIL, 710 in C and 299 in Rust, and `collmap`, 208, 1009 and 261. The AIL and Rust programs call collections that their libraries have, and C writes its own, which is its count; they are not part of the corpus either.
+Since 2026-11-21 there are also two programs that time the collections of `lib/` ([performance.md](performance.md#collections-2026-11-21)): `collseq`, 381 tokens in AIL, 710 in C and 299 in Rust, and `collmap`, 224, 1009 and 261. The AIL and Rust programs call collections that their libraries have, and C writes its own, which is its count; they are not part of the corpus either.
 
 Since 2026-11-21 there are also three programs on arrays of doubles, whose kernels in AIL are calls of [`lib/nd/`](language.md#the-nd-library) and in C and Rust plain loops: `ndelem` 215, 197 and 200 tokens, `ndreduce` 252, 276 and 268, `ndmatmul` 141, 163 and 142, together 608, 636 and 610. A call of a kernel is 5 to 7 tokens and each array 12 more before its first use, which comes to what the loops cost ([performance](performance.md#numerical-arrays-2026-11-21)). They are not in the table above, which stays that of the six.
 

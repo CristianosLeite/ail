@@ -331,6 +331,14 @@ for p in ndreduce ndmatmul; do
     words 7 16384 0 1 0 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
 done
+# a collection that gets no memory ends the program with the status 1
+# and no result: with 40 MB for a million keys the harness has its
+# arrays and the vector cannot grow to the end, with 100 MB the map
+# cannot. A subshell, since the limit cannot be raised again
+(ulimit -v 40000; words 7 1000000 0 1 2 | build/collseq > "$tmp/res")
+[ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
+(ulimit -v 100000; words 7 1000000 0 1 2 | build/collmap > "$tmp/res")
+[ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
 if [ $r -eq 0 ]
 then echo "ok   algo refuses"
 else echo "FAIL algo refuses"; fail=1
