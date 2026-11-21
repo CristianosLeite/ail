@@ -1,7 +1,7 @@
 ---
 title: Generated code after the algorithm measurements
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077, docs/TODO.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
+sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/TODO.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
 status: current
 ---
 # Generated code after the algorithm measurements
@@ -9,7 +9,10 @@ status: current
 **Summary.** Three changes to the compiler brought the kernels of the six algorithm programs
 from 1.753 to 1.257 times the time of C (geometric mean of 48 kernel times): a scaled index
 in the memory operand, registers given to the variables that loops mention most, and a
-`while` on two comparisons as two jumps. Inlining small functions is what is left.
+`while` on two comparisons as two jumps. A fourth, calls of short functions compiled in
+place, and a probe in words brought `hashtab` from 1.61 to 1.24. A kernel's time on a
+thousand elements moves by a fifth with the place of its code, so builds are compared over
+several places.
 
 ## Facts
 - AIL against C after each step: 1.753, 1.639 (scaled index), 1.325 (registers by weight),
@@ -35,7 +38,31 @@ in the memory operand, registers given to the variables that loops mention most,
   quarter at 14 and 20 threads; 3 microseconds a task loses most of the gain at 20 threads;
   work bound by memory gains 2.3 to 2.5 times at 4 threads and 3 at 20. The pool was left.
 
+- **Calls in place** (`inlchk`, `inlopen`, `inlclose` in `compiler/emit.aw`; `finl`, `vlo`,
+  `vhi`, `vinl`, `valias`, `ilpos`): a `call` in a function, of a function before it with at
+  most `inlsz` (160) bytes of code, at most six parameters, no `local`, `tail` or task, no
+  call but `callp` and no global name but a `const`, is its body read again from the source.
+  A parameter that is only read, given a variable by itself, is that variable. Variable
+  numbers are used again after a body; a function with such a call is not itself compiled in
+  place.
+- **Code placement:** `heapsort` on 1000 words takes 15.5 to 23.8 ms as its unchanged code is
+  moved by 0 to 38 bytes, with a period of 32; `bsearch` at 1000 moves between 38 and 69 ms.
+  Rows of a million elements move by 2 to 5%. The loss of `bsearch` noted with registers by
+  weight was of this kind.
+- Over eight placements: calls in place give `hashtab` 5 to 36% less time, `bsearch` nothing,
+  and `heapsort` with `sift` forced in place 7% more at a million (eight variables for six
+  registers), which is why the limit stays under the 165 bytes of `sift`.
+- `hashtab` probes with an index in words (`t+h*8`, step 2, twice the mask, hash shifted by
+  31): 5 to 12% less on a million random keys, 8 tokens more. The random misses at 1000 keys
+  are 21% slower with any change to that loop, the old one respelled included.
+
 ## Why
+- **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
+  sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are
+  cut back after each body, so those cannot overflow.
+- **Mentions of a body count at the call:** `alloc` orders by source position, and the body
+  stands elsewhere in the source; one position after the values and before the next line
+  keeps every range right without a second order.
 - **Weight instead of order of definition:** the first six variables of a function are its
   parameters, which a loop reads once a round, while what it reads and writes most is defined
   inside it. This one change was worth more than the other two together.
@@ -51,6 +78,12 @@ in the memory operand, registers given to the variables that loops mention most,
   measured; the losses come from tasks too small or too few.
 
 ## How to apply
+- To compare two compilers or two forms of a kernel, build each with 1, 5, 9, ... 29 bytes of
+  `data` before the first function, run all in turn pinned to one CPU, and compare the
+  medians over the eight; one build each is not a comparison at a thousand elements.
+- After touching the code for calls in place, compare the output of random programs with
+  calls against a compiler from before the change, besides `make test` and `randvars`; no
+  tool in the repository generates calls.
 - After a change to `alloc` or to how mentions are noted, run `make test` and
   `build/tools/randvars build/ailc 2000 1`, `... 2000 2 top`, `... 2000 3 async`.
 - A new or changed form of a memory operand needs its case in `tests/insn.cases`; take the
