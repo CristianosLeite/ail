@@ -379,6 +379,7 @@ make all tools
 build/tools/par              # the three tables below
 build/tools/par --check      # small sizes, outputs only: part of make test
 build/tools/par --runs 3 collatz
+build/tools/par --grid --runs 3   # every number of threads with every number of tasks
 ```
 
 | program | what it does | why it is here |
@@ -422,6 +423,48 @@ Elapsed milliseconds by the number of tasks the same work is cut into (`memsum` 
 - **With 20 threads a task costs about 1.2 microseconds** once tasks are so small that the threads meet at the lock: a million tasks take 1.2 s in both programs, about twice the sequential time, for work of 0.6 to 0.7 microseconds a task.
 - **Where it turns**: tasks of about 30 microseconds and more (20000 tasks) run at full speed, 9 to 11 times. Tasks of 3 microseconds (200000) still gain 2.5 to 3.6 times. Below about 1 microsecond a task the program is slower than without tasks. `memsum` turns earlier, since its 20000 tasks a pass are 0.6 microseconds each.
 - The rule that follows: cut the work into some tens of tasks per thread, not into its smallest pieces. A hundred or a thousand tasks cost nothing and even out unequal work.
+
+### The size of a task at each number of threads
+
+The two tables above vary the threads at one number of tasks and the tasks at 1 and 20 threads. `build/tools/par --grid` times every pair, to say how large a task should be before anything in the pool is changed. Measured on 2026-11-20 with the compiler as it then was, median of 3 runs; a cell is the sequential time divided by the time with tasks, so 1 is no gain. The number of tasks is that of the whole work for `collatz` and `primes` and that of each of the 17 passes for `memsum`.
+
+collatz, sequential 552.0 ms: that time divided by the time with tasks, median of 3 runs
+
+| tasks | 1 | 2 | 4 | 8 | 14 | 20 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 | 0.99 | 1.86 | 3.43 | 5.70 | 7.24 | 8.57 |
+| 200 | 0.98 | 1.93 | 3.56 | 6.25 | 8.98 | 9.92 |
+| 2000 | 0.98 | 1.92 | 3.54 | 6.27 | 9.24 | 10.05 |
+| 20000 | 0.98 | 1.91 | 3.50 | 6.16 | 8.58 | 9.83 |
+| 200000 | 0.96 | 1.85 | 3.19 | 5.06 | 4.29 | 2.23 |
+
+primes, sequential 695.6 ms: that time divided by the time with tasks, median of 3 runs
+
+| tasks | 1 | 2 | 4 | 8 | 14 | 20 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 | 1.01 | 1.93 | 3.49 | 5.75 | 7.85 | 9.11 |
+| 200 | 1.00 | 1.98 | 3.68 | 6.68 | 10.42 | 10.90 |
+| 2000 | 1.00 | 1.97 | 3.70 | 6.89 | 10.89 | 11.39 |
+| 20000 | 1.01 | 1.98 | 3.67 | 6.84 | 11.21 | 11.18 |
+| 200000 | 0.99 | 1.90 | 3.43 | 5.55 | 4.94 | 3.48 |
+
+memsum, sequential 188.8 ms: that time divided by the time with tasks, median of 3 runs
+
+| tasks | 1 | 2 | 4 | 8 | 14 | 20 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 20 | 1.01 | 1.56 | 2.31 | 2.65 | 2.81 | 2.93 |
+| 200 | 0.96 | 1.41 | 2.26 | 2.95 | 3.08 | 3.12 |
+| 2000 | 1.00 | 1.64 | 2.51 | 2.79 | 3.04 | 3.00 |
+| 20000 | 0.87 | 1.47 | 1.56 | 0.64 | 0.54 | 0.52 |
+| 200000 | 0.51 | 0.33 | 0.10 | 0.07 | 0.06 | 0.06 |
+
+What a task is in time follows from the sequential time: in `collatz` 27.6 ms at 20 tasks, 2.8 ms at 200, 276 microseconds at 2000, 28 at 20000 and 2.8 at 200000; in `primes` a quarter more; in `memsum`, a pass being 11 ms, 555 microseconds at 20 tasks, 55 at 200, 5.5 at 2000, 0.55 at 20000 and 0.055 at 200000.
+
+- **Work bound by the processor: tasks of 30 microseconds to 3 milliseconds.** From 200 to 20000 tasks the gain is the same within a tenth at every number of threads, 9.8 to 11.4 times at 20. That is ten to a thousand tasks for each thread.
+- **One task for each thread is too few.** 20 tasks at 20 threads give 8.6 and 9.1 times where 2000 give 10.1 and 11.4, and at 14 threads 7.2 and 7.9 against 9.2 and 10.9: the cores are not equally fast and, in `primes`, the pieces not equally long, and with one piece each nothing evens that out.
+- **Tasks of 3 microseconds are worth it up to 8 threads and not beyond.** At 200000 tasks the gain at 8 threads is 5.1 and 5.6 against 6.3 and 6.9, a fifth less; at 14 threads it falls to 4.3 and 4.9 and at 20 to 2.2 and 3.5, what 4 threads give or less, since the threads then wait for each other at the queue.
+- **Work bound by memory: tasks of 5 microseconds or more, and few threads.** `memsum` gains 2.3 to 2.5 times at 4 threads and 2.9 to 3.1 at 20 with 20 to 2000 tasks a pass; more threads than the memory can feed buy little. At 0.55 microseconds a task it is slower than without tasks from 8 threads on, and at 0.055 at every number of threads.
+- **A starting size**: about ten times as many tasks as threads, each of at least 100 microseconds; make them smaller only if the pieces are unequal, and not below 30 microseconds when more than 8 threads run them. The pool needs no change for any of this: within those sizes its cost cannot be measured.
 
 Source tokens (`o200k_base`), comments left out:
 

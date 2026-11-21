@@ -386,7 +386,7 @@ with shuffled run order. See [benchmark method](performance.md#method).
    Done on 2026-11-20: a jump for each comparison before the loop and at its
    end, which was faster in all eight inputs once the registers went by
    weight ([results](performance.md#two-comparisons-in-a-while-2026-11-20)).
-4. [ ] **Tune task granularity before changing the pool.** Using medians from
+4. [x] **Tune task granularity before changing the pool.** Using medians from
    three runs per configuration (`build/tools/par --runs 3`), 160 tasks at
    20 threads gave a 10.21x speedup for `collatz`, 10.86x for `primes` and
    3.35x for `memsum`.
@@ -395,6 +395,10 @@ with shuffled run order. See [benchmark method](performance.md#method).
    million tasks. Sweep batch sizes across worker counts and use the results
    to document useful starting sizes for CPU-bound and memory-bound work.
    [Task benchmark method](performance.md#tasks-2026-11-20)
+   Done on 2026-11-20: `build/tools/par --grid` times every pair; the sizes
+   to start from are in
+   [the table and its reading](performance.md#the-size-of-a-task-at-each-number-of-threads)
+   and in the pool section of the language reference. The pool is unchanged.
 
 5. [ ] **Inline small functions at their calls.** With registers given by
    weight, `hashtab` with `place` written into its two loops by hand took 17

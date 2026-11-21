@@ -48,6 +48,7 @@ tools/tokens.sh  # token cost of examples/ against the C, Rust and assembly prog
 build/tools/tokens -c '#' file.aw   # the tokens of a file without its comments; --ids file prints their numbers
 tools/bench.sh   # check that bench/ behaves like examples/ (needs gcc and rustc)
 build/tools/par    # time the task programs of bench/par/ against their sequential forms at 1 to 20 threads; docs/performance.md
+build/tools/par --grid --runs 3   # the gain at every number of threads with every number of tasks
 build/tools/perf   # time examples/ against bench/ built with gcc -O3 and rustc -O; docs/performance.md
 build/tools/perf --qsort quicksort   # one program; the sorts also against the qsort of the C library
 build/tools/fuse in.aw out.aw  # rewrite a source with compare-and-jump statements and if blocks
