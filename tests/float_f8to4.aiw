@@ -1,0 +1,64 @@
+# f8to4 rounds a double to the nearest IEEE binary32, a tie to the one
+# whose last bit is 0, and gives its 32 bits with zeros above them
+fn narrow a v1 v2 v3 v4 v5
+	f8to4 a+v1-v1 as x
+	ret x+v2+v3+v4+v5-14
+end
+# 1 and -2.5 are binary32 already; 0.1 is rounded up
+f8to4 0x3ff0000000000000 as x
+r=x==0x3f800000
+f8to4 0xc004000000000000 as x
+r+=x==0xc0200000
+f8to4 0x3fb999999999999a as x
+r+=x==0x3dcccccd
+# 1 and half a last place: a tie, which goes down to the even 1; a
+# little more goes up, a little less down; 1 and three halves is a tie
+# that goes up to the even neighbour
+f8to4 0x3ff0000010000000 as x
+r+=x==0x3f800000
+f8to4 0x3ff0000010000001 as x
+r+=x==0x3f800001
+f8to4 0x3ff000000fffffff as x
+r+=x==0x3f800000
+f8to4 0x3ff0000030000000 as x
+r+=x==0x3f800002
+# both zeros keep their sign
+f8to4 0 as x
+r+=x==0
+f8to4 0x8000000000000000 as x
+r+=x==0x80000000
+# the smallest binary32; half of it is a tie that goes to 0, a little
+# more than half goes up; just below the smallest normal rounds to it
+f8to4 0x36a0000000000000 as x
+r+=x==1
+f8to4 0x3690000000000000 as x
+r+=x==0
+f8to4 0x3690000000000001 as x
+r+=x==1
+f8to4 0x380fffffffffffff as x
+r+=x==0x00800000
+# the largest binary32, a double just below the middle to the next
+# power of two, which rounds down to it, and the middle, which is
+# an infinity, as every larger double is
+f8to4 0x47efffffe0000000 as x
+r+=x==0x7f7fffff
+f8to4 0x47efffffefffffff as x
+r+=x==0x7f7fffff
+f8to4 0x47effffff0000000 as x
+r+=x==0x7f800000
+f8to4 0x7fefffffffffffff as x
+r+=x==0x7f800000
+# the infinities, and what is no number
+f8to4 0xfff0000000000000 as x
+r+=x==0xff800000
+f8to4 0x7ff8000000000000 as x
+r+=x==0x7fc00000
+# there and back: a double that is a binary32 comes back as it was
+f4to8 0x40490fdb as y
+f8to4 y as x
+r+=x==0x40490fdb
+# an operand that is an expression, in a function with more variables
+# than registers
+call narrow 0x3fb999999999999a 1 2 3 4 5 as x
+r+=x==0x3dcccccd
+sys exit r

@@ -754,3 +754,15 @@ Keep the hardware-oriented syntax and use measured token cost to decide where
 to relax grammar rules. One statement per line, ASCII identifiers and the lack of classes and objects
 are current design choices; explicit `as` captures were one until the
 redesign, which adds expressions beside them.
+
+## Single-precision data
+
+aildb (a vector search engine written in AIL) keeps its vectors as IEEE 754
+binary32 and scores them in binary64. The language had no statement that
+reads, converts or computes a binary32; `load4` gives the 32 bits as an
+integer. Its feasibility study of 2026-11-21 measured a conversion written
+with integer statements at 3.4 times the time of one instruction, and
+asked for statements in the compiler.
+
+- [x] Convert between binary32 and binary64: `f4to8 a as x` and
+  `f8to4 a as x`, rows of `optab` around `cvtss2sd` and `cvtsd2ss`.

@@ -192,6 +192,7 @@ That is the general way, and what the table below shows. The statements that onl
 | `at` | `add rdx, rsi` / `jc trap` / `cmp rdx, rdi` / `ja trap` / `add rax, rsi` / `jmp over` / `ud2` |
 | `fadd` `fsub` `fmul` `fdiv` | `movq xmm0, rax` / `movq xmm1, rdi` / the `sd` instruction / `movq rax, xmm0` |
 | `fsqrt` `itof` `ftoi` | `sqrtsd`, `cvtsi2sd`, `cvttsd2si` between `rax` and `xmm0` |
+| `f4to8` `f8to4` | `movd xmm0, eax` / `cvtss2sd xmm0, xmm0` / `movq rax, xmm0`, and `movq xmm0, rax` / `cvtsd2ss xmm0, xmm0` / `movd eax, xmm0`, which clears the high half of `rax` |
 | `flt` `fle` `feq` | `ucomisd` / `seta`, `setae`, or `sete` and not parity / `movzx eax, al` |
 | `padd` `psub` `pmul` `pdiv` | `movupd xmm0, [rdi]` / `movupd xmm1, [rsi]` / the `pd` instruction / `movupd [rax], xmm0` |
 | `pmadd` | the two loads / `mulpd xmm0, xmm1` / `movupd xmm1, [rax]` / `addpd xmm1, xmm0` / `movupd [rax], xmm1` |

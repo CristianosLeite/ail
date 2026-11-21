@@ -224,6 +224,30 @@ fmul r k as r
 ftoi r as n             # n = 1414
 ```
 
+### Single precision
+
+```
+f4to8 a as x
+f8to4 a as x
+```
+
+A value that is computed is a double, but data is often kept as IEEE 754 binary32, four bytes a number. These two statements go between the forms; there is no arithmetic on a binary32.
+
+| Statement | Result |
+|---|---|
+| `f4to8 a` | the binary32 in the low 32 bits of `a`, as a double |
+| `f8to4 a` | the double `a` rounded to a binary32, in the low 32 bits, with zeros above them |
+
+`f4to8` reads only the low 32 bits, which is what [`load4`](#load-and-store) gives of four bytes. Every binary32 is a double, so it rounds nothing: zeros and infinities keep their sign, a subnormal becomes a normal double, and a value that is not a number stays none, a signalling one made quiet. `f8to4` rounds to the nearest binary32, a tie to the one whose last bit is 0; a double beyond the largest binary32 by half a last place or more becomes an infinity, and one below half the smallest becomes a zero of its sign. Its result is ready for `store4`.
+
+```
+load4 p as v            # four bytes of a file
+f4to8 v as x
+fmul x x as x
+f8to4 x as w
+store4 q w
+```
+
 ### Two doubles at once
 
 ```

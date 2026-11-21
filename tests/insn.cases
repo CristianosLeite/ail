@@ -48,6 +48,8 @@ feq 7 3 as x | b807000000bf0300000066480f6ec066480f6ecf660f2ec10f9bc10f94c020c80
 fsqrt 7 as x | b80700000066480f6ec0f20f51c066480f7ec04889c3 | mov eax, 7 ; movq xmm0, rax ; sqrtsd xmm0, xmm0 ; movq rax, xmm0 ; mov rbx, rax
 itof 7 as x | b807000000f2480f2ac066480f7ec04889c3 | mov eax, 7 ; cvtsi2sd xmm0, rax ; movq rax, xmm0 ; mov rbx, rax
 ftoi 7 as x | b80700000066480f6ec0f2480f2cc04889c3 | mov eax, 7 ; movq xmm0, rax ; cvttsd2si rax, xmm0 ; mov rbx, rax
+f4to8 7 as x | b807000000660f6ec0f30f5ac066480f7ec04889c3 | mov eax, 7 ; movd xmm0, eax ; cvtss2sd xmm0, xmm0 ; movq rax, xmm0 ; mov rbx, rax
+f8to4 7 as x | b80700000066480f6ec0f20f5ac0660f7ec04889c3 | mov eax, 7 ; movq xmm0, rax ; cvtsd2ss xmm0, xmm0 ; movd eax, xmm0 ; mov rbx, rax
 args as p | 4889e04889c3 | mov rax, rsp ; mov rbx, rax
 buf b 16 ; len b as n | b8100000004889c3 | mov eax, 16 ; mov rbx, rax
 args as p ; load p as x | 4889e04889c3488b2b | mov rax, rsp ; mov rbx, rax ; mov rbp, [rbx]
