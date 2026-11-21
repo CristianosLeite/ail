@@ -822,3 +822,16 @@ Five questions that the measurements above left, each with the same method: the 
 | dot, 1000 x 20 | 32.73 | 9.12 | 9.10 | 1.003 |
 
 `sum` and `dot` take the time of the loops of C, from 3.3 to 3.5 times it, and the geometric mean of the six kernels goes from 2.772 to 1.232. `cols` does not use the statements (its two runs differ within the variation of that kernel between runs). The sum in pairs, `ndsumpw`, adds its runs of 128 elements through `ndacc` and gains with it. Kept.
+
+**Arrays taken backwards.** A view with the step -1 has a stride of -8, and its runs took the loop with three strides that chooses the operation for each element. `ndrun` now turns a run round when the result goes backwards and each of the two others does too or is one element: it starts at the lowest address and takes the loops for arrays that lie one behind the other, two doubles at a time. Each element is computed alone, so the bits are the same, also for a result that is one of the two. The kernels of `ndelem` on such views of its three arrays, the median of nine processes in milliseconds, beside the arrays forwards:
+
+| kernel, count x runs | before | after | forwards |
+|---|---:|---:|---:|
+| add, 1000 x 20000 | 32.69 | 8.17 | 8.41 |
+| mul, 1000 x 20000 | 31.13 | 8.44 | 8.15 |
+| scale, 1000 x 20000 | 29.54 | 7.80 | 7.67 |
+| add, 1000000 x 20 | 28.27 | 13.47 | 13.54 |
+| mul, 1000000 x 20 | 28.42 | 14.32 | 14.34 |
+| scale, 1000000 x 20 | 27.72 | 12.20 | 12.16 |
+
+3.7 to 4.0 times less at a thousand numbers, 2.0 to 2.3 times less at a million, and the time of the arrays forwards. A result backwards of arrays forwards, and any other mix of strides, goes one element at a time as before. Kept.

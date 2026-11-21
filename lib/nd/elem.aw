@@ -25,7 +25,9 @@
 # (padd, psub, pmul, pdiv), a number that goes with all of them from 16
 # bytes that hold it twice, and the last of an odd count alone; the
 # bits are those of one at a time, which is how elements that lie
-# apart and integers are computed.
+# apart and integers are computed. A run whose arrays all go backwards,
+# 8 bytes down from each element to the next, is computed from its
+# lowest address on, in the same loops.
 #
 # The three arrays are of one kind. Doubles are computed as fadd, fsub,
 # fmul and fdiv do: a division by zero gives an infinity or what is no
@@ -147,6 +149,24 @@ end
 # an integer
 fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 	local ndkk 16
+	# a run taken backwards, every array of it or its one element: each
+	# element is computed alone, so it is the run from its lowest address
+	# on forwards
+	if (ndso==0-8)&(ndn!=0)
+		if ((ndsa==0-8)|(ndsa==0))&((ndsb==0-8)|(ndsb==0))
+			ndx=ndn*8-8
+			ndp-=ndx
+			ndso=8
+			if ndsa
+				ndq-=ndx
+				ndsa=8
+			end
+			if ndsb
+				ndr-=ndx
+				ndsb=8
+			end
+		end
+	end
 	if ndso==8
 		# the result one behind the other: an end, and for each of the
 		# two others a distance, or its one element

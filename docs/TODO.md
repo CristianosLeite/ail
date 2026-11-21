@@ -358,12 +358,17 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    the sum in `xmm0` for the whole run and the bits of the loop of `fadd`;
    `sum` and `dot` take 1.00 to 1.03 times the time of C
    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
-7. [ ] **Use packed operations on reversed contiguous views.** In `ndrun`,
+7. [x] **Use packed operations on reversed contiguous views.** In `ndrun`,
    start at the lowest address when the result and vector operands all have
    a stride of −8 bytes and any scalar operands have stride zero. Reuse the
    existing forward packed loops and keep the general strided path. A
    prototype gave a 3.8x speedup at 1,000 elements and 2.1–2.4x at a million.
    Compare bits for odd lengths, scalar broadcasts and exact in-place views.
+   Done on 2026-11-21: `ndrun` turns such a run round; 3.7 to 4.0 times
+   less time at 1,000 elements and 2.0 to 2.3 at a million, the time of the
+   arrays forwards, with the bits of a loop over the indices
+   (`tests/lib_nd_reversed`;
+   [results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 8. [ ] **Reduce setup cost for small contiguous vectors.** Add a direct path
    for nonempty contiguous rank-one doubles when the output is disjoint
    from both inputs, including scalar operands. Share the arithmetic loops

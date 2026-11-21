@@ -54,6 +54,9 @@ when first measured, 2.18 times since the loops take two doubles at once.
   `optab` whose code is the whole loop with the sum in `xmm0`, bring them to 1.00 to 1.03
   times C with the same bits (`ndacc` is an `fsum`). A statement that is a loop was chosen
   over floating-point registers for variables, which would change the allocator.
+- `ndrun` turns a run round when the result has the stride -8 and the others -8 or 0, so
+  views taken backwards use the packed loops: 3.7 to 4.0 times less time at a thousand
+  numbers. Mixed strides still go one element at a time.
 - Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,
   it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
   5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30

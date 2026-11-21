@@ -1,7 +1,9 @@
 # doubles that lie one behind the other are computed two at a time, the
 # last of an odd count alone: for 0 to 9 numbers, and for matrices of
 # sides 4 and 5, the bits must be those that the same arrays give
-# backwards, which are computed one at a time
+# backwards. The matrices backwards are computed one at a time; the
+# arrays of one axis are then computed from their lowest address on,
+# which tests/lib_nd_reversed compares with loops of its own
 use "lib/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
