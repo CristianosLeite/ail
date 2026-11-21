@@ -273,6 +273,64 @@ a small internal interface for compiler-generated code.
    server. Measure source tokens, throughput, latency and memory per task
    on representative workloads before broadening the API.
 
+## Native numerical arrays
+
+Port NumPy's core array model to AIL on x86-64 Linux. Use `ndarray` views,
+broadcasting and elementwise operations as the reference for a compact
+library under `lib/nd/`. Programs bring it in with `use` and call prefixed
+functions. The implementation uses AIL's existing memory operations and
+scalar floating-point statements and runs without Python or BLAS.
+[NumPy copies and views](https://numpy.org/doc/stable/user/basics.copies.html)
+and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
+
+1. [ ] **Establish the array descriptor and memory contract.** Follow the
+   collection libraries with caller-owned, zero-initialized descriptors and
+   no top-level initialization. Record dtype, rank, shape, signed byte
+   strides, the data origin and the backing storage bounds. Start with
+   row-major contiguous `f64` arrays and rank-1 and rank-2 workloads. Check
+   shape products, allocation sizes and offsets before accessing storage.
+   Define owned arrays and borrowed views, with the backing storage kept
+   alive by the caller until all views are finished. Free owned storage
+   and reset its descriptor. Return errors explicitly and preserve the
+   descriptor on failure.
+2. [ ] **Add views and elementwise kernels.** Support basic slicing,
+   transpose and reshape of contiguous arrays as metadata operations, and
+   provide an explicit copy for materializing a view. Use one strided
+   traversal for same-shape and broadcast operations, with a flat loop for
+   contiguous inputs. Match dimensions from the right and use zero input
+   strides for expanded axes, including scalar operands. Start with add,
+   subtract, multiply and divide. Write to caller-provided outputs so
+   buffers can be reused across operations. Allow exact in-place matches
+   for elementwise kernels, reject other output overlap with inputs, and
+   reject output views that map multiple elements to one address.
+3. [ ] **Add reductions and matrix products.** Implement sum and mean over
+   the whole array and along one axis, and add vector dot products and 2-D
+   matrix multiplication. Specify empty axes, NaNs, infinities and the
+   accumulation order. Evaluate pairwise summation against the scalar
+   baseline. Add `i64` with explicit conversions once the `f64` kernels
+   and fixtures are in place. Define integer overflow before extending
+   the reductions to integers.
+4. [ ] **Verify the semantics and measure the kernels.** Check shapes,
+   negative strides, empty and singleton axes, incompatible broadcasting,
+   aliasing, overflow and allocation failure in `tests/lib_nd_*`. Generate
+   reference fixtures with a pinned NumPy version and commit the expected
+   results so `make test` runs offline without Python. Use tolerances for
+   floating-point results and check special values separately. Extend the
+   `perf` method to measure elementwise operations, reductions and matrix
+   products on identical inputs against C (`-O3`) and, in an optional run,
+   NumPy. Check results before timing, report kernel and end-to-end time
+   separately, and count caller tokens for equivalent workloads. Document
+   the API and results in [language.md](language.md) and
+   [performance.md](performance.md).
+5. [ ] **Optimize based on measurements.** Compare cache blocking for matrix
+   multiplication and coarse tasks with disjoint outputs using `spawn` and
+   `join`. Use the scalar baseline to evaluate selective SIMD support and
+   keep a scalar fallback if new instructions are added. Check numerical
+   behavior and the compiler fixed point for any code generation changes.
+   Use concrete workloads to decide when to add more dtypes, advanced
+   indexing, `.npy` I/O, linear algebra or FFTs, and use caller token counts
+   to decide whether array syntax is worth adding.
+
 ## Algorithm benchmarks and collection APIs
 
 Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)
