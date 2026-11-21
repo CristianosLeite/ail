@@ -55,8 +55,9 @@ fn exname
 		# of a while is read a second time from the end of its loop
 		d=r*8+vlast
 		load d as c
-		if ip>c
-			store d ip
+		call vpos as u
+		if u>c
+			store d u
 		end
 		call vment r
 		ifz asg>>r&1
@@ -1472,6 +1473,7 @@ fn xmload
 	kk=1
 	ifz f
 		asg|=1<<p
+		fnwr|=1<<p
 		store p*32+vk 0
 		call vplace p as kk pp
 		ifz kk
@@ -1906,14 +1908,14 @@ fn exasn f
 			ret 0
 		end
 	end
-	o=nv
+	o=vhi
 	call defv as i
 	load i*8+vlocal as d
 	if d
 		call edup
 	end
-	if infn
-		if nv!=o
+	if infn&(ilon==0)
+		if vhi!=o
 			# a new variable begins behind the line, after the last mention of every
 			# operand, so that it may take the place of one that is done
 			d=i*8+vfirst
@@ -1941,6 +1943,7 @@ fn xstore f i
 		ret 0
 	end
 	asg|=1<<i
+	fnwr|=1<<i
 	d=i*32+vk
 	store d k0
 	d+=8

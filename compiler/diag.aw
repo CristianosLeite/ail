@@ -102,6 +102,10 @@ fn eres
 	call die "wrong result count" 1
 end
 fn eunasgj
+	# not in a body compiled in place, which was checked where it stands
+	if ilon
+		ret 0
+	end
 	call die "unassigned variable" 1
 end
 fn eaccl
@@ -118,6 +122,9 @@ fn eund
 	call die "undefined variable" 1
 end
 fn eunasg
+	if ilon
+		ret 0
+	end
 	ename=ns
 	enamel=nl
 	call die "unassigned variable" 1

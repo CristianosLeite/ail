@@ -370,6 +370,59 @@ The second is never slower and is what a `while` already is for one comparison, 
 
 `mergesort` takes 2 to 17% less time in its eight rows and is within 6% of C in the mean, behind by 22% only on few values at a thousand elements. `hashtab`, whose `place` has the loop `while (x!=0)&(x!=k)`, takes 4 to 22% less in its twelve. The other four programs have no such loop and are where they were, as are the five CPU-bound programs (1.036). Since the first measurement the 48 kernel times went from 1.753 times those of C to 1.257.
 
+## Calls compiled in place, 2026-11-20
+
+The fourth step. A `call` in a function, of a short function that stands before it, is now the body of that function ([how](compiler.md#functions)): in `hashtab` the two loops hold the lines of `place`, in `bsearch` the loop of `search` holds `lower`. `sift` of `heapsort` is 165 bytes of code, over the limit of 160, and stays a call.
+
+**Where the code lies moves the time.** The first run after the change had `heapsort` at a thousand elements 15 to 34% slower, though its two functions were the same bytes as before: only the harness in front of them had become longer. A line of `data` before the first function, which moves all code behind it, showed it. `heapsort` on a thousand random words, the unchanged compiler, kernel time against the bytes the code was moved by:
+
+| moved by | 0 | 6 | 8 | 12 | 16 | 20 | 24 | 28 | 32 | 36 | 38 | 64 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ms | 20.4 | 18.6 | 18.0 | 23.5 | 23.8 | 22.9 | 23.1 | 21.7 | 20.7 | 15.5 | 16.0 | 20.5 |
+
+The time repeats every 32 bytes and lies between 15.5 and 23.8 ms. So at a thousand elements a difference of a fifth between two builds may be nothing but the place of a loop among the 32-byte lines of the processor, and a comparison of two compilers must not rest on one place. `bsearch` at a thousand elements moves between 38 and 69 ms the same way; the rows of a million elements, where the time is the memory, move by 2 to 5%. The 22 to 24% that `bsearch` lost with [the registers by weight](#registers-by-weight-2026-11-20) are of this kind.
+
+**The comparison, over eight places.** Each program was therefore built eight times by each compiler, with 1, 5, 9, ... 29 bytes of `data` before its first function, every executable run five times in turn on one CPU, and the median of each taken. Kernel times in milliseconds, the least, the median and the greatest of the eight places, with the call and with the body in place; the last column compares the medians:
+
+| kernel, input | with the call | in place | |
+|---|---:|---:|---:|
+| `hashtab` insert, random, 1000 x 5000 | 9.20, 9.32, 9.79 | 6.19, 6.58, 6.97 | -29% |
+| `hashtab` hit, random, 1000 x 5000 | 9.54, 9.69, 10.07 | 7.63, 7.78, 7.90 | -20% |
+| `hashtab` miss, random, 1000 x 5000 | 11.40, 13.47, 14.95 | 9.43, 10.09, 12.28 | -25% |
+| `hashtab` insert, few, 1000 x 5000 | 8.33, 8.44, 8.57 | 5.29, 5.40, 5.64 | -36% |
+| `hashtab` hit, few, 1000 x 5000 | 8.24, 8.27, 8.81 | 6.10, 6.20, 6.62 | -25% |
+| `hashtab` miss, few, 1000 x 5000 | 10.26, 10.53, 11.05 | 7.13, 7.68, 8.02 | -27% |
+| `hashtab` insert, random, 1000000 x 2 | 26.06, 26.16, 27.24 | 22.43, 23.02, 23.40 | -12% |
+| `hashtab` hit, random, 1000000 x 2 | 30.01, 30.55, 31.37 | 28.14, 28.43, 29.09 | -7% |
+| `hashtab` miss, random, 1000000 x 2 | 47.44, 48.25, 49.21 | 44.88, 45.88, 46.55 | -5% |
+| `hashtab` insert, few, 1000000 x 4 | 6.06, 6.41, 7.06 | 4.31, 4.98, 5.28 | -22% |
+| `hashtab` hit, few, 1000000 x 4 | 8.34, 8.62, 9.31 | 6.86, 7.51, 8.40 | -13% |
+| `hashtab` miss, few, 1000000 x 4 | 38.53, 40.68, 41.77 | 34.70, 36.52, 37.43 | -10% |
+| `bsearch`, random, 1000 x 2000 | 45.11, 47.69, 57.46 | 38.17, 48.70, 68.92 | +2% |
+| `bsearch`, few, 1000 x 2000 | 42.51, 47.74, 55.24 | 35.77, 46.75, 70.17 | -2% |
+| `bsearch`, random, 1000000 x 1 | 122.11, 124.12, 126.09 | 122.94, 124.88, 127.53 | +1% |
+| `bsearch`, few, 1000000 x 1 | 121.21, 121.79, 125.29 | 121.90, 124.74, 129.27 | +2% |
+
+- `hashtab` takes 5 to 36% less time in all twelve, and in ten of them the slowest place of the new code is faster than the fastest of the old; in the misses on a thousand random keys and the hits on a million keys of few values the ranges meet. A round of its loops was a call, six pushes and pops and a return around a probe of one or two loads.
+- `bsearch` is the same within what its place does. A call of `lower` runs ten rounds at a thousand elements and twenty at a million, so the call was a small part.
+- `heapsort` with the limit raised to 200 bytes, so that `sift` is in place twice: 21.8 against 21.1 ms at a thousand random words (medians; the eight places span 16.3 to 25.4 and 18.2 to 23.0), and 98.5 against 92.3 ms at a million, 7% slower at every place. A call of `sift` runs a loop of up to twenty rounds, and in `heapsort` its seven variables come to those of the caller: eight are then in use in the loop for six registers, where `sift` alone has seven. The limit of 160 bytes is what separates the three functions measured, no more than that.
+
+A parameter that the body only reads is the caller's variable itself, so `insert` with `place` in it is, instruction for instruction, the loop that was [written by hand](#registers-by-weight-2026-11-20) before. The executables of the six programs grew by 850 to 1117 bytes each (`hashtab` from 4087 to 5204), most of it the short functions of the harness at their calls. The compiler, compiled by itself, is 630 bytes longer than without (48779 against 48149) and compiles its own source in 5.4 ms against 5.7.
+
+The full run, at one place each, AIL against C in the geometric mean of the kernel times:
+
+| program | two jumps | and calls in place |
+|---|---:|---:|
+| quicksort | 1.215 | 1.201 |
+| mergesort | 1.056 | 1.067 |
+| heapsort | 1.138 | 1.263 |
+| bsearch | 0.973 | 0.863 |
+| hashtab | 1.614 | 1.306 |
+| graph | 1.335 | 1.340 |
+| all 48 kernel times | 1.257 | 1.201 |
+
+Of these only the row of `hashtab` is the change. `heapsort` and `bsearch` are the same kernels at another place, one slower by it and one faster, which is the reason for the eight places above. The five CPU-bound programs are at top level and unchanged (1.036).
+
 ## Tasks, 2026-11-20
 
 `tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.

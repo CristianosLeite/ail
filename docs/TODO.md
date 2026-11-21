@@ -407,7 +407,7 @@ order. See [benchmark method](performance.md#method).
    2,000 tasks on 20 threads, falling to 2.44x and 3.48x at 200,000 tasks.
    `memsum` peaked at 2.95x with 200 tasks per pass.
 
-5. [ ] **Inline small functions at their calls.** With the current compiler,
+5. [x] **Inline small functions at their calls.** With the current compiler,
    writing `place` into the two `hashtab` loops by hand reduced kernel time
    by 6% to 31% across all 12 cases, with 123 more bytes in the executable.
    This includes the random misses at 1,000 keys that regressed before the
@@ -415,6 +415,15 @@ order. See [benchmark method](performance.md#method).
    no `ret` inside a loop, a size limit), how the variables of the callee are
    named in the caller's 64, and how the two passes see the body.
    Measure `hashtab`, `heapsort` (`sift`) and `bsearch` (`lower`).
+   Done on 2026-11-20: a call in a function, of a function before it whose
+   code is at most 160 bytes and whose body has no call and no global name,
+   is its body, read again from the source; a parameter that is only read
+   is the caller's variable. Over eight places of the code `hashtab` takes
+   5 to 36% less time, `bsearch` the same, and `heapsort` with `sift` in
+   place 7% more at a million elements, so `sift` stays a call
+   ([results](performance.md#calls-compiled-in-place-2026-11-20)). The
+   same kernel moved by a few bytes varies by a fifth at a thousand
+   elements, which the results take into account.
 6. [ ] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
    two words. Keep the probe index even, advance it by two and use twice the
    slot mask to wrap. This lets `load t+h*8` use the x86-64 scaled operand in

@@ -532,7 +532,9 @@ fn alloc
 		load b+8 as hi
 		i=0
 		label v
-		if i<nv
+		if i<vhi
+			loadb i+vinl as t
+			jeq t 1 s
 			k=i*8
 			load k+vfirst as t
 			jnz t>hi s
@@ -554,7 +556,7 @@ fn alloc
 	# each loop it stands in, up to 8 loops. Not for a function so large that
 	# looking at every loop for every mention would take long.
 	i=0
-	while i<nv
+	while i<vhi
 		store i*8+vwt 0
 		storeb i+vdone 0
 		i+=1
@@ -564,7 +566,7 @@ fn alloc
 	while m<nvm
 		load m*8+vms as t
 		p=t>>8
-		d=0
+		d=t>>6&3
 		if w
 			n=nloops
 			b=loops
@@ -579,7 +581,7 @@ fn alloc
 				d=8
 			end
 		end
-		k=(t&255)*8+vwt
+		k=(t&63)*8+vwt
 		load k as u
 		store k u+(1<<d*3)
 		m+=1
@@ -590,11 +592,11 @@ fn alloc
 	fnslots=0
 	fnregs=0
 	c=0
-	while c<nv
+	while c<vhi
 		x=64
 		w=0
 		i=0
-		while i<nv
+		while i<vhi
 			loadb i+vdone as t
 			ifz t
 				load i*8+vwt as u
@@ -607,13 +609,14 @@ fn alloc
 		end
 		storeb x+vdone 1
 		load x*8+vlocal as t
-		ifz t
+		loadb x+vinl as u
+		if ((t==0)|(u&1))&(u!=0)
 			load x*8+vfirst as lo
 			load x*8+vlast as hi
 			j=fnasy*6
 			label q
 			i=0
-			while i<nv
+			while i<vhi
 				loadb i+vdone as t
 				if t==2
 					loadb i+fnloc as u
@@ -663,6 +666,7 @@ fn eop
 		if ai>6
 			call ecount
 		end
+		jnz ilon k
 		ifz fnres
 			fnres=ai
 		end
@@ -678,6 +682,15 @@ fn eop
 		call memchk r
 	end
 	jz f&32 m
+	if ilon
+		# a ret of a body compiled in place: the values are where the names
+		# after "as" take them, and a jump leads to the end of the body
+		call godead
+		call eb 233
+		call e4 ilret
+		ilret=op-4-out
+		ret 0
+	end
 	if fnasy
 		if f&16
 			call eplace
@@ -839,6 +852,193 @@ fn eop
 		call e4 pushed
 		pushed=0
 	end
+end
+# The function whose body is to be compiled in place of the call at hand,
+# or -1: a plain call in a function that is no task, of a function that
+# stands before, was found fit at its end, has this many parameters and
+# at least as many results as there are names, while the variables of both
+# are 64 at most. A body is not compiled inside another.
+fn inlchk
+	if (infn==0)|(fnasy|ilon)
+		ret -1
+	end
+	loadb cur+1 as f
+	loadb cur+2 as c
+	if (f&48!=16)|(c&102!=0)
+		ret -1
+	end
+	ns=cn
+	nl=cl
+	call lfn as i
+	if i==-1
+		ret -1
+	end
+	p=i*24+finl
+	load p as b
+	ifz b
+		ret -1
+	end
+	load p+8 as n
+	if nv+n>64
+		ret -1
+	end
+	q=i*40+funs
+	load q+24 as n
+	if n!=ai
+		ret -1
+	end
+	load4 q+32 as n
+	if ncap>n
+		ret -1
+	end
+	ret i
+end
+# Compile the body of function i in place of the call at hand, whose
+# values are in the registers of a call: keep what the statement goes on
+# with, open a scope for the labels and a range of variables of its own,
+# define the parameters from those registers and read on at the first
+# line of the body. e is where its mentions count as made.
+fn inlopen i e
+	ilon=1
+	ilany=1
+	ilcur=cur
+	ilip=ip
+	ilie=ie
+	ie=srcend
+	ilpos=e
+	ilcap=ncap
+	call cp4 caps ilcaps
+	call cp4 caps+32 ilcaps+32
+	call cp4 caps+64 ilcaps+64
+	ilasg=asg
+	ildead=dead
+	iljm=jmask
+	ilbb=blkbase
+	blkbase=nblk
+	illab=labbase
+	ilfix=fixbase
+	ilsc=scope
+	labbase=nlabels
+	fixbase=nfix
+	nscope+=1
+	scope=nscope
+	ilnh=nhn
+	ilbase=nv
+	vlo=nv
+	ilret=0
+	ildep=0
+	xflg=16
+	k=0
+	while k<64
+		call cp4 k*32+vk k*32+ilvk
+		k+=1
+	end
+	call clrvk
+	load4 i*40+funs+32 as n
+	ilres=n
+	load i*24+finl as p
+	ip=p
+	# A parameter that the body never assigns, given a variable by itself, is
+	# another name of that variable: m has the bit of each such. If all are,
+	# the code that loaded the values is taken back.
+	load i*24+finl+16 as w
+	m=0
+	k=0
+	while k<ai
+		if (ilpl>>k&1)>(w>>k&1)
+			loadb ilarg+k as r
+			load r*8+vlocal as n
+			ifz n
+				m|=1<<k
+			end
+		end
+		k+=1
+	end
+	if ai
+		if m+1==1<<ai
+			op=ilop
+		end
+	end
+	k=0
+	while k<ai
+		call blanks
+		if m>>k&1
+			call rdname
+			r=nv
+			call vbase as p
+			call putn p+r*16
+			nv=r+1
+			if r>=vhi
+				vhi=r+1
+				store r*8+vfirst e
+				store r*8+vlast e
+				storeb r+vinl 0
+			end
+			loadb ilarg+k as n
+			storeb r+valias n+1
+			asg|=1<<r
+		else
+			call defvar as r
+			asg|=1<<r
+			call areg k as f
+			call vmov r f 137
+		end
+		k+=1
+	end
+	call eol
+end
+# The end of a body compiled in place: 0 for each result if its last line
+# is reached, the jumps of its rets to here (one that would jump over
+# nothing is taken back), its labels resolved and dropped, and the state
+# of the call again.
+fn inlclose
+	if dead
+		if ilret
+			if ilret+4==op-out
+				op-=5
+				load4 out+ilret as n
+				ilret=n
+			end
+		end
+	else
+		loadb ilres+zerolen-1 as n
+		call cp zeroes n
+	end
+	p=ilret
+	while p
+		q=out+p
+		load4 q as p
+		store4 q op-q-4
+	end
+	call resolve
+	nfix=fixbase
+	nlabels=labbase
+	fixbase=ilfix
+	labbase=illab
+	scope=ilsc
+	call hundo ilnh
+	blkbase=ilbb
+	asg=ilasg
+	dead=ildead
+	jmask=iljm
+	k=0
+	while k<64
+		call cp4 k*32+ilvk k*32+vk
+		k+=1
+	end
+	nv=ilbase
+	vlo=0
+	xflg=16
+	ip=ilip
+	ie=ilie
+	ncap=ilcap
+	call cp4 ilcaps caps
+	call cp4 ilcaps+32 caps+32
+	call cp4 ilcaps+64 caps+64
+	cur=ilcur
+	store opd 0
+	store opd+32 0
+	ilon=0
 end
 # fill in the jumps of the current scope, now that its labels are known
 fn resolve
