@@ -323,7 +323,7 @@ The second step. A function has six registers for its variables, and they went t
 - `quicksort` and `mergesort`, each one function with ten or more variables, take 13 to 56% less time: on input in order about half, and `quicksort` on a million such words is level with C (1.01 and 1.02).
 - `graph` takes up to 53% less (`dfs` at a thousand vertices) and `heapsort` up to 27% less at a thousand elements; at a million `heapsort` is as it was, within 2%.
 - `bsearch` at a thousand elements takes 22 and 24% more time than with scaled indexes alone, and is still ahead of C (0.92). Its functions have six and seven variables, so at most one of them changed its place; why that costs so much in a loop of a load, a comparison and a branch was not looked into. At a million it is unchanged.
-- `hashtab` gains 3 to 12% at a thousand keys and loses 4 to 5% in the three kernels on a million random keys, where the time is the memory. It stays the furthest from C, since its loops are calls of `place`.
+- `hashtab` gains up to 12% at a thousand keys and loses 4 to 5% in the three kernels on a million random keys, where the time is the memory. It stays the furthest from C, since its loops are calls of `place`.
 - The five CPU-bound programs are at top level, where nothing changed: 1.037.
 
 **Inlining, evaluated.** `hashtab` was written a second time with `place` in the two loops by hand and timed the same way, 15 rounds, against the form with the call (kernel times in milliseconds, both built by the compiler with registers by weight):
@@ -344,6 +344,31 @@ The second step. A function has six registers for its variables, and they went t
 | miss, few, 1000000 x 4 | 47.15 | 38.60 | -18% |
 
 The code is 102 bytes longer (4035 against 3933) and names `rsp` 151 times against 143. With the registers in order of definition the same rewriting had made the lookups that miss 30% slower, because the loop then had more variables on the stack than the call had cost; with the registers by weight it is faster in 11 of the 12 times and 3% slower in one, within what that row varies. Against C the inlined form is at 1.46 in the geometric mean of the twelve, the form with the call at 1.84. So inlining is worth having in the compiler now and was not before; it is a backlog item of its own, since a function is compiled from its source in two passes with no tree to copy.
+
+## Two comparisons in a while, 2026-11-20
+
+The third step. `while (i<p)&(j<q)` computed both comparisons as 1 or 0 and tested their `and`: two `cmp`, two `setcc`, two `movzx`, an `and` and a jump in every round. Two layouts with a jump for each comparison were tried by writing the loop of `mergesort` with labels and jumps, which gives exactly the code a lowering would, and timing them like any other form, twice each (kernel times, percent against the loop as it was compiled, mean of the two runs):
+
+| input | both tests at the head, one jump back | tests before the loop and at its end |
+|---|---:|---:|
+| random, 1000 x 1000 | -2% | -3% |
+| sorted, 1000 x 1000 | -12% | -11% |
+| reversed, 1000 x 1000 | -1% | -17% |
+| few, 1000 x 1000 | -1% | -10% |
+| random, 1000000 x 1 | +1% | 0% |
+| sorted, 1000000 x 1 | -18% | -17% |
+| reversed, 1000000 x 1 | -9% | -18% |
+| few, 1000000 x 1 | -6% | -8% |
+
+The second is never slower and is what a `while` already is for one comparison, a test before the loop and one at its end, so the compiler now writes it: the first comparison jumps out when it fails, the second jumps back while it holds. An earlier trial of split branches, with the registers still in order of definition, had been up to 18% slower on small random input; with the loop's variables in registers that loss is gone. Only a `while` on exactly two comparisons joined by `&`, without a division, is compiled so: there the two forms cannot be told apart, since a comparison neither traps nor assigns. A full run, AIL against C in the geometric mean of the kernel times:
+
+| program | registers by weight | and two jumps |
+|---|---:|---:|
+| mergesort | 1.200 | 1.056 |
+| hashtab | 1.835 | 1.614 |
+| all 48 kernel times | 1.325 | 1.257 |
+
+`mergesort` takes 2 to 17% less time in its eight rows and is within 6% of C in the mean, behind by 22% only on few values at a thousand elements. `hashtab`, whose `place` has the loop `while (x!=0)&(x!=k)`, takes 4 to 22% less in its twelve. The other four programs have no such loop and are where they were, as are the five CPU-bound programs (1.036). Since the first measurement the 48 kernel times went from 1.753 times those of C to 1.257.
 
 ## Tasks, 2026-11-20
 

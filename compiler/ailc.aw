@@ -51,6 +51,9 @@ var nblk blkbase topblk whead wsrc
 # it is, where the source goes on, the first line of the loop in the
 # output, and what was assigned at the head
 var wend wip wbody wasg wnv
+# xsc = the rel32 of the jump that a while of two comparisons joined by &
+# takes when the first does not hold, to be filled in; 0 if there is none
+var xsc
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -319,6 +322,10 @@ label wclose
 call xjcond
 call eop
 call e4 wbody-op-4
+if xsc
+	store4 xsc op-xsc-4
+	xsc=0
+end
 call blktop as p
 nblk-=1
 wend=0
@@ -481,6 +488,12 @@ else
 	# variables there are now when it is read again
 	store p op+4
 	store4 p-4 nv
+	# the jump of a first comparison lands where this one does: how far
+	# before this rel32 its own is
+	if xsc
+		store4 p-8 op-xsc
+		xsc=0
+	end
 end
 p+=8
 store p wsrc

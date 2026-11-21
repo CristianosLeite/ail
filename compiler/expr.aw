@@ -1680,6 +1680,12 @@ end
 # of if, ifz, jz or jnz is not turned into 1 or 0 and tested: the statement
 # becomes the one that compares and jumps (ifeq, jlt, ...), or its opposite
 # for ifz and jz. The name read last, the label of a jump, is kept.
+# The value of a while that is two comparisons joined by &, with no
+# division in it, is two jumps: one written here, taken when the first
+# comparison does not hold, past the loop from its head and past the jump
+# back from its end (xsc, filled in by the caller), and then the second
+# comparison as the whole value. Neither comparison can trap or assign, so
+# leaving the second out changes nothing but the time.
 fn xjcond
 	if xst<2
 		ret 0
@@ -1696,6 +1702,7 @@ fn xjcond
 	h=nex
 	load exv as e
 	e+=1
+	g=0
 	if xst==3
 		h=nex-1
 		p=h*32+ex
@@ -1703,6 +1710,33 @@ fn xjcond
 		load p+8 as o
 		if k!=6
 			o=0
+		end
+		if (o==7)&(exdm==0)&((whead|wend)!=0)
+			load p+16 as li
+			q=li*32+ex
+			load q as k
+			load q+8 as a
+			load p-32 as b
+			load p-24 as c
+			if (k==6)&(a>=10)&(b==6)&(c>=10)
+				load q+16 as e
+				e+=1
+				call xinit 0x0fc1 16
+				call xgen 0 e
+				call xgen e li
+				call xpop2
+				call xcmp as s x y
+				loadb a*3+xopc+2 as c
+				call eb 15
+				call eb c-16^1
+				xsc=op
+				call z 4
+				# what is left is the second comparison
+				g=li+1
+				h-=1
+				p-=32
+				load p+8 as o
+			end
 		end
 		if o<10
 			call xinit 0x0fc1 16
@@ -1776,7 +1810,7 @@ fn xjcond
 		ai=2
 	end
 	call xinit 0x0fc1 16
-	call xgen 0 e
+	call xgen g e
 	call xgen e h
 	call xpop2
 	call xcmp as s x y

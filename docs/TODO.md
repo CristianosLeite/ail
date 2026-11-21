@@ -376,13 +376,16 @@ with shuffled run order. See [benchmark method](performance.md#method).
    Done on 2026-11-20: registers go to the variables that the loops mention
    most, and inlining `place` by hand is then faster in 11 of the 12 kernel
    times ([results](performance.md#registers-by-weight-2026-11-20)).
-3. [ ] **Find a profitable lowering for compound loop conditions.** Use
+3. [x] **Find a profitable lowering for compound loop conditions.** Use
    [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
    its two bounds comparisons into separate branches, cutting kernel time
    by up to 7% on sorted and reversed inputs while increasing it by up to
    18% on small random or duplicate-heavy inputs. Preserve AIL's eager
    evaluation semantics, including possible traps, and compare alternative
    branch layouts across all four input shapes and both input sizes.
+   Done on 2026-11-20: a jump for each comparison before the loop and at its
+   end, which was faster in all eight inputs once the registers went by
+   weight ([results](performance.md#two-comparisons-in-a-while-2026-11-20)).
 4. [ ] **Tune task granularity before changing the pool.** Using medians from
    three runs per configuration (`build/tools/par --runs 3`), 160 tasks at
    20 threads gave a 10.21x speedup for `collatz`, 10.86x for `primes` and

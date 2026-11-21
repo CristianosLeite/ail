@@ -242,6 +242,15 @@ fn blktop
 	p=(nblk-1)*40+blks
 	load p as d
 	store4 d op-d-4
+	# a while of two comparisons has a second jump that lands here
+	load p+24 as k
+	if k
+		load4 p+16 as k
+		if k
+			d-=k
+			store4 d op-d-4
+		end
+	end
 	ret p
 end
 # where to note what is known of the next value of the statement
