@@ -19,3 +19,6 @@
 - [x] 2026-11-20 — "Source style and editor tooling" of `docs/TODO.md`: convention, `build/tools/indent`, VS Code extension, every source indented ([page](../architecture/source-style.md))
 - [ ] 2026-11-20 — Load the VS Code extension of `editors/vscode/` into the editor and check the grammar there; keep indentation in `fuse` and `infix` ([page](../architecture/source-style.md))
 - [ ] 2026-11-20 — Keep in registers the variables of an async function that cross no `await` ([page](../architecture/async-runtime.md))
+- [x] 2026-11-20 — "Algorithm benchmarks and collection APIs" of `docs/TODO.md`: six programs with C and Rust forms, kernel times in `perf`, `lib/vec.aw`, `queue.aw`, `heap.aw`, `map.aw` ([page](../architecture/algorithms-and-collections.md))
+- [ ] 2026-11-20 — The algorithm kernels take 1.75 times as long as C in the geometric mean: calls of small functions in inner loops and loops over arrays ([page](../architecture/algorithms-and-collections.md))
+- [ ] 2026-11-20 — Run the Rust algorithm programs against the references of `tests/algo.sh`, and time the collections on their own ([page](../architecture/algorithms-and-collections.md))

@@ -8,7 +8,7 @@ status: current
 
 **Summary.** `tools/tokens.sh` counts tokens of the encoding `o200k_base` (since 2026-11-20 with `build/tools/tokens`, the tokenizer in AIL, checked against `tiktoken` fixtures; before that with `tiktoken` itself) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
-11% cheaper than C and 17% cheaper than Rust, indented (13% and 19% without indentation; it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
+11% cheaper than C and 17% cheaper than Rust, indented (13% and 19% without indentation; it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not. Six algorithm programs added on 2026-11-20 are counted apart from that corpus: AIL 1516, C 1613, Rust 1783 (6% and 15% cheaper), with AIL dearer than C in `mergesort` and `graph`, where a `load` and a `store` each take a line that C writes as `*k++ = *j++`.
 `tools/perf.aw` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
 
 ## Facts

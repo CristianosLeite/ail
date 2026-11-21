@@ -1,6 +1,6 @@
 # Performance
 
-`tools/perf.aw`, built as `build/tools/perf` by `make tools`, times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`.
+`tools/perf.aw`, built as `build/tools/perf` by `make tools`, times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`. For the six algorithm programs it also reports the time of the kernel alone, on several inputs each ([below](#algorithms-2026-11-20)).
 
 ```
 make all tools
@@ -34,7 +34,7 @@ The programs are of two kinds, reported apart:
 | `fnv` | hashes a megabyte a hundred times with FNV-1a | byte loads, a multiplication per byte |
 | `isort` | sorts 30000 numbers by insertion | 64-bit loads and stores, a comparison per step |
 
-The last four have no assembly equivalent. They are written as the language is written today, one operation a line with labels and jumps, and at top level with at most six variables, since a seventh would live in memory there.
+The last four have no assembly equivalent, and neither have the algorithm programs. At the baseline below the four were written as the language then was, one operation a line with labels and jumps, and at top level with at most six variables, since a seventh would live in memory there.
 
 ## Baseline, 2026-11-20
 
