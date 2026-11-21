@@ -52,5 +52,7 @@ Indentation costs 2% in tokens and nothing in the compiled program.
   without a name were not coloured, the string of a `use` without its quote ran over the next
   lines, and an `else` of no block folded. All fixed; it reports 0.
 - The copy installed in `~/.vscode/extensions/ail.ail-0.1.0` on 2026-11-20 was from a vsix
-  older than the grammar; it is now a symlink to `editors/vscode`, as the README says. What
-  the colours look like in the window was not looked at by the agent; that is the user's eye.
+  older than the grammar; it is now a symlink to `editors/vscode`, as the README says. The
+  user looked at it in the editor on 2026-11-21 and found it working: colours, folding and
+  formatting of `.aw` files (the extension the sources have had since they stopped being
+  `.ai`; no file of `editors/vscode/` names `.ai`).
