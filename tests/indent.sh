@@ -81,7 +81,7 @@ else
     cmp -s "$tmp/c.aw" "$tmp/c0.aw" || r=1
 fi
 say indent_errors $r
-ls examples/*.aw compiler/*.aw lib/*.aw lib/async/*.aw tools/*.aw tools/lib/*.aw \
+ls examples/*.aw compiler/*.aw lib/*.aw lib/async/*.aw lib/nd/*.aw tools/*.aw tools/lib/*.aw \
     bench/par/*.aw bench/async/*.aw bench/algo/*.aw tests/*.aw tests/lib/*.aw |
     grep -vxFf tests/indent/skip > "$tmp/list"
 xargs build/tools/indent --check < "$tmp/list" > "$tmp/said" 2>&1

@@ -1,0 +1,44 @@
+# the names of the library start with nd, so the vars of a program with
+# short names keep their values through every function of it
+use "lib/io.aw"
+use "lib/nd/array.aw"
+var d p b o r s n i x j t v z m ok sh
+buf a 176
+buf w 176
+buf l 16
+buf c 16
+buf g 16
+d=1
+p=1
+b=1
+o=1
+r=1
+s=1
+n=1
+i=1
+x=1
+j=1
+t=1
+v=1
+z=1
+m=1
+ok=1
+sh=1
+store l 2
+store l+8 2
+call ndnew a 2 l
+call ndwrap w g 16 1 l
+store c 1
+store c+8 1
+call ndset a c 3
+call ndget a c as e f
+call ndat w c as e f
+call ndsize a as e
+call ndfree a
+call ndfree w
+call ndvec a 2
+call ndfree a
+call ndmat a 2 2
+call ndfree a
+call putn d+p+b+o+r+s+n+i+x+j+t+v+z+m+ok+sh
+call print "\n"

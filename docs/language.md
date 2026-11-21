@@ -1116,6 +1116,51 @@ call putn a+b
 - **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
 - **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
 
+## The nd library
+
+`lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is a [double](#floating-point), 8 bytes, and has one index for each axis, from 0.
+
+| At | Holds |
+|---:|---|
+| 0 | the address of the element whose indices are all 0 |
+| 8 | the kind of the elements: 1 a double; 0 is no array |
+| 16 | the number of axes, 0 to 8 |
+| 24, 32 | the address and the bytes of the storage the elements are in |
+| 40 | 1 if the storage is the array's own |
+| 48 | the length of each axis, 8 words |
+| 112 | the stride of each axis, 8 words: the bytes from an element to the next along that axis, a signed number |
+
+| Function | Does |
+|---|---|
+| `ndnew d r s` | makes `d` an array of zeros with `r` axes whose lengths are the words at `s`, in storage of its own; returns 1 |
+| `ndvec d n`, `ndmat d n m` | the same with one axis of `n` elements, and with `n` rows of `m` |
+| `ndwrap d p b r s` | makes `d` an array of the `b` bytes at `p`, which stay the caller's; returns 1 |
+| `ndfree d` | gives the storage back if it is the array's; `d` is no array then and may be used again |
+| `ndsize d` | returns the number of elements, 0 for what is no array |
+| `ndat d x` | returns the address of the element whose indices are the words at `x`, and 1, or 0 and 0 if there is none |
+| `ndget d x` | returns that element and 1, or 0 and 0 |
+| `ndset d x v` | makes `v` that element; returns 1, or 0 if there is none |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+buf a 176
+buf x 16
+call ndmat a 3 4
+store x 2
+store x+8 1
+itof 42 as v
+call ndset a x v
+call ndget a x as w ok
+ftoi w as n
+call putn n
+```
+
+- **Storage**: the element with the indices `i`, `j`, ... is at the address at 0 plus `i` times the first stride plus `j` times the second, and so on. `ndnew` and `ndwrap` lay the elements one behind the other with the last index running fastest (the last stride is 8, each one before it the next times the length of the next axis), so the elements of such an array are also the words at the address at 0, as many as `ndsize` says. An array without axes is one element. An axis of length 0 gives an array without elements.
+- **Errors**: `ndnew` and `ndwrap` return 0 for more than 8 axes, for an axis or a number of elements of 2^60 or more, `ndnew` when the kernel has no memory and `ndwrap` when the bytes are too few for the elements; the 176 bytes are then as they were, an array that was there with every element. `ndat`, `ndget` and `ndset` test each index against the length of its axis, and the second result says whether there was an element, since an element may be 0. Bytes that are no array and not all zero are a fault of the program.
+- **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
+- **Names**: the library owns every name that starts with `nd`; a program has no `var` of such a name.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.

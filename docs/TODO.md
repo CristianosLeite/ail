@@ -283,7 +283,7 @@ scalar floating-point statements and runs without Python or BLAS.
 [NumPy copies and views](https://numpy.org/doc/stable/user/basics.copies.html)
 and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
 
-1. [ ] **Establish the array descriptor and memory contract.** Follow the
+1. [x] **Establish the array descriptor and memory contract.** Follow the
    collection libraries with caller-owned, zero-initialized descriptors and
    no top-level initialization. Record dtype, rank, shape, signed byte
    strides, the data origin and the backing storage bounds. Start with
