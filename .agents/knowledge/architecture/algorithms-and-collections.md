@@ -36,19 +36,8 @@ min-heap and a hash map.
 - `tests/lib_vec_no_memory` and `tests/lib_map_no_memory` reach a refused `alloc` by limiting
   the address space with `setrlimit` (64 MiB), which is not a built-in syscall name: the test
   declares `const setrlimit 160`.
-
-- Follow-up of the same day, AIL against C over the 48 kernel times after each step: 1.753 at
-  first, 1.639 with scaled indexes in loads and stores (`xaddr`, `xms`), 1.325 with registers
-  given by weight (`vment`, `vms`, `alloc`), 1.257 with a `while` on two comparisons joined by
-  `&` as two jumps (`xjcond`, `xsc`). `mergesort` is at 1.06, `bsearch` 0.97, `hashtab` 1.61.
-- With registers by weight, `place` of `hashtab` written in line by hand is faster in 11 of
-  12 kernel times (up to 47%); with registers in order of definition it had been up to 30%
-  slower. Splitting a compound loop condition likewise only paid after that change.
-- Statements and the expressions that say the same must mention variables equally often, or
-  `randvars` finds other bytes: the list of mentions drops none (a first version that
-  dropped mentions out of source order failed there).
-- `build/tools/par --grid`: tasks of 30 microseconds to 3 milliseconds gain alike at every
-  number of threads; one task a thread loses a sixth to a quarter at 14 and 20 threads.
+- The compiler changes that followed, and the figure after each (1.753 to 1.257), are on
+  [their own page](generated-code-follow-up.md).
 
 ## Why
 - **A shared harness instead of programs that stand alone:** the token count of an example is
@@ -66,8 +55,5 @@ min-heap and a hash map.
   pop and a push for every change.
 
 ## Open
-- Inlining of small functions in the compiler (item 5 of the performance follow-up).
-- `bsearch` at a thousand elements became 22 to 24% slower with registers by weight (still ahead of C); not looked into.
-- Stack slots are addressed with a 4-byte displacement, and a value stored to a slot is loaded again on the next line.
 - `tests/algo.sh` does not run the Rust programs.
 - No collection has been timed on its own.
