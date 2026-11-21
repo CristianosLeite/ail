@@ -345,26 +345,30 @@ separate success or found result wherever zero is a valid value.
 
 ## Performance follow-up
 
-On the Core i7-12700H, `build/tools/perf --qsort` measured a geometric mean
-of AIL/C time ratios of 1.037 across five CPU-bound programs and 1.760 across
-48 algorithm kernel timings. The loopback echo servers in AIL and C were
-within about 2% of each other at 1, 100 and 1,000 connections. Prioritize the
-compiler's generated code and task granularity. Repeat comparisons with the
-same inputs and affinity, checking output before timing and reporting kernel
-and elapsed times separately. The `hashtab` and `mergesort` prototypes below
-were compared byte for byte on the checked inputs and timed over 15 rounds
-with shuffled run order. See [benchmark method](performance.md#method).
+On the Core i7-12700H, rerunning `build/tools/perf --qsort` after the first
+four items brought the geometric mean of AIL/C time ratios from 1.760 to
+1.256 across 48 algorithm kernel timings and from 1.037 to 1.032 across five
+CPU-bound programs. AIL kernel times fell 28.8%, with `mergesort` gaining
+most (51.4% less time) and `hashtab` still furthest from C (1.620x). The
+compiler's elapsed time, including process startup, varied from -0.3% to
++2.6% across three sources. The loopback echo servers remained within about
+2% at 1, 100 and 1,000 connections. `make test` passed, including the
+bootstrap fixed point, as did three extended `randvars` runs that generated
+6,000 programs and executed 5,699.
+
+Repeat comparisons with the same inputs and affinity, checking output before
+timing and reporting kernel and elapsed times separately. The prototypes
+below were checked byte for byte and timed over 15 rounds with shuffled run
+order. See [benchmark method](performance.md#method).
 
 1. [x] **Emit scaled indexes in loads and stores.** In
    [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
    register index scaled by 2, 4 or 8 into the x86-64 memory operand when it
-   fits. `load p+i*8` currently emits `imul`, `add` and `mov` in a test with
-   both operands in registers. GNU `as` confirmed the equivalent indexed
-   `mov` reduces the sequence from 10 to 4 bytes. Preserve displacement
-   handling and static access diagnostics. Add instruction-byte cases for
-   scaled loads and stores, including displacements, and measure kernel times
-   on `graph`, `bsearch` and the full suite. The instruction reduction is
-   verified and the runtime gain is still unmeasured.
+   fits. With both operands in registers, `load p+i*8` went from `imul`,
+   `add` and `mov` to a single indexed `mov`, reducing the sequence from
+   10 to 4 bytes. The scaled-index change alone brought the mean AIL/C kernel
+   ratio from 1.753 to 1.639. See the
+   [scaled index measurements](performance.md#scaled-indexes-2026-11-20).
 2. [x] **Reduce stack accesses in hot loops and evaluate selective inlining.**
    Inspect [`alloc`](../compiler/emit.aw) and the generated code for
    [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
@@ -398,15 +402,32 @@ with shuffled run order. See [benchmark method](performance.md#method).
    Done on 2026-11-20: `build/tools/par --grid` times every pair; the sizes
    to start from are in
    [the table and its reading](performance.md#the-size-of-a-task-at-each-number-of-threads)
-   and in the pool section of the language reference. The pool is unchanged.
+   and in the pool section of the language reference. The rerun with
+   `--grid --runs 3` gave 10.18x and 11.22x for `collatz` and `primes` at
+   2,000 tasks on 20 threads, falling to 2.44x and 3.48x at 200,000 tasks.
+   `memsum` peaked at 2.95x with 200 tasks per pass.
 
-5. [ ] **Inline small functions at their calls.** With registers given by
-   weight, `hashtab` with `place` written into its two loops by hand took 17
-   to 47% less time at 1,000 keys and up to 25% less at 1,000,000, for 102
-   bytes more code. Decide which functions qualify (no `local`, no `ret`
-   inside a loop, a size limit), how the variables of the callee are named in
-   the caller's 64, and how the two passes over a function see the body.
+5. [ ] **Inline small functions at their calls.** With the current compiler,
+   writing `place` into the two `hashtab` loops by hand reduced kernel time
+   by 6% to 31% across all 12 cases, with 123 more bytes in the executable.
+   This includes the random misses at 1,000 keys that regressed before the
+   register allocation change. Decide which functions qualify (no `local`,
+   no `ret` inside a loop, a size limit), how the variables of the callee are
+   named in the caller's 64, and how the two passes see the body.
    Measure `hashtab`, `heapsort` (`sift`) and `bsearch` (`lower`).
+6. [ ] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
+   two words. Keep the probe index even, advance it by two and use twice the
+   slot mask to wrap. This lets `load t+h*8` use the x86-64 scaled operand in
+   the probe loop, whose current address is `t+h*16`. Keep the hash, probe
+   sequence, table size and duplicate-key behavior. In a prototype on the
+   current compiler, all three kernels took 2.6% to 4.9% less time on one
+   million random keys, while misses at 1,000 keys and hits at one million
+   duplicate-heavy keys took up to 2.5% longer. Retest the full matrix with
+   and without inlining, and include a collision that wraps past the last
+   slot in the output checks. A separate prototype that returned the key
+   already read by `place` saved 12.4% on small random misses but cost
+   6.6% to 7.8% on duplicate-heavy hits. Measure that change separately
+   before combining it with the new probe index.
 
 ## Redesign
 
