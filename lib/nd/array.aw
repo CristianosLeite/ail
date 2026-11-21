@@ -390,6 +390,11 @@ fn ndreshape ndd nds ndr ndsh
 	load nds+8 as ndt
 	load nds+24 as ndq
 	load nds+32 as ndb
+	# storage in the 176 bytes that are to be written: the element of
+	# an array that ndscalar made lies where the lengths go
+	if (ndq<ndd+176)&(ndd<ndq+ndb)
+		ret 0
+	end
 	ndo=0
 	if ndd==nds
 		load nds+40 as ndo
