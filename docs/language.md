@@ -1159,6 +1159,45 @@ call putn a+b
 - **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
 - **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
 
+## The algo library
+
+The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: sorts, a binary search, a hash table of a fixed size and two walks over a graph. They allocate nothing and return no error, since nothing can fail in them; the caller gives every array, also the ones to work in. The algorithm programs of `examples/` are callers of them. Each file is used by itself and has its own prefix.
+
+| Function | File | Does |
+|---|---|---|
+| `sortquick p q` | `sort.aw` | sorts the words from the address `p` up to `q`, in place |
+| `sortmerge a n t` | `sort.aw` | sorts the `n` words at `a`, with `n` words at `t` to work in; equal words stay in their order |
+| `sortheap a n` | `sort.aw` | sorts the `n` words at `a` in place, as a heap |
+| `sortins a n` | `sort.aw` | sorts the `n` words at `a` in place, by insertion |
+| `searchlower a n k` | `search.aw` | returns the first index of the `n` rising words at `a` whose word is not smaller than `k`, or `n` |
+| `hashplace t m k` | `hash.aw` | returns the address of the place of the key `k` in the table `t`, or of the free place where it goes; `m` is twice the places, less two |
+| `hashfill t m q n` | `hash.aw` | puts the `n` keys at `q` into the table `t` of `m+1` places, each with its index as value |
+| `hashfind t m q n r` | `hash.aw` | writes to `r` the value of each of the `n` keys at `q`, or -1 |
+| `graphbfs off nbr n seen r` | `graph.aw` | writes to `r` the `n` vertices in the order they are reached breadth first |
+| `graphdfs off nbr n seen st r` | `graph.aw` | the same depth first, with the stack `st` |
+
+```
+use "lib/io.aw"
+use "lib/algo/sort.aw"
+use "lib/algo/search.aw"
+buf a 32
+store a 40
+store a+8 7
+store a+16 19
+store a+24 7
+call sortheap a 4
+call searchlower a 4 19 as i
+call putn i
+```
+
+- **Order**: words are compared as unsigned numbers and sorted lowest first. A count of 0 or 1 leaves the words as they are.
+- **Sorts**: `sortquick` takes the median of the first, the middle and the last word as its pivot and puts the words equal to it between the smaller and the larger ones in one pass; it calls itself for the smaller side only, so the calls are no deeper than the logarithm of the count. `sortmerge` merges runs of 1, 2, 4, ... words from one array into the other, from the bottom up, and what it leaves in the work array is not specified; the two arrays must not overlap. `sortheap` makes the words a heap with the largest first and takes that to the end, again and again. `sortins` moves each word down past the larger ones before it: a time of `n*n`, and of `n` for words nearly in order.
+- **Search**: `searchlower` is where the key is, the first of equal words, or where it would go; `n` says that every word is smaller. In words that do not rise it returns some index up to `n`.
+- **Table**: a place is 16 bytes, a key and its value, in bytes of the caller that are zero at first: a power of two of places, of which `hashfill` and `hashfind` take the number less one. The key 0 is a free place, so 0 is no key. A key goes to the place its hash names or to the next free one, round the end; a key put in again gets the new value. Nothing is taken out and the table does not grow, so it must have more places than keys: with every place taken, a key that is not there is looked for without end. The [map library](#the-map-library) is the table that grows, takes keys out and has 0 as a key, at 24 bytes a place.
+- **Graph**: the neighbours of the vertex `v` are the words of `nbr` from the index in word `v` of `off` up to the index in word `v+1`, so `off` has `n+1` words. `seen` is a byte for each vertex that the caller makes zero; both walks begin again at the lowest vertex not reached, so every vertex is written once and its byte is 1 afterwards. `graphbfs` uses `r` as its queue; the stack of `graphdfs` has room for a word an edge and one more, and the neighbour written last is taken first.
+- **Heaps**: `sortheap` is not the [heap library](#the-heap-library), which is a heap that grows in a vector and gives the smallest first; here the heap is the array to be sorted.
+- **Names**: `sort.aw` owns every name that starts with `sort`, `search.aw` those with `search`, `hash.aw` those with `hash` and `graph.aw` those with `graph`.
+
 ## The nd library
 
 `lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is 8 bytes, a [double](#floating-point) unless the array is said to be of integers, and has one index for each axis, from 0.

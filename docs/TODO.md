@@ -472,7 +472,7 @@ library in the same pass and leave the examples as callers.
    or more 1.286 against 1.425; the rows of fewer runs did not move.
    The three earlier sections carry a note
    ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
-3. [ ] **Move the algorithm kernels into a library.** Put the sorts
+3. [x] **Move the algorithm kernels into a library.** Put the sorts
    (`quicksort`, `mergesort`, `heapsort` and `isort`), the lower-bound
    search, the open-addressing table of `hashtab` and the two traversals
    of `graph` under `lib/algo/`. Follow the library rules: a prefix on
@@ -489,6 +489,11 @@ library in the same pass and leave the examples as callers.
    functions on their own in `tests/lib_algo_*` (empty, single, duplicate
    and already sorted input), and document them in
    [language.md](language.md).
+   Done on 2026-11-21: `lib/algo/sort.aw`, `search.aw`, `hash.aw` and
+   `graph.aw`, a prefix a file since the harness owns `algo`. The six
+   harness programs compile to the same bytes as before; the heap and
+   the table stay apart from `lib/heap.aw` and `lib/map.aw`, whose
+   layouts are others ([reference](language.md#the-algo-library)).
 4. [ ] **Measure what the move changes.** Check that `place` and `lower`
    are still compiled in place at their calls, which needs the callee
    before the caller and no global name in its body. Compare kernel times

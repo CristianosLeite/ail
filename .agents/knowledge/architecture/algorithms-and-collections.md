@@ -13,6 +13,11 @@ times, against 1.04 on the five CPU-bound programs. `lib/` has a vector, a bound
 min-heap and a hash map.
 
 ## Facts
+- Since 2026-11-21 the kernels are in `lib/algo/` (`sort.aw`, `search.aw`, `hash.aw`,
+  `graph.aw`, a prefix a file since the harness owns `algo`) and a program of `examples/` is
+  `use` lines, at most an adapter, and the call of the harness. The six programs compile to
+  the bytes they had with the kernels in them, because the library is used where the kernel
+  stood, behind the harness. `isort` calls `sortins` and carries the three other sorts too.
 - A program is its kernel and the call of `bench/algo/harness.aw` (`harness.h`, `harness.rs`):
   five words on stdin (seed, count, shape, runs, mode), input from splitmix64, the monotonic
   clock around the kernel only; mode 0 writes a checksum and the nanoseconds of each kernel,

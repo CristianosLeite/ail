@@ -1,0 +1,65 @@
+# lib/algo/hash.aw -- a hash table of a fixed size with open
+# addressing, for keys that are known before it is made.
+#
+# The table is bytes of the caller: 16 bytes a place, a key and its
+# value, a power of two of places, all zero at first. The key 0 is a
+# place that is free, so 0 is no key. A key goes to the place its hash
+# names or to the next that is free, round the end; a key that is there
+# gets its new value. Nothing is taken out and the table does not grow:
+# the caller gives it more places than keys, since with every place
+# taken a key that is not there is looked for without end. The mask
+# given to hashfill and hashfind is the places less one.
+#
+# hashfill puts keys in, each with its index among them as its value,
+# and hashfind writes the value of each key asked for, or -1. Both take
+# the keys as words one behind the other. This is not lib/map.aw, whose
+# places are 24 bytes with a mark, which takes keys out and grows, and
+# to which 0 is a key: here a place is two words and a probe one load.
+#
+# Every name of this file starts with "hash".
+
+# where the key hashk is in the table hasht, or the free place where it
+# goes. hashh counts words, two a place, so that the address is
+# hasht+hashh*8, which is one operand of the load; hashm is here twice
+# the mask of the places, and the shift by 31 leaves the hash of the
+# place doubled.
+fn hashplace hasht hashm hashk
+	hashh=hashk*0x9e3779b97f4a7c15>>31&hashm
+	load hasht+hashh*8 as hashx
+	while (hashx!=0)&(hashx!=hashk)
+		hashh=hashh+2&hashm
+		load hasht+hashh*8 as hashx
+	end
+	ret hasht+hashh*8
+end
+
+# give each of the hashn keys at hashq its index as value, in the
+# table hasht whose places less one are hashm
+fn hashfill hasht hashm hashq hashn
+	hashm+=hashm
+	hashi=0
+	while hashi<hashn
+		load hashq+hashi*8 as hashk
+		call hashplace hasht hashm hashk as hashp
+		store hashp hashk
+		store hashp+8 hashi
+		hashi+=1
+	end
+end
+
+# write to hashr the value of each of the hashn keys at hashq, or -1
+fn hashfind hasht hashm hashq hashn hashr
+	hashm+=hashm
+	hashi=0
+	while hashi<hashn
+		load hashq+hashi*8 as hashk
+		call hashplace hasht hashm hashk as hashp
+		load hashp as hashx
+		hashv=-1
+		if hashx
+			load hashp+8 as hashv
+		end
+		store hashr+hashi*8 hashv
+		hashi+=1
+	end
+end

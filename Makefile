@@ -30,6 +30,12 @@ $(B)/%: examples/%.aw $(B)/ailc
 # again when it changes.
 $(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul): bench/algo/harness.aw
 
+# Their kernels are files of lib/algo/.
+$(patsubst %,$(B)/%,quicksort mergesort heapsort isort): lib/algo/sort.aw
+$(B)/bsearch: lib/algo/search.aw
+$(B)/hashtab: lib/algo/hash.aw
+$(B)/graph: lib/algo/graph.aw
+
 # The array programs also name the library of arrays.
 $(patsubst %,$(B)/%,ndelem ndreduce ndmatmul): lib/nd/array.aw lib/nd/elem.aw
 $(patsubst %,$(B)/%,ndreduce ndmatmul): lib/nd/reduce.aw
