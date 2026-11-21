@@ -7,8 +7,8 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 use "lib/async/chan.ai"
 async fn stuck c
-await asyncrecv c as v
-ret v
+	await asyncrecv c as v
+	ret v
 end
 call asyncchan 1 as c
 call asyncrecv c as a

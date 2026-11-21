@@ -2,15 +2,15 @@
 s=0
 i=0
 while i<5
-j=0
-while j<i
-if j%2
-s+=10
-else
-s+=1
-end
-j+=1
-end
-i+=1
+	j=0
+	while j<i
+		if j%2
+			s+=10
+		else
+			s+=1
+		end
+		j+=1
+	end
+	i+=1
 end
 sys exit s

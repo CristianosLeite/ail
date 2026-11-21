@@ -206,7 +206,7 @@ its AIL replacement passes the corresponding checks.
   examples compile to the same bytes.
 - [x] Add a VS Code extension for `.ai` files with syntax highlighting, block
   folding and formatting through the same AIL formatter.
-- [ ] Apply the convention to the examples first. Reindent the compiler in a
+- [x] Apply the convention to the examples first. Reindent the compiler in a
   separate formatting commit and verify the bootstrap fixed point.
 
 On the ten examples, the `o200k_base` tokenizer counted 970 tokens without

@@ -16,5 +16,6 @@
 - [ ] 2026-11-19 — Compare the tiktoken counts with Claude's tokenizer ([page](../architecture/token-cost-measurement.md))
 - [x] 2026-11-20 — Port the Python tools to AIL ([page](../architecture/tools-in-ail.md))
 - [x] 2026-11-20 — Native asynchronous execution: runtime, `async fn` and `await`, pool, channels, measurements ([page](../architecture/async-runtime.md))
-- [ ] 2026-11-20 — "Source style and editor tooling" of `docs/TODO.md`, four items; the VS Code extension is to be plain JavaScript with no build step
+- [x] 2026-11-20 — "Source style and editor tooling" of `docs/TODO.md`: convention, `build/tools/indent`, VS Code extension, every source indented ([page](../architecture/source-style.md))
+- [ ] 2026-11-20 — Load the VS Code extension of `editors/vscode/` into the editor and check the grammar there; keep indentation in `fuse` and `infix` ([page](../architecture/source-style.md))
 - [ ] 2026-11-20 — Keep in registers the variables of an async function that cross no `await` ([page](../architecture/async-runtime.md))

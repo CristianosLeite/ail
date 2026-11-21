@@ -7,11 +7,11 @@ use "lib/async/time.ai"
 use "lib/async/io.ai"
 buf rb 16
 fn pair l port
-call asyncaccept l as ha
-call asyncconnect 0x7f000001 port as hc
-call await hc 0 as c
-call await ha 0 as s
-ret c s
+	call asyncaccept l as ha
+	call asyncconnect 0x7f000001 port as hc
+	call await hc 0 as c
+	call await ha 0 as s
+	ret c s
 end
 call asynclisten 0x7f000001 0 as l
 call asyncport l as port

@@ -5,7 +5,7 @@ jeq x+1 y a
 sys exit 1
 label a
 ifgt x*y 19
-jz x-4 b
+	jz x-4 b
 end
 sys exit 2
 label b

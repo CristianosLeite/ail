@@ -1,8 +1,8 @@
 fn f a b c d e g
-set 9 as x
-set 9 as y
-add x y as x
-ret x
+	set 9 as x
+	set 9 as y
+	add x y as x
+	ret x
 end
 set 1 as a
 set 2 as b

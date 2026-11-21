@@ -1,11 +1,11 @@
 var a b c d e g
 fn sum p q r s t u
-add p q as p
-add p r as p
-add p s as p
-add p t as p
-add p u as p
-ret p
+	add p q as p
+	add p r as p
+	add p s as p
+	add p t as p
+	add p u as p
+	ret p
 end
 set 1 as a
 set 2 as b

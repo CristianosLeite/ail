@@ -11,6 +11,7 @@
 - [Targets and interoperability](architecture/targets-and-interoperability.md) — evaluation of a second architecture, object files, a platform ABI and dynamic linking: none now, with what each would take and when to reopen
 - [Async runtime](architecture/async-runtime.md) — `async fn`/`await` as polled tasks on one thread: the two await forms, eager futures, cancellation, why no multithreaded scheduler
 - [Tools in AIL](architecture/tools-in-ail.md) — the Python tools ported: shared libraries, stated differences, how `infix` finds vars of other files, `procstart`/`procwait` rules
+- [Source style and the formatter](architecture/source-style.md) — one tab a block, `build/tools/indent`, what is not indented, the VS Code extension, the token figures after indenting
 - [Review fixes of 2026-11-20](architecture/review-fixes-2026-11.md) — `tail` with a local, result count through `tail`, names of a `while` value, limit of locals, and why
 
 ## testing

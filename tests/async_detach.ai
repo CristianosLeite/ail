@@ -3,18 +3,18 @@
 use "lib/async/task.ai"
 var ran
 fn poll t
-ran+=1
-ret 1
+	ran+=1
+	ret 1
 end
 fn twice t
-load t+8 as s
-store t+8 1
-ifz s
-call asyncwake t
-ret 0
-end
-call asyncwake t
-ret 1
+	load t+8 as s
+	store t+8 1
+	ifz s
+		call asyncwake t
+		ret 0
+	end
+	call asyncwake t
+	ret 1
 end
 ref poll as p
 call async 64 p as a

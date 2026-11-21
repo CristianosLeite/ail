@@ -15,10 +15,10 @@ s=0
 z=0
 i=0
 while i<m
-loadb p+i as c
-s+=c
-z+=c==0
-i+=1
+	loadb p+i as c
+	s+=c
+	z+=c==0
+	i+=1
 end
 call fileunlink "build/tests/lib_file_names.d/one"
 call fileunlink "build/tests/lib_file_names.d/second.txt"

@@ -1,12 +1,12 @@
 # a ret inside a loop
 fn find n
-i=0
-while 1
-if i*i>=n
-ret i
-end
-i+=1
-end
+	i=0
+	while 1
+		if i*i>=n
+			ret i
+		end
+		i+=1
+	end
 end
 call find 50 as r
 sys exit r

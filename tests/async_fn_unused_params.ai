@@ -3,16 +3,16 @@
 # those before and behind it are unused
 use "lib/async/task.ai"
 async fn second a b
-ret b
+	ret b
 end
 async fn last a b c d e f
-ret f
+	ret f
 end
 async fn middle a b c d e f
-ret c*10+e
+	ret c*10+e
 end
 async fn first a b c
-ret a
+	ret a
 end
 await second 11 22 as w
 await last 1 2 3 4 5 6 as x

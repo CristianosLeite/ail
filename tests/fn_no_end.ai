@@ -1,2 +1,2 @@
 fn f
-ret 1
+	ret 1

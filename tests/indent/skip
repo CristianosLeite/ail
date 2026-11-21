@@ -1,0 +1,15 @@
+# Sources that build/tools/indent is not run on and tests/indent.sh does
+# not check: tests of the separators, whose spaces, tabs and CRs at the
+# start of a line are what they test. One path a line. The fixtures in
+# the directories under tests/ are left alone too; they are not listed.
+tests/comments_and_blanks.ai
+tests/data_tabs_crlf.ai
+tests/err_line_after_blanks_and_comments.ai
+tests/fn_separators.ai
+tests/gvar_tabs_comment.ai
+tests/if_with_comment_tabs.ai
+tests/indented_blocks.ai
+tests/jmp_with_comment.ai
+tests/lib/crlf.ai
+tests/separators_tab_crlf.ai
+tests/use_tab_crlf.ai

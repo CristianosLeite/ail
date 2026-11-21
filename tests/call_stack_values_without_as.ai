@@ -1,6 +1,6 @@
 var out
 fn f a b c d e g h
-set h as out
+	set h as out
 end
 call f 0 0 0 0 0 0 9
 call f 0 0 0 0 0 0 8

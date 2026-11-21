@@ -1,11 +1,11 @@
 # frames of 2 MiB: each one is entered page by page, so the end of the
 # stack is found and not jumped over
 fn f n
-local big 2097152
-store big n
-call f n as r
-load big as k
-add r k as r
-ret r
+	local big 2097152
+	store big n
+	call f n as r
+	load big as k
+	add r k as r
+	ret r
 end
 call f 1 as r

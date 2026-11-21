@@ -1,6 +1,6 @@
 var out
 fn f a
-set a as out
+	set a as out
 end
 ref f as p
 callp p 9

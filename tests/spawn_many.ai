@@ -1,19 +1,19 @@
 use "lib/task.ai"
 fn id a
-ret a
+	ret a
 end
 buf hs 800
 i=0
 while i<100
-spawn id i as h
-store hs+i*8 h
-i+=1
+	spawn id i as h
+	store hs+i*8 h
+	i+=1
 end
 s=0
 while i
-i-=1
-load hs+i*8 as h
-join h as x
-s+=x
+	i-=1
+	load hs+i*8 as h
+	join h as x
+	s+=x
 end
 sys exit_group s%251

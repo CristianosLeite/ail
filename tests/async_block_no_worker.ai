@@ -6,12 +6,12 @@ use "lib/async/time.ai"
 use "lib/async/io.ai"
 use "lib/async/pool.ai"
 fn mul a b c d
-ret a*b
+	ret a*b
 end
 async fn f
-ref mul as p
-await asyncblock p 5 4 0 0 as x
-ret x
+	ref mul as p
+	await asyncblock p 5 4 0 0 as x
+	ret x
 end
 call workers 0
 ref mul as p

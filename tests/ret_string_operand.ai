@@ -1,5 +1,5 @@
 fn f
-ret "hey\n"
+	ret "hey\n"
 end
 call f as p
 sys 1 1 p 4

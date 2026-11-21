@@ -1,5 +1,5 @@
 fn f a
-ret a
+	ret a
 end
 set 1 as a
 set 1 as b

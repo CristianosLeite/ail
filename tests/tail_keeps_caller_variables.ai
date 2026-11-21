@@ -1,15 +1,15 @@
 fn g a
-ret a
+	ret a
 end
 fn f
-set 1 as a
-set 1 as b
-set 1 as c
-set 1 as d
-add a b as a
-add a c as a
-add a d as a
-tail g a
+	set 1 as a
+	set 1 as b
+	set 1 as c
+	set 1 as d
+	add a b as a
+	add a c as a
+	add a d as a
+	tail g a
 end
 set 10 as p
 set 20 as q

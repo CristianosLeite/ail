@@ -1,8 +1,8 @@
 var keep
 fn f a b c d e g
-add a b as h
-add h g as keep
-add h a as h
+	add a b as h
+	add h g as keep
+	add h a as h
 end
 set 9 as x
 call f 1 2 3 4 5 6 as r

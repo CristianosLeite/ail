@@ -4,12 +4,12 @@ use "lib/io.ai"
 use "lib/bytes.ai"
 use "lib/file.ai"
 fn show x
-ifslt x 0
-call print "-"
-x=0-x
-end
-call putn x
-call print " "
+	ifslt x 0
+		call print "-"
+		x=0-x
+	end
+	call putn x
+	call print " "
 end
 call filemkdir "build/tests/lib_file_dirs.d" 493 as r
 call show r

@@ -1,5 +1,5 @@
 fn g a
 end
 fn f
-tail g 1 2
+	tail g 1 2
 end

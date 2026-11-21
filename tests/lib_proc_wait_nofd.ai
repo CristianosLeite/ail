@@ -13,9 +13,9 @@ sys setrlimit 7 lim as r
 call putn r
 sys fork as p
 ifz p
-store ts+8 250000000
-sys nanosleep ts 0
-sys exit 5
+	store ts+8 250000000
+	sys nanosleep ts 0
+	sys exit 5
 end
 call procnow as t0
 call procwait p 20 as r
@@ -25,16 +25,16 @@ call putn t1-t0<200000000
 call print " "
 sys fork as p
 ifz p
-sys exit 7
+	sys exit 7
 end
 call procwait p 5000 as r
 call putn r
 sys fork as p
 ifz p
-store ts+8 20000000
-sys nanosleep ts 0
-sys getpid as q
-sys kill q 15
+	store ts+8 20000000
+	sys nanosleep ts 0
+	sys getpid as q
+	sys kill q 15
 end
 call procwait p 5000 as r
 call putn 0-r

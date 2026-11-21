@@ -1,27 +1,27 @@
 # with a value of mixed sign each of these holds in unsigned order only
 set 0 as r
 iflt 1 -1
-add r 1 as r
+	add r 1 as r
 end
 ifle 1 -1
-add r 2 as r
+	add r 2 as r
 end
 ifgt -1 1
-add r 4 as r
+	add r 4 as r
 end
 ifge -1 1
-add r 8 as r
+	add r 8 as r
 end
 iflt -1 1
-add r 16 as r
+	add r 16 as r
 end
 ifle -1 1
-add r 32 as r
+	add r 32 as r
 end
 ifgt 1 -1
-add r 64 as r
+	add r 64 as r
 end
 ifge 1 -1
-add r 128 as r
+	add r 128 as r
 end
 sys 60 r

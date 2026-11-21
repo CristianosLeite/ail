@@ -1,5 +1,5 @@
 fn f a b c d e g h i
-ret i
+	ret i
 end
 set 1 as p
 set 2 as q

@@ -1,9 +1,9 @@
 buf b 8
 fn f
-local b 8
-store b 3
-load b as x
-ret x
+	local b 8
+	store b 3
+	load b as x
+	ret x
 end
 store b 4
 call f as r

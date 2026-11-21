@@ -1,15 +1,15 @@
 # a function that reuses registers still restores the caller's
 fn f
-set 1 as a
-set 2 as b
-add a b as c
-set 4 as d
-add c d as e
-set 8 as g
-add e g as h
-set 16 as i
-add h i as j
-ret j
+	set 1 as a
+	set 2 as b
+	add a b as c
+	set 4 as d
+	add c d as e
+	set 8 as g
+	add e g as h
+	set 16 as i
+	add h i as j
+	ret j
 end
 set 1 as p
 set 2 as q

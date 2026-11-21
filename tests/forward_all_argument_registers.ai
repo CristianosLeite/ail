@@ -1,7 +1,7 @@
 sys 1 1 d 2
 fn f a b c d e g
-sub g a as a
-ret a
+	sub g a as a
+	ret a
 end
 call f x x x x x y as r
 sys 60 r

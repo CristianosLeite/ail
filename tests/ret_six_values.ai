@@ -1,5 +1,5 @@
 fn f
-ret 1 2 4 8 16 32
+	ret 1 2 4 8 16 32
 end
 call f as a b c d e g
 add a b as a

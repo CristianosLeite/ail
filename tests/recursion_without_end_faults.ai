@@ -1,8 +1,8 @@
 # the stack runs out: the program dies with SIGSEGV on its guard page
 fn f n
-add n 1 as n
-call f n as r
-add r 1 as r
-ret r
+	add n 1 as n
+	call f n as r
+	add r 1 as r
+	ret r
 end
 call f 0 as r

@@ -1,6 +1,6 @@
 use "lib/task.ai"
 fn work a b
-ret a*b
+	ret a*b
 end
 spawn work 6 7 as h
 join h as x

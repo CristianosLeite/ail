@@ -2,7 +2,7 @@
 # 24 bytes lie between the two data bytes
 data a 1
 fn f x
-ret x
+	ret x
 end
 data b 1
 sub b a as n

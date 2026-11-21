@@ -1,14 +1,14 @@
 fn f n a b c d e g h
-jz n z
-sub n 1 as m
-add g 1 as g2
-add h 2 as h2
-call f m a b c d e g2 h2 as r
-ret r
-label z
-add g h as r
-add r a as r
-ret r
+	jz n z
+	sub n 1 as m
+	add g 1 as g2
+	add h 2 as h2
+	call f m a b c d e g2 h2 as r
+	ret r
+	label z
+	add g h as r
+	add r a as r
+	ret r
 end
 call f 5 1 0 0 0 0 10 20 as r
 sys 60 r

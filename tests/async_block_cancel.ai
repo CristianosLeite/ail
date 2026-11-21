@@ -10,13 +10,13 @@ use "lib/async/pool.ai"
 buf ran 8
 buf back 8
 fn nap ms b c d
-xadd ran 1 as x
-local ts 16
-store ts 0
-store ts+8 ms*1000000
-sys nanosleep ts 0
-xadd back 1 as x
-ret ms
+	xadd ran 1 as x
+	local ts 16
+	store ts 0
+	store ts+8 ms*1000000
+	sys nanosleep ts 0
+	xadd back 1 as x
+	ret ms
 end
 call workers 1
 ref nap as p

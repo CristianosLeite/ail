@@ -1,6 +1,6 @@
 fn f
-label x
+	label x
 end
 fn g
-jmp x
+	jmp x
 end

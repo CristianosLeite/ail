@@ -2,7 +2,7 @@
 # in data that follows the end
 sys 39 as p
 ifz p
-data a 1
+	data a 1
 end
 data b 7
 loadb b as x

@@ -4,19 +4,19 @@ use "lib/async/task.ai"
 var g
 buf hs 16
 async fn h
-ret 1
+	ret 1
 end
 async fn two
-ret 2
+	ret 2
 end
 async fn f
-call two as h
-await h as x
-call two as k
-store hs+8 k
-load hs+8 as k
-await k+0 as y
-ret x+y
+	call two as h
+	await h as x
+	call two as k
+	store hs+8 k
+	load hs+8 as k
+	await k+0 as y
+	ret x+y
 end
 call two as g
 await g as a

@@ -1,14 +1,14 @@
 fn f a b c d e g
-add a b as h
-add h c as i
-if a
-add i d as i
-add i e as i
-else
-add i g as i
-end
-add i h as i
-ret i
+	add a b as h
+	add h c as i
+	if a
+		add i d as i
+		add i e as i
+	else
+		add i g as i
+	end
+	add i h as i
+	ret i
 end
 call f 1 2 3 4 5 6 as r
 call f 0 2 3 4 5 6 as s

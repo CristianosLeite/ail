@@ -1,7 +1,7 @@
 # every function sees it, unlike a variable
 var n
 fn inc k
-add n k as n
+	add n k as n
 end
 call inc 4
 call inc 5

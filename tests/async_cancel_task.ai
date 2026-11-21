@@ -7,23 +7,23 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 var freed
 async fn inner
-await asyncsleep 5000 as r
-if r==-125
-call print "i"
-freed+=1
-end
-ret 1
+	await asyncsleep 5000 as r
+	if r==-125
+		call print "i"
+		freed+=1
+	end
+	ret 1
 end
 async fn outer
-await inner as r
-if r==-125
-call print "o"
-freed+=10
-end
-ret 7
+	await inner as r
+	if r==-125
+		call print "o"
+		freed+=10
+	end
+	ret 7
 end
 async fn quick
-ret 3
+	ret 3
 end
 call asyncclock as t0
 call outer as h

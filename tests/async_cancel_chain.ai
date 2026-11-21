@@ -10,28 +10,28 @@ use "lib/async/time.ai"
 use "lib/async/io.ai"
 use "lib/async/pool.ai"
 fn fill p ms c d
-local ts 16
-store ts 0
-store ts+8 ms*1000000
-sys nanosleep ts 0
-storeb p+63 7
-ret 1
+	local ts 16
+	store ts 0
+	store ts+8 ms*1000000
+	sys nanosleep ts 0
+	storeb p+63 7
+	ret 1
 end
 async fn helper p
-ref fill as f
-await asyncblock f p 60 0 0 as r
-ret r
+	ref fill as f
+	await asyncblock f p 60 0 0 as r
+	ret r
 end
 async fn user how
-local b 64
-storeb b+63 0
-call helper b as h
-if how
-call asynctimeout h 10 as h
-end
-await h as r
-loadb b+63 as v
-ret v+(r>-4096)*100
+	local b 64
+	storeb b+63 0
+	call helper b as h
+	if how
+		call asynctimeout h 10 as h
+	end
+	await h as r
+	loadb b+63 as v
+	ret v+(r>-4096)*100
 end
 call user 0 as t
 await asyncsleep 20

@@ -4,18 +4,18 @@
 use "lib/io.ai"
 use "lib/async/task.ai"
 fn poll t
-load t+64 as c
-load t+72 as n
-buf ch 8
-storeb ch c
-call print ch 1
-n-=1
-store t+72 n
-ifz n
-ret 1
-end
-call asyncwake t
-ret 0
+	load t+64 as c
+	load t+72 as n
+	buf ch 8
+	storeb ch c
+	call print ch 1
+	n-=1
+	store t+72 n
+	ifz n
+		ret 1
+	end
+	call asyncwake t
+	ret 0
 end
 ref poll as p
 call async 80 p as a

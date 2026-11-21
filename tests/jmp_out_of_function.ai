@@ -1,4 +1,4 @@
 label x
 fn f
-jmp x
+	jmp x
 end

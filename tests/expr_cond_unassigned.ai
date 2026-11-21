@@ -1,5 +1,5 @@
 a=3
 if a<4
-x=1
+	x=1
 end
 sys exit x

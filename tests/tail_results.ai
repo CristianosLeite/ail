@@ -3,33 +3,33 @@
 # its tails comes first: one to itself, or one to a function defined
 # later
 fn w3 a b
-tail w2 a b
+	tail w2 a b
 end
 fn w2 a b
-tail w1 a b
+	tail w1 a b
 end
 fn w1 a b
-tail pair a b
+	tail pair a b
 end
 fn pair a b
-ret b a
+	ret b a
 end
 # a loop written with tail: the count is that of the way out
 fn down n s
-if n
-tail down n-1 s+n
-end
-tail one s
+	if n
+		tail down n-1 s+n
+	end
+	tail one s
 end
 fn one a
-ret a
+	ret a
 end
 # a ret beside a tail to a function of as many results
 fn pick a
-if a
-ret a 1
-end
-tail pair 2 3
+	if a
+		ret a 1
+	end
+	tail pair 2 3
 end
 call w3 5 37 as x y
 call down 4 0 as s

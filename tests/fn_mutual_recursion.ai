@@ -1,19 +1,19 @@
 # even calls odd before odd is defined
 fn even n
-jz n yes
-sub n 1 as n
-call odd n as r
-ret r
-label yes
-ret 1
+	jz n yes
+	sub n 1 as n
+	call odd n as r
+	ret r
+	label yes
+	ret 1
 end
 fn odd n
-jz n no
-sub n 1 as n
-call even n as r
-ret r
-label no
-ret 0
+	jz n no
+	sub n 1 as n
+	call even n as r
+	ret r
+	label no
+	ret 0
 end
 call even 10 as a
 call odd 7 as b

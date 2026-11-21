@@ -1,5 +1,5 @@
 fn f a
 end
 fn g
-ret a
+	ret a
 end

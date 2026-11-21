@@ -1,8 +1,8 @@
 # reaching end gives 0 for each result the function has
 fn f a
-jz a z
-ret 7 8 9
-label z
+	jz a z
+	ret 7 8 9
+	label z
 end
 call f 1 as a b c
 call f 0 as d e g

@@ -2,8 +2,8 @@
 set 1 as a
 set 2 as b
 fn f p
-jz p z
-set 1 as x
-label z
-ret x
+	jz p z
+	set 1 as x
+	label z
+	ret x
 end

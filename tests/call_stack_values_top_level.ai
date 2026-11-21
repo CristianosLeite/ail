@@ -1,6 +1,6 @@
 fn f a b c d e g h i
-sub i h as r
-ret r
+	sub i h as r
+	ret r
 end
 set 1 as p
 set 1 as q

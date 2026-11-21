@@ -2,6 +2,6 @@
 call later 5 as x
 sys 60 x
 fn later a
-mul a 3 as a
-ret a
+	mul a 3 as a
+	ret a
 end

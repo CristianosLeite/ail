@@ -1,163 +1,163 @@
 # ifz with a comparison as its value, for a smaller, an equal and a larger left side,
 # also where the order is only right unsigned; exit status = the first wrong one
 fn f
-a=3
-b=5
-ifz a==b
-else
-ret 1
-end
-ifz a!=b
-ret 2
-else
-end
-ifz a<b
-ret 3
-else
-end
-ifz a<=b
-ret 4
-else
-end
-ifz a>b
-else
-ret 5
-end
-ifz a>=b
-else
-ret 6
-end
-a=5
-b=5
-ifz a==b
-ret 7
-else
-end
-ifz a!=b
-else
-ret 8
-end
-ifz a<b
-else
-ret 9
-end
-ifz a<=b
-ret 10
-else
-end
-ifz a>b
-else
-ret 11
-end
-ifz a>=b
-ret 12
-else
-end
-a=7
-b=5
-ifz a==b
-else
-ret 13
-end
-ifz a!=b
-ret 14
-else
-end
-ifz a<b
-else
-ret 15
-end
-ifz a<=b
-else
-ret 16
-end
-ifz a>b
-ret 17
-else
-end
-ifz a>=b
-ret 18
-else
-end
-a=0
-b=0xffffffffffffffff
-ifz a==b
-else
-ret 19
-end
-ifz a!=b
-ret 20
-else
-end
-ifz a<b
-ret 21
-else
-end
-ifz a<=b
-ret 22
-else
-end
-ifz a>b
-else
-ret 23
-end
-ifz a>=b
-else
-ret 24
-end
-a=0xffffffffffffffff
-b=0
-ifz a==b
-else
-ret 25
-end
-ifz a!=b
-ret 26
-else
-end
-ifz a<b
-else
-ret 27
-end
-ifz a<=b
-else
-ret 28
-end
-ifz a>b
-ret 29
-else
-end
-ifz a>=b
-ret 30
-else
-end
-a=0xffffffffffffffff
-b=0xffffffffffffffff
-ifz a==b
-ret 31
-else
-end
-ifz a!=b
-else
-ret 32
-end
-ifz a<b
-else
-ret 33
-end
-ifz a<=b
-ret 34
-else
-end
-ifz a>b
-else
-ret 35
-end
-ifz a>=b
-ret 36
-else
-end
-ret 0
+	a=3
+	b=5
+	ifz a==b
+	else
+		ret 1
+	end
+	ifz a!=b
+		ret 2
+	else
+	end
+	ifz a<b
+		ret 3
+	else
+	end
+	ifz a<=b
+		ret 4
+	else
+	end
+	ifz a>b
+	else
+		ret 5
+	end
+	ifz a>=b
+	else
+		ret 6
+	end
+	a=5
+	b=5
+	ifz a==b
+		ret 7
+	else
+	end
+	ifz a!=b
+	else
+		ret 8
+	end
+	ifz a<b
+	else
+		ret 9
+	end
+	ifz a<=b
+		ret 10
+	else
+	end
+	ifz a>b
+	else
+		ret 11
+	end
+	ifz a>=b
+		ret 12
+	else
+	end
+	a=7
+	b=5
+	ifz a==b
+	else
+		ret 13
+	end
+	ifz a!=b
+		ret 14
+	else
+	end
+	ifz a<b
+	else
+		ret 15
+	end
+	ifz a<=b
+	else
+		ret 16
+	end
+	ifz a>b
+		ret 17
+	else
+	end
+	ifz a>=b
+		ret 18
+	else
+	end
+	a=0
+	b=0xffffffffffffffff
+	ifz a==b
+	else
+		ret 19
+	end
+	ifz a!=b
+		ret 20
+	else
+	end
+	ifz a<b
+		ret 21
+	else
+	end
+	ifz a<=b
+		ret 22
+	else
+	end
+	ifz a>b
+	else
+		ret 23
+	end
+	ifz a>=b
+	else
+		ret 24
+	end
+	a=0xffffffffffffffff
+	b=0
+	ifz a==b
+	else
+		ret 25
+	end
+	ifz a!=b
+		ret 26
+	else
+	end
+	ifz a<b
+	else
+		ret 27
+	end
+	ifz a<=b
+	else
+		ret 28
+	end
+	ifz a>b
+		ret 29
+	else
+	end
+	ifz a>=b
+		ret 30
+	else
+	end
+	a=0xffffffffffffffff
+	b=0xffffffffffffffff
+	ifz a==b
+		ret 31
+	else
+	end
+	ifz a!=b
+	else
+		ret 32
+	end
+	ifz a<b
+	else
+		ret 33
+	end
+	ifz a<=b
+		ret 34
+	else
+	end
+	ifz a>b
+	else
+		ret 35
+	end
+	ifz a>=b
+		ret 36
+	else
+	end
+	ret 0
 end
 call f as r
 sys exit r

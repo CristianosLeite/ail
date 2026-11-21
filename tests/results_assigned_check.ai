@@ -1,6 +1,6 @@
 # every name after as is assigned by the call
 fn f
-ret 1 2
+	ret 1 2
 end
 sys 39 as p
 jz p s

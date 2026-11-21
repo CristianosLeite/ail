@@ -1,181 +1,181 @@
 # jnz with a comparison as its value, for a smaller, an equal and a larger left side,
 # also where the order is only right unsigned; exit status = the first wrong one
 fn f
-a=3
-b=5
-jnz a==b t1
-jmp e1
-label t1
-ret 1
-label e1
-jnz a!=b t2
-ret 2
-label t2
-label e2
-jnz a<b t3
-ret 3
-label t3
-label e3
-jnz a<=b t4
-ret 4
-label t4
-label e4
-jnz a>b t5
-jmp e5
-label t5
-ret 5
-label e5
-jnz a>=b t6
-jmp e6
-label t6
-ret 6
-label e6
-a=5
-b=5
-jnz a==b t7
-ret 7
-label t7
-label e7
-jnz a!=b t8
-jmp e8
-label t8
-ret 8
-label e8
-jnz a<b t9
-jmp e9
-label t9
-ret 9
-label e9
-jnz a<=b t10
-ret 10
-label t10
-label e10
-jnz a>b t11
-jmp e11
-label t11
-ret 11
-label e11
-jnz a>=b t12
-ret 12
-label t12
-label e12
-a=7
-b=5
-jnz a==b t13
-jmp e13
-label t13
-ret 13
-label e13
-jnz a!=b t14
-ret 14
-label t14
-label e14
-jnz a<b t15
-jmp e15
-label t15
-ret 15
-label e15
-jnz a<=b t16
-jmp e16
-label t16
-ret 16
-label e16
-jnz a>b t17
-ret 17
-label t17
-label e17
-jnz a>=b t18
-ret 18
-label t18
-label e18
-a=0
-b=0xffffffffffffffff
-jnz a==b t19
-jmp e19
-label t19
-ret 19
-label e19
-jnz a!=b t20
-ret 20
-label t20
-label e20
-jnz a<b t21
-ret 21
-label t21
-label e21
-jnz a<=b t22
-ret 22
-label t22
-label e22
-jnz a>b t23
-jmp e23
-label t23
-ret 23
-label e23
-jnz a>=b t24
-jmp e24
-label t24
-ret 24
-label e24
-a=0xffffffffffffffff
-b=0
-jnz a==b t25
-jmp e25
-label t25
-ret 25
-label e25
-jnz a!=b t26
-ret 26
-label t26
-label e26
-jnz a<b t27
-jmp e27
-label t27
-ret 27
-label e27
-jnz a<=b t28
-jmp e28
-label t28
-ret 28
-label e28
-jnz a>b t29
-ret 29
-label t29
-label e29
-jnz a>=b t30
-ret 30
-label t30
-label e30
-a=0xffffffffffffffff
-b=0xffffffffffffffff
-jnz a==b t31
-ret 31
-label t31
-label e31
-jnz a!=b t32
-jmp e32
-label t32
-ret 32
-label e32
-jnz a<b t33
-jmp e33
-label t33
-ret 33
-label e33
-jnz a<=b t34
-ret 34
-label t34
-label e34
-jnz a>b t35
-jmp e35
-label t35
-ret 35
-label e35
-jnz a>=b t36
-ret 36
-label t36
-label e36
-ret 0
+	a=3
+	b=5
+	jnz a==b t1
+	jmp e1
+	label t1
+	ret 1
+	label e1
+	jnz a!=b t2
+	ret 2
+	label t2
+	label e2
+	jnz a<b t3
+	ret 3
+	label t3
+	label e3
+	jnz a<=b t4
+	ret 4
+	label t4
+	label e4
+	jnz a>b t5
+	jmp e5
+	label t5
+	ret 5
+	label e5
+	jnz a>=b t6
+	jmp e6
+	label t6
+	ret 6
+	label e6
+	a=5
+	b=5
+	jnz a==b t7
+	ret 7
+	label t7
+	label e7
+	jnz a!=b t8
+	jmp e8
+	label t8
+	ret 8
+	label e8
+	jnz a<b t9
+	jmp e9
+	label t9
+	ret 9
+	label e9
+	jnz a<=b t10
+	ret 10
+	label t10
+	label e10
+	jnz a>b t11
+	jmp e11
+	label t11
+	ret 11
+	label e11
+	jnz a>=b t12
+	ret 12
+	label t12
+	label e12
+	a=7
+	b=5
+	jnz a==b t13
+	jmp e13
+	label t13
+	ret 13
+	label e13
+	jnz a!=b t14
+	ret 14
+	label t14
+	label e14
+	jnz a<b t15
+	jmp e15
+	label t15
+	ret 15
+	label e15
+	jnz a<=b t16
+	jmp e16
+	label t16
+	ret 16
+	label e16
+	jnz a>b t17
+	ret 17
+	label t17
+	label e17
+	jnz a>=b t18
+	ret 18
+	label t18
+	label e18
+	a=0
+	b=0xffffffffffffffff
+	jnz a==b t19
+	jmp e19
+	label t19
+	ret 19
+	label e19
+	jnz a!=b t20
+	ret 20
+	label t20
+	label e20
+	jnz a<b t21
+	ret 21
+	label t21
+	label e21
+	jnz a<=b t22
+	ret 22
+	label t22
+	label e22
+	jnz a>b t23
+	jmp e23
+	label t23
+	ret 23
+	label e23
+	jnz a>=b t24
+	jmp e24
+	label t24
+	ret 24
+	label e24
+	a=0xffffffffffffffff
+	b=0
+	jnz a==b t25
+	jmp e25
+	label t25
+	ret 25
+	label e25
+	jnz a!=b t26
+	ret 26
+	label t26
+	label e26
+	jnz a<b t27
+	jmp e27
+	label t27
+	ret 27
+	label e27
+	jnz a<=b t28
+	jmp e28
+	label t28
+	ret 28
+	label e28
+	jnz a>b t29
+	ret 29
+	label t29
+	label e29
+	jnz a>=b t30
+	ret 30
+	label t30
+	label e30
+	a=0xffffffffffffffff
+	b=0xffffffffffffffff
+	jnz a==b t31
+	ret 31
+	label t31
+	label e31
+	jnz a!=b t32
+	jmp e32
+	label t32
+	ret 32
+	label e32
+	jnz a<b t33
+	jmp e33
+	label t33
+	ret 33
+	label e33
+	jnz a<=b t34
+	ret 34
+	label t34
+	label e34
+	jnz a>b t35
+	jmp e35
+	label t35
+	ret 35
+	label e35
+	jnz a>=b t36
+	ret 36
+	label t36
+	label e36
+	ret 0
 end
 call f as r
 sys exit r

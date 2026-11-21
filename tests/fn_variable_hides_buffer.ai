@@ -1,7 +1,7 @@
 buf b 8
 fn f
-set 4 as b
-ret b
+	set 4 as b
+	ret b
 end
 storeb b 1
 call f as x

@@ -1,9 +1,9 @@
 # values after the sixth go on the stack as for call
 fn f a b c d e g h i
-mul h 10 as h
-add h i as h
-add h a as h
-ret h
+	mul h 10 as h
+	add h i as h
+	add h a as h
+	ret h
 end
 ref f as p
 callp p 1 0 0 0 0 0 4 5 as r

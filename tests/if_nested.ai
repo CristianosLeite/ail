@@ -1,16 +1,16 @@
 set 0 as r
 set 3 as a
 if a
-ifeq a 3
-add r 1 as r
-ifgt a 5
-add r 2 as r
+	ifeq a 3
+		add r 1 as r
+		ifgt a 5
+			add r 2 as r
+		else
+			add r 4 as r
+		end
+	end
+	add r 8 as r
 else
-add r 4 as r
-end
-end
-add r 8 as r
-else
-add r 16 as r
+	add r 16 as r
 end
 sys 60 r

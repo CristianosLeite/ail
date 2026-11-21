@@ -1,12 +1,12 @@
 # ten million calls deep: each tail call reuses the frame, so the stack
 # does not grow
 fn count n acc
-jz n done
-sub n 1 as n
-add acc 1 as acc
-tail count n acc
-label done
-ret acc
+	jz n done
+	sub n 1 as n
+	add acc 1 as acc
+	tail count n acc
+	label done
+	ret acc
 end
 call count 10000000 0 as r
 shr r 16 as r

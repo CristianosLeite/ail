@@ -37,6 +37,7 @@ All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was
 
 ## Supporting work
 
+- Source style (2026-11-20): sources are indented with one tab for each block, which costs 2% in tokens (990 against 970 on the corpus; spaces would cost 5.6%) and nothing in the program. `build/tools/indent` sets the indentation and changes no other byte, `--check` reports it, and `make test` holds every source to it; `editors/vscode/` is an extension for VS Code with highlighting, folding and formatting through that tool. Every source was indented with its executables compared before and after.
 - Asynchronous execution (2026-11-20): `async fn` and `await` compile a function into a task that one thread polls, with its variables in a record on the heap and no stack of its own; `lib/async/` has the runtime, written in AIL after the model of Tokio: the queue, timers, an `epoll` driver for sockets, work handed to the pool of `spawn`, cancelling, stopping, channels and the first of several. A TCP echo server is 259 tokens against 503 in C on `epoll`, and carries the same 280000 round trips a second on one thread ([results](performance.md#async-2026-11-20)).
 
 - Token cost is measured with a real tokenizer against equivalent C, Rust and assembly ([results](tokens.md)): AIL costs 11% fewer tokens than C and 17% fewer than Rust on ten programs, indented (it cost 17% and 10% more before expressions). Use `tools/tokens.sh` to choose between syntax alternatives.

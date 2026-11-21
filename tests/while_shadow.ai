@@ -5,34 +5,34 @@ const ready 1
 const lim 3
 # the variable is not assigned on every way round the loop
 fn run
-while ready
-ready=0
-ret 42
-end
+	while ready
+		ready=0
+		ret 42
+	end
 end
 # assigned on every way: the test at the end must still read the const,
 # so the loop runs until the count ends it
 fn count
-n=0
-while n<lim
-lim=100
-n+=1
-end
-ret n
+	n=0
+	while n<lim
+		lim=100
+		n+=1
+	end
+	ret n
 end
 fn nest
-a=0
-i=0
-while i<lim
-j=0
-while j<lim
-lim=1
-a+=1
-j+=1
-end
-i+=1
-end
-ret a
+	a=0
+	i=0
+	while i<lim
+		j=0
+		while j<lim
+			lim=1
+			a+=1
+			j+=1
+		end
+		i+=1
+	end
+	ret a
 end
 call run as r
 call count as c

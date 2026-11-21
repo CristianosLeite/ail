@@ -2,14 +2,14 @@
 # under the stack instead of writing over other memory
 use "lib/task.ai"
 fn deep n
-call deep n+1 as x
-ret x+n
+	call deep n+1 as x
+	ret x+n
 end
 fn nap
-local ts 16
-store ts 0
-store ts+8 50000000
-sys nanosleep ts 0
+	local ts 16
+	store ts 0
+	store ts+8 50000000
+	sys nanosleep ts 0
 end
 spawn deep 1 as h
 call nap

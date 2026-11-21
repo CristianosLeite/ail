@@ -10,6 +10,10 @@
 # what it reads from stdin. A file with no line to change is not written,
 # and the tool fails with a message without arguments, for a file it
 # cannot read and for one it cannot write.
+# Last, the sources of the repository must be indented as the tool would
+# indent them: the examples, the compiler, the libraries, the tools, the
+# bench programs and the tests, but for the files that tests/indent/skip
+# lists.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ailc=${AILC:-build/ailc}
@@ -77,4 +81,11 @@ else
     cmp -s "$tmp/c.ai" "$tmp/c0.ai" || r=1
 fi
 say indent_errors $r
+ls examples/*.ai compiler/*.ai lib/*.ai lib/async/*.ai tools/*.ai tools/lib/*.ai \
+    bench/par/*.ai bench/async/*.ai tests/*.ai tests/lib/*.ai |
+    grep -vxFf tests/indent/skip > "$tmp/list"
+xargs build/tools/indent --check < "$tmp/list" > "$tmp/said" 2>&1
+r=$?
+[ $r -eq 0 ] || head -n 20 "$tmp/said"
+say indent_sources $r
 exit $fail

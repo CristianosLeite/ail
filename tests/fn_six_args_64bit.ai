@@ -1,23 +1,23 @@
 # every argument has only bits above bit 32 set, and so has the result
 fn f a b c d e g
-shr a 40 as a
-shr b 40 as b
-shr c 40 as c
-shr d 40 as d
-shr e 40 as e
-shr g 40 as g
-mul b 10 as b
-add a b as a
-mul c 100 as c
-add a c as a
-mul d 1000 as d
-add a d as a
-mul e 10000 as e
-add a e as a
-mul g 100000 as g
-add a g as a
-shl a 40 as a
-ret a
+	shr a 40 as a
+	shr b 40 as b
+	shr c 40 as c
+	shr d 40 as d
+	shr e 40 as e
+	shr g 40 as g
+	mul b 10 as b
+	add a b as a
+	mul c 100 as c
+	add a c as a
+	mul d 1000 as d
+	add a d as a
+	mul e 10000 as e
+	add a e as a
+	mul g 100000 as g
+	add a g as a
+	shl a 40 as a
+	ret a
 end
 shl 1 40 as a
 shl 2 40 as b

@@ -9,9 +9,9 @@ sys sched_getaffinity 0 128 m as r
 n=0
 i=0
 while i<1024
-loadb m+i/8 as b
-n+=b>>(i&7)&1
-i+=1
+	loadb m+i/8 as b
+	n+=b>>(i&7)&1
+	i+=1
 end
 loadb m+c/8 as b
 call procpin c as d

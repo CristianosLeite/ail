@@ -2,13 +2,13 @@
 # task of that size, also when the task was done while in the queue
 use "lib/async/task.ai"
 fn poll t
-store t+16 5
-ret 1
+	store t+16 5
+	ret 1
 end
 fn twice t
-call asyncwake t
-store t+16 6
-ret 1
+	call asyncwake t
+	store t+16 6
+	ret 1
 end
 ref poll as p
 call async 64 p as a

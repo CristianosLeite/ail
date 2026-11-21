@@ -3,14 +3,14 @@
 var a b c f h k n p r s t v w x z
 use "lib/async/task.ai"
 fn poll u
-call asyncwake u
-load u+64 as m
-store u+64 m+1
-ifz m
-ret 0
-end
-store u+16 m
-ret 1
+	call asyncwake u
+	load u+64 as m
+	store u+64 m+1
+	ifz m
+		ret 0
+	end
+	store u+16 m
+	ret 1
 end
 a=1
 b=1
