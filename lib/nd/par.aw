@@ -16,10 +16,12 @@
 # when every task has ended.
 
 # how ndn rows are cut for ndt tasks: the rows of a run and the number
-# of runs, which is the number of tasks. All runs have the same rows but
-# the last, which has what is left, so there may be fewer runs than
-# tasks asked for: 16 rows for 14 tasks are 8 runs of 2. At most 64
-# runs, no more than rows, and one run of all rows for 0 or 1 task
+# of runs, the row blocks. All runs have the same rows but the last,
+# which has what is left, so there may be fewer runs than tasks asked
+# for: 16 rows for 14 tasks are 8 runs of 2. At most 64 runs, no more
+# than rows, and one run of all rows for 0 or 1 task. It is the plan
+# and not a count of tasks: ndmatmulp computes one run alone itself,
+# without a task, and also a run whose spawn gives 0
 fn ndruns ndn ndt
 	if ndt>64
 		ndt=64

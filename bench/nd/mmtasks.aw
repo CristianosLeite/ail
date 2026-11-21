@@ -5,8 +5,12 @@
 # each product is called. It writes five numbers and a newline: the
 # nanoseconds of the fastest ndmatmul, those of the first ndmatmulp,
 # which also starts the threads, those of the fastest later one, a
-# count of what went wrong, which must be 0, and the tasks that
-# ndmatmulp made, which may be fewer than asked for (ndruns).
+# count of what went wrong, which must be 0, and the row blocks that
+# ndruns plans for the rows and the tasks asked for, which may be fewer
+# than those. A row block is a run of rows computed as one piece: that
+# number is what ndmatmulp is to do, not a count of tasks that ran,
+# since one block alone is computed by the caller without a task, and a
+# block whose spawn fails is computed by the caller too.
 #
 # What went wrong is counted outside the clocks, against the result of
 # ndmatmul: the elements of the first ndmatmulp that differ, before a
@@ -132,6 +136,6 @@ call putn warm
 call print " "
 call putn d+d2+bad+1-ok
 call print " "
-call ndruns n t as rows made
-call putn made
+call ndruns n t as rows blocks
+call putn blocks
 call print "\n"

@@ -441,7 +441,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     call, with its time made 0, prints 1 and the time of a right call,
     and `mmtasks.sh` ends with `differ`; before, it printed a time of 0
     and no error.
-14. [ ] **Label the reported count as planned row blocks.** Rename
+14. [x] **Label the reported count as planned row blocks.** Rename
     `tasks made` to `row blocks` in `bench/nd/mmtasks.sh` and use the
     same term in `bench/nd/mmtasks.aw` and `performance.md`. Keep the
     requested task count beside it and show the count returned by
@@ -449,6 +449,10 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     caller and a failed `spawn` also leaves its block to the caller.
     Check that the report shows one row block for a serial call and
     eight for 16 rows with 14 tasks requested.
+    Done on 2026-11-21: the column and the texts say row blocks, the
+    count `ndruns` plans, with the note on the caller's block; the
+    report shows 1 for a call with one task and 8 for 16 rows with 14
+    tasks asked for.
 
 Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
