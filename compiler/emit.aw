@@ -925,9 +925,23 @@ fn inlchk
 	if i==-1
 		ret -1
 	end
-	p=i*24+finl
+	p=i*48+finl
 	load p as b
 	ifz b
+		ret -1
+	end
+	# what the body adds to the tables of calls, of names to fill in and of
+	# accesses to check must fit: they are sized for a source read once
+	load p+24 as n
+	if ncalls+n>2097154
+		ret -1
+	end
+	load p+32 as n
+	if nrefs+n>4194305
+		ret -1
+	end
+	load p+40 as n
+	if nchks+n>1048577
 		ret -1
 	end
 	load p+8 as n
@@ -989,12 +1003,12 @@ fn inlopen i e
 	call clrvk
 	load4 i*40+funs+32 as n
 	ilres=n
-	load i*24+finl as p
+	load i*48+finl as p
 	ip=p
 	# A parameter that the body never assigns, given a variable by itself, is
 	# another name of that variable: m has the bit of each such. If all are,
 	# the code that loaded the values is taken back.
-	load i*24+finl+16 as w
+	load i*48+finl+16 as w
 	m=0
 	k=0
 	while k<ai

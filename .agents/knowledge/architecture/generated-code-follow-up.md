@@ -87,6 +87,14 @@ several places.
 - `build/tools/perf --places <name>` makes that table: eight builds by `build/ailc` with 1
   to 29 bytes of `data` in front. It replaces the script by hand.
 
+- Since 2026-11-21 a function that calls, or names a `buf`, `data` or `var`, is fit for a
+  call in place: `finl` (48 bytes) notes what its body adds to `calls`, `refs` and `chks`,
+  and `inlchk` refuses when a table would pass its capacity (`tests/inline_fills_tables`:
+  600000 calls of such a body, the compiler goes over to calls at about 524000). The
+  compiler compiles itself 6% faster (the same source built by the compiler before and
+  after), `heapsort` 2% and `ndmatmul` 1%; the other programs do not move. It is 63207
+  bytes for 51175, and reads more bodies, so the gain is in the code, not in bytes.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are

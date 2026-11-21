@@ -180,9 +180,10 @@ buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 add
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
 # (4 bytes each) results, 0 for a function with a tail and no ret
 # until fin knows, and the head of the list of the tails to it
-buf finl 22369632     # per function, 24 bytes: where its parameters are in the source
-# if its calls are compiled in place, else 0, its variables, and
-# which of them it assigns
+buf finl 44739264     # per function, 48 bytes: where its parameters are in the source
+# if its calls are compiled in place, else 0, its variables,
+# which of them it assigns, and how many entries its body adds to
+# calls, refs and chks
 buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
 # stands in and the next tail to the same function, as index + 1
 buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
@@ -1260,19 +1261,24 @@ pass=2
 jmp fndef
 label e1
 # The calls of a function are compiled in place if it is short and its
-# body adds to no table that the source limit sizes: no call, no global
-# name. Nor if it has a local, a tail, more than six parameters, or is
+# body declares no global name. What it adds to the tables that the
+# source limit sizes, by its calls and by the global names it uses, is
+# noted, and inlchk refuses where that would not fit.
+# Nor if it has a local, a tail, more than six parameters, or is
 # a task, or has more variables at once than registers: such a body
 # takes registers from its caller and was slower in place than called.
-p=(nfuncs-1)*24+finl
+p=(nfuncs-1)*48+finl
 store p 0
 if (fnasy|fntail|fnlocal|ilany|fnslots)==0
-	if (ncalls==snc)&(nrefs==snr)&(nchks==snk)&(nruns==snu)&(nbufs==snb)
+	if (nruns==snu)&(nbufs==snb)
 		load (nfuncs-1)*40+funs+16 as q
 		if (op-q-fnpad<=inlsz)&(fnnpar<=6)
 			store p fnsrc
 			store p+8 nv
 			store p+16 fnwr
+			store p+24 ncalls-snc
+			store p+32 nrefs-snr
+			store p+40 nchks-snk
 		end
 	end
 end
