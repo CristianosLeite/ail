@@ -998,6 +998,9 @@ if d&(asg^-1)
 	call eunasgj
 end
 jne pass 1 j2
+# not for a body compiled in place: its variables are in use at the one
+# place of the call, and loops is sized for a source read once
+jnz ilon j2
 load r+24 as r
 p=nloops*16+loops
 store p r
@@ -1271,7 +1274,7 @@ if r
 			call eunasgj
 		end
 	end
-	if pass==1
+	if (pass==1)&(ilon==0)
 		load p+32 as q
 		d=nloops*16+loops
 		store d q
