@@ -19,6 +19,14 @@
 # is 0 divided by 0, no number. What is no number stays none through a
 # sum, an infinity stays one, and two infinities of both signs give no
 # number, as fadd has it.
+#
+# nddot takes two arrays of one axis and the same length and returns the
+# sum of the products of their elements and 1, or 0 and 0. ndmatmul takes
+# a result and two arrays, all of two axes: n rows of m elements times m
+# rows of l give n rows of l, each element the sum over k of the element
+# i k of the first times the element k j of the second, added from 0 in
+# the order of k. It returns 1, or 0 for other lengths, for a result
+# that shares storage with one of the two, and for what is no array.
 
 # the sum of the ndn elements from ndp on with the stride nds, added to
 # nda one after the other
@@ -193,4 +201,144 @@ fn ndmeanax ndo ndd ndax
 	itof ndn as ndn
 	call ndscalar ndk ndn
 	tail nddiv ndo ndo ndk
+end
+
+# the sum of the products of the elements of nda and ndb, two arrays of
+# one axis and the same length, and 1, or 0 and 0
+fn nddot nda ndb
+	load nda+8 as ndx
+	load ndb+8 as ndy
+	ifz (ndx!=0)&(ndy!=0)
+		ret 0 0
+	end
+	load nda+16 as ndx
+	load ndb+16 as ndy
+	ifz (ndx==1)&(ndy==1)
+		ret 0 0
+	end
+	load nda+48 as ndn
+	load ndb+48 as ndm
+	if ndn!=ndm
+		ret 0 0
+	end
+	load nda as ndp
+	load ndb as ndq
+	load nda+112 as nds
+	load ndb+112 as ndt
+	ndz=0
+	if (nds==8)&(ndt==8)
+		ndn=ndp+ndn*8
+		ndq-=ndp
+		while ndp<ndn
+			load ndp as ndx
+			load ndp+ndq as ndy
+			fmul ndx ndy as ndx
+			fadd ndz ndx as ndz
+			ndp+=8
+		end
+		ret ndz 1
+	end
+	while ndn
+		load ndp as ndx
+		load ndq as ndy
+		fmul ndx ndy as ndx
+		fadd ndz ndx as ndz
+		ndp+=nds
+		ndq+=ndt
+		ndn-=1
+	end
+	ret ndz 1
+end
+
+# add ndx times each of the ndn elements from ndq on, with the stride
+# ndt, to the elements from ndp on, with the stride nds
+fn ndaxpy ndp ndn nds ndx ndq ndt
+	if (nds==8)&(ndt==8)
+		ndn=ndp+ndn*8
+		ndq-=ndp
+		while ndp<ndn
+			load ndp+ndq as ndy
+			load ndp as ndz
+			fmul ndx ndy as ndy
+			fadd ndz ndy as ndz
+			store ndp ndz
+			ndp+=8
+		end
+		ret 0
+	end
+	while ndn
+		load ndq as ndy
+		load ndp as ndz
+		fmul ndx ndy as ndy
+		fadd ndz ndy as ndz
+		store ndp ndz
+		ndp+=nds
+		ndq+=ndt
+		ndn-=1
+	end
+	ret 0
+end
+
+# make ndo the product of the matrices nda and ndb
+fn ndmatmul ndo nda ndb
+	load ndo+8 as ndt
+	load nda+8 as ndx
+	load ndb+8 as ndy
+	ifz (ndt!=0)&(ndx!=0)&(ndy!=0)
+		ret 0
+	end
+	load ndo+16 as ndt
+	load nda+16 as ndx
+	load ndb+16 as ndy
+	ifz (ndt==2)&(ndx==2)&(ndy==2)
+		ret 0
+	end
+	load nda+48 as ndn
+	load nda+56 as ndm
+	load ndb+56 as ndl
+	load ndb+48 as ndx
+	load ndo+48 as ndy
+	load ndo+56 as ndt
+	ifz (ndx==ndm)&(ndy==ndn)&(ndt==ndl)
+		ret 0
+	end
+	load ndo+112 as ndso
+	load ndo+120 as ndsp
+	# two elements of the result at one address
+	if (ndn>1)&(ndso==0)|((ndl>1)&(ndsp==0))
+		ret 0
+	end
+	call ndspan ndo as ndlo ndhi
+	call ndspan nda as ndp ndq
+	if (ndp<ndhi)&(ndlo<ndq)
+		ret 0
+	end
+	call ndspan ndb as ndp ndq
+	if (ndp<ndhi)&(ndlo<ndq)
+		ret 0
+	end
+	call ndfill ndo 0
+	load nda+112 as ndsa
+	load nda+120 as ndsk
+	load ndb+112 as ndsb
+	load ndb+120 as ndsj
+	load ndo as ndp
+	load nda as ndq
+	ndi=0
+	while ndi<ndn
+		load ndb as ndr
+		ndu=ndq
+		ndk=0
+		while ndk<ndm
+			load ndu as ndx
+			call ndaxpy ndp ndl ndsp ndx ndr ndsj
+			ndu+=ndsk
+			ndr+=ndsb
+			ndk+=1
+		end
+		ndp+=ndso
+		ndq+=ndsa
+		ndi+=1
+	end
+	ret 1
 end

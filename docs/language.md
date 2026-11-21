@@ -1210,6 +1210,8 @@ call putn n
 | `ndsumpw d` | returns the sum, added in pairs, and 1, or 0 and 0 |
 | `ndsumax o d a` | makes each element of `o` the sum of the elements of `d` along its axis `a`; returns 1 |
 | `ndmeanax o d a` | makes each element of `o` their mean; returns 1 |
+| `nddot a b` | returns the sum of the products of the elements of `a` and `b`, two arrays of one axis and the same length, and 1, or 0 and 0 |
+| `ndmatmul o a b` | makes `o` the product of the matrices `a` and `b`; returns 1 |
 
 ```
 use "lib/io.aw"
@@ -1232,6 +1234,7 @@ call putn n
 - **Order**: a sum starts from 0 and adds one element after the other in the order of the indices, the last fastest, and along an axis from the index 0 up, as a loop in C does. NumPy adds in pairs, so the last digits of a long sum can differ from its: a million times 0.1 is 100000.0000013 added so and 99999.9999999998 in pairs, which `ndsumpw` does, halves of halves down to runs of 128 elements at most. A mean is the sum divided by the number of elements.
 - **No element**: the sum of no element is 0 and the mean is 0 divided by 0, no number, also for each element of a result along an axis of length 0.
 - **Special values**: what is no number stays so through a sum, an infinity stays one, and infinities of both signs together are no number, as `fadd` has it; a sum along an axis keeps that to the elements it concerns.
+- **Products**: `ndmatmul` takes three arrays of two axes: `n` rows of `m` elements times `m` rows of `l` give a result of `n` rows of `l`, each element the sum over `k` of the element `i`, `k` of `a` times the element `k`, `j` of `b`, added from 0 in the order of `k`, as `nddot` adds in the order of the index. A column or a row is a matrix with one of them (`ndreshape`, or a slice of one index). Any of the three may be a view; the result may not share storage with `a` or `b`, so a matrix is not multiplied in place. Other lengths, another number of axes and such a result are refused with 0 and nothing written; `nddot` returns 0 and 0 for lengths that differ and for arrays that have not one axis.
 - **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
 
 ## The async library
