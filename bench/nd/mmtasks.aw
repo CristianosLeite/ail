@@ -5,9 +5,11 @@
 # each product is called. It writes four numbers and a newline: the
 # nanoseconds of the fastest ndmatmul, those of the first ndmatmulp,
 # which also starts the threads, those of the fastest later one, and
-# how many elements of the two results differ, which must be 0. The
-# results are written once before any clock, so that no time is that of
-# memory the kernel had not given yet. bench/nd/mmtasks.sh runs it for
+# how many elements of the results differ, which must be 0: those of the
+# first ndmatmulp, counted before a later call writes over them, and
+# those of the last, each against the result of ndmatmul and neither
+# inside a clock. The results are written once before any clock, so
+# that no time is that of memory the kernel had not given yet. bench/nd/mmtasks.sh runs it for
 # the table in docs/performance.md.
 use "lib/io.aw"
 use "lib/task.aw"
@@ -94,6 +96,7 @@ call now as s
 call ndmatmulp o a b t as ok
 call now as e
 cold=e-s
+call differ o q as d
 warm=0-1
 i=0
 while i<c
@@ -105,12 +108,12 @@ while i<c
 	end
 	i+=1
 end
-call differ o q as d
+call differ o q as d2
 call putn best
 call print " "
 call putn cold
 call print " "
 call putn warm
 call print " "
-call putn d+1-ok
+call putn d+d2+1-ok
 call print "\n"

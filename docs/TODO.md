@@ -409,12 +409,16 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     prototype that distributed the extra rows across blocks reduced the
     warm-pool median from 74.7 to 58.4 microseconds in this case and
     increased it for some other shapes.
-12. [ ] **Validate the first parallel matrix result before reusing its
+12. [x] **Validate the first parallel matrix result before reusing its
     buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
     compares the output only after later calls have overwritten it.
     Compare the first result against the serial result before running
     the warm-pool calls. Keep both result checks outside the timed
     regions and verify that corrupting either result fails the benchmark.
+    Done on 2026-11-21: the first result is compared before the later
+    calls and the last one after them, both outside the clocks; a wrong
+    double stored after either makes the benchmark print 1 and
+    `mmtasks.sh` end with `differ` and the status 1.
 
 Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
