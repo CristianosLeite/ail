@@ -19,15 +19,22 @@ fn fix chkd chkp chkr chka chkb chkc
 end
 
 # 1 if the doubles chkx and chky are the same bits, or differ by no
-# more than 2^-40 of their sizes together
+# more than 2^-40 of their sizes together. A difference that is no
+# finite number is never near: that of an infinity and a number, or of
+# two numbers too far apart for a double. Each size is made small
+# before the two are added, so that the sum is finite too
 fn near chkx chky
 	if chkx==chky
 		ret 1
 	end
 	fsub chkx chky as chkd
 	chkd=chkd<<1>>1
-	fadd chkx<<1>>1 chky<<1>>1 as chks
-	fmul chks 0x3d70000000000000 as chks
+	if chkd>=0x7ff0000000000000
+		ret 0
+	end
+	fmul chkx<<1>>1 0x3d70000000000000 as chks
+	fmul chky<<1>>1 0x3d70000000000000 as chkt
+	fadd chks chkt as chks
 	fle chkd chks as chkd
 	ret chkd
 end
