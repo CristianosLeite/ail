@@ -1,7 +1,7 @@
 # a product of matrices is refused, and nothing written, for lengths
 # that do not go together, arrays that have not two axes, a result in
 # the storage of one of the two, and what is no array
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

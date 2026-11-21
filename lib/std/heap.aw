@@ -1,6 +1,6 @@
-# lib/heap.aw -- a heap of 64-bit values that gives the smallest first.
+# lib/std/heap.aw -- a heap of 64-bit values that gives the smallest first.
 #
-# A heap is a vector of lib/vec.aw, which a program uses first: 24 bytes
+# A heap is a vector of lib/std/vec.aw, which a program uses first: 24 bytes
 # that the caller owns, all zero for an empty heap. The values are kept
 # so that the one at the index i is not larger than those at 2i+1 and
 # 2i+2, in the unsigned order; the smallest is the first. The functions
@@ -13,7 +13,7 @@
 # the heap with heapfree.
 #
 # Every variable and parameter of this file has a name that starts with
-# "heap"; a program has no var of such a name (see lib/io.aw).
+# "heap"; a program has no var of such a name (see lib/std/io.aw).
 
 # add the value heapx
 fn heappush heaph heapx

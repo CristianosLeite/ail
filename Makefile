@@ -37,8 +37,8 @@ $(B)/hashtab: lib/algo/hash.aw
 $(B)/graph: lib/algo/graph.aw
 
 # The collection programs name the collections.
-$(B)/collseq: lib/vec.aw lib/queue.aw lib/heap.aw
-$(B)/collmap: lib/map.aw
+$(B)/collseq: lib/std/vec.aw lib/std/queue.aw lib/std/heap.aw
+$(B)/collmap: lib/std/map.aw
 
 # The array programs also name the library of arrays.
 $(patsubst %,$(B)/%,ndelem ndreduce ndmatmul): lib/nd/array.aw lib/nd/elem.aw
@@ -59,15 +59,15 @@ $(B)/tools/%: tools/%.aw $(B)/ailc
 	@mkdir -p $(@D)
 	$(call compile,$(B)/ailc)
 
-TL := lib/io.aw lib/bytes.aw lib/file.aw
+TL := lib/std/io.aw lib/std/bytes.aw lib/std/file.aw
 
-$(B)/tools/hashcol: lib/io.aw
+$(B)/tools/hashcol: lib/std/io.aw
 $(B)/tools/indent: $(TL) tools/lib/dent.aw
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw tools/lib/dent.aw
-$(B)/tools/randvars: $(TL) lib/proc.aw tools/lib/rng.aw
-$(B)/tools/perf: $(TL) lib/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
+$(B)/tools/randvars: $(TL) lib/std/proc.aw tools/lib/rng.aw
+$(B)/tools/perf: $(TL) lib/std/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
 $(B)/tools/tokens: $(TL) tools/lib/fmt.aw tools/lib/o200k.aw
-$(B)/tools/par: $(TL) lib/proc.aw tools/lib/fmt.aw
+$(B)/tools/par: $(TL) lib/std/proc.aw tools/lib/fmt.aw
 
 # The compiler, compiler/ailc.aw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself

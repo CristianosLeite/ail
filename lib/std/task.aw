@@ -1,5 +1,5 @@
-# lib/task.aw -- tasks: the functions that the statements spawn and join
-# call, and the pool of threads that runs them. Put  use "lib/task.aw"  in
+# lib/std/task.aw -- tasks: the functions that the statements spawn and join
+# call, and the pool of threads that runs them. Put  use "lib/std/task.aw"  in
 # a program that has them, compiled from the top of the repository. The
 # file has no line that runs at its use: a program that never spawns pays
 # nothing, and the first spawn finds everything zero.

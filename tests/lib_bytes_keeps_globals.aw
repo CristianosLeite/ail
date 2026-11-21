@@ -1,8 +1,8 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "by"
 var b p n i w c d len cap new old ok v digits dst src
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 buf x 24
 b=1
 p=1

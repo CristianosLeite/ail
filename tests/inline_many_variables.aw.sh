@@ -1,7 +1,7 @@
 #!/bin/sh
 # a function with 62 variables has no room for the three of add3, whose
 # call stays a call; with 60 it is compiled in place
-echo 'use "lib/io.aw"'
+echo 'use "lib/std/io.aw"'
 echo 'fn add3 a b'
 echo '	c=a+b'
 echo '	ret c+1'

@@ -1,7 +1,7 @@
 # a copy has storage of its own with the elements of a view one behind
 # the other, also in place of the view or of the array; ndfill sets the
 # elements of a view and no other
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf v 176

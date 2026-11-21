@@ -23,7 +23,7 @@ mkdir -p build/fuzz
 out=$(mktemp -d build/fuzz/run.XXXXXX) || exit 1
 trap 'rm -rf "$out"' EXIT
 trap 'exit 1' HUP INT TERM
-ls tests/*.aw examples/*.aw lib/*.aw lib/algo/*.aw tests/lib/*.aw > "$out/corpus"
+ls tests/*.aw examples/*.aw lib/std/*.aw lib/algo/*.aw tests/lib/*.aw > "$out/corpus"
 n=$(wc -l < "$out/corpus")
 
 # print source number $1: one corpus file after one to four random edits

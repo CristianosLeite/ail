@@ -1,6 +1,6 @@
 # The number of primes below n, the 8 bytes on stdin, by trial division:
 # the work grows along the range, so equal pieces are unequal work.
-use "lib/io.aw"
+use "lib/std/io.aw"
 buf in 8
 fn count lo hi
 	c=0

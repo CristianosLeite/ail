@@ -1,7 +1,7 @@
 # in a function with more variables than registers, the addresses given
 # as expressions: an array of 7 doubles two at a time and the last one
 # alone gives what one at a time gives
-use "lib/io.aw"
+use "lib/std/io.aw"
 buf a 56
 buf b 56
 buf c 56

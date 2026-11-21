@@ -13,7 +13,7 @@ output and differ from them in a few stated places.
 
 ## Facts
 - Shared code is in `tools/lib/` (`scan.aw`, `flow.aw`, `rng.aw`, `fmt.aw`, `o200k.aw`) and in
-  `lib/` (`bytes.aw`, `file.aw`, `proc.aw`). The prerequisites of each tool in the Makefile must
+  `lib/std/` (`bytes.aw`, `file.aw`, `proc.aw`). The prerequisites of each tool in the Makefile must
   be its `use` lines; `tests/tools.sh` compares them.
 - The tokenizer (`tools/lib/o200k.aw`) needs two pinned files in `tools/pins/`, fetched by
   `tools/pin.sh` and ignored by git; `tests/tokens.sh` skips without them. Unicode is 16.0.0,

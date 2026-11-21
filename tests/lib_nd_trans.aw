@@ -1,6 +1,6 @@
 # the axes in the reverse order, or two of them exchanged: the same
 # elements under other indices, and nothing is moved
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf t 176

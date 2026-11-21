@@ -1,7 +1,7 @@
 # a freed vector is all zero and is a vector again: freed twice, and
 # filled after it
-use "lib/io.aw"
-use "lib/vec.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
 buf v 24
 call vecfree v
 call vecpush v 1

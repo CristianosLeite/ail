@@ -1,7 +1,7 @@
 # closing a descriptor ends what waits for it with -125, and the next
 # socket, which gets the same number, is a file of its own; a connect
 # to a port where nobody listens is the error of the kernel, -111
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

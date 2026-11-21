@@ -2,7 +2,7 @@
 # without that axis: a length of 1 where the array has more is not
 # given every element, as it would be in ndadd, but refused, and the
 # result stays what it was
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

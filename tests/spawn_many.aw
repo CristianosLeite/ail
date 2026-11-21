@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn id a
 	ret a
 end

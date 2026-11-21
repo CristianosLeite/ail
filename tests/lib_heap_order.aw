@@ -1,8 +1,8 @@
 # values leave the smallest first, in the unsigned order, equal ones one
 # after the other and 0 like any other; an empty heap gives 0 and 0
-use "lib/io.aw"
-use "lib/vec.aw"
-use "lib/heap.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
+use "lib/std/heap.aw"
 buf h 24
 call heappeek h as x a
 call heappop h as x b

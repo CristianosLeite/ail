@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn w a
 end
 spawn w 1 as h k

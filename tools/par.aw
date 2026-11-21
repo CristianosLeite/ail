@@ -16,7 +16,7 @@
 # --check runs small sizes at several thread and task counts and times
 # nothing; make test does that. Without it the sizes below are timed:
 # the median of the runs, on all processors, each run a new process
-# (lib/proc.aw), timed from before its start to after its end. Three
+# (lib/std/proc.aw), timed from before its start to after its end. Three
 # tables are printed: elapsed time by threads, elapsed time by the number
 # of tasks the same work is cut into, and the tokens of both sources,
 # which build/tools/tokens counts if it is built and the files it reads
@@ -29,10 +29,10 @@
 #
 # A run gets 120 seconds. Status 0; 1 after a failed check, or with a
 # line "par: ..." on stderr.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 use "tools/lib/fmt.aw"
 
 # the programs: the name, the size timed, the size checked

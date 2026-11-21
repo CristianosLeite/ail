@@ -1,5 +1,5 @@
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 buf hs 8000
 fn work a n
 	s=0

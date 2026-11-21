@@ -1,6 +1,6 @@
 # variables keep their values over an await in a loop and in both parts
 # of a block, and two tasks that give the thread back run in turn
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 buf ch 8
 async fn count c n

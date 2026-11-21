@@ -1,4 +1,4 @@
-use "lib/io.aw"
+use "lib/std/io.aw"
 set "abcde\0" as p
 call strlen p as n
 set "\0" as q

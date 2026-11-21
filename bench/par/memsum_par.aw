@@ -1,7 +1,7 @@
 # memsum_seq.aw as tasks, each pass cut into pieces; stdin as for
 # collatz_par.aw.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 buf in 24
 buf hs 8388608
 buf m 134217728

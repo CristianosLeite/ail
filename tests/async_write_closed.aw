@@ -2,7 +2,7 @@
 # the program: to a socket whose other side is closed, and to a pipe
 # whose reading end is; the signal is neither left pending nor blocked
 # afterwards, and a write to a plain file is a write
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

@@ -1,8 +1,8 @@
 # what is written is what is read back, a second write replaces the
 # first, and a file of a megabyte comes back whole
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 buf b 24
 buf big 24
 buf back 24

@@ -1,9 +1,9 @@
-# lib/nd/par.aw -- the product of matrices in tasks; needs lib/task.aw
+# lib/nd/par.aw -- the product of matrices in tasks; needs lib/std/task.aw
 # and the three files lib/nd/array.aw, elem.aw and reduce.aw.
 #
 # ndmatmulp is ndmatmul with a number of tasks: the rows of the result
 # are cut into runs (ndruns says how), and each run is a
-# task of lib/task.aw that computes its rows, which no other task
+# task of lib/std/task.aw that computes its rows, which no other task
 # touches. The result is the same bits as that of ndmatmul, and what is
 # refused is the same. At most 64 tasks are made, and no more than there
 # are rows; with 0 or 1 the rows are computed here. How many threads

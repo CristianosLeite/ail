@@ -1,7 +1,7 @@
 # values come back by index and off the end in the reverse order, a value
 # of 0 like any other; an empty vector and an index too far give 0 and 0
-use "lib/io.aw"
-use "lib/vec.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
 buf v 24
 call vecpop v as x a
 call vecget v 0 as y b

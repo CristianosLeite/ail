@@ -2,8 +2,8 @@
 # print them: the nearest decimal to the exact value, which for 12.345
 # and 2.675 lies below the tie and for 0.125 and 2.5 is a tie that goes
 # to the even digit
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 use "tools/lib/fmt.aw"
 buf b 24
 fn show n d k

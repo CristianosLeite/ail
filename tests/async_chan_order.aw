@@ -2,7 +2,7 @@
 # receives: the values come in order, the sender waits when the channel
 # is full, and after the channel is shut the receiver gets what is left
 # and then -32
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/chan.aw"
 var most

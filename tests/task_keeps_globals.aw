@@ -2,7 +2,7 @@
 # variable of the library has a name that a program may have, since "as"
 # on the name of a var writes the cell in any function
 var a b c d e i k m n p r s t w x
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn work v
 	ret v+1
 end

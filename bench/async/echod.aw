@@ -2,7 +2,7 @@
 # each connection:  echod [port]  (default 8080; with 0 the kernel
 # chooses the port). It prints the port it listens on and runs until it
 # is killed.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

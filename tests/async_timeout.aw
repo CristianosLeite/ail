@@ -1,7 +1,7 @@
 # a limit on the time of an event: -62 when the time is up, the result
 # when the event is done before; a cancelled timer is -125; and no timer
 # is left, so that running what is left does not sleep
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 call asyncclock as t0

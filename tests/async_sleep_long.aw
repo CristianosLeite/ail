@@ -1,7 +1,7 @@
 # a time whose nanoseconds do not fit in 64 bits, or that passes the end
 # of the clock when added to it, is a timer that is never due: a short
 # one is first, and the long ones end only when they are cancelled
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/chan.aw"

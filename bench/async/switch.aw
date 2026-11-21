@@ -3,7 +3,7 @@
 # Every task awaits asyncyield <waits> times, so each wait is a task
 # made, two polls and a record given back. One line: the waits in all,
 # milliseconds, and nanoseconds a wait, 0 where there is none.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "bench/async/num.aw"

@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 fn work a b c d e
 	ret a+b*2+c*4+d*8+e*16
 end

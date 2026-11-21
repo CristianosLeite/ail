@@ -1,6 +1,6 @@
 # after ndfree the 176 bytes are zero and make a new array like any
 # other; freeing what is no array does nothing
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf ix 8

@@ -2,7 +2,7 @@
 # and three axes within 2^-40 of the sizes, and of 10000 numbers from
 # 1e-8 to 1e8, where adding one after the other and adding in pairs
 # differ in the last digits
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

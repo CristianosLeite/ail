@@ -1,14 +1,14 @@
 # collseq: the collections of values in a row, on the keys of the
 # harness: a vector takes every key and gives them back, the last first
-# (lib/vec.aw); a queue with room for 1024 takes each key and, when it
-# is full, gives the oldest first (lib/queue.aw); a heap takes every key
-# and gives them back, the smallest first (lib/heap.aw). Each makes its
+# (lib/std/vec.aw); a queue with room for 1024 takes each key and, when it
+# is full, gives the oldest first (lib/std/queue.aw); a heap takes every key
+# and gives them back, the smallest first (lib/std/heap.aw). Each makes its
 # collection in the 64 bytes of the harness and gives it back. Without
 # memory for it the program ends with the status 1, as the harness does.
 use "bench/algo/harness.aw"
-use "lib/vec.aw"
-use "lib/queue.aw"
-use "lib/heap.aw"
+use "lib/std/vec.aw"
+use "lib/std/queue.aw"
+use "lib/std/heap.aw"
 fn kvec a n r s
 	i=0
 	while i<n

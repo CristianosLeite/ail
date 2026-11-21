@@ -2,7 +2,7 @@
 #   mem <tasks>
 # Makes that many tasks, each asleep in a timer with three variables
 # alive, and prints the bytes of resident memory that one of them added.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "bench/async/num.aw"

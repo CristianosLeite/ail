@@ -2,7 +2,7 @@
 # condition on a mask or on a remainder by a power of two, against the
 # same computed in steps; in a function, where the variables have other
 # registers and one has none, and in a loop
-use "lib/io.aw"
+use "lib/std/io.aw"
 fn f a b c d e g
 	h=g*3+1
 	i=h*5-7

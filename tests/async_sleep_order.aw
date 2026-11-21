@@ -1,6 +1,6 @@
 # three tasks that sleep are woken in the order of their times, whatever
 # the order they were made in, and no earlier than asked
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 buf ch 8

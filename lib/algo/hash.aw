@@ -12,7 +12,7 @@
 #
 # hashfill puts keys in, each with its index among them as its value,
 # and hashfind writes the value of each key asked for, or -1. Both take
-# the keys as words one behind the other. This is not lib/map.aw, whose
+# the keys as words one behind the other. This is not lib/std/map.aw, whose
 # places are 24 bytes with a mark, which takes keys out and grows, and
 # to which 0 is a key: here a place is two words and a probe one load.
 #

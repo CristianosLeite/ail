@@ -1,9 +1,9 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "file"
 var p n fd b r z i c flags mode sum ok len cap d dn
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 buf x 24
 p=1
 n=1

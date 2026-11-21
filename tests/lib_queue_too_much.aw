@@ -1,8 +1,8 @@
 # room whose bytes would not fit in 64 bits is refused, as is room the
 # kernel has no memory for, and the queue stays all zero; room for no
 # value is a queue that is always full; a freed queue is given room again
-use "lib/io.aw"
-use "lib/queue.aw"
+use "lib/std/io.aw"
+use "lib/std/queue.aw"
 buf q 32
 call queueinit q 0x2000000000000000 as a
 call queueinit q 18446744073709551615 as b

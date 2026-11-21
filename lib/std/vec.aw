@@ -1,4 +1,4 @@
-# lib/vec.aw -- a vector of 64-bit values that grows.
+# lib/std/vec.aw -- a vector of 64-bit values that grows.
 #
 # A vector is 24 bytes that the caller owns, in a buf or a local: the
 # address of its values, their number and the number there is room for.
@@ -19,7 +19,7 @@
 # vecfree.
 #
 # Every variable and parameter of this file has a name that starts with
-# "vec"; a program has no var of such a name (see lib/io.aw).
+# "vec"; a program has no var of such a name (see lib/std/io.aw).
 
 # make room for vecn values in all
 fn vecreserve vecv vecn

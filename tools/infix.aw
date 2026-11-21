@@ -39,9 +39,9 @@
 # parentheses in one another, 496 in the value of a statement, is taken
 # for no expression and its line stays: there the Python script this was
 # ported from gave up.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 use "tools/lib/scan.aw"
 use "tools/lib/flow.aw"
 use "tools/lib/dent.aw"

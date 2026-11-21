@@ -15,7 +15,7 @@ build/tools/perf --qsort      # the sorts against the qsort of the C library too
 
 - C is built with `gcc -O3`, Rust with `rustc -O`, assembly with `as` and `ld`; the AIL program is `build/<name>`, so run `make` first. A language without a source for a program is left out of its row.
 - Every executable must give the expected output and exit status for the input before anything is timed. Where the output is a computed value, all languages must give the same bytes as C.
-- A run is a child process of `lib/proc.aw` and the wait for it (`fork`, `dup2`, `execve`, `wait4`), timed with the monotonic clock, with stdin from a file and stdout to `/dev/null`, the tool pinned to one CPU. Until 2026-11-20 the tool was a Python script that started the child with `posix_spawn`; [the two are compared below](#the-measuring-tool-in-ail-2026-11-20). Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
+- A run is a child process of `lib/std/proc.aw` and the wait for it (`fork`, `dup2`, `execve`, `wait4`), timed with the monotonic clock, with stdin from a file and stdout to `/dev/null`, the tool pinned to one CPU. Until 2026-11-20 the tool was a Python script that started the child with `posix_spawn`; [the two are compared below](#the-measuring-tool-in-ail-2026-11-20). Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
 - The figure is the median, followed by the first and third quartile, which show the variation from run to run.
 - The input is read at run time, so no compiler can compute the result while compiling.
 
@@ -145,7 +145,7 @@ The comparison of these token counts, taken with an OpenAI encoding, with Claude
 
 The figures above were taken by `tools/perf.py`, a Python script. The tool is now `tools/perf.aw`, which checks, times and reports as the script did: the same programs, inputs and expected results, the same rounds, the median and quartiles of the same samples, the same tables. Two things differ, and one of them touches the figures.
 
-- **How a child is started.** The script called `posix_spawn` from the Python interpreter; the tool calls `procstart` of `lib/proc.aw`, which is `fork` and then `dup2` and `execve` in the child. The time of a run includes that start, and for the startup programs it is most of what is measured. Both tools were run one after the other, twice, on the same machine and CPU as above (median of 500 rounds, microseconds):
+- **How a child is started.** The script called `posix_spawn` from the Python interpreter; the tool calls `procstart` of `lib/std/proc.aw`, which is `fork` and then `dup2` and `execve` in the child. The time of a run includes that start, and for the startup programs it is most of what is measured. Both tools were run one after the other, twice, on the same machine and CPU as above (median of 500 rounds, microseconds):
 
 | program | AIL, script | AIL, tool | C, script | C, tool |
 |---|---:|---:|---:|---:|
@@ -457,7 +457,7 @@ Measured [over eight places](#calls-compiled-in-place-2026-11-20) like the step 
 
 ## Tasks, 2026-11-20
 
-`tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
+`tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/std/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
 
 ```
 make all tools
@@ -491,7 +491,7 @@ build/tools/par --grid --runs 3   # every number of threads with every number of
 
 - `collatz` and `primes` gain 1.9 to 2.0 times at 2 threads, 3.4 to 3.7 at 4, 5.8 to 6.7 at 8 and 9 to 11 at 20. The gain per thread falls after the six performance cores are taken, as the machine leads one to expect.
 - `memsum` reaches 2.4 times at 4 threads and only 3.3 at 20: its limit is memory, not processors.
-- At 1 thread the cost of 160 tasks is not measurable. `collatz` is 6% slower there for another reason: its loop stands at another address in the two programs. The sequential program with `lib/task.aw` merely compiled in, and no task, takes 580 to 600 ms.
+- At 1 thread the cost of 160 tasks is not measurable. `collatz` is 6% slower there for another reason: its loop stands at another address in the two programs. The sequential program with `lib/std/task.aw` merely compiled in, and no task, takes 580 to 600 ms.
 
 Elapsed milliseconds by the number of tasks the same work is cut into (`memsum` has that many in each of its 17 passes):
 
@@ -1114,7 +1114,7 @@ A loop between waits is a fifth faster, and still a seventh with a wait every te
 
 ## Collections, 2026-11-21
 
-`lib/vec.aw`, `queue.aw`, `heap.aw` and `map.aw` had tests and no time. Two programs now time them over the harness, with the same in C and in Rust: `collseq` pushes every key to a vector and pops them, sends them through a queue with room for 1024, and pushes them to a heap and takes them out in order; `collmap` puts every key into a map with its index, gets each, and deletes each, three kernels on one map. A kernel makes its collection and gives it back inside the clock. In C the collections are written by hand in the program, arrays from `malloc` and `realloc` and a table with the layout, the hash and the growth of `lib/map.aw`; in Rust they are `Vec`, `VecDeque`, `BinaryHeap` and `HashMap` of the standard library. `tests/algo.sh` requires of the three what awk and `sort(1)` make of the keys. Median time of the kernel in milliseconds (first and third quartile):
+`lib/std/vec.aw`, `queue.aw`, `heap.aw` and `map.aw` had tests and no time. Two programs now time them over the harness, with the same in C and in Rust: `collseq` pushes every key to a vector and pops them, sends them through a queue with room for 1024, and pushes them to a heap and takes them out in order; `collmap` puts every key into a map with its index, gets each, and deletes each, three kernels on one map. A kernel makes its collection and gives it back inside the clock. In C the collections are written by hand in the program, arrays from `malloc` and `realloc` and a table with the layout, the hash and the growth of `lib/std/map.aw`; in Rust they are `Vec`, `VecDeque`, `BinaryHeap` and `HashMap` of the standard library. `tests/algo.sh` requires of the three what awk and `sort(1)` make of the keys. Median time of the kernel in milliseconds (first and third quartile):
 
 | program, input, count x runs | AIL | C | Rust | AIL / C |
 |---|---:|---:|---:|---:|

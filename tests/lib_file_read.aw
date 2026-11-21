@@ -1,7 +1,7 @@
 # a file is added to what the buffer holds, and its length returned
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 buf b 24
 call byadd b "> "
 call fileread "tests/lib/words.txt" b as r

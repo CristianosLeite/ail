@@ -1,7 +1,7 @@
 # Fill n 64-bit words (n is the 8 bytes on stdin, at most 16777216) and
 # add them up sixteen times: the time is memory, first the kernel's pages,
 # then reading them.
-use "lib/io.aw"
+use "lib/std/io.aw"
 buf in 8
 buf m 134217728
 fn pass lo hi k

@@ -1,9 +1,9 @@
 # 50000 values in an order that neither rises nor falls, many of them
 # equal, leave in rising order while the heap grows and shrinks; a freed
 # heap is a heap again
-use "lib/io.aw"
-use "lib/vec.aw"
-use "lib/heap.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
+use "lib/std/heap.aw"
 buf h 24
 x=1
 s=0

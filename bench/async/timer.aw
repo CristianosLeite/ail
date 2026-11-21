@@ -1,7 +1,7 @@
 # bench/async/timer.aw -- two tasks that each print a line at their own
 # pace: three every 100 milliseconds and two every 150. One thread runs
 # both and sleeps in between.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 async fn tick n ms

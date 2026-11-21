@@ -188,7 +188,7 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
 ### Cheaper system interfaces (2026-11-20)
 - `sys` accepts 37 built-in names for syscall numbers, in that position only; a const of the
   program with the same name wins. `args as p` gives the initial stack pointer at top level.
-- `lib/io.aw` is the first library file: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`,
+- `lib/std/io.aw` is the first library file: `print`, `eprint`, `fdwrite`, `die`, `putn`, `strlen`,
   `argc`, `argv`. It is tested through `use` like any program (`lib_io_*`).
 - Raw error values stay; with the signed jumps a failed call is one line (`jslt r 0 fail`).
   Registers of omitted arguments stay unset; the reference now says what that means.

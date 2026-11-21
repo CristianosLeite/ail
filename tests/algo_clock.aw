@@ -2,7 +2,7 @@
 # is the monotonic clock of the system call to within a second, and can
 # be read with the stack 8 bytes off a multiple of 16 and on one, which
 # a function with a local of 8 bytes and one without make between them
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "bench/algo/harness.aw"
 buf ts 16
 fn raw

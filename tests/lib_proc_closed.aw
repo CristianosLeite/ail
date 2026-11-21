@@ -2,8 +2,8 @@
 # a copy made for another of the three would take its number: here the
 # output of this process is the input of the child, which needs a copy
 # of it, and 3, the first number free, is given as the error output
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 data sh "/bin/sh" 0
 data c "-c" 0
 data s "exit 0" 0

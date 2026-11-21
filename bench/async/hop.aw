@@ -4,8 +4,8 @@
 # after the other, so the polling thread sleeps for each; with a second
 # argument that many pieces at once, all given out before the first is
 # awaited. One line: the count, milliseconds, nanoseconds each.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

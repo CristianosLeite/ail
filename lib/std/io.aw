@@ -1,5 +1,5 @@
-# lib/io.aw -- output, decimal numbers and the arguments of the process.
-# Put  use "lib/io.aw"  at the top of a program compiled from the top of the
+# lib/std/io.aw -- output, decimal numbers and the arguments of the process.
+# Put  use "lib/std/io.aw"  at the top of a program compiled from the top of the
 # repository. The line below runs where the use stands, so use it before
 # the first call of argc or argv.
 #

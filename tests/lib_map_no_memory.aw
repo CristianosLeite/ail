@@ -2,8 +2,8 @@
 # kernel refuses a new table: that put returns 0 and changes nothing,
 # every key still has its value, and a put of a key that is there, which
 # needs no table, still works
-use "lib/io.aw"
-use "lib/map.aw"
+use "lib/std/io.aw"
+use "lib/std/map.aw"
 const setrlimit 160
 buf lim 16
 buf m 32

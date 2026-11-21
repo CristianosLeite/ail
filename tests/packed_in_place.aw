@@ -1,7 +1,7 @@
 # the result may be where a value was read, both are read before
 # anything is written; the 16 bytes may start at any address, and what
 # lies around them stays as it was
-use "lib/io.aw"
+use "lib/std/io.aw"
 buf m 64
 buf k 16
 fn show p n

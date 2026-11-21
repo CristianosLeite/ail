@@ -1,7 +1,7 @@
 # sixteen megabytes through a socket and back: one task accepts and echoes,
 # one reads what comes back, and the code that is no task writes, with
 # writes that take fewer bytes than asked when the socket is full
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

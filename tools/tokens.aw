@@ -24,9 +24,9 @@
 # from the two files that tools/pins/MANIFEST pins; tools/pin.sh fetches
 # them. A text is UTF-8. Run from the top of the repository. Status 0, or
 # 1 with a line "tokens: ..." on stderr.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 use "tools/lib/fmt.aw"
 use "tools/lib/o200k.aw"
 

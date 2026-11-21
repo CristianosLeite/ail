@@ -23,8 +23,8 @@
 # The results are written once before any clock, so that no time is
 # that of memory the kernel had not given yet. bench/nd/mmtasks.sh runs
 # it for the table in docs/performance.md.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

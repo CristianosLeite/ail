@@ -1,10 +1,10 @@
-# lib/proc.aw -- child processes: start a program with its three standard
+# lib/std/proc.aw -- child processes: start a program with its three standard
 # descriptors where the caller wants them, and wait for it with a limit.
-# A program that uses it uses lib/io.aw first, which knows where the
+# A program that uses it uses lib/std/io.aw first, which knows where the
 # arguments and the environment of the process are.
 #
 # Every name of this file starts with "proc"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 # syscalls without a name in the compiler
 const procdup2 33

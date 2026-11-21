@@ -1,7 +1,7 @@
 # the dot product and the product of matrices against NumPy, within
 # 2^-40 of the sizes: 6 by 7 times 7 by 5, the transpose of a matrix
 # times the matrix, and views with steps and backwards
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

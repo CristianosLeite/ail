@@ -2,8 +2,8 @@
 # while the work runs, however it stops waiting: cancelled itself, with
 # a limit that runs out, with a limit that is cancelled, or by asyncstop.
 # Each time the work has written the last byte before the task returns.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

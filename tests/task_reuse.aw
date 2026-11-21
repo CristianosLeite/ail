@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # forty rounds of eight tasks on two workers: no third worker, and the
 # records are used again
 buf hs 64

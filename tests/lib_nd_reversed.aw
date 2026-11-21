@@ -3,7 +3,7 @@
 # arrays, with a number on either side and into one of the two, the
 # bits must be those of a loop of fadd, fsub, fmul and fdiv over the
 # indices, forwards as well as backwards
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 buf a 176

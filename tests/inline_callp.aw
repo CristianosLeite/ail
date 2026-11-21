@@ -2,7 +2,7 @@
 # place like any other: the variables of the caller, in registers and on
 # the stack, live across that call, its results are taken, and the values
 # it pushed are off the stack afterwards
-use "lib/io.aw"
+use "lib/std/io.aw"
 fn sum8 a b c d e f g h
 	ret a+b+c+d+e+f+g+h a*h
 end

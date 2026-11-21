@@ -1,4 +1,4 @@
-use "lib/io.aw"
+use "lib/std/io.aw"
 call putn 0
 call print "\n"
 call putn 7

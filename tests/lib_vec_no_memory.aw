@@ -2,9 +2,9 @@
 # grow until the kernel refuses: the push that fails returns 0 and
 # changes nothing, every value is still there, and what needs no new
 # room still works
-use "lib/io.aw"
-use "lib/vec.aw"
-use "lib/heap.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
+use "lib/std/heap.aw"
 const setrlimit 160
 buf lim 16
 buf v 24

@@ -24,7 +24,7 @@
 #            at i not smaller than its two at 2i+1 and 2i+2, and then
 #            the first changes places with the last of the heap, which
 #            is one shorter each time. No work array and no call deeper
-#            than one. This is not lib/heap.aw, which is a heap that
+#            than one. This is not lib/std/heap.aw, which is a heap that
 #            grows, in a vector, with the smallest first: here the heap
 #            is the array to be sorted and is gone when it is.
 # sortins    n words, by insertion: each word moves down past the

@@ -1,8 +1,8 @@
 # tools/lib/fmt.aw -- numbers as text for the tools.
-# A program that uses it uses lib/bytes.aw first.
+# A program that uses it uses lib/std/bytes.aw first.
 #
 # Every name of this file starts with "fmt"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 # Add the double fmtx to the buffer fmtb as a decimal number with fmtd
 # digits after the point, 0 to 3 of them: the nearest such number to the

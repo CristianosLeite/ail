@@ -6,7 +6,7 @@
 # waits and lives in the record of the task. One line: the sum of the
 # results, the rounds in all, milliseconds, and picoseconds a round, 0
 # where a count is 0 and there is no round.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "bench/async/num.aw"

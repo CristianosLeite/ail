@@ -1,7 +1,7 @@
 # searchlower of lib/algo/search.aw: the first index whose word is not
 # smaller than the key, in no word, in one, and in words with some
 # twice; below all, between, equal, above all, and in the unsigned order
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/algo/search.aw"
 buf a 48
 fn low n k

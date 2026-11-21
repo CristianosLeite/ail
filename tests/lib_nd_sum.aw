@@ -1,7 +1,7 @@
 # the sum and the mean of all elements, of arrays and of views with
 # steps and exchanged axes, one element after the other; in pairs the
 # same where every sum is exact
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

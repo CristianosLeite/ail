@@ -1,6 +1,6 @@
 # one array is the result of one operation after another and nothing is
 # allocated for them: the storage stays where it is
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

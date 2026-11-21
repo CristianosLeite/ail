@@ -1,6 +1,6 @@
 # tools/lib/o200k.aw -- the tokens of a text in the encoding o200k_base,
-# as tiktoken counts them. A program that uses it uses lib/bytes.aw and
-# lib/file.aw first.
+# as tiktoken counts them. A program that uses it uses lib/std/bytes.aw and
+# lib/std/file.aw first.
 #
 # A text is cut into pieces, and each piece into tokens.
 #
@@ -31,7 +31,7 @@
 # neighbours are a token. The number of a token is its rank.
 #
 # Every name of this file starts with "tk"; a program has no var of such
-# a name (see lib/io.aw).
+# a name (see lib/std/io.aw).
 
 # a byte for each character, the sum of: 1 Lu, 2 Ll, 4 Lt, 8 Lm, 16 Lo,
 # 32 a mark, 64 a number, 128 white space
@@ -620,7 +620,7 @@ end
 
 # The tokens of the tkl bytes at tkp, which are text in UTF-8: their
 # number; or -1 if the bytes are no UTF-8; or -12 without memory. If tko
-# is not 0 it is a buffer of lib/bytes.aw, to which the rank of every
+# is not 0 it is a buffer of lib/std/bytes.aw, to which the rank of every
 # token is added, 8 bytes each. tkinit was called before.
 fn tkencode tkp tkl tko
 	alloc tkl*4+8 as tkcp

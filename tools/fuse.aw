@@ -18,9 +18,9 @@
 # a jump that becomes a block puts its lines one level deeper. Nothing
 # else of a line that stays is changed, and a line inside a string that
 # goes on over the end of a line keeps every byte.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 use "tools/lib/scan.aw"
 use "tools/lib/flow.aw"
 use "tools/lib/dent.aw"

@@ -1,9 +1,9 @@
 # the child reads the file given as its input and writes to the two
 # files given as its output and its error output
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 data sh "/bin/sh" 0
 data c "-c" 0
 data s "cat; echo to stderr >&2" 0

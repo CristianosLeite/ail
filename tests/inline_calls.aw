@@ -1,6 +1,6 @@
 # calls of short functions are compiled in place: each must do what the
 # call did
-use "lib/io.aw"
+use "lib/std/io.aw"
 var g
 fn two a b
 	ret a+b a*b

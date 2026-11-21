@@ -1,4 +1,4 @@
-# lib/queue.aw -- a queue of 64-bit values with a fixed room.
+# lib/std/queue.aw -- a queue of 64-bit values with a fixed room.
 #
 # A queue is 32 bytes that the caller owns, in a buf or a local: the
 # address of its values, the number there is room for, the index of the
@@ -16,7 +16,7 @@
 # all zero again.
 #
 # Every variable and parameter of this file has a name that starts with
-# "queue"; a program has no var of such a name (see lib/io.aw).
+# "queue"; a program has no var of such a name (see lib/std/io.aw).
 
 # room for queuen values
 fn queueinit queueq queuen

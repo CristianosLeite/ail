@@ -1,4 +1,4 @@
-# lib/map.aw -- a hash map from 64-bit keys to 64-bit values.
+# lib/std/map.aw -- a hash map from 64-bit keys to 64-bit values.
 #
 # A map is 32 bytes that the caller owns, in a buf or a local: the
 # address of its table, the number of places in it, the number of keys,
@@ -24,7 +24,7 @@
 # if the key was there. The caller ends the map with mapfree.
 #
 # Every variable and parameter of this file has a name that starts with
-# "map"; a program has no var of such a name (see lib/io.aw).
+# "map"; a program has no var of such a name (see lib/std/io.aw).
 
 # the place of the key mapk and 1; or the place where it goes and 0; or 0
 # and 0 for a map without a table

@@ -1,7 +1,7 @@
 ---
 title: Algorithm benchmarks and collections
 last-verified: 2026-11-21
-sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/TODO.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/vec.aw, lib/queue.aw, lib/heap.aw, lib/map.aw]
+sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/TODO.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/std/vec.aw, lib/std/queue.aw, lib/std/heap.aw, lib/std/map.aw]
 status: current
 ---
 # Algorithm benchmarks and collections

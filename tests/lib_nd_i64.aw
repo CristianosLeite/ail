@@ -1,7 +1,7 @@
 # arrays of integers: the four operations element by element with rows
 # and numbers broadcast, sums of all and along an axis, the dot product
 # and the product of matrices, all in integers
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

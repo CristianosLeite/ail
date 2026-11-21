@@ -1,7 +1,7 @@
 # a child that runs past the limit is killed and taken: no process of
 # its number is left; one that ends within the limit gives its status
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 data sleep "/bin/sleep" 0
 data t30 "30" 0
 data t0 "0.05" 0

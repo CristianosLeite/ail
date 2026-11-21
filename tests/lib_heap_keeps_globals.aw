@@ -1,9 +1,9 @@
 # a var of the program keeps its value: every variable of the library has
 # a name that starts with "heap"
 var h x i p c y z n r
-use "lib/io.aw"
-use "lib/vec.aw"
-use "lib/heap.aw"
+use "lib/std/io.aw"
+use "lib/std/vec.aw"
+use "lib/std/heap.aw"
 buf b 24
 h=1
 x=1

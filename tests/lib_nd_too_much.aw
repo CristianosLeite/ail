@@ -1,7 +1,7 @@
 # lengths whose product or whose bytes do not fit are refused, also
 # beside an axis without elements, as is storage the kernel has not got,
 # and the array stays what it was
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf sh 24

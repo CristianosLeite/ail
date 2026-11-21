@@ -2,7 +2,7 @@
 # runs out of time leaves the value to the next; sends that wait for
 # room are cancelled the same way; a task that waits at a channel is
 # reached by asyncstop
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/chan.aw"

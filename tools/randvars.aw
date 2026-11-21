@@ -36,10 +36,10 @@
 # with code that the compiler under test compiled; tests/randvars.sh runs
 # programs whose status the Python script computed that this was ported
 # from.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 use "tools/lib/rng.aw"
 
 # the number of names v0, v1, ... of the program and of its counters c0,

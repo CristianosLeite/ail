@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 var cell
 fn work a
 	cell=a

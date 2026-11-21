@@ -1,7 +1,7 @@
 # the process is bound to one processor it may run on, also when the one
 # asked for is none of them, and the clock goes forward
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 buf m 128
 call procnow as t
 call procpin 100000 as c

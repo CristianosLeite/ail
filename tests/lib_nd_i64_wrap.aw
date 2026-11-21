@@ -1,7 +1,7 @@
 # integers wrap at 64 bits in every kernel; a divisor with a 0 among its
 # elements is refused and nothing is written, the lowest integer by -1
 # stays what it is, and a mean of integers is a double
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

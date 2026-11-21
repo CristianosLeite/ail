@@ -1,7 +1,7 @@
 # the result may be one of the arrays it is made of, or both; storage
 # shared in any other way is refused, as is a result whose elements are
 # one, and then nothing is written
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "tests/lib/ndshow.aw"

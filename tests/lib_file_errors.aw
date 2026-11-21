@@ -1,8 +1,8 @@
 # errors are the negated numbers of the kernel: no such file, a directory
 # that cannot be read or written as a file, a path that is too long
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
 buf b 24
 buf long 5000
 call fileread "tests/lib/no-such-file" b as r

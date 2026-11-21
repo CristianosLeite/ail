@@ -2,7 +2,7 @@
 # variable of the library has a name that a program may have, since "as"
 # on the name of a var writes the cell in any function
 var fd p n w q c digits r i s l
-use "lib/io.aw"
+use "lib/std/io.aw"
 data z "bcd" 0
 fd=1
 p=1

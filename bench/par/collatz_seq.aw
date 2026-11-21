@@ -1,6 +1,6 @@
 # The sum of the Collatz step counts of the numbers 1 to n-1, n being the
 # 8 bytes on stdin: even work, no memory. Printed in decimal.
-use "lib/io.aw"
+use "lib/std/io.aw"
 buf in 8
 fn steps lo hi
 	s=0

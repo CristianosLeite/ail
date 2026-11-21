@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 # what a task wrote to memory it was passed is there after its join
 buf b 8000
 buf hs 80

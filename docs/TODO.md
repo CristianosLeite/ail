@@ -132,9 +132,9 @@ Use the existing [`use`](language.md#use) and keep dependencies one way.
 Tool entry points handle arguments, diagnostics and exit status. Put shared
 token and line scanning in `tools/lib/scan.aw` and shared control-flow
 analysis in `tools/lib/flow.aw`. Keep each tool's rewrite rules, generator or
-reporting code with that tool. Add `lib/bytes.aw`, `lib/file.aw` and
-`lib/proc.aw` for byte buffers, file I/O and child processes as callers need
-them. Reuse `lib/io.aw` for arguments and output. Keep Linux syscall details
+reporting code with that tool. Add `lib/std/bytes.aw`, `lib/std/file.aw` and
+`lib/std/proc.aw` for byte buffers, file I/O and child processes as callers need
+them. Reuse `lib/std/io.aw` for arguments and output. Keep Linux syscall details
 in the file and process helpers and the compiler bootstrap independent of
 the tools.
 
@@ -510,7 +510,7 @@ library in the same pass and leave the examples as callers.
    Keep each algorithm, its memory layout and its output: `tests/algo.sh`
    must pass unchanged and the results must stay byte-identical to the C
    and Rust programs. Decide how the fixed table of `hashtab` and the
-   in-place heap of `heapsort` relate to `lib/map.aw` and `lib/heap.aw`,
+   in-place heap of `heapsort` relate to `lib/std/map.aw` and `lib/std/heap.aw`,
    and keep them separate where the benchmark layout differs. Add the new
    files to the Makefile prerequisites and to `tests/indent.sh`, test the
    functions on their own in `tests/lib_algo_*` (empty, single, duplicate
@@ -519,7 +519,7 @@ library in the same pass and leave the examples as callers.
    Done on 2026-11-21: `lib/algo/sort.aw`, `search.aw`, `hash.aw` and
    `graph.aw`, a prefix a file since the harness owns `algo`. The six
    harness programs compile to the same bytes as before; the heap and
-   the table stay apart from `lib/heap.aw` and `lib/map.aw`, whose
+   the table stay apart from `lib/std/heap.aw` and `lib/std/map.aw`, whose
    layouts are others ([reference](language.md#the-algo-library)).
 4. [x] **Measure what the move changes.** Check that `place` and `lower`
    are still compiled in place at their calls, which needs the callee
@@ -577,23 +577,23 @@ preserve the contents on allocation failure, document the lifetime of any
 exposed storage, and have `free` operations reset the descriptor. Return a
 separate success or found result wherever zero is a valid value.
 
-- [x] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
+- [x] **Growable vector**, `lib/std/vec.aw`. Provide `vecreserve v n`,
   `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
   address, length and capacity in a 24-byte descriptor, with length and
   capacity in elements. Grow geometrically and reuse `bycopy` for relocation
   if useful. Define `vecreserve` in terms of total capacity and document when
   growth invalidates addresses into the vector.
-- [x] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
+- [x] **Bounded queue**, `lib/std/queue.aw`. Provide `queueinit q n`,
   `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
   values with a head and count. Return failure on full and empty operations.
   Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
   the queue usable in synchronous programs through its own functions.
-- [x] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
+- [x] **Min-heap**, `lib/std/heap.aw`. Provide `heappush h x`, `heappeek h`,
   `heappop h` and `heapfree h`. Store values in a growable array, using the
   vector storage if it fits the callers. Sift up on insertion and down on
   removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
   the in-place max-heap operations of heapsort in its benchmark.
-- [x] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
+- [x] **Hash map**, `lib/std/map.aw`. Provide `mapput m k v`, `mapget m k`,
   `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
   power-of-two capacity, and explicit slot states for empty, occupied and
   deleted entries so all 64-bit keys are usable. Update existing keys in place,

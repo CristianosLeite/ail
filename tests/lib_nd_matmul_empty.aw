@@ -2,11 +2,11 @@
 # bytes at the address 0: no rows, no columns, and nothing to add over.
 # A result of 2^40 rows without columns is done at once, on one thread
 # and in tasks, and not after a walk over its rows
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/nd/par.aw"
 use "tests/lib/ndshow.aw"
 buf a 176

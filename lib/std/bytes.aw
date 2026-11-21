@@ -1,4 +1,4 @@
-# lib/bytes.aw -- a buffer of bytes that grows.
+# lib/std/bytes.aw -- a buffer of bytes that grows.
 #
 # A buffer is 24 bytes that the caller owns, in a buf or a local: the
 # address of its bytes, their number and the room at that address. All
@@ -14,7 +14,7 @@
 # The caller ends the buffer with byfree.
 #
 # Every variable and parameter of this file has a name that starts with
-# "by"; a program has no var of such a name (see lib/io.aw).
+# "by"; a program has no var of such a name (see lib/std/io.aw).
 
 # copy byn bytes from bysrc to bydst, which do not overlap
 fn bycopy bydst bysrc byn

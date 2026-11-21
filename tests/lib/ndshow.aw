@@ -1,5 +1,5 @@
 # tests/lib/ndshow.aw -- print arrays in the tests of lib/nd; needs
-# lib/io.aw and lib/nd/array.aw.
+# lib/std/io.aw and lib/nd/array.aw.
 
 # print the double shwx times 100 as a whole number and a blank
 fn showx shwx

@@ -1,7 +1,7 @@
 # lib/async/pool.aw -- work that holds a thread, for the tasks of
-# lib/async/task.aw: a function is run by the pool of lib/task.aw, and
+# lib/async/task.aw: a function is run by the pool of lib/std/task.aw, and
 # the task that asked awaits an event that is done when the function has
-# returned. A program uses lib/task.aw and the three other files of
+# returned. A program uses lib/std/task.aw and the three other files of
 # lib/async before this one. The file has no line that runs at its use.
 #
 # Every variable, parameter and label of this file has a name that starts

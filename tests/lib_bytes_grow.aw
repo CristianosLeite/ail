@@ -1,8 +1,8 @@
 # a buffer that grows many times keeps its bytes: 100000 numbers of 8
 # bytes, added one at a time and in pieces, then summed; an offset stays
 # good while the address changes
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 buf b 24
 buf w 8
 i=0

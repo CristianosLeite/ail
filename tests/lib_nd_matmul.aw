@@ -1,7 +1,7 @@
 # the product of matrices: 2 by 3 times 3 by 2, a matrix times a column
 # and a row times a matrix, views with exchanged axes and steps as any
 # of the three, and matrices without rows or columns
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

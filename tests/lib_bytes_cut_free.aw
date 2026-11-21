@@ -1,6 +1,6 @@
 # bycut keeps a prefix, byfree leaves an empty buffer that works again
-use "lib/io.aw"
-use "lib/bytes.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
 buf b 24
 call byadd b "hello world"
 call bycut b 5

@@ -1,7 +1,7 @@
 # an element is found by one index for each axis, each below the length
 # of its axis; an element may be 0, so a second result says there is one;
 # what is no array has no element
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf e 176

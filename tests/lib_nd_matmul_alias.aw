@@ -6,8 +6,8 @@
 # addresses of their own that share some of their bytes, and are
 # refused too. A result taken the other way round, 8 and 16, has every
 # element apart and is computed
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

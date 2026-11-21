@@ -10,7 +10,7 @@
 # build/perf/ with the flags below. A language without a source for a
 # program is left out of its row. Every binary must give the expected
 # output and exit status before anything is timed. A run is the child
-# process of lib/proc.aw (fork, dup2, execve) and the wait for it, with
+# process of lib/std/proc.aw (fork, dup2, execve) and the wait for it, with
 # stdin from a file and stdout to /dev/null, on one CPU, the languages in
 # a shuffled order in every round (tools/lib/rng.aw from the seed 77); the
 # figure is the median, with the quartiles after it.
@@ -40,10 +40,10 @@
 # above the least. Two compilers are compared by that table of each.
 #
 # Status 0, or 1 with a line "perf: ..." on stderr.
-use "lib/io.aw"
-use "lib/bytes.aw"
-use "lib/file.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/bytes.aw"
+use "lib/std/file.aw"
+use "lib/std/proc.aw"
 use "tools/lib/rng.aw"
 use "tools/lib/fmt.aw"
 

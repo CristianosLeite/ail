@@ -1,8 +1,8 @@
 # 100000 keys go in while the table doubles many times, and every one
 # keeps its value; with all but 100 taken out and as many new ones put
 # in, the table is cleared of what was taken out and does not grow
-use "lib/io.aw"
-use "lib/map.aw"
+use "lib/std/io.aw"
+use "lib/std/map.aw"
 buf m 32
 i=0
 while i<100000

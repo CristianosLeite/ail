@@ -2,7 +2,7 @@
 # none of them is read as anything else: after work whose values are
 # what a size class would be, the record of the work is the record that
 # the next piece of work gets, as after any other
-use "lib/task.aw"
+use "lib/std/task.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

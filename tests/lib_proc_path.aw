@@ -1,7 +1,7 @@
 # a program named without a slash is looked for in PATH, and one that is
 # nowhere ends with 127; the child has the environment of this process
-use "lib/io.aw"
-use "lib/proc.aw"
+use "lib/std/io.aw"
+use "lib/std/proc.aw"
 data sh "sh" 0
 data c "-c" 0
 data s "test -n \x22$PATH\x22 && exit 5" 0

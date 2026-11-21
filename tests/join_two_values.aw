@@ -1,2 +1,2 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 join 1 2 as x

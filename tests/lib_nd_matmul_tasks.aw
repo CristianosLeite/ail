@@ -2,8 +2,8 @@
 # number of tasks and of threads: none, one, more than rows, more than
 # 64; on views and on integers; it refuses what ndmatmul refuses; and
 # ndruns gives the runs it cuts the rows into
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 use "lib/nd/array.aw"
 use "lib/nd/elem.aw"
 use "lib/nd/reduce.aw"

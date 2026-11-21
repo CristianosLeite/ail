@@ -1,7 +1,7 @@
 # a new array has its lengths, the strides of elements one behind the
 # other, storage of its own that is all zero, and an axis without
 # elements gives none; no axis is one element, nine are refused
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/nd/array.aw"
 buf a 176
 buf sh 72

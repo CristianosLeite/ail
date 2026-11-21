@@ -1,8 +1,8 @@
 # collatz_seq.aw as tasks. Stdin is three 8-byte numbers: n, the number
 # of threads that run tasks (the pool has one less, the main thread runs
 # tasks in its joins) and the number of tasks the range is cut into.
-use "lib/io.aw"
-use "lib/task.aw"
+use "lib/std/io.aw"
+use "lib/std/task.aw"
 buf in 24
 buf hs 8388608
 fn steps lo hi

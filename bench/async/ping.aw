@@ -6,7 +6,7 @@
 # machine (echod). One line: connections, rounds, round trips in all,
 # milliseconds, round trips a second, and the time of a round trip in
 # microseconds: mean, median and the one that 99 of 100 are within.
-use "lib/io.aw"
+use "lib/std/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
 use "lib/async/io.aw"

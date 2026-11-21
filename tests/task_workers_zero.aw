@@ -1,4 +1,4 @@
-use "lib/task.aw"
+use "lib/std/task.aw"
 buf hs 80
 fn work a
 	ret a*2

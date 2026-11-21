@@ -1,5 +1,5 @@
-# lib/file.aw -- whole files, read into a buffer of lib/bytes.aw and
-# written from memory. A program that uses it uses lib/bytes.aw first.
+# lib/std/file.aw -- whole files, read into a buffer of lib/std/bytes.aw and
+# written from memory. A program that uses it uses lib/std/bytes.aw first.
 #
 # A path is an address and a length, as a string literal and the two
 # results of argv are; it has no NUL byte in it and fewer than 4096 bytes.
@@ -8,7 +8,7 @@
 # -12 no memory, -36 path too long), and closes what it opened.
 #
 # Every variable and parameter of this file has a name that starts with
-# "file"; a program has no var of such a name (see lib/io.aw).
+# "file"; a program has no var of such a name (see lib/std/io.aw).
 
 # the path as the kernel takes it, with a NUL byte at its end, into the
 # 4096 bytes at filez: 0, or -36 if it does not fit
