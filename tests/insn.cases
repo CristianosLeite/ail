@@ -128,6 +128,8 @@ a=3 ; if a&1 ; end | bb030000004889d84883e0010f8400000000 | mov ebx, 3 ; mov rax
 # instruction that computed it, whose zero flag says the same.
 i=3 ; while i ; i-=1 ; end | bb030000004885db0f840a0000004883eb010f85f6ffffff | mov ebx, 3 ; test rbx, rbx ; {disp32} jz 2f ; 1: sub rbx, 1 ; {disp32} jnz 1b ; 2:
 i=3 ; while i<9 ; end | bb030000004883fb090f830a0000004883fb090f82f6ffffff | mov ebx, 3 ; cmp rbx, 9 ; {disp32} jae 2f ; 1: cmp rbx, 9 ; {disp32} jb 1b ; 2:
+# two comparisons joined by &: a jump each, at the head and at the end
+args as p ; i=1 ; while (i<p)&(p!=i) ; i+=1 ; end | 4889e04889c3bd010000004839dd0f831f0000004839eb0f84160000004883c5014839dd0f83090000004839eb0f85eaffffff | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; cmp rbp, rbx ; {disp32} jae 2f ; cmp rbx, rbp ; {disp32} je 2f ; 1: add rbp, 1 ; cmp rbp, rbx ; {disp32} jae 2f ; cmp rbx, rbp ; {disp32} jne 1b ; 2:
 x=5 ; x=(x^x>>13)*1664525+1013904223 | bb050000004889d848c1e80d4831d84869c00d66190048055ff36e3c4889c3 | mov ebx, 5 ; mov rax, rbx ; shr rax, 13 ; xor rax, rbx ; imul rax, rax, 1664525 ; add rax, 1013904223 ; mov rbx, rax
 x=5 ; y=x/2+x%8 | bb050000004889dd48d1ed4889d84883e0074801c5 | mov ebx, 5 ; mov rbp, rbx ; shr rbp, 1 ; mov rax, rbx ; and rax, 7 ; add rbp, rax
 x=5 ; y=x/1+x%1 | bb050000004889dd4889d84883e0004801c5 | mov ebx, 5 ; mov rbp, rbx ; mov rax, rbx ; and rax, 0 ; add rbp, rax
@@ -226,7 +228,7 @@ args as p ; load p+8 as x | 4889e04889c3488b6b08 | mov rax, rsp ; mov rbx, rax ;
 args as p ; load p-8 as x | 4889e04889c3488b6bf8 | mov rax, rsp ; mov rbx, rax ; mov rbp, [rbx - 8]
 args as p ; load4 p+1000 as x | 4889e04889c38babe8030000 | mov rax, rsp ; mov rbx, rax ; mov ebp, [rbx + 1000]
 args as p ; i=1 ; loadb p+i as x | 4889e04889c3bd01000000440fb6242b | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; movzx r12d, byte ptr [rbx + rbp]
-args as p ; i=1 ; load p+i+16 as x | 4889e04889c3bd010000004889d84801e84c8b6010 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov rax, rbx ; add rax, rbp ; mov r12, [rax + 16]
+args as p ; i=1 ; load p+i+16 as x | 4889e04889c3bd010000004c8b642b10 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12, [rbx + rbp + 16]
 args as p ; store p 0x123456789 | 4889e04889c348b88967452301000000488903 | mov rax, rsp ; mov rbx, rax ; movabs rax, 0x123456789 ; mov [rbx], rax
 args as p ; store p -1 | 4889e04889c348c703ffffffff | mov rax, rsp ; mov rbx, rax ; mov qword ptr [rbx], -1
 args as p ; storeb p 0x1ff | 4889e04889c3c603ff | mov rax, rsp ; mov rbx, rax ; mov byte ptr [rbx], 0xff
@@ -234,7 +236,17 @@ args as p ; store2 p 0x12345 | 4889e04889c366c7034523 | mov rax, rsp ; mov rbx, 
 args as p ; load p as p | 4889e04889c3488b1b | mov rax, rsp ; mov rbx, rax ; mov rbx, [rbx]
 buf b 16 ; i=1 ; storeb b+i 1 | bb01000000488d05440f0000c6041801 | mov ebx, 1 ; lea rax, [rip + 3908] ; mov byte ptr [rax + rbx], 1
 buf b 16 ; store b+8 7 | 488d05490f000048c7400807000000 | lea rax, [rip + 3913] ; mov qword ptr [rax + 8], 7
-buf b 16 ; i=1 ; store b+i*8 i+1 | bb01000000486bc308488d3d400f00004801f84889df4883c701488938 | mov ebx, 1 ; imul rax, rbx, 8 ; lea rdi, [rip + 3904] ; add rax, rdi ; mov rdi, rbx ; add rdi, 1 ; mov [rax], rdi
+buf b 16 ; i=1 ; store b+i*8 i+1 | bb01000000488d05440f00004889df4883c70148893cd8 | mov ebx, 1 ; lea rax, [rip + 3908] ; mov rdi, rbx ; add rdi, 1 ; mov [rax + rbx*8], rdi
+args as p ; i=1 ; load p+i*8 as x | 4889e04889c3bd010000004c8b24eb | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12, [rbx + rbp*8]
+args as p ; i=1 ; load p+i*8+8 as x | 4889e04889c3bd010000004c8b64eb08 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12, [rbx + rbp*8 + 8]
+args as p ; i=1 ; store p+i*8-8 i | 4889e04889c3bd0100000048896cebf8 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov [rbx + rbp*8 - 8], rbp
+args as p ; i=1 ; loadb p+(i<<1) as x | 4889e04889c3bd01000000440fb6246b | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; movzx r12d, byte ptr [rbx + rbp*2]
+args as p ; i=1 ; load2 p+i*2 as x | 4889e04889c3bd01000000440fb7246b | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; movzx r12d, word ptr [rbx + rbp*2]
+args as p ; i=1 ; store4 p+i*4+4 7 | 4889e04889c3bd01000000c744ab0407000000 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov dword ptr [rbx + rbp*4 + 4], 7
+args as p ; i=1 ; load p+(i<<3)+512 as x | 4889e04889c3bd010000004c8ba4eb00020000 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12, [rbx + rbp*8 + 512]
+args as p ; i=1 ; load p+i*3 as x | 4889e04889c3bd01000000486bc5034801d84c8b20 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; imul rax, rbp, 3 ; add rax, rbx ; mov r12, [rax]
+args as p ; i=1 ; load p+i*16 as x | 4889e04889c3bd01000000486bc5104801d84c8b20 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; imul rax, rbp, 16 ; add rax, rbx ; mov r12, [rax]
+args as p ; a=1 ; i=1 ; q=p ; load q+i*8 as x | 4889e04889c3bd0100000041bc010000004989dd4f8b74e500 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12d, 1 ; mov r13, rbx ; mov r14, [r13 + r12*8]
 a=1 ; b=1 ; args as c ; args as d ; load c as a ; load d as b ; load c+8 as a ; load d+8 as b ; storeb c+a 1 ; store d+c b | bb01000000bd010000004889e04989c44889e04989c5498b1c24498b6d00498b5c2408498b6d0841c6041c014b896c2500 | mov ebx, 1 ; mov ebp, 1 ; mov rax, rsp ; mov r12, rax ; mov rax, rsp ; mov r13, rax ; mov rbx, [r12] ; mov rbp, [r13] ; mov rbx, [r12 + 8] ; mov rbp, [r13 + 8] ; mov byte ptr [r12 + rbx], 1 ; mov [r13 + r12], rbp
 a=1 ; b=1 ; c=1 ; d=1 ; e=1 ; f=1 ; args as g ; load g as h ; store g+8 h | bb01000000bd0100000041bc0100000041bd0100000041be0100000041bf010000004889e0488905240f0000488b051d0f0000488b004889051b0f0000488b050c0f0000488b3d0d0f000048897808 | mov ebx, 1 ; mov ebp, 1 ; mov r12d, 1 ; mov r13d, 1 ; mov r14d, 1 ; mov r15d, 1 ; mov rax, rsp ; mov [rip + 3876], rax ; mov rax, [rip + 3869] ; mov rax, [rax] ; mov [rip + 3867], rax ; mov rax, [rip + 3852] ; mov rdi, [rip + 3853] ; mov [rax + 8], rdi
 load "12345678" as x | e9080000003132333435363738488d05f1ffffff488b004889c3 | {disp32} jmp 9f ; s: .ascii "12345678" ; 9: lea rax, [rip + s] ; mov rax, [rax] ; mov rbx, rax
@@ -268,3 +280,7 @@ fn g p ; end ; fn f ; local b 8 ; tail g b ; end | e908000000534889c331c05bc3e92
 # The last local that the limit of a page short of 2 GiB allows, in an
 # async function: its distance from the record is still positive.
 fn async z p ; end ; async fn f ; local a 0x7fffeff8 ; local b 8 ; storeb b 1 ; end | e90b000000534889c34889fb31c05bc3e938000000b840f0ff7f488d3d06000000e8dfffffffc3534889c3488b43084885c07402ffe0488d8338f0ff7fc6000131c048894310b8010000005bc3 | {disp32} jmp 1f ; async: push rbx ; mov rbx, rax ; mov rbx, rdi ; xor eax, eax ; pop rbx ; ret ; 1: {disp32} jmp 2f ; mov eax, 0x7ffff040 ; lea rdi, [rip + 3f] ; call async ; ret ; 3: push rbx ; mov rbx, rax ; mov rax, [rbx + 8] ; test rax, rax ; jz 5f ; jmp rax ; 5: {disp32} lea rax, [rbx + 0x7ffff038] ; mov byte ptr [rax], 1 ; xor eax, eax ; mov [rbx + 16], rax ; mov eax, 1 ; pop rbx ; ret ; 2:
+# A call compiled in place: x is the parameter a itself, b a copy of the
+# second value; the first ret jumps to the end of the body and the jump
+# of the last one is taken back.
+fn g a b ; if a<b ; ret a ; end ; b+=1 ; ret b ; end ; fn f x ; call g x x*2 as y ; ret y ; end | e92600000053554889c54889fb4839dd0f83060000004889e85d5bc34883c3014889d85d5bc331c05d5bc3e93b000000535541544889c34889d8486bfb024889fd4839eb0f83080000004889d8e9070000004883c5014889e84989c44c89e0415c5d5bc331c0415c5d5bc3 | {disp32} jmp 1f ; push rbx ; push rbp ; mov rbp, rax ; mov rbx, rdi ; cmp rbp, rbx ; {disp32} jae 3f ; mov rax, rbp ; pop rbp ; pop rbx ; ret ; 3: add rbx, 1 ; mov rax, rbx ; pop rbp ; pop rbx ; ret ; xor eax, eax ; pop rbp ; pop rbx ; ret ; 1: {disp32} jmp 2f ; push rbx ; push rbp ; push r12 ; mov rbx, rax ; mov rax, rbx ; imul rdi, rbx, 2 ; mov rbp, rdi ; cmp rbx, rbp ; {disp32} jae 4f ; mov rax, rbx ; {disp32} jmp 5f ; 4: add rbp, 1 ; mov rax, rbp ; 5: mov r12, rax ; mov rax, r12 ; pop r12 ; pop rbp ; pop rbx ; ret ; xor eax, eax ; pop r12 ; pop rbp ; pop rbx ; ret ; 2:

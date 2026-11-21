@@ -1,0 +1,222 @@
+#!/bin/sh
+# Check the algorithm programs of examples/ against references that share
+# nothing with them. A program reads five words (bench/algo/harness.aw):
+# seed, count, shape, runs and mode, and writes its input in mode 1, its
+# result in mode 2 and a checksum of the result with its times in mode 0.
+# For the counts 0, 1, 2, 3 and 1000 in each of the four shapes:
+#   a sort     its result must be what sort(1) makes of its input
+#   bsearch    for each key the index awk finds by looking at every
+#              word from the first: the first that is not smaller
+#   hashtab    for each key that was put in the index of its last
+#              place among the keys, which awk keeps under the digits
+#              of the key, and -1 for each key that was not
+#   graph      the two orders that awk reaches the vertices in, with a
+#              queue and with a stack of its own
+#   checksum   mode 0 must write the checksum of the result, computed
+#              here, and 8 bytes for each of its kernels
+# Words are compared as 16 hexadecimal digits, which sort as the numbers
+# do. Two runs each, so that a program which does not start again from
+# its input is seen. The same is asked of the C programs of bench/ if
+# there is a gcc; without one that part is skipped.
+set -u
+cd "$(dirname "$0")/.." || exit 1
+mkdir -p build/tests
+tmp=$(mktemp -d build/tests/algo.XXXXXX) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+fail=0
+
+sorts='quicksort mergesort heapsort'
+
+# words n ...: each number as 8 bytes, the lowest first
+words() {
+    for x; do
+        i=0
+        while [ $i -lt 64 ]; do
+            printf "\\$(printf '%03o' $((x >> i & 255)))"
+            i=$((i + 8))
+        done
+    done
+}
+
+# run program count shape mode: what it writes, a word a line. It fails
+# if the program does not end with the status 0 within 10 seconds, so
+# the right bytes from a program that then fails or hangs do not pass
+run() {
+    words 7 "$2" "$3" 2 "$4" | timeout --signal=KILL 10 "$1" > "$tmp/raw" || return 1
+    od -An -tx8 -w8 -v "$tmp/raw" | tr -d ' '
+}
+
+# checksum file: h = h * 31 + word over its lines, as 16 digits
+checksum() {
+    h=0
+    while read -r w; do
+        h=$((h * 31 + (0x${w%????????} << 32 | 0x${w#????????})))
+    done < "$1"
+    printf '%08x%08x\n' $((h >> 32 & 0xffffffff)) $((h & 0xffffffff))
+}
+
+# summed program count shape kernels: mode 0 gives the checksum of
+# $tmp/res and that many times
+summed() {
+    run "$1" "$2" "$3" 0 > "$tmp/sum" || return 1
+    [ "$(sed -n 1p "$tmp/sum")" = "$(checksum "$tmp/res")" ] &&
+        [ "$(wc -l < "$tmp/sum")" -eq $(($4 + 1)) ]
+}
+
+# sorted program: a sort
+sorted() {
+    for s in 0 1 2 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/in")" -eq $n ] || return 1
+            LC_ALL=C sort "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            summed "$1" $n $s 1 || return 1
+        done
+    done
+}
+
+# searched program: for each key the first index of a word not below it
+searched() {
+    for s in 0 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
+            awk -v n=$n 'NR <= n { a[NR - 1] = $0; next }
+                { for (i = 0; i < n && a[i] "" < $0 ""; i++); printf "%016x\n", i }' \
+                "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            head -n $n "$tmp/in" | LC_ALL=C sort -c 2> /dev/null || return 1
+            summed "$1" $n $s 1 || return 1
+        done
+    done
+}
+
+# wraps count: whether a probe passes from the last place of the table
+# to its first when the first count keys of $tmp/in are put into the
+# table of the programs, in their order, and the count keys after them
+# are looked up: the table has a power of two of places, at least 16 and
+# at least twice the keys, and a key is looked for from the place that
+# bits 32 and up of its product with 0x9e3779b97f4a7c15 name, up to
+# itself or a free place
+wraps() {
+    c=16
+    while [ $c -lt $(($1 * 2)) ]; do c=$((c * 2)); done
+    w=1
+    i=0
+    for k in $(head -n $(($1 * 2)) "$tmp/in"); do
+        k=$((0x${k%????????} << 32 | 0x${k#????????}))
+        h=$((k * -7046029254386353131 >> 32 & (c - 1)))
+        while eval "o=\${slot$h:-0}"; [ "$o" != 0 ] && [ "$o" != "$k" ]; do
+            h=$(((h + 1) & (c - 1)))
+            [ $h -ne 0 ] || w=0
+        done
+        [ $i -ge "$1" ] || eval "slot$h=$k"
+        i=$((i + 1))
+    done
+    for h in $(seq 0 $((c - 1))); do unset "slot$h"; done
+    return $w
+}
+
+# hashed program: the last index of each key, then -1 for the others. At
+# 8 keys of few values and at 261 keys a lookup goes round the end of the
+# table, which wraps checks
+hashed() {
+    for s in 0 3; do
+        for n in 0 1 2 3 8 261 1000; do
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
+            awk -v n=$n 'NR <= n { k[NR - 1] = $0; last[$0] = NR - 1 }
+                END { for (i = 0; i < n; i++) printf "%016x\n", last[k[i]]
+                    for (i = 0; i < n; i++) print "ffffffffffffffff" }' \
+                "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            case $n$s in 83|2610) wraps $n || return 1;; esac
+            summed "$1" $n $s 3 || return 1
+        done
+    done
+}
+
+# reached program: the vertices breadth first, then depth first
+reached() {
+    for s in 0 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            awk -v n=$n 'function hex(s,  i, v) {
+                    v = 0
+                    for (i = 9; i <= 16; i++)
+                        v = v * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+                    return v
+                }
+                NR <= n + 1 { off[NR - 1] = hex($0); next }
+                { nbr[NR - n - 2] = hex($0) }
+                END {
+                    t = 0; h = 0
+                    for (s = 0; s < n; s++) {
+                        if (s in seen) continue
+                        seen[s] = 1; q[t++] = s
+                        while (h < t) {
+                            v = q[h++]
+                            for (e = off[v]; e < off[v + 1]; e++) {
+                                w = nbr[e]
+                                if (!(w in seen)) { seen[w] = 1; q[t++] = w }
+                            }
+                        }
+                    }
+                    for (i = 0; i < n; i++) printf "%016x\n", q[i]
+                    for (s = 0; s < n; s++) {
+                        if (s in done) continue
+                        st[0] = s; p = 1
+                        while (p) {
+                            v = st[--p]
+                            if (v in done) continue
+                            done[v] = 1; printf "%016x\n", v
+                            for (e = off[v]; e < off[v + 1]; e++) st[p++] = nbr[e]
+                        }
+                    }
+                }' "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/res")" -eq $((n * 2)) ] || return 1
+            summed "$1" $n $s 2 || return 1
+        done
+    done
+}
+
+# each kind program ...: check the programs, and their C forms
+each() {
+    kind=$1
+    shift
+    for p; do
+        if $kind "build/$p"
+        then echo "ok   algo $p"
+        else echo "FAIL algo $p"; fail=1
+        fi
+        [ -n "$cc" ] || continue
+        if gcc -O1 -o "$tmp/$p" "bench/$p.c" 2> /dev/null && $kind "$tmp/$p"
+        then echo "ok   algo $p.c"
+        else echo "FAIL algo $p.c"; fail=1
+        fi
+    done
+}
+
+cc=$(command -v gcc)
+[ -n "$cc" ] || echo "skip algo C programs: no gcc"
+each sorted $sorts
+each searched bsearch
+each hashed hashtab
+each reached graph
+
+# anything but five whole words is refused
+r=0
+for p in $sorts bsearch hashtab graph; do
+    printf 12345678 | "build/$p" > "$tmp/res"
+    [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
+    words 7 268435456 0 1 0 | "build/$p" > "$tmp/res"
+    [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
+done
+if [ $r -eq 0 ]
+then echo "ok   algo refuses"
+else echo "FAIL algo refuses"; fail=1
+fi
+exit $fail

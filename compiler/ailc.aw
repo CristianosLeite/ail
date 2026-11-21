@@ -22,7 +22,7 @@ var awf
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
-var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
+var pass fnslots nloops nvm sip sop snb snv sbs snc snf snr sde sdr
 # pushed = bytes of call values pushed so far in this statement; fnnpar =
 # parameters of the function; immpos = where mov wrote its last imm32
 var pushed fnnpar immpos
@@ -51,6 +51,27 @@ var nblk blkbase topblk whead wsrc
 # it is, where the source goes on, the first line of the loop in the
 # output, and what was assigned at the head
 var wend wip wbody wasg wnv
+# xsc = the rel32 of the jump that a while of two comparisons joined by &
+# takes when the first does not hold, to be filled in; 0 if there is none
+var xsc
+# a call compiled in place: ilon = 1 while the body of the function it
+# names is read as lines of the function with the call; ilpos = the place
+# of the call, where every mention in the body counts as made; vlo = the
+# first variable that the body sees, and vhi = how many variables the open
+# function has had at once; ildep = whiles open in the body; ilret = the
+# jump of its last ret, as the distance of its rel32 from out, each
+# holding that of the one before; ilres = its results; ilany = 1 once the
+# open function has such a call; fnsrc = where the parameters of the open
+# function are in the source; the other il* are what the call goes on with
+var ilon ilpos vlo vhi ildep ilret ilres ilany fnsrc
+# fnwr = the variables that the open function assigns after its entry;
+# ilpl = which values of the statement at hand are variables by themselves
+# (which ones, in ilarg); ilop = where its code starts
+var fnwr ilpl ilop
+var ilcur ilip ilie ilcap ilasg ildead iljm ilbb illab ilfix ilsc ilnh ilbase
+# the code of a function that is compiled in place of its calls is at most
+# this long, entry and return included
+const inlsz 160
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -76,7 +97,7 @@ var xst xso
 # since the output stood at xflgpos
 var xflg xflgpos
 # the memory of a load or store: base, index (16 for none) and number
-var xmb xmx xmd
+var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
@@ -96,7 +117,19 @@ buf vlast 512       # and mentions it last
 buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
 buf vlocal 512      # per variable of the function that is a local: 1 + its offset
 buf vlocsz 512      # per local: its size as declared
-buf locfree 560     # per place: the last mention of its variable
+buf vwt 512         # per variable: its weight, the mentions with one in a loop counted
+# 8 times for each loop around it
+buf vinl 64         # per variable: 1 if a body compiled in place had it, 2 if the
+# function itself, 3 if both, one after the other
+buf valias 64       # per variable: 1 + the variable of the caller that a parameter of
+# a body compiled in place is another name of, else 0
+buf ilarg 8         # per value of a call that is a variable by itself: the variable
+buf ilcaps 96       # the names after "as" of a call compiled in place
+buf ilvk 2048       # and what was known of the variables before it
+buf vdone 64        # per variable: 1 once alloc has looked at it, 2 if it has a place
+buf vms 67108864    # 8388608 mentions of variables in the function, a name of one
+# byte with a blank after it, each read at most twice: where, times 256, plus
+# the variable
 buf loops 22369632    # 1398102 backward jumps of the function: where the source has
 # the label, and the jump
 buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
@@ -133,6 +166,9 @@ buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 add
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
 # (4 bytes each) results, 0 for a function with a tail and no ret
 # until fin knows, and the head of the list of the tails to it
+buf finl 22369632     # per function, 24 bytes: where its parameters are in the source
+# if its calls are compiled in place, else 0, its variables, and
+# which of them it assigns
 buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
 # stands in and the next tail to the same function, as index + 1
 buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
@@ -237,6 +273,8 @@ end
 cur=r
 ai=0
 ncap=0
+ilpl=0
+ilop=op
 store opd 0
 store opd+32 0
 call pk as c
@@ -314,8 +352,13 @@ label wclose
 call xjcond
 call eop
 call e4 wbody-op-4
+if xsc
+	store4 xsc op-xsc-4
+	xsc=0
+end
 call blktop as p
 nblk-=1
+ildep-=ilon
 wend=0
 ip=wip
 asg=wasg
@@ -458,6 +501,11 @@ end
 if xst==5
 	call xmstore
 end
+call inlchk as r
+if r!=-1
+	call inlopen r ip+1
+	jmp next
+end
 call xjcond
 call eop
 loadb cur+2 as f
@@ -476,9 +524,16 @@ else
 	# variables there are now when it is read again
 	store p op+4
 	store4 p-4 nv
+	# the jump of a first comparison lands where this one does: how far
+	# before this rel32 its own is
+	if xsc
+		store4 p-8 op-xsc
+		xsc=0
+	end
 end
 p+=8
 store p wsrc
+ildep+=(whead!=0)&ilon
 whead=0
 call z 4
 nblk+=1
@@ -597,7 +652,8 @@ if r&64
 end
 call lvar as r
 jeq r -1 i2
-store r*8+vlast ip
+call vuse r
+call ilnote r
 ifz asg>>r&1
 	call eunasg
 end
@@ -625,7 +681,7 @@ call lvar as r
 if r!=-1
 	load r*8+vlocal as d
 	call ok d
-	store r*8+vlast ip
+	call vuse r
 	call vmov r 0 139
 	ai=1
 	load r*8+vlocsz as d
@@ -714,6 +770,11 @@ if xst
 	call xcap
 	jmp next
 end
+call inlchk as r
+if r!=-1
+	call inlopen r ip
+	jmp next
+end
 call eop
 r=0
 label cp5
@@ -724,6 +785,7 @@ load d+8 as p
 call areg r as q
 ifz f
 	asg|=1<<p
+	fnwr|=1<<p
 	call prop p
 	call vmov p q 137
 	jmp cp7
@@ -936,6 +998,9 @@ if d&(asg^-1)
 	call eunasgj
 end
 jne pass 1 j2
+# not for a body compiled in place: its variables are in use at the one
+# place of the call, and loops is sized for a source read once
+jnz ilon j2
 load r+24 as r
 p=nloops*16+loops
 store p r
@@ -993,13 +1058,18 @@ fnslots=0
 fnregs=6
 fnlocal=0
 nloops=0
+nvm=0
 label f0
+ilany=0
+fnwr=0
+vhi=0
 loccur=0
 fnres=0
 fntail=0
 call clrloc
 call blank1
 call rname
+fnsrc=ip
 call lfn as r
 call nodup r
 p=nfuncs*40+funs
@@ -1089,6 +1159,14 @@ jmp fndef
 # "end": return 0, resolve the function's jumps, drop its labels and jumps
 label fnend
 jgt nblk blkbase blkend
+if ilon
+	# the end of a body compiled in place: go on with the names after "as"
+	# of its call
+	call eol
+	call inlclose
+	r=0
+	jmp cp5
+end
 ifz infn
 	call eplace
 end
@@ -1150,6 +1228,22 @@ nv=topvars
 pass=2
 jmp fndef
 label e1
+# The calls of a function are compiled in place if it is short and its
+# body adds to no table that the source limit sizes: no call, no global
+# name. Nor if it has a local, a tail, more than six parameters, or is
+# a task.
+p=(nfuncs-1)*24+finl
+store p 0
+if (fnasy|fntail|fnlocal|ilany)==0
+	if (ncalls==snc)&(nrefs==snr)&(nchks==snk)&(nruns==snu)&(nbufs==snb)
+		load (nfuncs-1)*40+funs+16 as q
+		if (op-q<=inlsz)&(fnnpar<=6)
+			store p fnsrc
+			store p+8 nv
+			store p+16 fnwr
+		end
+	end
+end
 call clrloc
 fnasy=0
 pass=0
@@ -1180,7 +1274,7 @@ if r
 			call eunasgj
 		end
 	end
-	if pass==1
+	if (pass==1)&(ilon==0)
 		load p+32 as q
 		d=nloops*16+loops
 		store d q

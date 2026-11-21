@@ -55,9 +55,11 @@ fn exname
 		# of a while is read a second time from the end of its loop
 		d=r*8+vlast
 		load d as c
-		if ip>c
-			store d ip
+		call vpos as u
+		if u>c
+			store d u
 		end
+		call vment r
 		ifz asg>>r&1
 			call eunasg
 		end
@@ -1255,7 +1257,8 @@ fn erexm w g b x f
 		call eb v|64
 	end
 end
-# ModRM, SIB and displacement of [b + x + d], with g in the reg field
+# ModRM, SIB and displacement of [b + x + d], with g in the reg field; the
+# index x counts 1, 2, 4 or 8 times, by xms
 fn emodm g b x d
 	g=(g&7)<<3
 	b&=7
@@ -1287,7 +1290,7 @@ fn emodm g b x d
 		call eb m|4
 		i=4
 		if x!=16
-			i=x&7
+			i=x&7|xms<<3
 		end
 		call eb i<<3|b
 	else
@@ -1316,20 +1319,22 @@ fn xwidth
 	ret 8
 end
 # Compute the nodes 0 up to e of ex, an address, as base, index and number
-# in xmb, xmx and xmd. A number added or subtracted last is the number, and
-# a variable that has a register, added last, is the index; the rest is
-# computed into a register, which is that of a variable if the rest is one.
+# in xmb, xmx and xmd. A number added or subtracted last is the number;
+# what is then added last is the index if it is a variable that has a
+# register, or such a variable times 2, 4 or 8 or shifted left by 1, 2 or
+# 3, which xms says as the power of two; the rest is computed into a
+# register, which is that of a variable if the rest is one.
 fn xaddr e
 	xmx=16
 	xmd=0
+	xms=0
 	h=e
-	p=(e-1)*32+ex
+	p=(h-1)*32+ex
 	load p as k
 	if k==6
 		load p+8 as o
-		q=p-32
-		load q as rk
-		load q+8 as ra
+		load p-32 as rk
+		load p-24 as ra
 		if rk==1
 			t=0
 			v=0
@@ -1344,16 +1349,45 @@ fn xaddr e
 			if t
 				ifz v+0x80000000>>32
 					xmd=v
-					h=e-2
+					h-=2
 				end
 			end
 		end
+	end
+	p=(h-1)*32+ex
+	load p as k
+	load p+8 as o
+	if (k==6)&(o==3)&(h>=3)
+		q=p-32
+		load q as rk
+		load q+8 as ra
 		if rk==4
-			if o==3
-				call vplace ra as kk pp
+			call vplace ra as kk pp
+			ifz kk
+				xmx=pp
+				h-=2
+			end
+		end
+		# variable, number, * or <<: the three nodes before the +
+		if (rk==6)&(h>=5)
+			load q+16 as li
+			load q-32 as nk
+			load q-24 as n
+			load q-64 as vk0
+			load q-56 as vi
+			t=4
+			if ra==0
+				t=(n==2)+(n==4)*2+(n==8)*3
+			end
+			if ra==5
+				t=n
+			end
+			if (li==h-4)&(nk==1)&(vk0==4)&(t-1<3)
+				call vplace vi as kk pp
 				ifz kk
 					xmx=pp
-					h=e-2
+					xms=t
+					h-=4
 				end
 			end
 		end
@@ -1439,6 +1473,7 @@ fn xmload
 	kk=1
 	ifz f
 		asg|=1<<p
+		fnwr|=1<<p
 		store p*32+vk 0
 		call vplace p as kk pp
 		ifz kk
@@ -1647,6 +1682,12 @@ end
 # of if, ifz, jz or jnz is not turned into 1 or 0 and tested: the statement
 # becomes the one that compares and jumps (ifeq, jlt, ...), or its opposite
 # for ifz and jz. The name read last, the label of a jump, is kept.
+# The value of a while that is two comparisons joined by &, with no
+# division in it, is two jumps: one written here, taken when the first
+# comparison does not hold, past the loop from its head and past the jump
+# back from its end (xsc, filled in by the caller), and then the second
+# comparison as the whole value. Neither comparison can trap or assign, so
+# leaving the second out changes nothing but the time.
 fn xjcond
 	if xst<2
 		ret 0
@@ -1663,6 +1704,7 @@ fn xjcond
 	h=nex
 	load exv as e
 	e+=1
+	g=0
 	if xst==3
 		h=nex-1
 		p=h*32+ex
@@ -1670,6 +1712,33 @@ fn xjcond
 		load p+8 as o
 		if k!=6
 			o=0
+		end
+		if (o==7)&(exdm==0)&((whead|wend)!=0)
+			load p+16 as li
+			q=li*32+ex
+			load q as k
+			load q+8 as a
+			load p-32 as b
+			load p-24 as c
+			if (k==6)&(a>=10)&(b==6)&(c>=10)
+				load q+16 as e
+				e+=1
+				call xinit 0x0fc1 16
+				call xgen 0 e
+				call xgen e li
+				call xpop2
+				call xcmp as s x y
+				loadb a*3+xopc+2 as c
+				call eb 15
+				call eb c-16^1
+				xsc=op
+				call z 4
+				# what is left is the second comparison
+				g=li+1
+				h-=1
+				p-=32
+				load p+8 as o
+			end
 		end
 		if o<10
 			call xinit 0x0fc1 16
@@ -1743,7 +1812,7 @@ fn xjcond
 		ai=2
 	end
 	call xinit 0x0fc1 16
-	call xgen 0 e
+	call xgen g e
 	call xgen e h
 	call xpop2
 	call xcmp as s x y
@@ -1839,14 +1908,14 @@ fn exasn f
 			ret 0
 		end
 	end
-	o=nv
+	o=vhi
 	call defv as i
 	load i*8+vlocal as d
 	if d
 		call edup
 	end
-	if infn
-		if nv!=o
+	if infn&(ilon==0)
+		if vhi!=o
 			# a new variable begins behind the line, after the last mention of every
 			# operand, so that it may take the place of one that is done
 			d=i*8+vfirst
@@ -1874,6 +1943,7 @@ fn xstore f i
 		ret 0
 	end
 	asg|=1<<i
+	fnwr|=1<<i
 	d=i*32+vk
 	store d k0
 	d+=8

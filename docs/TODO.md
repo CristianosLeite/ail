@@ -273,6 +273,177 @@ a small internal interface for compiler-generated code.
    server. Measure source tokens, throughput, latency and memory per task
    on representative workloads before broadening the API.
 
+## Algorithm benchmarks and collection APIs
+
+Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)
+as the starting point. Pass contiguous arrays as an address and an element
+count, use `load` and `store` for 64-bit values, and size runtime buffers with
+`alloc`. The algorithms can use the current language and calling convention.
+
+- [x] Add quicksort in `examples/quicksort.aw` and `bench/quicksort.c`.
+  Sort unsigned 64-bit values in place with the same pivot rule and three-way
+  partition in both implementations. Use half-open ranges and recurse on the
+  smaller partition while iterating over the larger one to bound stack depth.
+- [x] Add bottom-up mergesort with one caller-provided scratch array, heapsort
+  with an in-place binary heap, and binary search over sorted arrays. Make
+  binary search return the first index whose value is at least the key, or the
+  element count if there is none. Keep the algorithm and memory layout matched
+  in each AIL and C pair.
+- [x] Add hash lookup and graph traversal benchmarks. Measure inserts and
+  successful and unsuccessful lookups on the same key sequence and table load.
+  Store graphs as a vertex-offset array and a contiguous neighbor array. Use
+  a queue for BFS and an explicit stack for DFS, with the same neighbor order
+  and visited representation in both implementations.
+- [x] Extend [`perf`](../tools/perf.aw) for algorithm workloads. Run equivalent
+  C kernels at `-O3` on identical input generated from fixed seeds. Include
+  small and large arrays and random, sorted, reversed and duplicate-heavy
+  inputs. Check full sorted output against an independent reference on test
+  fixtures, including empty and singleton arrays. Validate results before
+  reporting timings. Prepare and reset input outside the timed region. Time
+  the kernel inside each executable with a monotonic clock and report it
+  separately from the existing end-to-end measurement. Preserve CPU
+  affinity, warmups, shuffled runs, and median and quartile reporting. Record
+  source tokens for the kernels and the code needed to call them. Include C
+  `qsort` as an optional baseline for callers of the generic library interface.
+
+Implement the collections as ordinary library functions under `lib/`. Use
+file-prefixed names, caller-owned zero-initialized descriptors and no top-level
+initialization. Start with unsigned 64-bit elements or keys and values. The
+operation names below are proposed. Keep allocation size calculations checked,
+preserve the contents on allocation failure, document the lifetime of any
+exposed storage, and have `free` operations reset the descriptor. Return a
+separate success or found result wherever zero is a valid value.
+
+- [x] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
+  `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
+  address, length and capacity in a 24-byte descriptor, with length and
+  capacity in elements. Grow geometrically and reuse `bycopy` for relocation
+  if useful. Define `vecreserve` in terms of total capacity and document when
+  growth invalidates addresses into the vector.
+- [x] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
+  `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
+  values with a head and count. Return failure on full and empty operations.
+  Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
+  the queue usable in synchronous programs through its own functions.
+- [x] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
+  `heappop h` and `heapfree h`. Store values in a growable array, using the
+  vector storage if it fits the callers. Sift up on insertion and down on
+  removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
+  the in-place max-heap operations of heapsort in its benchmark.
+- [x] **Hash map**, `lib/map.aw`. Provide `mapput m k v`, `mapget m k`,
+  `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
+  power-of-two capacity, and explicit slot states for empty, occupied and
+  deleted entries so all 64-bit keys are usable. Update existing keys in place,
+  reuse deleted slots, and rebuild when occupied and deleted slots reach the
+  chosen load threshold. Publish resized storage after rehashing succeeds.
+- [x] Cover each collection in `tests/lib_*`. Check empty operations and zero
+  values, vector growth and bounds, queue wraparound and full behavior, heap
+  ordering with duplicates, and hash collisions, deletion and resizing. Check
+  capacity overflow and reuse after `free`. Document the APIs and storage
+  contracts in [`language.md`](language.md) and record benchmark results in
+  [`performance.md`](performance.md).
+
+## Performance follow-up
+
+On the Core i7-12700H, rerunning `build/tools/perf --qsort` after the first
+four items brought the geometric mean of AIL/C time ratios from 1.760 to
+1.256 across 48 algorithm kernel timings and from 1.037 to 1.032 across five
+CPU-bound programs. AIL kernel times fell 28.8%, with `mergesort` gaining
+most (51.4% less time) and `hashtab` still furthest from C (1.620x). The
+compiler's elapsed time, including process startup, varied from -0.3% to
++2.6% across three sources. The loopback echo servers remained within about
+2% at 1, 100 and 1,000 connections. `make test` passed, including the
+bootstrap fixed point, as did three extended `randvars` runs that generated
+6,000 programs and executed 5,699.
+
+Repeat comparisons with the same inputs and affinity, checking output before
+timing and reporting kernel and elapsed times separately. The prototypes
+below were checked byte for byte and timed over 15 rounds with shuffled run
+order. See [benchmark method](performance.md#method).
+
+1. [x] **Emit scaled indexes in loads and stores.** In
+   [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
+   register index scaled by 2, 4 or 8 into the x86-64 memory operand when it
+   fits. With both operands in registers, `load p+i*8` went from `imul`,
+   `add` and `mov` to a single indexed `mov`, reducing the sequence from
+   10 to 4 bytes. The scaled-index change alone brought the mean AIL/C kernel
+   ratio from 1.753 to 1.639. See the
+   [scaled index measurements](performance.md#scaled-indexes-2026-11-20).
+2. [x] **Reduce stack accesses in hot loops and evaluate selective inlining.**
+   Inspect [`alloc`](../compiler/emit.aw) and the generated code for
+   [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
+   keys, manually inlining `place` lowered insertion and successful lookup
+   times by 12–20%, while unsuccessful lookups on random keys took 30% longer
+   and the loop gained stack accesses. Measure all three operations at 1,000
+   and 1,000,000 keys with random and duplicate-heavy inputs. Compare the
+   generated stack accesses and code size as well as elapsed time.
+   Done on 2026-11-20: registers go to the variables that the loops mention
+   most, and inlining `place` by hand is then faster in 11 of the 12 kernel
+   times ([results](performance.md#registers-by-weight-2026-11-20)).
+3. [x] **Find a profitable lowering for compound loop conditions.** Use
+   [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
+   its two bounds comparisons into separate branches, cutting kernel time
+   by up to 7% on sorted and reversed inputs while increasing it by up to
+   18% on small random or duplicate-heavy inputs. Preserve AIL's eager
+   evaluation semantics, including possible traps, and compare alternative
+   branch layouts across all four input shapes and both input sizes.
+   Done on 2026-11-20: a jump for each comparison before the loop and at its
+   end, which was faster in all eight inputs once the registers went by
+   weight ([results](performance.md#two-comparisons-in-a-while-2026-11-20)).
+4. [x] **Tune task granularity before changing the pool.** Using medians from
+   three runs per configuration (`build/tools/par --runs 3`), 160 tasks at
+   20 threads gave a 10.21x speedup for `collatz`, 10.86x for `primes` and
+   3.35x for `memsum`.
+   At 20 threads, `memsum` took 62.5 ms with 200 tasks per pass and 374 ms
+   with 20,000. All three workloads lost to their sequential versions at a
+   million tasks. Sweep batch sizes across worker counts and use the results
+   to document useful starting sizes for CPU-bound and memory-bound work.
+   [Task benchmark method](performance.md#tasks-2026-11-20)
+   Done on 2026-11-20: `build/tools/par --grid` times every pair; the sizes
+   to start from are in
+   [the table and its reading](performance.md#the-size-of-a-task-at-each-number-of-threads)
+   and in the pool section of the language reference. The rerun with
+   `--grid --runs 3` gave 10.18x and 11.22x for `collatz` and `primes` at
+   2,000 tasks on 20 threads, falling to 2.44x and 3.48x at 200,000 tasks.
+   `memsum` peaked at 2.95x with 200 tasks per pass.
+
+5. [x] **Inline small functions at their calls.** With the current compiler,
+   writing `place` into the two `hashtab` loops by hand reduced kernel time
+   by 6% to 31% across all 12 cases, with 123 more bytes in the executable.
+   This includes the random misses at 1,000 keys that regressed before the
+   register allocation change. Decide which functions qualify (no `local`,
+   no `ret` inside a loop, a size limit), how the variables of the callee are
+   named in the caller's 64, and how the two passes see the body.
+   Measure `hashtab`, `heapsort` (`sift`) and `bsearch` (`lower`).
+   Done on 2026-11-20: a call in a function, of a function before it whose
+   code is at most 160 bytes and whose body has no call and no global name,
+   is its body, read again from the source; a parameter that is only read
+   is the caller's variable. Over eight places of the code `hashtab` takes
+   5 to 36% less time, `bsearch` the same, and `heapsort` with `sift` in
+   place 7% more at a million elements, so `sift` stays a call
+   ([results](performance.md#calls-compiled-in-place-2026-11-20)). The
+   same kernel moved by a few bytes varies by a fifth at a thousand
+   elements, which the results take into account.
+6. [x] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
+   two words. Keep the probe index even, advance it by two and use twice the
+   slot mask to wrap. This lets `load t+h*8` use the x86-64 scaled operand in
+   the probe loop, whose current address is `t+h*16`. Keep the hash, probe
+   sequence, table size and duplicate-key behavior. In a prototype on the
+   current compiler, all three kernels took 2.6% to 4.9% less time on one
+   million random keys, while misses at 1,000 keys and hits at one million
+   duplicate-heavy keys took up to 2.5% longer. Retest the full matrix with
+   and without inlining, and include a collision that wraps past the last
+   slot in the output checks. A separate prototype that returned the key
+   already read by `place` saved 12.4% on small random misses but cost
+   6.6% to 7.8% on duplicate-heavy hits. Measure that change separately
+   before combining it with the new probe index.
+   Done on 2026-11-20: the probe counts words. Over eight places of the
+   code it takes 5 to 12% less time on a million random keys and is within
+   5% elsewhere, but for the random misses at 1,000 keys, 21% slower, as
+   they also are with the old probe merely respelled. The key as a second
+   result gains at most 5% with the body in place and is left out
+   ([results](performance.md#the-probe-of-hashtab-in-words-2026-11-20)).
+
 ## Redesign
 
 From `REDESIGN.md`; one commit per item.

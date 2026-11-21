@@ -1,7 +1,8 @@
 # tools/perf.aw -- time each example against its C, Rust and assembly
 # equivalent.
 #
-#   build/tools/perf [--cpu N] [--quick] [name ...]   (default: every program)
+#   build/tools/perf [--cpu N] [--quick] [--qsort] [name ...]
+#                                             (default: every program)
 #
 # Run from the top of the repository after make. Needs gcc and rustc.
 #
@@ -18,6 +19,17 @@
 # starting a process; they are reported apart from the CPU-bound ones,
 # for which the ratio to C and its geometric mean are given.
 #
+# The algorithm programs (bench/algo/harness.aw) are run on several
+# inputs each, the rows of work below: a count, a shape and how often the
+# kernel runs in one process. Such a program takes the time of its
+# kernels itself and writes it behind a checksum of its result, so its
+# stdout goes to a file that is read after every run: the checksum must
+# be that of C, and the times are reported in a table of their own, apart
+# from the elapsed time of the process. Before that the whole result at
+# the counts 0, 1 and 1000 must be the one of C. With --qsort the sorts
+# have a column more, for bench/qsort.c, the qsort of the C library on
+# the same input.
+#
 # Status 0, or 1 with a line "perf: ..." on stderr.
 use "lib/io.aw"
 use "lib/bytes.aw"
@@ -32,16 +44,65 @@ use "tools/lib/fmt.aw"
 # the status it must end with
 data progs 5 "hello" 4 "echo" 5 "count" 4 "fact" 4 "loop"
 data 7 "compute" 5 "sieve" 7 "collatz" 3 "fnv" 5 "isort"
-data pkind 0 0 0 0 0 1 1 1 1 1
+data 9 "quicksort" 9 "mergesort" 8 "heapsort" 7 "bsearch" 7 "hashtab" 5 "graph"
+data pkind 0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2
 # 0 nothing, 1 the bytes 0 to 255 sixteen times, 2 the number
 # 0x123456789abcdef0 as 8 bytes, 3 16000000 so, 4 500000 so, 5 the bytes 0
 # to 255 4096 times
-data pinput 0 1 1 0 0 2 3 4 5 2
+data pinput 0 1 1 0 0 2 3 4 5 2 0 0 0 0 0 0
 # 0 nothing, 1 the greeting, 2 its input, 3 the count, 4 the digits,
 # 9 whatever the C program writes
-data pwant 1 2 3 0 4 9 9 9 9 9
-data pstat 0 0 0 120 0 0 0 0 0 0
-const nprogs 10
+data pwant 1 2 3 0 4 9 9 9 9 9 9 9 9 9 9 9
+data pstat 0 0 0 120 0 0 0 0 0 0 0 0 0 0 0 0
+const nprogs 16
+# the algorithm programs, kind 2, from the first on: how many kernels
+# each has, and their names in that order; the first three are sorts
+const firstalgo 10
+const nsorts 3
+data pkern 1 1 1 1 3 2
+data knames 0 "" 0 "" 0 "" 0 "" 6 "insert" 3 "hit" 4 "miss" 3 "bfs" 3 "dfs"
+data shapes 6 "random" 6 "sorted" 8 "reversed" 3 "few"
+# their inputs, a row each: the program, the count as a power of ten, the
+# shape, and the runs in one process as a number times a power of ten.
+# The shape 3 is few distinct values for a sort, small steps for bsearch,
+# few distinct keys for hashtab and at most one neighbour for graph.
+data work 10 3 0 1 3
+data 10 3 1 1 3
+data 10 3 2 1 3
+data 10 3 3 1 3
+data 10 6 0 1 0
+data 10 6 1 1 0
+data 10 6 2 1 0
+data 10 6 3 4 0
+data 11 3 0 1 3
+data 11 3 1 1 3
+data 11 3 2 1 3
+data 11 3 3 1 3
+data 11 6 0 1 0
+data 11 6 1 1 0
+data 11 6 2 1 0
+data 11 6 3 1 0
+data 12 3 0 1 3
+data 12 3 1 1 3
+data 12 3 2 1 3
+data 12 3 3 1 3
+data 12 6 0 1 0
+data 12 6 1 1 0
+data 12 6 2 1 0
+data 12 6 3 1 0
+data 13 3 0 2 3
+data 13 3 3 2 3
+data 13 6 0 1 0
+data 13 6 3 1 0
+data 14 3 0 5 3
+data 14 3 3 5 3
+data 14 6 0 2 0
+data 14 6 3 4 0
+data 15 3 0 2 3
+data 15 3 3 5 3
+data 15 6 0 1 0
+data 15 6 3 2 0
+const nwork 36
 data langs 3 "AIL" 1 "C" 4 "Rust" 3 "asm"
 data sgcc "gcc" 0
 data so3 "-O3" 0
@@ -51,6 +112,7 @@ data sdasho "-o" 0
 data sas "as" 0
 data sld "ld" 0
 data sversion "--version" 0
+data sqsortc "bench/qsort.c" 0
 
 # the state of the random numbers
 buf rs 8
@@ -62,20 +124,29 @@ buf bwant 24
 buf bgot 24
 # the paths of the program at work, each with a NUL byte after it, and
 # where each starts: the four executables in the order of langs, the
-# sources of C, Rust and assembly, the object file, the input, the output
+# sources of C, Rust and assembly, the object file, the input, the output,
+# the executable of bench/qsort.c
 buf strs 24
-buf pa 80
+buf pa 88
 # the arguments of a child
 buf av 64
 # the times of the rounds, 500 for each language, and the order of a round
 buf samp 16000
 buf ord 32
+# the times that an algorithm program gave of its kernels: 64 rounds for
+# each language, that for each of three kernels
+buf ksamp 6144
 # the results: for each program and language 32 bytes, 1 if there is a
 # figure, the median as a double, the two quartiles as numbers
-buf res 1280
+buf res 2048
+# those of the algorithm programs: for each row of work the same 128
+# bytes four times, for the process and for each of three kernels
+buf ares 18432
 # the programs asked for, in their order, and their number
-buf sel 80
+buf sel 128
 var gnsel
+# 1 with --qsort
+var gqsort
 
 fn fail m mn
 	call eprint "perf: "
@@ -203,9 +274,11 @@ fn paths pi
 	store pa+64 o
 	call path "build/perf/" p n ".out" as o
 	store pa+72 o
+	call path "build/perf/qsort.c.bin" "" "" as o
+	store pa+80 o
 	load strs as b
 	i=0
-	while i<80
+	while i<88
 		load pa+i as o
 		store pa+i b+o
 		i+=8
@@ -246,8 +319,9 @@ fn tool
 end
 
 # build what bench/ has of the program whose paths are in pa: a bit for
-# each language that has an executable
-fn build
+# each language that has an executable. With qs the place of assembly
+# is taken by bench/qsort.c.
+fn build qs
 	load pa as p
 	call exists p as r
 	ifz r
@@ -297,6 +371,18 @@ fn build
 		store av+16 b
 		store av+24 o
 		call tool
+		mask|=8
+	end
+	if qs
+		load pa+80 as b
+		store av sgcc
+		store av+8 so3
+		store av+16 sdasho
+		store av+24 b
+		store av+32 sqsortc
+		store av+40 0
+		call tool
+		store pa+24 b
 		mask|=8
 	end
 	ret mask
@@ -361,6 +447,48 @@ fn prepare pi
 	ret k==9
 end
 
+# 10 to the power e
+fn pow10 e
+	v=1
+	while e
+		v*=10
+		e-=1
+	end
+	ret v
+end
+
+# the row w of work: its count, its shape and its runs
+fn workrow w
+	loadb work+w*5+1 as e
+	call pow10 e as n
+	loadb work+w*5+2 as s
+	loadb work+w*5+3 as m
+	loadb work+w*5+4 as e
+	call pow10 e as r
+	ret n s m*r
+end
+
+# the five words an algorithm program reads into binp and into the input
+# file: the seed, which is always the same, and these four
+fn ainput n s runs mode
+	call bycut binp 0
+	call byneed binp 40 as r
+	call must r
+	load binp as p
+	store p 20261120
+	store p+8 n
+	store p+16 s
+	store p+24 runs
+	store p+32 mode
+	store binp+8 40
+	load pa+64 as f
+	call strlen f as fn
+	call filewrite f fn p 40 as r
+	ifslt r 0
+		call fail "cannot write to build/perf"
+	end
+end
+
 # a signed number into ob
 fn addsigned v
 	ifslt v 0
@@ -372,8 +500,10 @@ end
 
 # every executable of the program pi must end with the status and write
 # the output expected of it, C first, whose output is what the others
-# must write where none is given
-fn check pi mask free
+# must write where none is given. With nk, the kernels of an algorithm
+# program, the output is a checksum and that many times, and only the
+# checksum is compared.
+fn check pi mask free nk
 	call item progs pi as np nn
 	loadb pstat+pi as want
 	load pa+64 as f
@@ -417,14 +547,21 @@ fn check pi mask free
 			call fileread g gn bgot as r
 			load bgot as p
 			load bgot+8 as n
-			if free
-				free=0
-				call bycut bwant 0
-				call add bwant p n
+			r=1
+			if nk
+				r=n==nk*8+8
+				n=8
 			end
-			load bwant as q
-			load bwant+8 as m
-			call same p n q m as r
+			if r
+				if free
+					free=0
+					call bycut bwant 0
+					call add bwant p n
+				end
+				load bwant as q
+				load bwant+8 as m
+				call same p n q m as r
+			end
 			ifz r
 				call eprint "perf: "
 				call eprint np nn
@@ -458,10 +595,34 @@ fn sort a n
 	end
 end
 
+# the median of the n numbers at a, the mean of the middle two of an
+# even number, and the numbers a quarter and three quarters of the way,
+# into the 32 bytes at r
+fn stats a n r
+	call sort a n
+	load a+n/2*8 as v
+	if n&1
+		itof v as m
+	else
+		load a+n/2*8-8 as w
+		itof v+w as m
+		itof 2 as w
+		fdiv m w as m
+	end
+	store r 1
+	store r+8 m
+	load a+n/4*8 as v
+	store r+16 v
+	load a+n*3/4*8 as v
+	store r+24 v
+end
+
 # time the executables of the program pi: the rounds before the timed
 # ones, then the timed ones, every language once a round in an order
-# shuffled anew
-fn measure pi mask quick
+# shuffled anew. The results go to rb. With nk, the kernels of an
+# algorithm program, stdout is a file, read after each run for the
+# checksum, which must be the one in bwant, and for the times.
+fn measure pi mask quick nk rb
 	call item progs pi as np nn
 	loadb pstat+pi as want
 	loadb pkind+pi as kind
@@ -486,6 +647,8 @@ fn measure pi mask quick
 	ifslt src|null 0
 		call fail "cannot use build/perf"
 	end
+	load pa+72 as g
+	call strlen g as gn
 	i=0
 	while i<warm+rounds
 		n=0
@@ -505,10 +668,34 @@ fn measure pi mask quick
 			load pa+l*8 as b
 			store av b
 			store av+8 0
+			out=null
+			p=0
+			if nk
+				call fileopen g gn 0x241 420 as out
+				ifslt out 0
+					call fail "cannot use build/perf"
+				end
+			end
 			call procnow as start
-			call procstart av src null -1 as pid
+			call procstart av src out -1 as pid
 			call procwait pid 0 as st
 			call procnow as t
+			if nk
+				sys close out
+				call bycut bgot 0
+				call fileread g gn bgot as r
+				load bgot as p
+				load bgot+8 as r
+				if r==nk*8+8
+					load bwant as q
+					call same p 8 q 8 as r
+				else
+					r=0
+				end
+				ifz r
+					st=want+1
+				end
+			end
 			if st!=want
 				call item langs l as lp ln
 				call eprint "perf: "
@@ -517,6 +704,12 @@ fn measure pi mask quick
 			end
 			if i>=warm
 				store samp+l*4000+(i-warm)*8 t-start
+				j=0
+				while j<nk
+					load p+j*8+8 as v
+					store ksamp+j*2048+l*512+(i-warm)*8 v
+					j+=1
+				end
 			end
 			k+=1
 		end
@@ -524,32 +717,38 @@ fn measure pi mask quick
 	end
 	sys close src
 	sys close null
-	# the median, the mean of the middle two of an even number, and the
-	# numbers a quarter and three quarters of the way
 	l=0
 	while l<4
 		if mask>>l&1
-			a=samp+l*4000
-			call sort a rounds
-			load a+rounds/2*8 as v
-			if rounds&1
-				itof v as m
-			else
-				load a+rounds/2*8-8 as w
-				itof v+w as m
-				itof 2 as w
-				fdiv m w as m
+			call stats samp+l*4000 rounds rb+l*32
+			j=0
+			while j<nk
+				call stats ksamp+j*2048+l*512 rounds rb+j*128+128+l*32
+				j+=1
 			end
-			r=res+pi*128+l*32
-			store r 1
-			store r+8 m
-			load a+rounds/4*8 as v
-			store r+16 v
-			load a+rounds*3/4*8 as v
-			store r+24 v
 		end
 		l+=1
 	end
+end
+
+# check and time the program pi on the row w of work
+fn workload pi mask quick w
+	call workrow w as n s runs
+	loadb pkern+pi-firstalgo as nk
+	call ainput 0 s 1 2
+	call check pi mask 1 0
+	call ainput 1 s 1 2
+	call check pi mask 1 0
+	call ainput 1000 s 2 2
+	call check pi mask 1 0
+	call ainput n s runs 0
+	call check pi mask 1 nk
+	i=0
+	while i<512
+		store ares+w*512+i 0
+		i+=8
+	end
+	call measure pi mask quick nk ares+w*512
 end
 
 # ---- the report
@@ -642,7 +841,8 @@ fn cell2 x scale
 end
 
 # x^(1/n) for a double x above 0: Newton's steps from above, to the last
-# digit or the one before it
+# digit or the one before it. A step from far above takes off one part
+# in n, so the root of a large product needs many of them.
 fn froot x n
 	if n==1
 		ret x
@@ -655,7 +855,7 @@ fn froot x n
 	itof n as fn
 	itof n-1 as fm
 	k=0
-	while k<200
+	while k<1000000
 		p=y
 		i=2
 		while i<n
@@ -676,18 +876,92 @@ fn froot x n
 	ret y
 end
 
-# the table of the programs of one kind
-fn table kind unit un scale
-	local ratios 80
-	any=0
+# the figures at r of the languages of cols, a cell each, into ob
+fn cells r cols scale
+	l=0
+	while l<4
+		if cols>>l&1
+			call add ob " | "
+			load r+l*32 as c
+			if c
+				load r+l*32+8 as m
+				load r+l*32+16 as lo
+				load r+l*32+24 as hi
+				call cell2 m scale
+				call add ob " ("
+				itof lo as lo
+				call cell2 lo scale
+				call add ob ", "
+				itof hi as hi
+				call cell2 hi scale
+				call add ob ")"
+			end
+		end
+		l+=1
+	end
+	call add ob " |"
+end
+
+# the cell of AIL divided by C for the figures at r, marked when more
+# than a tenth slower than C: the ratio and 1, or 0 and 0 without C
+fn ratio r
+	load r+32 as c
+	ifz c
+		call add ob " |"
+		ret 0 0
+	end
+	load r+8 as m
+	load r+40 as d
+	fdiv m d as q
+	call add ob " "
+	call fmtfix ob q 3 as c
+	call must c
+	itof 11 as m
+	itof 10 as d
+	fdiv m d as m
+	flt m q as c
+	if c
+		call add ob " slow"
+	end
+	call add ob " |"
+	ret q 1
+end
+
+# the line of the geometric mean of nr ratios, whose product is g
+fn mean g nr what wn
+	call froot g nr as g
+	call add ob "\nGeometric mean of AIL / C over "
+	call addn ob nr
+	call add ob " "
+	call add ob what wn
+	if nr!=1
+		call add ob "s"
+	end
+	call add ob ": "
+	call fmtfix ob g 3 as c
+	call must c
+	call add ob "\n"
+	call say
+end
+
+# 1 if a program of that kind was asked for
+fn anykind kind
 	k=0
 	while k<gnsel
 		load sel+k*8 as pi
 		loadb pkind+pi as c
-		any|=c==kind
+		if c==kind
+			ret 1
+		end
 		k+=1
 	end
-	ifz any
+	ret 0
+end
+
+# the table of the programs of one kind, 0 or 1
+fn table kind unit un scale
+	call anykind kind as c
+	ifz c
 		ret 0
 	end
 	if kind
@@ -707,6 +981,7 @@ fn table kind unit un scale
 	end
 	call add ob "\n"
 	call say
+	itof 1 as g
 	nr=0
 	k=0
 	while k<gnsel
@@ -716,52 +991,13 @@ fn table kind unit un scale
 			call item progs pi as p n
 			call add ob "| "
 			call add ob p n
-			call add ob " | "
-			l=0
-			while l<4
-				if l
-					call add ob " | "
-				end
-				r=res+pi*128+l*32
-				load r as c
-				if c
-					load r+8 as m
-					load r+16 as lo
-					load r+24 as hi
-					call cell2 m scale
-					call add ob " ("
-					itof lo as lo
-					call cell2 lo scale
-					call add ob ", "
-					itof hi as hi
-					call cell2 hi scale
-					call add ob ")"
-				end
-				l+=1
-			end
-			call add ob " |"
+			call cells res+pi*128 15 scale
 			if kind
-				r=res+pi*128
-				load r+32 as c
+				call ratio res+pi*128 as q c
 				if c
-					load r+8 as m
-					load r+40 as d
-					fdiv m d as q
-					store ratios+nr*8 q
+					fmul g q as g
 					nr+=1
-					call add ob " "
-					call fmtfix ob q 3 as c
-					call must c
-					# marked when more than a tenth slower than C
-					itof 11 as m
-					itof 10 as d
-					fdiv m d as m
-					flt m q as c
-					if c
-						call add ob " slow"
-					end
 				end
-				call add ob " |"
 			end
 			call add ob "\n"
 			call say
@@ -769,25 +1005,100 @@ fn table kind unit un scale
 		k+=1
 	end
 	if nr
-		itof 1 as g
-		k=0
-		while k<nr
-			load ratios+k*8 as q
-			fmul g q as g
-			k+=1
+		call mean g nr "CPU-bound program"
+	end
+end
+
+# the name of the kernel j of the algorithm program pi
+fn kname pi j
+	k=firstalgo
+	while k<pi
+		loadb pkern+k-firstalgo as c
+		j+=c
+		k+=1
+	end
+	tail item knames j
+end
+
+# a table of the algorithm programs: with kern 0 the elapsed time of the
+# process on each row of work, with 1 the time of each kernel
+fn atable kern
+	call anykind 2 as c
+	ifz c
+		ret 0
+	end
+	if kern
+		call add ob "\nAlgorithms, median time of the kernel"
+	else
+		call add ob "\nAlgorithms, median elapsed"
+	end
+	call add ob " in milliseconds (first and third quartile)\n\n| program, input, count x runs | AIL | C | Rust |"
+	cols=7
+	if gqsort
+		cols=15
+		call add ob " C qsort |"
+	end
+	call add ob " AIL / C |\n|---|---:|---:|---:|---:|"
+	if gqsort
+		call add ob "---:|"
+	end
+	call add ob "\n"
+	call say
+	itof 1 as g
+	nr=0
+	k=0
+	while k<gnsel
+		load sel+k*8 as pi
+		loadb pkind+pi as c
+		w=0
+		while (c==2)&(w<nwork)
+			loadb work+w*5 as d
+			if d==pi
+				call workrow w as n s runs
+				nk=1
+				if kern
+					loadb pkern+pi-firstalgo as nk
+				end
+				j=0
+				while j<nk
+					call item progs pi as p m
+					call add ob "| "
+					call add ob p m
+					if kern
+						call kname pi j as p m
+						if m
+							call add ob " "
+							call add ob p m
+						end
+					end
+					call add ob ", "
+					call item shapes s as p m
+					call add ob p m
+					call add ob ", "
+					call addn ob n
+					call add ob " x "
+					call addn ob runs
+					call cells ares+w*512+(j+kern)*128 cols 1000000
+					call ratio ares+w*512+(j+kern)*128 as q d
+					if d
+						fmul g q as g
+						nr+=1
+					end
+					call add ob "\n"
+					call say
+					j+=1
+				end
+			end
+			w+=1
 		end
-		call froot g nr as g
-		call add ob "\nGeometric mean of AIL / C over "
-		call addn ob nr
-		call add ob " CPU-bound program"
-		if nr!=1
-			call add ob "s"
+		k+=1
+	end
+	if nr
+		if kern
+			call mean g nr "kernel time"
+		else
+			call mean g nr "input"
 		end
-		call add ob ": "
-		call fmtfix ob g 3 as c
-		call must c
-		call add ob "\n"
-		call say
 	end
 end
 
@@ -801,8 +1112,10 @@ fn main
 		call argv i as p m
 		i+=1
 		call same p m "--quick" as r
-		if r
-			quick=1
+		call same p m "--qsort" as k
+		if r|k
+			quick|=r
+			gqsort|=k
 		else
 			call same p m "--cpu" as r
 			if r
@@ -810,7 +1123,7 @@ fn main
 				i+=1
 				call num p m as cpu r
 				ifz r
-					call fail "usage: perf [--cpu N] [--quick] [name ...]"
+					call fail "usage: perf [--cpu N] [--quick] [--qsort] [name ...]"
 				end
 			else
 				# the program of that name, once
@@ -863,14 +1176,29 @@ fn main
 	while k<gnsel
 		load sel+k*8 as pi
 		call paths pi
-		call build as mask
-		call prepare pi as free
-		call check pi mask free
-		call measure pi mask quick
+		loadb pkind+pi as c
+		if c==2
+			call build gqsort&(pi-firstalgo<nsorts) as mask
+			w=0
+			while w<nwork
+				loadb work+w*5 as c
+				if c==pi
+					call workload pi mask quick w
+				end
+				w+=1
+			end
+		else
+			call build 0 as mask
+			call prepare pi as free
+			call check pi mask free 0
+			call measure pi mask quick 0 res+pi*128
+		end
 		k+=1
 	end
 	call table 0 "in microseconds" 1000
 	call table 1 "in milliseconds" 1000000
+	call atable 0
+	call atable 1
 end
 
 call main

@@ -22,6 +22,12 @@ output and differ from them in a few stated places.
   draws from splitmix64, so a seed gives another corpus (20 Python-made programs are kept in
   `tests/randvars/`); `perf` starts children with `fork`, and its startup figures are 2 to 10%
   lower.
+- `perf` has three kinds of program since 2026-11-20: startup, CPU-bound and algorithm. An
+  algorithm program is run on the rows of the table `work` (count, shape, runs), writes the
+  nanoseconds of its kernels behind a checksum, and `perf` reads that file after every run
+  ([page](algorithms-and-collections.md)). Its `froot` takes up to a million Newton steps: 200
+  left the root of a product of 28 ratios far off, since a step from far above removes one
+  part in n.
 - `infix` never folds a name that a `var` declares. It reads the `var` lines of every file the
   source reaches with `use` (paths as written, from the current directory, like the compiler)
   and of files named after `out.aw`, for a source that another file includes:

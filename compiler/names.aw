@@ -57,7 +57,16 @@ fn lvar
 	if wend
 		n=wnv
 	end
-	call look p n 16 as i
+	call look p+vlo*16 n-vlo 16 as i
+	if i!=-1
+		i+=vlo
+		if ilon
+			loadb i+valias as n
+			if n
+				i=n-1
+			end
+		end
+	end
 	ret i
 end
 # the top-level variables, also from inside a function
@@ -265,6 +274,7 @@ fn defv
 	call vbase as p
 	call putn p+i*16
 	nv=i+1
+	storeb i+valias 0
 	ifz infn
 		if i>=6
 			ngv+=1
@@ -272,10 +282,54 @@ fn defv
 		end
 		ret i
 	end
-	store i*8+vfirst ip
+	# a number that a body compiled in place had before stays what it was
+	# for alloc: one variable from its first place to its last
+	if i>=vhi
+		vhi=i+1
+		call vpos as c
+		store i*8+vfirst c
+		storeb i+vinl 0
+	end
+	loadb i+vinl as c
+	storeb i+vinl c|2-ilon
 	label x
-	store i*8+vlast ip
+	call vuse i
 	ret i
+end
+# where a mention of a variable counts as made: at the input cursor, or
+# for the body of a function compiled in place of its call, at the call
+fn vpos
+	if ilon
+		ret ilpos
+	end
+	ret ip
+end
+# value ai of the statement at hand is variable i by itself
+fn ilnote i
+	if ai<6
+		storeb ilarg+ai i
+		ilpl|=1<<ai
+	end
+end
+# variable i is mentioned
+fn vuse i
+	call vpos as p
+	store i*8+vlast p
+	call vment i
+end
+# note a mention of variable i of the function at the input cursor, in
+# the first pass, for the weights of alloc. The value of a while is read
+# again at the end of its loop and its variables are noted twice.
+fn vment i
+	if (pass==1)&(infn!=0)&(nvm<8388608)
+		call vpos as p
+		d=ildep
+		if d>3
+			d=3
+		end
+		store nvm*8+vms p<<8|d<<6|i
+		nvm+=1
+	end
 end
 # where variable i of the current scope lives, as two results: 0 and its
 # x86 register, 1 and the address of its cell, 2 and its distance from rsp,

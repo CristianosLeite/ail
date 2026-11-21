@@ -378,6 +378,8 @@ call name x y as q r
 
 `call` passes its values to the parameters in order and runs the function. With `as`, the value the function returns is kept in a variable; without it the value is dropped. A value is any [argument](#arguments), and the number of values must equal the number of parameters; a string is two values, its address and its length, so that a function taking `p n` can be called with a literal.
 
+Inside a function, a `call` of a short function that is defined before it costs no call: the compiler writes the body in its place, with the variables of the callee beside those of the caller and each `ret` a jump to the end of the body. Nothing a program computes changes, only its size and its time. A function is short if its code is at most 160 bytes; it must also stand before the call, have at most six parameters, no `local` and no `tail`, call no function but through `callp`, name no `buf`, `data` or `var`, and not be `async`; and the variables of both together must be 64 at most. Every other call is a call, as are all those at top level. A parameter that the function never assigns is then the caller's variable itself when the value is a variable, so a helper that only reads its parameters costs what its lines would cost written at the call ([the compiler notes](compiler.md#functions) say how, [the measurements](performance.md#calls-compiled-in-place-2026-11-20) what it gains).
+
 `ret` returns its values to the caller and is only allowed inside a function. It takes one to six values, and every `ret` of a function must take the same number: that is the number of results of the function. Reaching `end` returns `0` for each of them. A `call` may name fewer variables after `as` than the function has results, and the rest are dropped; naming more is the error `wrong result count`.
 
 ```
@@ -469,6 +471,7 @@ call workers 4
 - `join` of a task that is still in the queue runs it on the joining thread; `join` of a task that a worker took sleeps until it is done. So at most the limit plus the joining threads run tasks at once, a task may spawn and join tasks of its own with any limit, and a program is correct with no worker at all. A task never moves between threads once it has started.
 - A worker has a stack of 8 MiB with a closed page below it: a task that needs more is a fault (`SIGSEGV`), which ends the program. A task run by `join` uses the stack of the joining thread.
 - If the kernel refuses a thread or its stack, the task stays in the queue for another worker or its `join`.
+- How large a task should be: about ten times as many tasks as threads, each of 100 microseconds of work or more, is a good start. Between 30 microseconds and 3 milliseconds a task the gain does not depend on the size; one task for each thread loses a sixth to a quarter of it at 14 and 20 threads, since nothing evens out unequal pieces and cores; tasks of 3 microseconds lose a fifth at 8 threads and most of the gain at 20; work that is bound by memory gains little beyond 4 threads ([measured](performance.md#the-size-of-a-task-at-each-number-of-threads)).
 - The costs: a task is 80 bytes, taken from blocks of 64 KiB that the library asks of the kernel as needed and never gives back, and used again after its `join`; `spawn` and `join` take a lock for a few instructions each, and enter the kernel only to wake or start a worker or to sleep.
 - The library owns the names `spawn`, `join`, `workers` and every name that starts with `task`: its other functions, its buffer and all its variables. A program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, the library's included. Threads share the program's `var` cells and, at top level, the variables after the sixth, which live in cells: code that tasks run belongs in functions, whose variables are their own.
 
@@ -996,6 +999,122 @@ call procwait p 10000 as r
 - **Errors**: `procstart` returns a negative number when the kernel refuses a process (the error of `fork`, negated). A program that cannot be started is a child that ends with status 127.
 - **The result of `procwait`** is the exit status, 0 to 255; or the number of the signal that ended the child, negated (-9, -11); or -1000 if the child still ran when the time was up, in which case it was killed (`SIGKILL`) before the return; or -1001 if there is no such child. Every child is waited for exactly once, which takes it from the kernel; after that its number means nothing. Only the child itself is killed, not what it started. The limit holds also when the kernel gives no descriptor for the child (`pidfd_open` fails at the limit of open files): the child is then asked about every millisecond.
 - **Names**: the library owns every name that starts with `proc`; a program has no `var` of such a name.
+
+## The vector library
+
+`lib/vec.aw` is an array of 64-bit values that grows as values are added. The vector is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the values, their number, and the number there is room for. All zero is an empty vector, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes. A value has an index, from 0.
+
+| Function | Does |
+|---|---|
+| `vecpush v x` | adds the value `x` behind the last; returns 1 |
+| `vecpop v` | takes the last value off; returns it and 1, or 0 and 0 if there is none |
+| `vecget v i` | returns the value at the index `i` and 1, or 0 and 0 if there is none |
+| `vecset v i x` | makes `x` the value at the index `i`; returns 1, or 0 if there is none |
+| `vecreserve v n` | makes room for `n` values in all, not `n` more; returns 1 |
+| `vecfree v` | gives the values back to the kernel; the vector is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/vec.aw"
+buf v 24
+call vecpush v 30
+call vecpush v 12
+call vecget v 0 as a ok
+call vecpop v as b ok
+call putn a+b
+```
+
+- **Growth**: `vecpush` and `vecreserve` may move the values: `vecpush` takes twice the room with `alloc` when none is left (at least 512 values), copies, and `free`s the old; `vecreserve` takes exactly what it is asked for, and nothing if there is that much. An address of a value is therefore only good until the next of those two calls, an index always. After `vecreserve v n` the vector moves nothing until it holds `n` values.
+- **Errors**: the two return 1, or 0 when the kernel has no memory or the room would not fit in 64 bits of bytes; the vector is then as it was, values and room. `vecpop`, `vecget` and `vecset` test the index against the number of values, and the second result says whether there was a value, since a value may be 0. A vector that is not 24 bytes of the caller's is a fault of the program.
+- **Ownership**: the caller owns the 24 bytes and ends the vector with `vecfree`; a vector in a `local` is freed before its function returns. The values are read at the address in the first 8 bytes, with their number in the next 8.
+- **Names**: the library owns every name that starts with `vec`; a program has no `var` of such a name.
+
+## The queue library
+
+`lib/queue.aw` is a queue of 64-bit values with a fixed room: values leave in the order they came. The queue is 32 bytes that the caller owns, in a `buf` or a `local`: the address of the values, the number there is room for, the index of the oldest and the number it holds. The functions take the address of those 32 bytes. It needs no other library and no task: a program without `async` uses it as it stands.
+
+| Function | Does |
+|---|---|
+| `queueinit q n` | gives a queue that is all zero room for `n` values; returns 1 |
+| `queuepush q x` | adds the value `x` as the newest; returns 1, or 0 if the queue is full |
+| `queuepop q` | takes the oldest value out; returns it and 1, or 0 and 0 if the queue is empty |
+| `queuefree q` | gives the room back to the kernel; the queue is all zero and may be given room again |
+
+```
+use "lib/io.aw"
+use "lib/queue.aw"
+buf q 32
+call queueinit q 8
+call queuepush q 30
+call queuepush q 12
+call queuepop q as a ok
+call queuepop q as b ok
+call putn a-b
+```
+
+- **Storage**: one `alloc` in `queueinit`, a ring: the value after the last place is at the first. The room never changes and a value never moves. A queue that is all zero, as a `buf` is, has no room: it is full and empty at once. Room for 0 values is allowed and is the same.
+- **Errors**: `queueinit` returns 0 when the kernel has no memory or the room would not fit in 64 bits of bytes, and the queue is then as it was. A full queue and an empty one are results, not faults: 0 from `queuepush`, 0 and 0 from `queuepop`, whose second result says whether there was a value, since a value may be 0. `queueinit` on a queue that has room loses that room.
+- **Ownership**: the caller owns the 32 bytes and ends the queue with `queuefree`; the number of values is read at 24 of them.
+- **Names**: the library owns every name that starts with `queue`; a program has no `var` of such a name.
+
+## The heap library
+
+`lib/heap.aw` gives the smallest of the 64-bit values put into it, in the unsigned order. A heap is a vector of the vector library, and a program that uses it has `use "lib/vec.aw"` before it: 24 bytes that the caller owns, all zero for an empty heap.
+
+| Function | Does |
+|---|---|
+| `heappush h x` | adds the value `x`; returns 1 |
+| `heappeek h` | returns the smallest value and 1, or 0 and 0 if there is none |
+| `heappop h` | takes the smallest value out; returns it and 1, or 0 and 0 if there is none |
+| `heapfree h` | gives the values back to the kernel; the heap is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/vec.aw"
+use "lib/heap.aw"
+buf h 24
+call heappush h 30
+call heappush h 12
+call heappush h 50
+call heappop h as a ok
+call heappeek h as b ok
+call putn a+b
+```
+
+- **Order**: the value at the index `i` of the vector is not larger than those at `2i+1` and `2i+2`, so the first is the smallest; a new value moves up from the end and, when the first is taken, the last moves down from the top, a number of steps that is the logarithm of the number of values. Of equal values any may come first.
+- **Growth**: `heappush` grows the vector as `vecpush` does, so an address of a value is not good after it. The functions of the vector library may read a heap (`vecget`, the number of values at 8) but a value written with `vecset` or `vecpush` breaks the order.
+- **Errors**: `heappush` returns 0 when there is no memory, and the heap is then as it was. The second result of `heappeek` and `heappop` says whether there was a value, since a value may be 0.
+- **Ownership**: the caller owns the 24 bytes and ends the heap with `heapfree`.
+- **Names**: the library owns every name that starts with `heap`; a program has no `var` of such a name.
+
+## The map library
+
+`lib/map.aw` keeps a 64-bit value for each of any number of 64-bit keys. The map is 32 bytes that the caller owns, in a `buf` or a `local`: the address of a table, the number of places in it, the number of keys, and the number of places that hold a key or held one. All zero is an empty map, so a `buf` is one as it stands. The functions take the address of those 32 bytes. Every key and every value can be used, 0 too.
+
+| Function | Does |
+|---|---|
+| `mapput m k v` | makes `v` the value of the key `k`, in place of the one it had; returns 1 |
+| `mapget m k` | returns the value of the key `k` and 1, or 0 and 0 if it has none |
+| `mapdel m k` | takes the key `k` out; returns 1, or 0 if it was not there |
+| `mapfree m` | gives the table back to the kernel; the map is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/map.aw"
+buf m 32
+call mapput m 1000003 30
+call mapput m 7 12
+call mapget m 1000003 as a ok
+call mapget m 7 as b ok
+call mapdel m 7
+call putn a+b
+```
+
+- **Table**: a power of two of places, at least 64, each 24 bytes: 0 for a free place, 1 for a key and 2 for a key that was taken out, then the key and the value. A key belongs at the place its hash names (the last step of splitmix64, cut to the table) and stands at the first place from there on, round the end, that held no key when it came; it is looked for up to the first free place. `mapdel` leaves a mark, so that the keys behind are still found, and a new key takes the first marked place on its way.
+- **Growth**: when three quarters of the places hold or held a key, `mapput` of a new key moves all keys to a new table: twice the places if the keys fill half of them, as many otherwise, which only clears the marks. The map is changed when the new table is whole, and the old one is then given back; no address into a table is good after a `mapput`.
+- **Errors**: `mapput` returns 0 when the kernel has no memory for a new table, and the map is then as it was, every key with its value. The second result of `mapget` says whether the key was there, since a value may be 0.
+- **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
+- **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
 
 ## The async library
 

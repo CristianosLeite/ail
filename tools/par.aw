@@ -1,7 +1,8 @@
 # tools/par.aw -- check and time the task programs of bench/par against
 # their sequential forms.
 #
-#   build/tools/par [--check] [--runs N] [name ...]   (default: every program)
+#   build/tools/par [--check] [--grid] [--runs N] [name ...]
+#                                           (default: every program)
 #
 # Run from the top of the repository after make.
 #
@@ -20,6 +21,11 @@
 # of tasks the same work is cut into, and the tokens of both sources,
 # which build/tools/tokens counts if it is built and the files it reads
 # are there (make tools, tools/pin.sh; see tools/tokens.sh).
+#
+# --grid times every number of threads of the first table with every
+# number of tasks of the second but the last, and prints for each program
+# a table of the sequential time divided by the time, which shows the
+# sizes of task that are worth having at each number of threads.
 #
 # A run gets 120 seconds. Status 0; 1 after a failed check, or with a
 # line "par: ..." on stderr.
@@ -531,6 +537,55 @@ fn tokens
 	call say
 end
 
+# for every program asked for, the sequential time divided by the time
+# at each number of tasks, a row, and of threads, a column
+fn grid runs
+	k=0
+	while k<gnsel
+		load sel+k*8 as pi
+		call item progs pi as np nn
+		call bycut strs 0
+		call build np nn "seq" as seq
+		call build np nn "par" as par
+		load sizes+pi*16 as n
+		call args 1 n 0 0
+		call run seq as t
+		call keep
+		call time seq runs as base
+		call add ob "\n"
+		call add ob np nn
+		call add ob ", sequential "
+		call cell base 1
+		call add ob " ms: that time divided by the time with tasks, median of "
+		call addn ob runs
+		call add ob " runs\n\n| tasks | 1 | 2 | 4 | 8 | 14 | 20 |\n|---:|---:|---:|---:|---:|---:|---:|\n"
+		call say
+		j=0
+		while j<nsweep-1
+			load sweep+j*8 as ta
+			call add ob "| "
+			call addn ob ta
+			call add ob " |"
+			i=0
+			while i<nthreads
+				load threads+i*8 as th
+				call args 3 n th ta
+				call time par runs as m
+				fdiv base m as m
+				call add ob " "
+				call cell m 2
+				call add ob " |"
+				i+=1
+			end
+			call add ob "\n"
+			call say
+			j+=1
+		end
+		k+=1
+	end
+	ret 0
+end
+
 fn main
 	# the sizes timed and checked, and the counts of threads and tasks
 	store sizes 3000000
@@ -568,14 +623,17 @@ fn main
 	call argc as n
 	runs=7
 	checking=0
+	grids=0
 	gnsel=0
 	i=1
 	while i<n
 		call argv i as p m
 		i+=1
 		call same p m "--check" as r
-		if r
-			checking=1
+		call same p m "--grid" as k
+		if r|k
+			checking|=r
+			grids|=k
 		else
 			call same p m "--runs" as r
 			if r
@@ -583,7 +641,7 @@ fn main
 				i+=1
 				call num p m as runs r
 				if (r==0)|(runs==0)
-					call fail "usage: par [--check] [--runs N] [name ...]"
+					call fail "usage: par [--check] [--grid] [--runs N] [name ...]"
 				end
 			else
 				k=0
@@ -621,6 +679,9 @@ fn main
 	if checking
 		call check as r
 		ret r
+	end
+	if grids
+		tail grid runs
 	end
 	k=0
 	while k<gnsel

@@ -1,6 +1,6 @@
 # Token cost
 
-AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed. It counts with `build/tools/tokens`, a tokenizer of the `o200k_base` encoding written in AIL (`tools/tokens.aw`, `tools/lib/o200k.aw`), which gives the token numbers that `tiktoken` gives: it was compared with it on every character of Unicode in ten forms, on the text files of the repository and on random texts, and `tests/tokens.sh` keeps ten texts with the numbers `tiktoken` gave. It reads the tokens of the encoding and the character categories of Unicode 16.0.0 from two files that `tools/pins/MANIFEST` pins by checksum; `tools/tokens.sh` fetches them on first use (that step needs network access). `build/tools/tokens -c '#' file ...` counts single files without their comments, and `--ids file` prints the token numbers of a file. Until 2026-11-20 the count was `tiktoken` itself in a Python environment; the tables below are the same with either. The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
+AIL exists to be cheap in tokens, so syntax choices are decided by measurement. `tools/tokens.sh` counts the tokens of each example in `examples/` and of the equivalent C, Rust and assembly programs in `bench/`, with comments and blank lines removed: the ten programs of the corpus and, [apart from it](#result), six algorithm programs. It counts with `build/tools/tokens`, a tokenizer of the `o200k_base` encoding written in AIL (`tools/tokens.aw`, `tools/lib/o200k.aw`), which gives the token numbers that `tiktoken` gives: it was compared with it on every character of Unicode in ten forms, on the text files of the repository and on random texts, and `tests/tokens.sh` keeps ten texts with the numbers `tiktoken` gave. It reads the tokens of the encoding and the character categories of Unicode 16.0.0 from two files that `tools/pins/MANIFEST` pins by checksum; `tools/tokens.sh` fetches them on first use (that step needs network access). `build/tools/tokens -c '#' file ...` counts single files without their comments, and `--ids file` prints the token numbers of a file. Until 2026-11-20 the count was `tiktoken` itself in a Python environment; the tables below are the same with either. The counts are those of one tokenizer; another model's tokenizer gives other numbers, but the comparison between languages is what matters here.
 
 ```
 tools/tokens.sh             # the table below
@@ -29,6 +29,21 @@ build/tools/perf               # time the same programs, see performance.md
 This is the fixed corpus that a change of syntax is judged on: five short programs that are mostly system calls, and five that compute (`compute`, `sieve`, `collatz`, `fnv` and `isort`, described in [performance.md](performance.md)). The last four have no assembly equivalent; a language is compared with the AIL total of the programs it has, so the assembly figure is over six programs.
 
 The examples are written with expressions, `x=e`, `x+=e`, `while` and `if` on a value since 2026-11-20. They are indented with a tab for each block, which is 20 of the 990 tokens ([measured below](#indentation-measured-on-2026-11-20)); the other languages are counted with their indentation too. AIL costs 11% fewer tokens than C that does the same, 17% fewer than Rust and 60% fewer than assembly. It is cheaper than C in every program but `collatz`, which is two tokens dearer since its blocks are indented, and dearer than Rust only in `count` and `fnv`, where Rust formats a number or reads a file with one call. Written with one operation a line, as the language first was, the same ten programs were 1313 tokens, 17% more than C; the [count](#expressions-measured-on-2026-11-20) below chose the spelling that made the difference.
+
+Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/tokens.sh` lists with the ten: a kernel each and its call of a harness that the three languages have alike (`bench/algo/`), so their count is that of the algorithm. They are not part of the corpus above, whose totals stay comparable with the earlier measurements.
+
+| program | AIL | C | Rust |
+|---|---:|---:|---:|
+| bsearch | 129 | 156 | 163 |
+| graph | 373 | 345 | 405 |
+| hashtab | 238 | 280 | 280 |
+| heapsort | 211 | 237 | 271 |
+| mergesort | 309 | 298 | 340 |
+| quicksort | 264 | 297 | 324 |
+| total | 1524 | 1613 | 1783 |
+| relative to AIL | 1.00 | 1.06 | 1.17 |
+
+AIL is 6% cheaper than C and 15% cheaper than Rust on them, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 

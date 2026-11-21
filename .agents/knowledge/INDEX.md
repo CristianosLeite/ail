@@ -12,6 +12,8 @@
 - [Async runtime](architecture/async-runtime.md) — `async fn`/`await` as polled tasks on one thread: the two await forms, eager futures, cancellation, why no multithreaded scheduler
 - [Tools in AIL](architecture/tools-in-ail.md) — the Python tools ported: shared libraries, stated differences, how `infix` finds vars of other files, `procstart`/`procwait` rules
 - [Source style and the formatter](architecture/source-style.md) — one tab a block, `build/tools/indent`, what is not indented, the VS Code extension, the token figures after indenting
+- [Algorithm benchmarks and collections](architecture/algorithms-and-collections.md) — six kernels in AIL, C and Rust over one harness, kernel timing in `perf` (1.75 times C), `tests/algo.sh`, the rules of `vec`, `queue`, `heap` and `map`
+- [Generated code after the algorithm measurements](architecture/generated-code-follow-up.md) — scaled index, registers by weight, two-jump `while`, calls in place: 1.75 to 1.20 times C; code placement moves times by a fifth
 - [Review fixes of 2026-11-20](architecture/review-fixes-2026-11.md) — `tail` with a local, result count through `tail`, names of a `while` value, limit of locals, and why
 
 ## testing
