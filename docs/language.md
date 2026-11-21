@@ -1026,6 +1026,34 @@ call putn a+b
 - **Ownership**: the caller owns the 24 bytes and ends the vector with `vecfree`; a vector in a `local` is freed before its function returns. The values are read at the address in the first 8 bytes, with their number in the next 8.
 - **Names**: the library owns every name that starts with `vec`; a program has no `var` of such a name.
 
+## The queue library
+
+`lib/queue.aw` is a queue of 64-bit values with a fixed room: values leave in the order they came. The queue is 32 bytes that the caller owns, in a `buf` or a `local`: the address of the values, the number there is room for, the index of the oldest and the number it holds. The functions take the address of those 32 bytes. It needs no other library and no task: a program without `async` uses it as it stands.
+
+| Function | Does |
+|---|---|
+| `queueinit q n` | gives a queue that is all zero room for `n` values; returns 1 |
+| `queuepush q x` | adds the value `x` as the newest; returns 1, or 0 if the queue is full |
+| `queuepop q` | takes the oldest value out; returns it and 1, or 0 and 0 if the queue is empty |
+| `queuefree q` | gives the room back to the kernel; the queue is all zero and may be given room again |
+
+```
+use "lib/io.aw"
+use "lib/queue.aw"
+buf q 32
+call queueinit q 8
+call queuepush q 30
+call queuepush q 12
+call queuepop q as a ok
+call queuepop q as b ok
+call putn a-b
+```
+
+- **Storage**: one `alloc` in `queueinit`, a ring: the value after the last place is at the first. The room never changes and a value never moves. A queue that is all zero, as a `buf` is, has no room: it is full and empty at once. Room for 0 values is allowed and is the same.
+- **Errors**: `queueinit` returns 0 when the kernel has no memory or the room would not fit in 64 bits of bytes, and the queue is then as it was. A full queue and an empty one are results, not faults: 0 from `queuepush`, 0 and 0 from `queuepop`, whose second result says whether there was a value, since a value may be 0. `queueinit` on a queue that has room loses that room.
+- **Ownership**: the caller owns the 32 bytes and ends the queue with `queuefree`; the number of values is read at 24 of them.
+- **Names**: the library owns every name that starts with `queue`; a program has no `var` of such a name.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.

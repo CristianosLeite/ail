@@ -320,7 +320,7 @@ separate success or found result wherever zero is a valid value.
   capacity in elements. Grow geometrically and reuse `bycopy` for relocation
   if useful. Define `vecreserve` in terms of total capacity and document when
   growth invalidates addresses into the vector.
-- [ ] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
+- [x] **Bounded queue**, `lib/queue.aw`. Provide `queueinit q n`,
   `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
   values with a head and count. Return failure on full and empty operations.
   Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
