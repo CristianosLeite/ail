@@ -10,8 +10,8 @@ make -s all >/dev/null || exit 1
 t=$(mktemp -d build/bench.XXXXXX) || exit 1
 trap 'rm -rf "$t"' EXIT
 f=0
-for src in examples/*.ai; do
-    n=$(basename "$src" .ai)
+for src in examples/*.aw; do
+    n=$(basename "$src" .aw)
     langs='c rs'
     gcc -O1 -w -o "$t/$n.c.bin" "bench/$n.c" &&
         rustc -O -o "$t/$n.rs.bin" "bench/$n.rs" 2>/dev/null ||

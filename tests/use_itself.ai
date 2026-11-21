@@ -1,3 +1,0 @@
-# a file that uses itself is not read twice
-use "tests/lib/selfuse.ai"
-sys 60 self

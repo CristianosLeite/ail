@@ -1,4 +1,0 @@
-# use is a statement of the top level only
-fn f
-	use "tests/lib/nonewline.ai"
-end

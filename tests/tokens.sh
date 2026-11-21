@@ -1,6 +1,6 @@
 #!/bin/sh
-# Check tools/tokens.ai, built as build/tools/tokens, and the tokenizer
-# tools/lib/o200k.ai behind it.
+# Check tools/tokens.aw, built as build/tools/tokens, and the tokenizer
+# tools/lib/o200k.aw behind it.
 # - tests/tokens/<name>.txt are texts at the edges of the rules (words
 #   and contractions, numbers, white space, punctuation, letters and marks
 #   of many scripts, long runs), and <name>.ids are the numbers of their
@@ -39,12 +39,12 @@ done
 
 # the code of a file: 9 lines of tests/tokens/code.txt, of which one has
 # a comment, are the same tokens with the comment and blank lines gone
-printf '\n# a comment alone\nx=a+b*c\n   \nstore p+8 n/10   # the rest\n' > "$tmp/with.ai"
-printf 'x=a+b*c\nstore p+8 n/10\n' > "$tmp/without.ai"
+printf '\n# a comment alone\nx=a+b*c\n   \nstore p+8 n/10   # the rest\n' > "$tmp/with.aw"
+printf 'x=a+b*c\nstore p+8 n/10\n' > "$tmp/without.aw"
 r=0
-a=$(build/tools/tokens -c '#' "$tmp/with.ai" 2> /dev/null) || r=1
-b=$(build/tools/tokens --ids "$tmp/without.ai" 2> /dev/null | wc -l) || r=1
-[ "$a" = "$b $tmp/with.ai" ] || r=1
+a=$(build/tools/tokens -c '#' "$tmp/with.aw" 2> /dev/null) || r=1
+b=$(build/tools/tokens --ids "$tmp/without.aw" 2> /dev/null | wc -l) || r=1
+[ "$a" = "$b $tmp/with.aw" ] || r=1
 say tokens_counts_code $r
 
 r=0

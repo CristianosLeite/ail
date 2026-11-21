@@ -13,5 +13,5 @@
 #
 # A local copy is seed/ailc-<version>, which git ignores. Earlier lines
 # stay, so that an older revision can still be built with its own seed.
-1 489efbf9c605048c6613535a532e296dd74d9f25 a3784aec1fc9739f8b46e5b0ba2db9135b8823211709029144a96c768ba52c57 https://github.com/CristianosLeite/ailang/releases/download/seed-1/ailc-1
-2 c9104308c4394e11bffa2e793728db30eacff42d c2cb658cff091aeeb263e92ccf86923291d5cb666db676df29506df6cf959081 https://github.com/CristianosLeite/ailang/releases/download/seed-2/ailc-2
+1 489efbf9c605048c6613535a532e296dd74d9f25 a3784aec1fc9739f8b46e5b0ba2db9135b8823211709029144a96c768ba52c57 https://github.com/CristianosLeite/ail/releases/download/seed-1/ailc-1
+2 c9104308c4394e11bffa2e793728db30eacff42d c2cb658cff091aeeb263e92ccf86923291d5cb666db676df29506df6cf959081 https://github.com/CristianosLeite/ail/releases/download/seed-2/ailc-2

@@ -1,9 +1,9 @@
 {
   "name": "ail",
   "displayName": "AIL",
-  "description": "AIL sources (.ai): syntax highlighting, block folding and formatting with build/tools/indent",
+  "description": "AIL sources (.aw): syntax highlighting, block folding and formatting with build/tools/indent",
   "version": "0.1.0",
-  "publisher": "ailang",
+  "publisher": "ail",
   "engines": { "vscode": "^1.75.0" },
   "categories": ["Programming Languages", "Formatters"],
   "main": "./extension.js",
@@ -12,7 +12,7 @@
       {
         "id": "ail",
         "aliases": ["AIL", "ail"],
-        "extensions": [".ai"],
+        "extensions": [".aw"],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -35,7 +35,7 @@
         "editor.tabSize": 2,
         "editor.insertSpaces": false,
         "editor.detectIndentation": false,
-        "editor.defaultFormatter": "ailang.ail"
+        "editor.defaultFormatter": "ail.ail"
       }
     }
   }

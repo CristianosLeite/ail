@@ -26,7 +26,7 @@ echo hi | build/count    # prints: 0003
 build/loop          # prints the digits 0 to 9, one per line
 build/fact; echo $? # prints: 120
 make test           # runs the tests in tests/ and the checks of the compiler against itself
-make tools          # builds the tools written in AIL, tools/<name>.ai, as build/tools/<name>
+make tools          # builds the tools written in AIL, tools/<name>.aw, as build/tools/<name>
 make test T=hello   # runs one test
 ```
 
@@ -35,11 +35,11 @@ A faulty program is refused with one line that says where and why, for example `
 To compile your own program, give the compiler source on stdin and take the executable from stdout:
 
 ```
-build/ailc < prog.ai > prog && chmod +x prog
+build/ailc < prog.aw > prog && chmod +x prog
 ```
 
 
-Or put it in `examples/foo.ai` and run `make build/foo`.
+Or put it in `examples/foo.aw` and run `make build/foo`.
 
 ## The language in one minute
 
@@ -68,12 +68,12 @@ Or put it in `examples/foo.ai` and run `make build/foo`.
 | `jlt a b l` | Jump if `a < b`; also `jeq jne jle jgt jge` and signed `jslt jsle jsgt jsge` |
 | `if a` ... `else` ... `end` | Run the lines if `a` is not zero, where `a` may be a comparison, `if n<10`; also `ifz` and `ifeq iflt ...` with two values |
 | `while a` ... `end` | Run the lines as long as `a` is not zero, tested before each round |
-| `use "lib/io.ai"` | Compile another file here, once per path |
+| `use "lib/io.aw"` | Compile another file here, once per path |
 | `fn f a b` ... `end` | Define function `f` with parameters `a` and `b`, its own variables and labels |
 | `ret a b` | Return one to six values from the function; reaching `end` returns 0 |
 | `ref f as p`, `callp p a b as x` | The address of a function, and a call through an address |
-| `async fn f a b` ... `end`, `await f a b as x`, `await h as x` | A function that runs as a task, and the wait for the result of a call or of a handle (`use "lib/async/task.ai"`) |
-| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/task.ai"`) |
+| `async fn f a b` ... `end`, `await f a b as x`, `await h as x` | A function that runs as a task, and the wait for the result of a call or of a handle (`use "lib/async/task.aw"`) |
+| `spawn f a b as h`, `join h as x` | A task that runs a function, and the wait for its result (`use "lib/task.aw"`) |
 | `tail f a b` | Call `f` and return its result without growing the stack |
 | `call f a b as x y` | Call `f` with as many values as it has parameters; `as` names a variable per result and is optional |
 | `123`, `0x7b`, `-1` | 64-bit integer argument: decimal, hexadecimal or negative |
@@ -86,7 +86,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 ## Documentation
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
-- [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.ai`
+- [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.aw`
 - [Performance](docs/performance.md): how the examples are timed against C, Rust and assembly, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next
 - [Backlog](docs/TODO.md): the limits of the compiler and the work to lift them, item by item
@@ -94,11 +94,11 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 ## Layout
 
-- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.ai` is its first file and names the others (`diag.ai`, `lex.ai`, `names.ai`, `expr.ai`, `emit.ai`, `tables.ai`) with `use`
+- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.aw` is its first file and names the others (`diag.aw`, `lex.aw`, `names.aw`, `expr.aw`, `emit.aw`, `tables.aw`) with `use`
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `bench/`: the examples in C, Rust and assembly, for the [token](docs/tokens.md) and [time](docs/performance.md) measurements; `bench/par/` has programs written without and with tasks, timed by `build/tools/par`; `bench/async/` has programs of async functions: a timer, a TCP echo server (`echod`) with its load (`ping`), and what a wait, a sleeping task and a hop to another thread cost
-- `tools/`: measurements (`tokens.sh`, `bench.sh`), the seed (`seed.sh`); a tool written in AIL is `tools/<name>.ai`, built as `build/tools/<name>` by `make tools` (`hashcol`, which finds two names in one bucket of the compiler's hash, `fuse`, which rewrites a source with compare-and-jump statements and `if` blocks, `infix`, which rewrites statements as expressions, `randvars`, which checks the compiler with random programs, `perf`, which times the examples against C, Rust and assembly, `tokens`, which counts tokens as `tiktoken` does, and `par`, which checks and times the task programs), with what they share in `tools/lib/`
-- `tests/`: one `.ai` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output
+- `tools/`: measurements (`tokens.sh`, `bench.sh`), the seed (`seed.sh`); a tool written in AIL is `tools/<name>.aw`, built as `build/tools/<name>` by `make tools` (`hashcol`, which finds two names in one bucket of the compiler's hash, `fuse`, which rewrites a source with compare-and-jump statements and `if` blocks, `infix`, which rewrites statements as expressions, `randvars`, which checks the compiler with random programs, `perf`, which times the examples against C, Rust and assembly, `tokens`, which counts tokens as `tiktoken` does, and `par`, which checks and times the task programs), with what they share in `tools/lib/`
+- `tests/`: one `.aw` program per test with its expected output, exit status or compile error, run by `tests/run.sh`; `tests/self.sh` checks the compiler against its seed-built translation and its own output
 - `docs/`: documentation
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents

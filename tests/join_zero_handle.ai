@@ -1,3 +1,0 @@
-use "lib/task.ai"
-join 0 as x
-sys exit_group x+3

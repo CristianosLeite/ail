@@ -1,6 +1,6 @@
 # Performance
 
-`tools/perf.ai`, built as `build/tools/perf` by `make tools`, times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`.
+`tools/perf.aw`, built as `build/tools/perf` by `make tools`, times every example against the C, Rust and assembly program in `bench/` that does the same. It is the measurement behind the performance goal of the redesign: elapsed time on CPU-bound programs close to C built with `-O3`.
 
 ```
 make all tools
@@ -14,7 +14,7 @@ build/tools/perf --cpu 4      # another CPU than 2
 
 - C is built with `gcc -O3`, Rust with `rustc -O`, assembly with `as` and `ld`; the AIL program is `build/<name>`, so run `make` first. A language without a source for a program is left out of its row.
 - Every executable must give the expected output and exit status for the input before anything is timed. Where the output is a computed value, all languages must give the same bytes as C.
-- A run is a child process of `lib/proc.ai` and the wait for it (`fork`, `dup2`, `execve`, `wait4`), timed with the monotonic clock, with stdin from a file and stdout to `/dev/null`, the tool pinned to one CPU. Until 2026-11-20 the tool was a Python script that started the child with `posix_spawn`; [the two are compared below](#the-measuring-tool-in-ail-2026-11-20). Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
+- A run is a child process of `lib/proc.aw` and the wait for it (`fork`, `dup2`, `execve`, `wait4`), timed with the monotonic clock, with stdin from a file and stdout to `/dev/null`, the tool pinned to one CPU. Until 2026-11-20 the tool was a Python script that started the child with `posix_spawn`; [the two are compared below](#the-measuring-tool-in-ail-2026-11-20). Each round runs every language once, in an order shuffled from a fixed seed, so that drift of the machine falls on all of them alike.
 - The figure is the median, followed by the first and third quartile, which show the variation from run to run.
 - The input is read at run time, so no compiler can compute the result while compiling.
 
@@ -123,7 +123,7 @@ Geometric mean of AIL / C: 1.041, within the 5% the redesign set as its first th
 
 One program is more than 10% slower than C and is reported as the criterion asks: `collatz`, 12.6%. Every figure is a median of 15 runs with its quartiles, on runtime input, after each executable gave the result of the C program; the compilers, flags and machine are those at the top of this page. Startup is reported apart: 68 to 73 microseconds for AIL, as for assembly, against 210 to 216 for C and 293 to 304 for Rust.
 
-**Authoring effort: met.** `count` writes each digit in one line (`storeb out+1 48+n/100%10`) with no variable for a digit or an address, and `compute` is a `while` around one assignment, with no label. Beyond the representative routines the criterion asks for, the whole compiler was rewritten by `tools/infix.py` (now `tools/infix.ai`): 21% fewer tokens, 725 intermediate variables gone, 12 loops as `while`.
+**Authoring effort: met.** `count` writes each digit in one line (`storeb out+1 48+n/100%10`) with no variable for a digit or an address, and `compute` is a `while` around one assignment, with no label. Beyond the representative routines the criterion asks for, the whole compiler was rewritten by `tools/infix.py` (now `tools/infix.aw`): 21% fewer tokens, 725 intermediate variables gone, 12 loops as `while`.
 
 **Bootstrap: met.** `stage0/ailc.s` is removed. A clean worktree with an empty build directory and no local seed fetches seed 2 by the checksum in `seed/MANIFEST`, builds the compiler in three generations, passes `make test` (2065 checks) and has `build/ailc` and `build/ailc2` as one file.
 
@@ -133,16 +133,16 @@ Where the work departed from the document:
 - **Three generations, not two.** The document builds the sources with the seed and then with the result, and compares those two. Once the compiler writes other code than its seed did, those two differ in bytes without differing in behaviour, so the comparison is between the second and a third build.
 - **No intermediate representation across statements.** Expressions are parsed into a list of nodes and lowered together, each statement on its own, as the document says to start. What remains behind C would need more: an address that does not change in a loop kept in a register, a scaled index, and the folding of one branch into another that C does in `collatz`.
 - **A step was added**, loads and stores with the address as an operand, when the measurements after instruction selection showed where `isort` and `sieve` lost.
-- **The old forms were not kept as copies of the examples.** The statements remain in the language and compile to the same code as the expressions that say the same, which `tools/randvars.ai` checks byte for byte; about 900 tests are still written with them.
+- **The old forms were not kept as copies of the examples.** The statements remain in the language and compile to the same code as the expressions that say the same, which `tools/randvars.aw` checks byte for byte; about 900 tests are still written with them.
 - **The seed is a release of a private repository**, so fetching it needs `gh` and a login, or a local copy; `curl` alone works once the repository is public.
 
 Not done: the comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer, which stays an open item.
 
 ## The measuring tool in AIL, 2026-11-20
 
-The figures above were taken by `tools/perf.py`, a Python script. The tool is now `tools/perf.ai`, which checks, times and reports as the script did: the same programs, inputs and expected results, the same rounds, the median and quartiles of the same samples, the same tables. Two things differ, and one of them touches the figures.
+The figures above were taken by `tools/perf.py`, a Python script. The tool is now `tools/perf.aw`, which checks, times and reports as the script did: the same programs, inputs and expected results, the same rounds, the median and quartiles of the same samples, the same tables. Two things differ, and one of them touches the figures.
 
-- **How a child is started.** The script called `posix_spawn` from the Python interpreter; the tool calls `procstart` of `lib/proc.ai`, which is `fork` and then `dup2` and `execve` in the child. The time of a run includes that start, and for the startup programs it is most of what is measured. Both tools were run one after the other, twice, on the same machine and CPU as above (median of 500 rounds, microseconds):
+- **How a child is started.** The script called `posix_spawn` from the Python interpreter; the tool calls `procstart` of `lib/proc.aw`, which is `fork` and then `dup2` and `execve` in the child. The time of a run includes that start, and for the startup programs it is most of what is measured. Both tools were run one after the other, twice, on the same machine and CPU as above (median of 500 rounds, microseconds):
 
 | program | AIL, script | AIL, tool | C, script | C, tool |
 |---|---:|---:|---:|---:|
@@ -153,13 +153,13 @@ The figures above were taken by `tools/perf.py`, a Python script. The tool is no
 | loop | 78.93, 78.21 | 71.80, 70.44 | 235.43, 231.46 | 214.94, 209.74 |
 
   Taking the two runs of each together, the tool's figures are lower than the script's: by 1 to 8 microseconds for AIL and by 5 to 21 for C, between 2 and 10 percent. For AIL that is within the quartiles of either tool, which lie 4 to 9 microseconds from the median; for C it is beyond them in three of the five programs. A `fork` of a process of a few pages costs less than a `posix_spawn` out of an interpreter, and a parent that runs no interpreter between two children leaves them warmer caches, which a program that loads a C library uses more of. The ratio between the languages is what it was, an AIL program starting in about a third of the time of the C one with either tool (`hello` 0.32 and 0.32, `count` 0.34 and 0.33). So startup figures taken by the tool are not to be mixed with the older tables above, only compared within a table; the CPU-bound figures, in milliseconds, do not see the difference. The script's start could have been matched with `clone` and `CLONE_VFORK`, but not its interpreter, so the plain `fork` stays and the figures are marked by date.
-- **The order of a round** is shuffled with splitmix64 (`tools/lib/rng.ai`) from the seed 77, where the script used Python's generator with that seed: other orders, drawn the same way.
+- **The order of a round** is shuffled with splitmix64 (`tools/lib/rng.aw`) from the seed 77, where the script used Python's generator with that seed: other orders, drawn the same way.
 
 The geometric mean is the n-th root by Newton's steps in doubles, where Python used `pow`; on 20000 random products of up to ten ratios the two print the same three digits. A run of every program with the tool gave 1.000, 1.029, 1.126, 0.999 and 1.043 for the five CPU-bound programs and a geometric mean of 1.038.
 
 ## Tasks, 2026-11-20
 
-`tools/par.ai`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.ai` does the work in one call, `<name>_par.ai` cuts it into tasks with `spawn` and `join` (`lib/task.ai`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
+`tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.
 
 ```
 make all tools
@@ -192,7 +192,7 @@ build/tools/par --runs 3 collatz
 
 - `collatz` and `primes` gain 1.9 to 2.0 times at 2 threads, 3.4 to 3.7 at 4, 5.8 to 6.7 at 8 and 9 to 11 at 20. The gain per thread falls after the six performance cores are taken, as the machine leads one to expect.
 - `memsum` reaches 2.4 times at 4 threads and only 3.3 at 20: its limit is memory, not processors.
-- At 1 thread the cost of 160 tasks is not measurable. `collatz` is 6% slower there for another reason: its loop stands at another address in the two programs. The sequential program with `lib/task.ai` merely compiled in, and no task, takes 580 to 600 ms.
+- At 1 thread the cost of 160 tasks is not measurable. `collatz` is 6% slower there for another reason: its loop stands at another address in the two programs. The sequential program with `lib/task.aw` merely compiled in, and no task, takes 580 to 600 ms.
 
 Elapsed milliseconds by the number of tasks the same work is cut into (`memsum` has that many in each of its 17 passes):
 
@@ -226,7 +226,7 @@ The programs of `bench/async/` measure the runtime of `lib/async/`, which polls 
 
 ```
 make
-for p in timer echod ping switch mem hop; do build/ailc < bench/async/$p.ai > build/$p && chmod +x build/$p; done
+for p in timer echod ping switch mem hop; do build/ailc < bench/async/$p.aw > build/$p && chmod +x build/$p; done
 build/switch 1000 1000      # a million waits
 build/mem 100000            # bytes a sleeping task
 build/hop 100000            # work handed to the pool, one after the other
@@ -273,7 +273,7 @@ With clients and server as tasks of one thread (`ping` without a port) the same 
 - **The server written with `async fn` carries what the one written on `epoll` by hand carries.** The time of a round trip with many connections is the wait in line, connections times the service time, and the same for both.
 - **Where the time goes**: for a million round trips at 100 connections the AIL server uses 0.31 s in its own code and 2.98 s in the kernel; the C server 0.15 s and 2.93 s. The runtime costs 160 ns a round trip more than code written for this one program, 7% of the processor time of the server, and nine tenths of the time are the kernel's in either.
 - **System calls**: for 200000 round trips the AIL server made 208705 calls of `read`, 8605 of which said "not now", 200002 writes (`sendto` with `MSG_NOSIGNAL`, counted when they were still `write`) and 169 of `epoll_wait`. An operation asks the kernel first, so a busy server hardly ever sleeps; the server in C, which waits for an event before each read, cannot make fewer.
-- The source of the server is 259 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 503 in C; [token cost](tokens.md) has the forms.
+- The source of the server is 259 tokens in AIL (`echo.aw` and `echod.aw`, with the reading of the port) and 503 in C; [token cost](tokens.md) has the forms.
 
 ### A scheduler on several threads
 

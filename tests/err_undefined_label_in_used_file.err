@@ -1,1 +1,1 @@
-ailc: tests/lib/bad_label.ai:2: undefined label nowhere
+ailc: tests/lib/bad_label.aw:2: undefined label nowhere

@@ -1,1 +1,1 @@
-ailc: tests/lib/first_line_bad.ai:1: unknown statement
+ailc: tests/lib/first_line_bad.aw:1: unknown statement

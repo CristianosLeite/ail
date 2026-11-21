@@ -1,9 +1,9 @@
 B := build
 
-SRC := compiler/ailc.ai compiler/diag.ai compiler/lex.ai compiler/names.ai \
-       compiler/expr.ai compiler/emit.ai compiler/tables.ai
+SRC := compiler/ailc.aw compiler/diag.aw compiler/lex.aw compiler/names.aw \
+       compiler/expr.aw compiler/emit.aw compiler/tables.aw
 
-all: $(patsubst examples/%.ai,$(B)/%,$(wildcard examples/*.ai)) $(B)/ailc
+all: $(patsubst examples/%.aw,$(B)/%,$(wildcard examples/*.aw)) $(B)/ailc
 
 # The seed: the released compiler that seed/MANIFEST pins, from a local
 # copy or fetched, refused unless its checksum is the manifest's.
@@ -23,42 +23,42 @@ trap 'rm -f "$$tmp"' EXIT; trap 'exit 1' HUP INT TERM; \
 $(1) < $< > "$$tmp" && chmod 755 "$$tmp" && mv "$$tmp" $@
 endef
 
-$(B)/%: examples/%.ai $(B)/ailc
+$(B)/%: examples/%.aw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-# The tools written in AIL: tools/<name>.ai is build/tools/<name>, compiled
+# The tools written in AIL: tools/<name>.aw is build/tools/<name>, compiled
 # by the compiler after the bootstrap, which needs none of them. A tool
 # names the files of its functions with use, paths from the directory make
 # runs in; each is a prerequisite in the line of the tool below, so that an
 # edit of a shared file builds its callers again (tests/tools.sh compares
 # those lines with the use statements). The source of the tool stays the
 # first prerequisite, the one the recipe compiles.
-TOOLS := $(patsubst tools/%.ai,$(B)/tools/%,$(wildcard tools/*.ai))
+TOOLS := $(patsubst tools/%.aw,$(B)/tools/%,$(wildcard tools/*.aw))
 
 tools: $(TOOLS)
 
-$(B)/tools/%: tools/%.ai $(B)/ailc
+$(B)/tools/%: tools/%.aw $(B)/ailc
 	@mkdir -p $(@D)
 	$(call compile,$(B)/ailc)
 
-TL := lib/io.ai lib/bytes.ai lib/file.ai
+TL := lib/io.aw lib/bytes.aw lib/file.aw
 
-$(B)/tools/hashcol: lib/io.ai
+$(B)/tools/hashcol: lib/io.aw
 $(B)/tools/indent: $(TL)
-$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.ai tools/lib/flow.ai
-$(B)/tools/randvars: $(TL) lib/proc.ai tools/lib/rng.ai
-$(B)/tools/perf: $(TL) lib/proc.ai tools/lib/rng.ai tools/lib/fmt.ai
-$(B)/tools/tokens: $(TL) tools/lib/fmt.ai tools/lib/o200k.ai
-$(B)/tools/par: $(TL) lib/proc.ai tools/lib/fmt.ai
+$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw
+$(B)/tools/randvars: $(TL) lib/proc.aw tools/lib/rng.aw
+$(B)/tools/perf: $(TL) lib/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
+$(B)/tools/tokens: $(TL) tools/lib/fmt.aw tools/lib/o200k.aw
+$(B)/tools/par: $(TL) lib/proc.aw tools/lib/fmt.aw
 
-# The compiler, compiler/ailc.ai, in three generations: built by the seed
+# The compiler, compiler/ailc.aw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
 # the same source, so ailc1 need not be the same file as ailc; ailc and
 # ailc2 are both written by the current compiler and must be, which
 # tests/self.sh checks. ailc1 and ailc are one program in two
 # translations and must behave alike, which it and tests/fuzz.sh check.
-# compiler/ailc.ai names the other files with use "compiler/<name>.ai",
+# compiler/ailc.aw names the other files with use "compiler/<name>.aw",
 # paths that the compiler opens from the directory make runs in. It is
 # the first of SRC because the recipes compile $<.
 $(B)/ailc1: $(SRC) $(B)/ailc0

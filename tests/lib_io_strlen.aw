@@ -1,0 +1,7 @@
+use "lib/io.aw"
+set "abcde\0" as p
+call strlen p as n
+set "\0" as q
+call strlen q as m
+add n m as n
+sys exit n

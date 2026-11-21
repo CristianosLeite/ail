@@ -1,0 +1,8 @@
+# a limit on no task is no task: 0, which await takes for one that is
+# done, as it does for any handle of 0
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+call asynctimeout 0 10 as g
+await g as x
+call asyncrun as n
+sys exit_group (g==0)+(x==0)*2+n*4

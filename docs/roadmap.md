@@ -12,7 +12,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Control flow: `label`, `jmp`, `jz` and `jnz`, with forward jumps patched from a fixup list at the end of the single pass.
 - Functions: `fn` ... `end`, `call` and `ret`, with up to 64 parameters, variables and labels local to each function, recursion and forward calls.
-- Stage1: the compiler written in AIL (`compiler/ailc.ai`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
+- Stage1: the compiler written in AIL (`compiler/ailc.aw`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
 - One compiler (2026-11-20): the build starts from a released copy of the compiler, a seed pinned by checksum in `seed/MANIFEST`, the tables of the compiler are their own source, the tests stand without a second compiler, and stage0 is removed.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 

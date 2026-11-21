@@ -1,0 +1,34 @@
+# a program that has every file of the runtime compiled in and makes no
+# task runs none of it: no queue, no timer, no epoll object, no eventfd,
+# and the next descriptor the kernel gives out is the first free one
+use "lib/io.aw"
+use "lib/task.aw"
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+use "lib/async/io.aw"
+use "lib/async/pool.aw"
+use "lib/async/chan.aw"
+fn zero p n
+	s=0
+	i=0
+	while i<n
+		load p+i as v
+		s|=v
+		i+=8
+	end
+	ret s
+end
+call print "sync\n"
+len asyncq as n
+call zero asyncq n as a
+len asynctm as n
+call zero asynctm n as b
+len asyncio as n
+call zero asyncio n as c
+len asyncpl as n
+call zero asyncpl n as d
+len taskq as n
+call zero taskq n as e
+sys pipe asyncev as r
+load4 asyncev as fd
+sys exit_group ((a|b|c|d|e|r)!=0)|fd<<1

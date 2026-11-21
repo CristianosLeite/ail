@@ -1,0 +1,15 @@
+# a function called by await with more values than registers: they are
+# off the stack before the task waits
+use "lib/async/task.aw"
+fn sum8 a b c d e f g h
+	call asyncyield as y
+	store y+16 a+b+c+d+e+f+g+h
+	ret y
+end
+async fn f k
+	await sum8 k 2 3 4 5 6 7 8 as x
+	await sum8 1 2 3 4 5 6 7 x as y
+	ret y
+end
+await f 1 as r
+sys exit_group r

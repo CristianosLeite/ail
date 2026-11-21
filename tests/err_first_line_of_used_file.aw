@@ -1,0 +1,2 @@
+set 1 as a
+use "tests/lib/first_line_bad.aw"

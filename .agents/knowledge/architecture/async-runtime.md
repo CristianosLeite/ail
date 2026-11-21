@@ -19,10 +19,10 @@ scheduler on several threads.
   or expression) is a handle; any other name is a function, called and awaited in one statement
   (`await asyncread c b 512 as n`).
 - The compiler calls the program's functions `async` and `await` by name, as `spawn` and `join`
-  are called (`IS_LIB`), so a program must `use "lib/async/task.ai"`. A program without it
+  are called (`IS_LIB`), so a program must `use "lib/async/task.aw"`. A program without it
   contains nothing of the runtime.
-- The files are used in the order task, time, io, pool, chan; pool also needs `lib/task.ai`.
-  Syscall numbers the compiler has no name for are `const`s of `lib/async/io.ai`, so the async
+- The files are used in the order task, time, io, pool, chan; pool also needs `lib/task.aw`.
+  Syscall numbers the compiler has no name for are `const`s of `lib/async/io.aw`, so the async
   work needed no seed release.
 - Cancellation (`asynccancel`, result -125): an event ends at once unless its hook refuses
   (work a pool thread has begun, a limit that must wait for its target). A cancelled task gets

@@ -1,0 +1,119 @@
+# lib/bytes.aw -- a buffer of bytes that grows.
+#
+# A buffer is 24 bytes that the caller owns, in a buf or a local: the
+# address of its bytes, their number and the room at that address. All
+# zero is an empty buffer, so a buf is one as it stands and a local is
+# one after three stores of 0. The functions take the address of the 24
+# bytes, here called the buffer.
+#
+# byneed, byadd, byaddb and byaddn may move the bytes to a new address
+# (an alloc of twice the room, a copy, a free): an address into them is
+# only good until the next of those calls, an offset from the start
+# always. After byneed b n the next n bytes added move nothing. They
+# return 1, or 0 when the kernel has no memory, and then nothing changed.
+# The caller ends the buffer with byfree.
+#
+# Every variable and parameter of this file has a name that starts with
+# "by"; a program has no var of such a name (see lib/io.aw).
+
+# copy byn bytes from bysrc to bydst, which do not overlap
+fn bycopy bydst bysrc byn
+	byi=0
+	while byi+8<=byn
+		load bysrc+byi as byw
+		store bydst+byi byw
+		byi+=8
+	end
+	while byi<byn
+		loadb bysrc+byi as byw
+		storeb bydst+byi byw
+		byi+=1
+	end
+end
+
+# make room for byn more bytes
+fn byneed byb byn
+	load byb+8 as bylen
+	load byb+16 as bycap
+	if bycap-bylen>=byn
+		ret 1
+	end
+	# a length that does not fit in 64 bits is no memory
+	if bylen+byn<bylen
+		ret 0
+	end
+	bynew=bycap*2
+	if bynew<bylen+byn
+		bynew=bylen+byn
+	end
+	if bynew<4096
+		bynew=4096
+	end
+	alloc bynew as byp
+	ifz byp
+		ret 0
+	end
+	load byb as byold
+	call bycopy byp byold bylen
+	if byold
+		free byold
+	end
+	store byb byp
+	store byb+16 bynew
+	ret 1
+end
+
+# add the byn bytes at byp, which are not in the buffer itself
+fn byadd byb byp byn
+	call byneed byb byn as byok
+	ifz byok
+		ret 0
+	end
+	load byb as byd
+	load byb+8 as bylen
+	call bycopy byd+bylen byp byn
+	store byb+8 bylen+byn
+	ret 1
+end
+
+# add the one byte byc
+fn byaddb byb byc
+	call byneed byb 1 as byok
+	ifz byok
+		ret 0
+	end
+	load byb as byd
+	load byb+8 as bylen
+	storeb byd+bylen byc
+	store byb+8 bylen+1
+	ret 1
+end
+
+# add the unsigned number byv in decimal
+fn byaddn byb byv
+	local bydigits 24
+	byp=bydigits+24
+	label next
+	byp-=1
+	storeb byp byv%10+48
+	byv/=10
+	jnz byv next
+	call byadd byb byp bydigits+24-byp as byok
+	ret byok
+end
+
+# keep the first byn bytes, which is not more than there are
+fn bycut byb byn
+	store byb+8 byn
+end
+
+# give the bytes back; the buffer is empty and may be used again
+fn byfree byb
+	load byb as byp
+	if byp
+		free byp
+	end
+	store byb 0
+	store byb+8 0
+	store byb+16 0
+end

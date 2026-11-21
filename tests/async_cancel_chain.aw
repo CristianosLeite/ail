@@ -1,0 +1,58 @@
+# a task gives a local of its own to another task, which gives it to
+# work of the pool. However the first stops waiting, cancelled itself,
+# with a limit that runs out, with a limit that is cancelled, or by
+# asyncstop, it does not go on before the work has written its last
+# byte: a cancelled task waits for the task it awaits to end.
+use "lib/io.aw"
+use "lib/task.aw"
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+use "lib/async/io.aw"
+use "lib/async/pool.aw"
+fn fill p ms c d
+	local ts 16
+	store ts 0
+	store ts+8 ms*1000000
+	sys nanosleep ts 0
+	storeb p+63 7
+	ret 1
+end
+async fn helper p
+	ref fill as f
+	await asyncblock f p 60 0 0 as r
+	ret r
+end
+async fn user how
+	local b 64
+	storeb b+63 0
+	call helper b as h
+	if how
+		call asynctimeout h 10 as h
+	end
+	await h as r
+	loadb b+63 as v
+	ret v+(r>-4096)*100
+end
+call user 0 as t
+await asyncsleep 20
+call asynccancel t
+await t as a
+call putn a
+call print " "
+await user 1 as a
+call putn a
+call print " "
+call user 1 as t
+await asyncsleep 5
+call asynccancel t
+await t as a
+call putn a
+call print " "
+call user 0 as t
+await asyncsleep 20
+call asyncclock as t0
+call asyncstop as n
+call asyncclock as t1
+call putn n
+call putn (t1-t0)/1000000>20
+call print "\n"

@@ -1,0 +1,4 @@
+# found at the end of the source, reported where the call is
+set 1 as a
+use "tests/lib/bad_call.aw"
+set 2 as b

@@ -1,0 +1,50 @@
+# the fixture of tests/indent.sh: every kind of line, indented wrongly
+  use "lib/io.aw"
+use "lib/async/task.aw"
+var total
+    # a function with blocks in blocks
+fn sum n
+i=0
+  s=0# no blank before this comment
+		while i<n
+if i&1
+            s+=i
+  else
+ifeq i 4
+s+=100
+end#closes ifeq
+	 end
+label again
+# a comment in the loop
+i+=1
+   
+end
+ret s
+end
+async fn twice a
+ret a*2
+end
+# words that open a block are names here
+if=3
+while=if+1
+end=while<<1
+fn=end
+else=fn
+else+=1
+ifz else
+sys exit 1
+end
+	call sum 6 as x
+await twice x as y
+call print "a string
+   that spans lines
+if this were code
+" # and ends here
+iflt y 100
+sys exit 2
+end
+if y
+ 	total=y
+	
+end
+sys exit total-else
