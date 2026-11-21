@@ -22,7 +22,7 @@
 - [ ] 2026-11-20 — Keep in registers the variables of an async function that cross no `await` ([page](../architecture/async-runtime.md))
 - [x] 2026-11-20 — "Algorithm benchmarks and collection APIs" of `docs/TODO.md`: six programs with C and Rust forms, kernel times in `perf`, `lib/vec.aw`, `queue.aw`, `heap.aw`, `map.aw` ([page](../architecture/algorithms-and-collections.md))
 - [x] 2026-11-20 — Items 5 and 6 of "Performance follow-up": calls of short functions compiled in place, `hashtab` probing in words; the kernels are at 1.20 times C, `hashtab` at 1.24 ([page](../architecture/generated-code-follow-up.md))
-- [ ] 2026-11-20 — Kernel times at a thousand elements move by a fifth with the place of the code; `perf` measures one place, and the compiler aligns nothing ([page](../architecture/generated-code-follow-up.md))
+- [x] 2026-11-20 — Kernel times at a thousand elements moved by a fifth with the place of the code: since 2026-11-21 the first line of a loop starts at a multiple of 64, the times of eight places differ by 0.3 to 2.6%, and `perf --places` measures them ([page](../architecture/generated-code-follow-up.md))
 - [ ] 2026-11-20 — Calls in place leave out functions that call or name a `buf`, `data` or `var`, calls at top level, and bodies inside bodies; `sift` of `heapsort` is slower in place for want of registers ([page](../architecture/generated-code-follow-up.md))
 - [x] 2026-11-20 — Run the Rust algorithm programs against the references of `tests/algo.sh`: done on 2026-11-21, all nine pass ([page](../architecture/algorithms-and-collections.md))
 - [ ] 2026-11-20 — Time the collections on their own ([page](../architecture/algorithms-and-collections.md))

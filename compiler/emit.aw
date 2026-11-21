@@ -165,6 +165,21 @@ fn elea
 	call e4 0
 	call anext
 end
+# instructions that do nothing, up to the next place in the file that is a
+# multiple of a, a power of two: the first line of a loop starts there. In
+# a function their bytes are counted in fnpad, which the limit of a body
+# compiled in place leaves out
+fn pad a
+	n=(out-op)&(a-1)
+	fnpad+=n
+	while n>9
+		call cp nops+36 9
+		n-=9
+	end
+	if n
+		call cp n*(n-1)/2+nops n
+	end
+end
 # a 64-bit mov between the register g and memory: the cell number p (k = 1,
 # rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
 # register, 137 to store it. The distance p takes one byte where it is

@@ -72,6 +72,9 @@ var ilcur ilip ilie ilcap ilasg ildead iljm ilbb illab ilfix ilsc ilnh ilbase
 # the code of a function that is compiled in place of its calls is at most
 # this long, entry and return included
 const inlsz 160
+# the first line of a while, and a label that a jump of its function goes
+# back to, start at a multiple of this in the file, a line of the cache
+const lalign 64
 # the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
 # scope = 0 at top level or the number of the open function, nscope =
 # functions opened so far, snh = nhn before the first pass over a function
@@ -104,6 +107,8 @@ var slotp slotr slotpos
 # the node that xgen is at and the end of its expression, and how many
 # nodes behind it the operator took along
 var xgi xgh xgskip
+# the bytes of padding in the function at hand
+var fnpad
 # the memory of a load or store: base, index (16 for none) and number
 var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
@@ -167,6 +172,7 @@ buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as wr
 buf ustack 19173968   # per use being compiled: where its line ended, and the end of
 # the unit that has it
 buf pathbuf 4096    # the path of a use, with a NUL for open
+buf lback 1048577    # a byte for each label: a jump of the first pass went back to it
 buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
 # source, variables assigned on every way to it
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
@@ -542,8 +548,13 @@ end
 p+=8
 store p wsrc
 ildep+=(whead!=0)&ilon
-whead=0
 call z 4
+if whead
+	# the first line of the loop starts at a multiple of lalign
+	call pad lalign
+	store p-8 op
+end
+whead=0
 nblk+=1
 jmp next
 label a2
@@ -979,6 +990,15 @@ call eol
 call llab as r
 call nodup r
 r=nlabels
+# a label that a jump went back to in the first pass is the first line
+# of a loop
+if pass==2
+	loadb lback+r as d
+	if d
+		storeb lback+r 0
+		call pad lalign
+	end
+end
 p=r*40+labs
 call putn p
 p+=16
@@ -1010,6 +1030,7 @@ jne pass 1 j2
 # not for a body compiled in place: its variables are in use at the one
 # place of the call, and loops is sized for a source read once
 jnz ilon j2
+storeb (r-labs)/40+lback 1
 load r+24 as r
 p=nloops*16+loops
 store p r
@@ -1086,6 +1107,7 @@ call putn p
 call eb 233
 fnskip=op
 call z 4
+fnpad=0
 q=op
 p+=16
 store p q
@@ -1247,7 +1269,7 @@ store p 0
 if (fnasy|fntail|fnlocal|ilany|fnslots)==0
 	if (ncalls==snc)&(nrefs==snr)&(nchks==snk)&(nruns==snu)&(nbufs==snb)
 		load (nfuncs-1)*40+funs+16 as q
-		if (op-q<=inlsz)&(fnnpar<=6)
+		if (op-q-fnpad<=inlsz)&(fnnpar<=6)
 			store p fnsrc
 			store p+8 nv
 			store p+16 fnwr

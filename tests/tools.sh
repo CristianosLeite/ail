@@ -111,7 +111,7 @@ r=0
 build/tools/perf no-such-program > /dev/null 2> "$tmp/said"
 [ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "perf: unknown program no-such-program" ] || r=1
 build/tools/perf --cpu two > /dev/null 2> "$tmp/said"
-[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "perf: usage: perf [--cpu N] [--quick] [--qsort] [name ...]" ] || r=1
+[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "perf: usage: perf [--cpu N] [--quick] [--qsort] [--places] [name ...]" ] || r=1
 say tools_perf_errors $r
 
 exit $fail

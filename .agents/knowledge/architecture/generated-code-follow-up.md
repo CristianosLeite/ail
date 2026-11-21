@@ -76,6 +76,17 @@ several places.
   one round as gcc does needs a view across statements and was decided against (user,
   2026-11-21: bounded parts, then measure); the item is closed at that.
 
+- Since 2026-11-21 the first line of a loop starts at a multiple of 64 in the file (`pad`,
+  `lalign`; `nops` in `compiler/tables.aw`): behind the head of a `while`, and in pass 2
+  before a label a jump of pass 1 went back to (`lback`). Over eight placements the most is
+  0.3 to 2.6% above the least where it was 3.7 to 37.9% (`bsearch` 0.802 to 1.106 became
+  0.881 to 0.888, `heapsort` median 1.129 became 1.044). 16 and 32 were not enough for
+  `collatz`; padding function entries too changed nothing and was left out. `collatz` and
+  `quicksort` are steady at a slightly worse median (1.124 for 1.104). `fnpad` keeps the
+  padding out of `inlsz`. Not padded: labels at top level and in bodies compiled in place.
+- `build/tools/perf --places <name>` makes that table: eight builds by `build/ailc` with 1
+  to 29 bytes of `data` in front. It replaces the script by hand.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are
@@ -98,9 +109,9 @@ several places.
   measured; the losses come from tasks too small or too few.
 
 ## How to apply
-- To compare two compilers or two forms of a kernel, build each with 1, 5, 9, ... 29 bytes of
-  `data` before the first function, run all in turn pinned to one CPU, and compare the
-  medians over the eight; one build each is not a comparison at a thousand elements.
+- To compare two compilers or two forms of a kernel, run `build/tools/perf --places <name>`
+  with each (eight builds behind 1, 5, ... 29 bytes of `data`) and compare the medians; since
+  loops are aligned one build each is within a few percent, before that it was not.
 - After touching the code for calls in place, compare the output of random programs with
   calls against a compiler from before the change, besides `make test` and `randvars`; no
   tool in the repository generates calls.

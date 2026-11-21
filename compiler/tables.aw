@@ -212,3 +212,7 @@ data xopc 0 175 0 0 0 0 0 0 0 1 3 0 41 43 5 0 0 4 0 0 5 33 35 4
 data 49 51 6 9 11 1 57 59 148 57 59 149 57 59 146 57 59 150 57 59 151 57 59 147
 # the order in which registers are taken for the values of an expression
 data xord 0 7 6 8 9 10 11 3 5 12 13 14 15
+# the instructions that do nothing, of 1 to 9 bytes one behind the other:
+# the one of n bytes starts at n*(n-1)/2
+data nops 144 102 144 15 31 0 15 31 64 0 15 31 68 0 0 102 15 31 68 0 0
+data 15 31 128 0 0 0 0 15 31 132 0 0 0 0 0 102 15 31 132 0 0 0 0 0

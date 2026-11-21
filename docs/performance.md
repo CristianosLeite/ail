@@ -1061,3 +1061,30 @@ The time moves more with the place of the code than with the change, so both com
 The best place is 5.5% behind C where it was 7.5%, the median 10.6% where it was 12.1%, and the same code is anywhere from 5.5 to 21% behind by where it stands, which the two instructions saved do not touch.
 
 What is left is not done: C adds one to the count twice and halves at once after an odd step, since 3x+1 is even, which folds the two branches of the `if` into one round. That needs the `if`, its `else` and what they assign seen together, and the compiler writes the code of a line when it has read it. A loop-invariant address in a register, the third thing named, does not occur in this loop. The item is closed at this figure.
+
+## The place of a loop, 2026-11-21
+
+The time of a short loop moved with the bytes that happened to stand before it: `heapsort` at a thousand elements by a fifth, `bsearch` by more than a third, and `isort` and `collatz` each had a place where they lost a fifth. `perf` measured the one place `make` gave a program, and the compiler aligned nothing, while `gcc -O3` aligns its loops. So one build each compared two compilers badly, as [the row of `bsearch`](#stack-slots-2026-11-21) above shows.
+
+**`perf --places`** asks the question itself: it compiles a program eight times with `build/ailc`, with 1, 5, 9, ... 29 bytes of `data` before its first line, times each as it times `build/<name>`, and prints AIL / C of each, for an algorithm program the geometric mean over its kernel times, with the least, the median, the most, and how far the most is above the least.
+
+**The first line of a loop now starts at a multiple of 64 in the file**, a line of the cache: the line behind a `while`, and in a function a label that a jump goes back to. The bytes before it are instructions that do nothing, run once when the loop is entered. A label of the top level cannot be padded, since a jump back to it is not known when it is read, and a label in a body compiled in place is not. Multiples of 16 and of 32 were tried first on `bsearch` and `collatz`: 16 left `collatz` with two times a seventh apart, 32 one place in eight that far off, 64 none. Padding the entry of each function as well changed nothing on `heapsort`, `bsearch` and `collatz` and is not done.
+
+AIL / C over the eight places, before (the compiler of the section above, by the same method in a script) and after (`perf --places`):
+
+| program | least | median | most | most above least | least | median | most | most above least |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| | before | | | | after | | | |
+| collatz | 1.053 | 1.104 | 1.210 | 14.9% | 1.123 | 1.124 | 1.126 | 0.3% |
+| sieve | 0.996 | 1.007 | 1.034 | 3.8% | 0.965 | 0.971 | 0.983 | 1.9% |
+| isort | 0.993 | 0.995 | 1.215 | 22.4% | 0.992 | 0.994 | 0.995 | 0.3% |
+| bsearch | 0.802 | 0.913 | 1.106 | 37.9% | 0.881 | 0.886 | 0.888 | 0.8% |
+| heapsort | 1.046 | 1.129 | 1.263 | 20.7% | 1.037 | 1.044 | 1.065 | 2.6% |
+| quicksort | 1.183 | 1.204 | 1.231 | 4.1% | 1.210 | 1.212 | 1.221 | 0.9% |
+| mergesort | 0.940 | 1.010 | 1.055 | 12.2% | 0.964 | 0.967 | 0.969 | 0.5% |
+| hashtab | 1.119 | 1.132 | 1.160 | 3.7% | 1.114 | 1.119 | 1.126 | 1.1% |
+
+- **The place no longer decides.** The most is 0.3 to 2.6% above the least where it was 3.7 to 37.9%, so a figure of one build now says something.
+- **The median is better for six of the eight**, by 8% for `heapsort`, 4% for `mergesort` and `sieve`, 3% for `bsearch`: an unaligned loop was more often badly placed than well.
+- **`collatz` and `quicksort` are steady at a worse median**, 1.124 for 1.104 and 1.212 for 1.204. `collatz` had places where it was 5% behind C; its loop has an `if` and an `else` in it, and where the jumps inside the loop fall counts as well as where the loop starts, which a start at a multiple of 64 fixes at one arrangement and not the best one. `graph`, not measured before, is 1.238 to 1.250.
+- **The cost is bytes**: the compiler is 51175 where it was 48970, `heapsort` 8597 for 6978. The limit of a body compiled in place leaves the padding out, so which functions are compiled in place is as before.

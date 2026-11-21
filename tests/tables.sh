@@ -25,7 +25,7 @@ BEGIN {
     size["hdr"] = 176; size["retc"] = 11; size["fnpush"] = 10; size["zeroes"] = 14
     size["zerolen"] = 6; size["pushlen"] = 7; size["probe"] = 36; size["asytst"] = 5; size["asypoll"] = 15; size["asyret"] = 11; size["asyawt"] = 23; size["asysus"] = 9; size["regtab"] = 18
     size["argnum"] = 9; size["varnum"] = 6; size["exit0"] = 9
-    size["exkw"] = 48; size["xopc"] = 48; size["xord"] = 13
+    size["exkw"] = 48; size["xopc"] = 48; size["xord"] = 13; size["nops"] = 45
     # x86-64 Linux, from asm/unistd_64.h
     split("read 0 write 1 open 2 close 3 stat 4 fstat 5 lseek 8 mmap 9 mprotect 10 " \
           "munmap 11 brk 12 rt_sigaction 13 ioctl 16 pipe 22 nanosleep 35 getpid 39 " \
