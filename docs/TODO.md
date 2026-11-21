@@ -314,7 +314,7 @@ preserve the contents on allocation failure, document the lifetime of any
 exposed storage, and have `free` operations reset the descriptor. Return a
 separate success or found result wherever zero is a valid value.
 
-- [ ] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
+- [x] **Growable vector**, `lib/vec.aw`. Provide `vecreserve v n`,
   `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
   address, length and capacity in a 24-byte descriptor, with length and
   capacity in elements. Grow geometrically and reuse `bycopy` for relocation

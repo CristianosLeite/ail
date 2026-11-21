@@ -997,6 +997,35 @@ call procwait p 10000 as r
 - **The result of `procwait`** is the exit status, 0 to 255; or the number of the signal that ended the child, negated (-9, -11); or -1000 if the child still ran when the time was up, in which case it was killed (`SIGKILL`) before the return; or -1001 if there is no such child. Every child is waited for exactly once, which takes it from the kernel; after that its number means nothing. Only the child itself is killed, not what it started. The limit holds also when the kernel gives no descriptor for the child (`pidfd_open` fails at the limit of open files): the child is then asked about every millisecond.
 - **Names**: the library owns every name that starts with `proc`; a program has no `var` of such a name.
 
+## The vector library
+
+`lib/vec.aw` is an array of 64-bit values that grows as values are added. The vector is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the values, their number, and the number there is room for. All zero is an empty vector, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes. A value has an index, from 0.
+
+| Function | Does |
+|---|---|
+| `vecpush v x` | adds the value `x` behind the last; returns 1 |
+| `vecpop v` | takes the last value off; returns it and 1, or 0 and 0 if there is none |
+| `vecget v i` | returns the value at the index `i` and 1, or 0 and 0 if there is none |
+| `vecset v i x` | makes `x` the value at the index `i`; returns 1, or 0 if there is none |
+| `vecreserve v n` | makes room for `n` values in all, not `n` more; returns 1 |
+| `vecfree v` | gives the values back to the kernel; the vector is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/vec.aw"
+buf v 24
+call vecpush v 30
+call vecpush v 12
+call vecget v 0 as a ok
+call vecpop v as b ok
+call putn a+b
+```
+
+- **Growth**: `vecpush` and `vecreserve` may move the values: `vecpush` takes twice the room with `alloc` when none is left (at least 512 values), copies, and `free`s the old; `vecreserve` takes exactly what it is asked for, and nothing if there is that much. An address of a value is therefore only good until the next of those two calls, an index always. After `vecreserve v n` the vector moves nothing until it holds `n` values.
+- **Errors**: the two return 1, or 0 when the kernel has no memory or the room would not fit in 64 bits of bytes; the vector is then as it was, values and room. `vecpop`, `vecget` and `vecset` test the index against the number of values, and the second result says whether there was a value, since a value may be 0. A vector that is not 24 bytes of the caller's is a fault of the program.
+- **Ownership**: the caller owns the 24 bytes and ends the vector with `vecfree`; a vector in a `local` is freed before its function returns. The values are read at the address in the first 8 bytes, with their number in the next 8.
+- **Names**: the library owns every name that starts with `vec`; a program has no `var` of such a name.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
