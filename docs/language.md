@@ -75,7 +75,7 @@ end
 
 `build/tools/indent file.aw ...` (`tools/indent.aw`) indents files that way in place and changes no byte but the spaces and tabs at the start of a line, so the compiled program stays the same; `build/tools/indent --check file.aw ...` only prints `path:line` for each line that is not as the rule has it, and exits with 1 if there is one; `build/tools/indent -` reads a source from stdin and writes it to stdout. `build/tools/fuse` and `build/tools/infix` write what they make indented by the same rule. It does not check the program: an `end` too many closes nothing. Every source of the repository is indented that way and `make test` checks it (`tests/indent.sh`), but for the tests of the separators, listed in `tests/indent/skip`, and the fixtures that a tool must reproduce byte for byte.
 
-`editors/vscode/` is an extension for VS Code that colours `.aw` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
+[`editors/vscode/`](https://github.com/CristianosLeite/ail-extensions/tree/main/editors/vscode) of the repository ail-extensions is an extension for VS Code that colours `.aw` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
 
 Tabs, because they cost fewer tokens than spaces (measured in [token cost](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md)); an editor shows one two columns wide, which `.editorconfig` asks for.
 

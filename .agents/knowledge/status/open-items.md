@@ -1,5 +1,9 @@
 # Open items
 
+> Since 2026-11-21 the VS Code extension is in the repository ail-extensions
+> (https://github.com/CristianosLeite/ail-extensions): `editors/vscode/` on this page is a path there, and its check is
+> `make check` there.
+
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
 > (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
 > `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
