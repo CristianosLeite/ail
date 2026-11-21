@@ -6,8 +6,8 @@ set 1 as d
 set 1 as e
 set 6 as g
 fn f
-set 1 as z
-ret z
+	set 1 as z
+	ret z
 end
 set 7 as h
 call f as i

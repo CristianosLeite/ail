@@ -13,22 +13,22 @@ build/tools/perf               # time the same programs, see performance.md
 
 | program | AIL | C | Rust | asm |
 |---|---:|---:|---:|---:|
-| collatz | 115 | 119 | 165 |  |
+| collatz | 121 | 119 | 165 |  |
 | compute | 91 | 106 | 120 | 229 |
 | count | 118 | 141 | 102 | 232 |
 | echo | 56 | 58 | 86 | 150 |
-| fact | 40 | 44 | 55 | 101 |
-| fnv | 141 | 167 | 126 |  |
+| fact | 41 | 44 | 55 | 101 |
+| fnv | 144 | 167 | 126 |  |
 | hello | 18 | 29 | 45 | 78 |
-| isort | 215 | 239 | 250 |  |
+| isort | 219 | 239 | 250 |  |
 | loop | 44 | 70 | 56 | 135 |
-| sieve | 132 | 145 | 186 |  |
-| total | 970 | 1118 | 1191 | 925 |
-| relative to AIL | 1.00 | 1.15 | 1.23 | 2.52 |
+| sieve | 138 | 145 | 186 |  |
+| total | 990 | 1118 | 1191 | 925 |
+| relative to AIL | 1.00 | 1.13 | 1.20 | 2.51 |
 
 This is the fixed corpus that a change of syntax is judged on: five short programs that are mostly system calls, and five that compute (`compute`, `sieve`, `collatz`, `fnv` and `isort`, described in [performance.md](performance.md)). The last four have no assembly equivalent; a language is compared with the AIL total of the programs it has, so the assembly figure is over six programs.
 
-The examples are written with expressions, `x=e`, `x+=e`, `while` and `if` on a value since 2026-11-20. AIL costs 13% fewer tokens than C that does the same, 19% fewer than Rust and 60% fewer than assembly. It is cheaper than C in every program, and dearer than Rust only in `count` and `fnv`, where Rust formats a number or reads a file with one call. Written with one operation a line, as the language first was, the same ten programs were 1313 tokens, 17% more than C; the [count](#expressions-measured-on-2026-11-20) below chose the spelling that made the difference.
+The examples are written with expressions, `x=e`, `x+=e`, `while` and `if` on a value since 2026-11-20. They are indented with a tab for each block, which is 20 of the 990 tokens ([measured below](#indentation-measured-on-2026-11-20)); the other languages are counted with their indentation too. AIL costs 11% fewer tokens than C that does the same, 17% fewer than Rust and 60% fewer than assembly. It is cheaper than C in every program but `collatz`, which is two tokens dearer since its blocks are indented, and dearer than Rust only in `count` and `fnv`, where Rust formats a number or reads a file with one call. Written with one operation a line, as the language first was, the same ten programs were 1313 tokens, 17% more than C; the [count](#expressions-measured-on-2026-11-20) below chose the spelling that made the difference.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 
@@ -51,7 +51,7 @@ Measured on the first `compiler/ailc.ai` without comments: 6181 tokens in 1107 l
 
 Run the script again after a change of syntax and update the table when an example changes.
 
-`tools/infix.ai` (`build/tools/infix in.ai out.ai`) rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. A `var` is never folded, wherever it is declared: the tool reads the files the source names with `use`, and files named after `out.ai` for a source that another file includes. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970, the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `compiler/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
+`tools/infix.ai` (`build/tools/infix in.ai out.ai`) rewrites a source written with statements: each statement that computes as an assignment, a label loop with its test at the top as `while`, and a variable that is assigned on one line and read once on the next, and not again, folded into that line, repeatedly. A `var` is never folded, wherever it is declared: the tool reads the files the source names with `use`, and files named after `out.ai` for a source that another file includes. On the ten examples as they were written with statements it gives 1031 tokens from 1313; written by hand they are 970 (990 since they are indented), the difference being lines that the tool keeps for their comments and loops it does not restructure. It was checked by rewriting the 310 runnable test programs it changes: each behaves as before. On `compiler/ailc.ai` it gave 20172 tokens from 25635, 21% fewer.
 
 ## Control flow, measured on 2026-11-20
 
@@ -113,7 +113,22 @@ What the counts show:
 - `if` takes an expression like any statement takes one, and `while expression` ... `end` is a loop. The `ifeq` and `jlt` families, labels and jumps stay.
 - A string stays a whole argument. Signed and float operations, the atomic ones, loads, stores and calls stay statements; a load in an expression is left out until programs show it paying.
 
-With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust. The examples as they were then written came to 970: `isort` lost five more by leaving its loop through a jump instead of a second label.
+With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewer than C and 18% fewer than Rust. The examples as they were then written, without indentation, came to 970: `isort` lost five more by leaving its loop through a jump instead of a second label.
+
+## Indentation, measured on 2026-11-20
+
+The compiler ignores indentation, so it is a cost without an effect on the program, paid for a source in which a block can be seen. The ten examples were counted without comments in four forms, the body of every `fn`, `while`, `if` and `else` one level deeper:
+
+| indentation | tokens | against none |
+|---|---:|---:|
+| none | 970 | |
+| one tab a level | 990 | +2.1% |
+| two spaces a level | 1024 | +5.6% |
+| four spaces a level | 1024 | +5.6% |
+
+All four compile to the same bytes. Five programs have no block or lose nothing; `collatz` and `sieve` gain six tokens each, `isort` four, `fnv` three and `fact` one.
+
+That decided the [source style](language.md#source-style): one tab a level, set by `build/tools/indent`. The table at the top counts the examples as they are now, indented.
 
 ## Tasks, measured on 2026-11-20
 
@@ -126,7 +141,7 @@ With these the corpus was counted at 975 tokens, 26% fewer than before, 13% fewe
 | `join h as x` | 5 |
 | the same with library functions only: `ref steps as p`, `call spawn p lo hi 0 0 0 as h`, `call join h as x` | 25 |
 
-A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.
+A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added, counted before the programs were indented ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.
 
 ## Async, measured on 2026-11-20
 
@@ -163,8 +178,8 @@ With the statements in the compiler, the programs of `bench/async/` as they are 
 
 | program | AIL | C |
 |---|---:|---:|
-| `timer`: two tasks that print at their own pace | 78 | |
-| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 245 | 503 |
-| `ping`: load for it, with the time of every round trip and its distribution | 614 | |
+| `timer`: two tasks that print at their own pace | 82 | |
+| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 259 | 503 |
+| `ping`: load for it, with the time of every round trip and its distribution | 648 | |
 
-The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 245 tokens, 119 are the two functions that serve, 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.
+The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 259 tokens, 133 are the two functions that serve (119 before they were indented), 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.

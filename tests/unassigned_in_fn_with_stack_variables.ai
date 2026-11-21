@@ -1,12 +1,12 @@
 fn f a b c d e g
-add a b as h
-add h c as i
-jz a z
-add i d as j
-label z
-add j h as j
-add j i as j
-add j e as j
-add j g as j
-ret j
+	add a b as h
+	add h c as i
+	jz a z
+	add i d as j
+	label z
+	add j h as j
+	add j i as j
+	add j e as j
+	add j g as j
+	ret j
 end

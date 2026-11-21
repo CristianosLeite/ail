@@ -1,7 +1,7 @@
 sys 39 as p
 if p
-set 3 as x
+	set 3 as x
 else
-set 4 as x
+	set 4 as x
 end
 sys 60 x

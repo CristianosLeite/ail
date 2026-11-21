@@ -6,19 +6,19 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 var after
 async fn stubborn
-while 1
-await asyncsleep 1 as r
-if r==-125
-call print "told "
-end
-end
+	while 1
+		await asyncsleep 1 as r
+		if r==-125
+			call print "told "
+		end
+	end
 end
 async fn again
-await asyncsleep 5000 as r
-call print "one "
-await asyncsleep 5000 as r
-after=1
-ret 9
+	await asyncsleep 5000 as r
+	call print "one "
+	await asyncsleep 5000 as r
+	after=1
+	ret 9
 end
 call stubborn as h
 call again as g

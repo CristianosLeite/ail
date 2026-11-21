@@ -4,7 +4,7 @@ buf b 8
 set b as p
 sys 39 as k
 ifz k
-add b 8 as p
+	add b 8 as p
 end
 loadb p as x
 sys 60 x

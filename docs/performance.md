@@ -109,7 +109,7 @@ Geometric mean of AIL / C: 1.041, within the 5% the redesign set as its first th
 
 `REDESIGN.md` set four criteria. This is where each stands, measured with the final compiler, the one written with expressions and built from seed 2.
 
-**Source cost: met.** The corpus is fixed at ten programs, the six that existed and four added for arithmetic, control flow and memory access. AIL is 970 tokens, Rust 1191, C 1118; [tokens.md](tokens.md) lists every program. AIL is below C in all ten and above Rust in two, `count` (118 against 102) and `fnv` (141 against 126).
+**Source cost: met.** The corpus is fixed at ten programs, the six that existed and four added for arithmetic, control flow and memory access. AIL was 970 tokens, Rust 1191, C 1118, with AIL below C in all ten programs and above Rust in two, `count` (118 against 102) and `fnv` (141 against 126). Since the examples are indented, later the same day, AIL is 990: still below Rust, below C in nine and two tokens above it in `collatz` (121 against 119), with `fnv` at 144; [tokens.md](tokens.md) lists every program.
 
 **CPU performance: the threshold is met, parity is not.** Geometric mean of elapsed time against `gcc -O3` over the five CPU-bound programs: 1.039, inside the 5% set as the first threshold.
 
@@ -214,11 +214,11 @@ Source tokens (`o200k_base`), comments left out:
 
 | program | sequential | tasks | lines added |
 |---|---:|---:|---:|
-| collatz | 98 | 213 | 24 |
-| primes | 103 | 218 | 24 |
-| memsum | 142 | 249 | 22 |
+| collatz | 109 | 230 | 24 |
+| primes | 115 | 236 | 24 |
+| memsum | 153 | 278 | 22 |
 
-The task form of a program is 107 to 115 tokens and 22 to 24 lines longer. In `collatz`, 90 of the 115 are the two loops that cut the range into pieces, keep the handles and add up the results, `spawn` and `join` being 12 of those; the `use` is 6, `call workers` 6, and the rest declares the buffer of handles and reads the two numbers. [The token page](tokens.md#tasks-measured-on-2026-11-20) has the count of the forms.
+The task form of a program is 121 to 125 tokens and 22 to 24 lines longer; before the programs were indented it was 107 to 115. In `collatz`, 90 of those 115 are the two loops that cut the range into pieces, keep the handles and add up the results, `spawn` and `join` being 12 of those; the `use` is 6, `call workers` 6, and the rest declares the buffer of handles and reads the two numbers. [The token page](tokens.md#tasks-measured-on-2026-11-20) has the count of the forms.
 
 ## Async, 2026-11-20
 
@@ -273,7 +273,7 @@ With clients and server as tasks of one thread (`ping` without a port) the same 
 - **The server written with `async fn` carries what the one written on `epoll` by hand carries.** The time of a round trip with many connections is the wait in line, connections times the service time, and the same for both.
 - **Where the time goes**: for a million round trips at 100 connections the AIL server uses 0.31 s in its own code and 2.98 s in the kernel; the C server 0.15 s and 2.93 s. The runtime costs 160 ns a round trip more than code written for this one program, 7% of the processor time of the server, and nine tenths of the time are the kernel's in either.
 - **System calls**: for 200000 round trips the AIL server made 208705 calls of `read`, 8605 of which said "not now", 200002 writes (`sendto` with `MSG_NOSIGNAL`, counted when they were still `write`) and 169 of `epoll_wait`. An operation asks the kernel first, so a busy server hardly ever sleeps; the server in C, which waits for an event before each read, cannot make fewer.
-- The source of the server is 245 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 503 in C; [token cost](tokens.md) has the forms.
+- The source of the server is 259 tokens in AIL (`echo.ai` and `echod.ai`, with the reading of the port) and 503 in C; [token cost](tokens.md) has the forms.
 
 ### A scheduler on several threads
 

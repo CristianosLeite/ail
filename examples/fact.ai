@@ -1,10 +1,10 @@
 # exit with the factorial of 5, computed by a recursive function
 fn fact n
-ifz n
-ret 1
-end
-call fact n-1 as r      # n is saved across the call
-ret n*r
+	ifz n
+		ret 1
+	end
+	call fact n-1 as r      # n is saved across the call
+	ret n*r
 end
 call fact 5 as x
 sys 60 x

@@ -1,12 +1,12 @@
 # in a function end closes the innermost block first, then the function
 fn sign a
-ifslt a 0
-ret 2
-end
-ifeq a 0
-ret 0
-end
-ret 1
+	ifslt a 0
+		ret 2
+	end
+	ifeq a 0
+		ret 0
+	end
+	ret 1
 end
 call sign -5 as a
 call sign 0 as b

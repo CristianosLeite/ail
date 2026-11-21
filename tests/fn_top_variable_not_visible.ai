@@ -1,4 +1,4 @@
 set 1 as x
 fn f
-ret x
+	ret x
 end

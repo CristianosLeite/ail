@@ -1,6 +1,6 @@
 fn f
-loadb d as x
-ret x
+	loadb d as x
+	ret x
 end
 call f as x
 sys 60 x

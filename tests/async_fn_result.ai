@@ -3,9 +3,9 @@
 use "lib/async/task.ai"
 var ran
 async fn f a b
-ran+=1
-c=a*b
-ret c+1
+	ran+=1
+	c=a*b
+	ret c+1
 end
 call f 6 7 as h
 x=ran

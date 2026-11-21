@@ -5,20 +5,20 @@
 # instead of 24 (the 8 bytes of h's local, its one saved register and the
 # return address)
 fn h p
-local m 8
-sub p m as r
-ret r
+	local m 8
+	sub p m as r
+	ret r
 end
 fn g a b c d e
-local m 8
-call h m as r
-store m r
-add a b as a
-add a c as a
-add a d as a
-add a e as a
-add r a as r
-ret r
+	local m 8
+	call h m as r
+	store m r
+	add a b as a
+	add a c as a
+	add a d as a
+	add a e as a
+	add r a as r
+	ret r
 end
 call g 0 0 0 0 0 as r
 sys 60 r

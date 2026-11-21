@@ -1,16 +1,16 @@
 fn f a b c d e g
-shr a 32 as a
-shr b 32 as b
-shr c 32 as c
-shr d 32 as d
-shr e 32 as e
-shr g 32 as g
-add a b as a
-add a c as a
-add a d as a
-add a e as a
-add a g as a
-ret a
+	shr a 32 as a
+	shr b 32 as b
+	shr c 32 as c
+	shr d 32 as d
+	shr e 32 as e
+	shr g 32 as g
+	add a b as a
+	add a c as a
+	add a d as a
+	add a e as a
+	add a g as a
+	ret a
 end
 call f 0x100000000 0x200000000 0x400000000 0x800000000 0x1000000000 0x2000000000 as r
 sys 60 r

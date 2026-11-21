@@ -1,11 +1,11 @@
 # a part that ends in ret does not count: what follows only has the other
 fn f a
-if a
-set 1 as x
-else
-ret 7
-end
-ret x
+	if a
+		set 1 as x
+	else
+		ret 7
+	end
+	ret x
 end
 call f 0 as r
 call f 1 as s

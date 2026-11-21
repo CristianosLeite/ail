@@ -1,6 +1,6 @@
 fn pr s n
-sys 1 1 s n as w
-ret w
+	sys 1 1 s n as w
+	ret w
 end
 ref pr as p
 callp p "ptr\n" as r

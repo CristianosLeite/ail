@@ -2,7 +2,7 @@
 fn nothing
 end
 fn side a
-add a 1 as a
+	add a 1 as a
 end
 set 7 as x
 call nothing as x

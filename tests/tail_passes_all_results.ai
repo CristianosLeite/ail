@@ -1,8 +1,8 @@
 fn two
-ret 30 4
+	ret 30 4
 end
 fn f
-tail two
+	tail two
 end
 call f as a b
 add a b as a

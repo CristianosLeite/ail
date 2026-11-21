@@ -1,5 +1,5 @@
 fn f
-ret 2 3
+	ret 2 3
 end
 ref f as p
 callp p as a b

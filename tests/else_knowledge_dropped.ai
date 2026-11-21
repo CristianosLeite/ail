@@ -5,8 +5,8 @@ sys 39 as k
 sub k k as o
 add b o as p
 if k
-add b 8 as p
+	add b 8 as p
 else
-loadb p as x
+	loadb p as x
 end
 sys 60 0

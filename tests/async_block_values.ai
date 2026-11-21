@@ -8,21 +8,21 @@ use "lib/async/time.ai"
 use "lib/async/io.ai"
 use "lib/async/pool.ai"
 fn mix a b c d
-ret a*1000+b*100+c*10+d
+	ret a*1000+b*100+c*10+d
 end
 fn third a b c d
-ret c
+	ret c
 end
 # run the work, and say whether its record is used again by the next
 fn again v
-ref third as p
-call asyncblock p v v v v as h
-load h+64 as j
-await h as r
-call asyncblock p 1 1 1 1 as h
-load h+64 as k
-await h
-ret (r==v)&(j==k)
+	ref third as p
+	call asyncblock p v v v v as h
+	load h+64 as j
+	await h as r
+	call asyncblock p 1 1 1 1 as h
+	load h+64 as k
+	await h
+	ret (r==v)&(j==k)
 end
 ref mix as p
 await asyncblock p 1 2 3 4 as x

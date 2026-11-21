@@ -1,17 +1,17 @@
 fn f a b c d e g
-set "ok\n" as p
-set 3 as n
-set 1 as o
-sys 1 o p n as w
-add w a as w
-add w b as w
-add w c as w
-add w d as w
-add w e as w
-add w g as w
-add w n as w
-add w o as w
-ret w
+	set "ok\n" as p
+	set 3 as n
+	set 1 as o
+	sys 1 o p n as w
+	add w a as w
+	add w b as w
+	add w c as w
+	add w d as w
+	add w e as w
+	add w g as w
+	add w n as w
+	add w o as w
+	ret w
 end
 call f 1 1 1 1 1 1 as r
 sys 60 r

@@ -4,24 +4,24 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 var stop
 fn spin t
-if stop
-ret 1
-end
-call asyncwake t
-ret 0
+	if stop
+		ret 1
+	end
+	call asyncwake t
+	ret 0
 end
 fn sleeper t
-load t+8 as h
-ifz h
-call asyncsleep 5 as h
-store t+8 h
-end
-call await h t as v r
-ifz r
-ret 0
-end
-stop=1
-ret 1
+	load t+8 as h
+	ifz h
+		call asyncsleep 5 as h
+		store t+8 h
+	end
+	call await h t as v r
+	ifz r
+		ret 0
+	end
+	stop=1
+	ret 1
 end
 ref spin as p
 call async 64 p as a

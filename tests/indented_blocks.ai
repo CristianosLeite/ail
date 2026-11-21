@@ -1,0 +1,25 @@
+# every kind of line may be indented, with tabs or with spaces
+	use "tests/lib/hello.ai"
+	var cell
+  const two 2
+	data tab 3 4
+	 buf room 8
+	fn f a
+		local l 8
+		store l a
+			# a comment deeper than its block
+		if a>two
+			ret a+1
+		  else
+			ret a
+		end
+	end
+	
+  i=0
+	while i<3
+		i+=1
+	end
+		label done
+	loadb tab+1 as b
+	call f i as cell
+	sys exit cell+b

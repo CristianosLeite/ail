@@ -7,14 +7,14 @@ buf b 24
 buf w 8
 i=0
 while i<100000
-store w i*7
-ifz i&1
-call byadd b w 8
-else
-call byadd b w 3
-call byadd b w+3 5
-end
-i+=1
+	store w i*7
+	ifz i&1
+		call byadd b w 8
+	else
+		call byadd b w 3
+		call byadd b w+3 5
+	end
+	i+=1
 end
 load b as p
 load b+8 as n
@@ -22,9 +22,9 @@ load b+16 as c
 s=0
 i=0
 while i<100000
-load p+i*8 as v
-s+=v
-i+=1
+	load p+i*8 as v
+	s+=v
+	i+=1
 end
 call putn n
 call print " "

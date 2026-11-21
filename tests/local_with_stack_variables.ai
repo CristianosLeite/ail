@@ -1,21 +1,21 @@
 # locals, stack slots and stack parameters in one frame
 fn f a b c d e g h i
-local m 16
-add a b as t1
-add c d as t2
-add e g as t3
-store m t1
-add m 8 as p
-store p t2
-add h i as t4
-load m as u
-load p as v
-add u v as w
-add w t3 as w
-add w t4 as w
-add w h as w
-add w a as w
-ret w
+	local m 16
+	add a b as t1
+	add c d as t2
+	add e g as t3
+	store m t1
+	add m 8 as p
+	store p t2
+	add h i as t4
+	load m as u
+	load p as v
+	add u v as w
+	add w t3 as w
+	add w t4 as w
+	add w h as w
+	add w a as w
+	ret w
 end
 call f 1 2 3 4 5 6 7 8 as r
 sys 60 r

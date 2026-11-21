@@ -1,6 +1,6 @@
 # and of a call through an address, whose address is in the register that shifts use
 fn f a b c d e
-ret a+b*2+c*3+d*4+e*5
+	ret a+b*2+c*3+d*4+e*5
 end
 ref f as p
 x=1

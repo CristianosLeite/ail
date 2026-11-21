@@ -13,13 +13,13 @@ jnz r more
 h=0xcbf29ce484222325
 k=100
 while k
-i=0
-while i<n
-loadb d+i as r
-h=(h^r)*0x100000001b3
-i+=1
-end
-k-=1
+	i=0
+	while i<n
+		loadb d+i as r
+		h=(h^r)*0x100000001b3
+		i+=1
+	end
+	k-=1
 end
 store b h
 sys write 1 b 8 as r

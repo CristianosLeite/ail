@@ -2,7 +2,7 @@
 # data bytes, 3 of them the returned value
 data a 1
 fn f
-ret 3
+	ret 3
 end
 data b 1
 call f as r

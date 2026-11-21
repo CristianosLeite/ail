@@ -3,8 +3,8 @@
 buf b 8
 sys 9 0 4096 3 34 -1 0 as p
 fn f
-add b 8 as q
-ret q
+	add b 8 as q
+	ret q
 end
 loadb p as x
 sys 60 x

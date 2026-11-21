@@ -1,14 +1,14 @@
 fn f
-local big 4000
-store big 1
-set 1 as a
-set 1 as b
-set 1 as c
-set 1 as d
-set 1 as e
-set 1 as g
-add a g as a
-ret a
+	local big 4000
+	store big 1
+	set 1 as a
+	set 1 as b
+	set 1 as c
+	set 1 as d
+	set 1 as e
+	set 1 as g
+	add a g as a
+	ret a
 end
 set 1 as p
 set 2 as q

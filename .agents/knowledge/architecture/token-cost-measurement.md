@@ -1,20 +1,21 @@
 ---
 title: Token cost measurement
 last-verified: 2026-11-20
-sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.py, docs/tokens.md, docs/performance.md]
+sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.ai, tools/lib/o200k.ai, docs/tokens.md, docs/performance.md]
 status: current
 ---
 # Token cost measurement
 
-**Summary.** `tools/tokens.sh` counts tokens with `tiktoken` (`o200k_base`) for the ten examples
+**Summary.** `tools/tokens.sh` counts tokens of the encoding `o200k_base` (since 2026-11-20 with `build/tools/tokens`, the tokenizer in AIL, checked against `tiktoken` fixtures; before that with `tiktoken` itself) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
-13% cheaper than C and 19% cheaper than Rust (it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
+11% cheaper than C and 17% cheaper than Rust, indented (13% and 19% without indentation; it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not.
 `tools/perf.ai` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
 
 ## Facts
 - With the examples rewritten in expressions and `while` (2026-11-20, later the same day): AIL
   970, C 1118, Rust 1191; AIL is cheaper than C in every program and dearer than Rust only in
-  `count` and `fnv`. Time against `gcc -O3`: geometric mean 1.041 (`collatz` 1.13, `isort` 1.06,
+  `count` and `fnv`. Indented with a tab a block level, as the examples are since then, AIL is
+  990 (two or four spaces would be 1024) and two tokens dearer than C in `collatz`. Time against `gcc -O3`: geometric mean 1.041 (`collatz` 1.13, `isort` 1.06,
   `sieve` 1.03, the other two 1.00), from 1.742.
 - Totals without comments on 2026-11-20 before that, ten programs written as statements: AIL 1313, C 1118, Rust 1191. The first
   six, which have assembly equivalents: AIL 496, C 448, Rust 464, assembly 925.
@@ -24,7 +25,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
 - `compute` (2026-11-20) is the arithmetic benchmark: a hundred million steps of a 64-bit
   recurrence on a value read from stdin. It and its timing script were first written in a
   temporary directory outside the repository and nearly lost; they are now `examples/compute.ai`,
-  `bench/compute.*` and `tools/perf.py`.
+  `bench/compute.*` and `tools/perf.py` (now `tools/perf.ai`).
 - Timing on an i7-12700H: an AIL program starts in about 75 microseconds, C in 230, Rust in 320.
   `compute` takes 134.5 ms in AIL against 132.1 in C at `-O3`, although its loop is 22
   instructions against 7: the steps are one dependency chain, so the extra moves cost little.

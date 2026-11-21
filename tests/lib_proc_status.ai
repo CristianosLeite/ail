@@ -10,12 +10,12 @@ data skill "kill -9 $$" 0
 data none "/no/such/program" 0
 buf av 32
 fn show x
-ifslt x 0
-call print "-"
-x=0-x
-end
-call putn x
-call print "\n"
+	ifslt x 0
+		call print "-"
+		x=0-x
+	end
+	call putn x
+	call print "\n"
 end
 store av sh
 store av+8 c

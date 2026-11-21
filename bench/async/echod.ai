@@ -11,11 +11,11 @@ use "bench/async/num.ai"
 port=8080
 call argv 1 as p n
 if n
-call decnum p n as port
+	call decnum p n as port
 end
 call asynclisten 0 port as l
 if l>-4096
-call die "echod: cannot listen\n"
+	call die "echod: cannot listen\n"
 end
 call asyncport l as port
 call putn port

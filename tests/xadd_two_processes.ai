@@ -8,7 +8,7 @@ xadd c 1 as o
 sub n 1 as n
 jnz n top
 ifz pid
-sys exit 0
+	sys exit 0
 end
 sys wait4 pid 0 0 0
 load c as v

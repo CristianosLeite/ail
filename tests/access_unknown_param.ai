@@ -1,7 +1,7 @@
 buf b 8
 fn f p
-add p 100 as p
-ret p
+	add p 100 as p
+	ret p
 end
 call f b as x
 sys 60 0

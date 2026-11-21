@@ -5,27 +5,27 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 buf ch 8
 fn poll t
-load t+8 as h
-ifz h
-load t+64 as ms
-call asyncsleep ms as h
-store t+8 h
-end
-call await h t as v r
-ifz r
-ret 0
-end
-load t+72 as c
-storeb ch c
-call print ch 1
-ret 1
+	load t+8 as h
+	ifz h
+		load t+64 as ms
+		call asyncsleep ms as h
+		store t+8 h
+	end
+	call await h t as v r
+	ifz r
+		ret 0
+	end
+	load t+72 as c
+	storeb ch c
+	call print ch 1
+	ret 1
 end
 fn task ms c
-ref poll as p
-call async 80 p as h
-store h+64 ms
-store h+72 c
-ret h
+	ref poll as p
+	call async 80 p as h
+	store h+64 ms
+	store h+72 c
+	ret h
 end
 call asyncclock as t0
 call task 30 97 as a

@@ -4,10 +4,10 @@
 use "lib/async/task.ai"
 var inner
 fn poll t
-call async 64 0 as e
-call await e 0 as v r
-inner=v+r
-ret 1
+	call async 64 0 as e
+	call await e 0 as v r
+	inner=v+r
+	ret 1
 end
 call async 64 0 as e
 call await e 0 as x r

@@ -3,10 +3,10 @@
 use "lib/async/task.ai"
 var sum
 async fn none
-sum+=1
+	sum+=1
 end
 async fn six a b c d e f
-sum+=a+b*2+c*3+d*4+e*5+f*6
+	sum+=a+b*2+c*3+d*4+e*5+f*6
 end
 call none as h
 call six 1 2 3 4 5 6 as g

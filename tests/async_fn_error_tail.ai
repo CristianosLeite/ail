@@ -3,5 +3,5 @@ end
 fn g
 end
 async fn f
-tail g
+	tail g
 end

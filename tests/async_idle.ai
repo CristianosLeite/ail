@@ -9,14 +9,14 @@ use "lib/async/io.ai"
 use "lib/async/pool.ai"
 use "lib/async/chan.ai"
 fn zero p n
-s=0
-i=0
-while i<n
-load p+i as v
-s|=v
-i+=8
-end
-ret s
+	s=0
+	i=0
+	while i<n
+		load p+i as v
+		s|=v
+		i+=8
+	end
+	ret s
 end
 call print "sync\n"
 len asyncq as n

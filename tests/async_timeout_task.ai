@@ -4,12 +4,12 @@ use "lib/io.ai"
 use "lib/async/task.ai"
 use "lib/async/time.ai"
 async fn slow ms
-await asyncsleep ms as r
-if r
-call print "cancelled "
-ret r
-end
-ret ms
+	await asyncsleep ms as r
+	if r
+		call print "cancelled "
+		ret r
+	end
+	ret ms
 end
 call slow 5000 as h
 call asynctimeout h 10 as g

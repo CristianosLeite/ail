@@ -1,5 +1,5 @@
 # a buffer is global, so it may not take the name of a top-level variable
 set 7 as b
 fn f
-buf b 8
+	buf b 8
 end

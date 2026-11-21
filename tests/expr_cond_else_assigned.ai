@@ -1,8 +1,8 @@
 # a variable assigned in both parts of a block with a comparison is assigned after it
 a=3
 if a<4
-x=a+1
+	x=a+1
 else
-x=a-1
+	x=a-1
 end
 sys exit x

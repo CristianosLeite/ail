@@ -1,5 +1,5 @@
 fn g a b c d e h i
 end
 fn f
-tail g 1 2 3 4 5 6 7
+	tail g 1 2 3 4 5 6 7
 end

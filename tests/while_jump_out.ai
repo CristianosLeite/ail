@@ -1,14 +1,14 @@
 # a jump leaves a loop, and a label may stand in one
 i=0
 while 1
-i+=1
-jeq i 7 out
+	i+=1
+	jeq i 7 out
 end
 label out
 j=0
 label again
 while j<100
-j+=30
-jlt j 50 again
+	j+=30
+	jlt j 50 again
 end
 sys exit i+j

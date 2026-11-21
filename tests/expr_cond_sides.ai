@@ -2,14 +2,14 @@
 a=3
 b=5
 if a+1<b*2-(a-1)
-c=1
+	c=1
 else
-c=2
+	c=2
 end
 if (a+b)*(b-a)>=a*a+b+(b-a)
-c+=10
+	c+=10
 end
 ifz a*b==b*a
-c+=100
+	c+=100
 end
 sys exit c

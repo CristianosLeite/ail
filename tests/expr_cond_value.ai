@@ -2,13 +2,13 @@
 a=6
 c=0
 if a%2
-c+=1
+	c+=1
 end
 if a&2
-c+=2
+	c+=2
 end
 ifz a-6
-c+=4
+	c+=4
 end
 jnz a>>3 l
 c+=8

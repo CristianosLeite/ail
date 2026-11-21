@@ -19,25 +19,25 @@ call argv 2 as p n
 ref nothing as f
 call asyncclock as t0
 if n
-alloc count*8 as hs
-i=0
-while i<count
-call asyncblock f 0 0 0 0 as h
-store hs+i*8 h
-i+=1
-end
-i=0
-while i<count
-load hs+i*8 as h
-await h
-i+=1
-end
+	alloc count*8 as hs
+	i=0
+	while i<count
+		call asyncblock f 0 0 0 0 as h
+		store hs+i*8 h
+		i+=1
+	end
+	i=0
+	while i<count
+		load hs+i*8 as h
+		await h
+		i+=1
+	end
 else
-i=0
-while i<count
-await asyncblock f 0 0 0 0
-i+=1
-end
+	i=0
+	while i<count
+		await asyncblock f 0 0 0 0
+		i+=1
+	end
 end
 call asyncclock as t1
 call putn count

@@ -1,13 +1,13 @@
 # bytes in the frame of the function
 fn f a
-local b 16
-store b a
-add b 8 as p
-store p 5
-load b as x
-load p as y
-add x y as x
-ret x
+	local b 16
+	store b a
+	add b 8 as p
+	store p 5
+	load b as x
+	load p as y
+	add x y as x
+	ret x
 end
 call f 4 as r
 sys 60 r

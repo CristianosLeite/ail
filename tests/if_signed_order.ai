@@ -1,26 +1,26 @@
 set 0 as r
 ifslt -1 1
-add r 1 as r
+	add r 1 as r
 end
 ifsle -1 1
-add r 2 as r
+	add r 2 as r
 end
 ifsgt 1 -1
-add r 4 as r
+	add r 4 as r
 end
 ifsge 1 -1
-add r 8 as r
+	add r 8 as r
 end
 ifslt 1 -1
-add r 16 as r
+	add r 16 as r
 end
 ifsle 1 -1
-add r 32 as r
+	add r 32 as r
 end
 ifsgt -1 1
-add r 64 as r
+	add r 64 as r
 end
 ifsge -1 1
-add r 128 as r
+	add r 128 as r
 end
 sys 60 r

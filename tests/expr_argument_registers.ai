@@ -1,6 +1,6 @@
 # an expression in any place leaves the values before it as they were
 fn f a b c d e g
-ret a*100000+b*10000+c*1000+d*100+e*10+g
+	ret a*100000+b*10000+c*1000+d*100+e*10+g
 end
 x=2
 y=3

@@ -1,24 +1,24 @@
 # an address in each argument register, of a buffer and of a string
 buf b 8
 fn f p q r s t u
-sub q p as q
-sub s r as s
-sub u t as u
-add q s as q
-add q u as q
-ret q
+	sub q p as q
+	sub s r as s
+	sub u t as u
+	add q s as q
+	add q u as q
+	ret q
 end
 call f b b b b b b as x
 fn g p q r s t u
-loadb p as a
-loadb r as c
-loadb t as e
-add a c as a
-add a e as a
-add a q as a
-add a s as a
-add a u as a
-ret a
+	loadb p as a
+	loadb r as c
+	loadb t as e
+	add a c as a
+	add a e as a
+	add a q as a
+	add a s as a
+	add a u as a
+	ret a
 end
 call g "A" "B" "C" as y
 add x y as x

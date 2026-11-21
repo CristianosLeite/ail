@@ -1,20 +1,20 @@
 # the caller has all six registers in use; a callee that uses one, three
 # or six of them must restore exactly those
 fn one a
-ret a
+	ret a
 end
 fn three a b c
-add a b as a
-add a c as a
-ret a
+	add a b as a
+	add a c as a
+	ret a
 end
 fn six a b c d e g
-add a b as a
-add a c as a
-add a d as a
-add a e as a
-add a g as a
-ret a
+	add a b as a
+	add a c as a
+	add a d as a
+	add a e as a
+	add a g as a
+	ret a
 end
 set 1 as p
 set 2 as q

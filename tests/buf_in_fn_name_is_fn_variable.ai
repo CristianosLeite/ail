@@ -1,4 +1,4 @@
 fn f
-set 7 as b
-buf b 8
+	set 7 as b
+	buf b 8
 end

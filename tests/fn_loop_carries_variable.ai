@@ -1,25 +1,25 @@
 # c is set at the end of a round and read at the start of the next, so it
 # must keep its place over the whole loop
 fn f
-set 4 as n
-set 0 as s
-set 0 as c
-label top
-add s c as s
-set 1 as t1
-set 2 as t2
-set 3 as t3
-add t1 t2 as u
-add u t3 as u
-set 1 as w1
-set 1 as w2
-add w1 w2 as w3
-add s u as s
-add s w3 as s
-set 5 as c
-sub n 1 as n
-jnz n top
-ret s
+	set 4 as n
+	set 0 as s
+	set 0 as c
+	label top
+	add s c as s
+	set 1 as t1
+	set 2 as t2
+	set 3 as t3
+	add t1 t2 as u
+	add u t3 as u
+	set 1 as w1
+	set 1 as w2
+	add w1 w2 as w3
+	add s u as s
+	add s w3 as s
+	set 5 as c
+	sub n 1 as n
+	jnz n top
+	ret s
 end
 call f as r
 sys 60 r

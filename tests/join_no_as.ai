@@ -1,7 +1,7 @@
 use "lib/task.ai"
 var cell
 fn work a
-cell=a
+	cell=a
 end
 spawn work 7 as h
 join h

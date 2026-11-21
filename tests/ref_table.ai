@@ -1,12 +1,12 @@
 # functions in a table, chosen by a number at run time
 fn zero
-ret 10
+	ret 10
 end
 fn one
-ret 20
+	ret 20
 end
 fn two
-ret 30
+	ret 30
 end
 buf t 24
 ref zero as p

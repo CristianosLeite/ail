@@ -4,44 +4,44 @@
 # without a local still gives its frame up, ten million rounds deep
 buf cell 8
 fn sum p n
-s=0
-while n
-n-=1
-load p+n*8 as v
-s+=v
-end
-# use the stack that a released frame would have been in
-local junk 256
-i=0
-while i<256
-storeb junk+i 255
-i+=1
-end
-ret s 7
+	s=0
+	while n
+		n-=1
+		load p+n*8 as v
+		s+=v
+	end
+	# use the stack that a released frame would have been in
+	local junk 256
+	i=0
+	while i<256
+		storeb junk+i 255
+		i+=1
+	end
+	ret s 7
 end
 fn direct a b
-local t 16
-store t a
-store t+8 b
-tail sum t 2
+	local t 16
+	store t a
+	store t+8 b
+	tail sum t 2
 end
 fn through a b
-local t 16
-store t a
-store t+8 b
-p=t+0
-store cell p
-tail viacell
+	local t 16
+	store t a
+	store t+8 b
+	p=t+0
+	store cell p
+	tail viacell
 end
 fn viacell
-load cell as p
-tail sum p 2
+	load cell as p
+	tail sum p 2
 end
 fn count n acc
-ifz n
-ret acc
-end
-tail count n-1 acc+1
+	ifz n
+		ret acc
+	end
+	tail count n-1 acc+1
 end
 call direct 30 4 as x y
 call through 5 6 as z w

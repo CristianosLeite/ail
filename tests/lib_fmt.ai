@@ -7,11 +7,11 @@ use "lib/bytes.ai"
 use "tools/lib/fmt.ai"
 buf b 24
 fn show n d k
-itof n as x
-itof d as y
-fdiv x y as x
-call fmtfix b x k
-call byaddb b 32
+	itof n as x
+	itof d as y
+	fdiv x y as x
+	call fmtfix b x k
+	call byaddb b 32
 end
 call show 12345 1000 2
 call show 2675 1000 2

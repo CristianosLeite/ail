@@ -2,13 +2,13 @@
 # and until then nothing can happen
 use "lib/async/task.ai"
 fn poll t
-load t+64 as e
-call await e t as v r
-ifz r
-ret 0
-end
-store t+16 v+1
-ret 1
+	load t+64 as e
+	call await e t as v r
+	ifz r
+		ret 0
+	end
+	store t+16 v+1
+	ret 1
 end
 call async 64 0 as e
 ref poll as p

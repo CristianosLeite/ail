@@ -4,9 +4,9 @@
 set 3 as n
 set 0 as s
 if n
-jmp test
+	jmp test
 else
-jmp test
+	jmp test
 end
 label body
 add s n as s

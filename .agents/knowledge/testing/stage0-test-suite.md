@@ -32,6 +32,7 @@ layout of a test; this page records why some fixtures look the way they do.
   and variables first assigned inside a loop or block kept to it (a `while` may run no round, so
   the compiler does not count them as assigned after it). Python runs the tree for the expected
   status. See the page on [expression code](../architecture/expression-syntax.md).
+- Since the tools were ported (2026-11-20) `make test` needs no Python: `build/tools/randvars` computes the expected status itself, in a function that shares nothing with those that write the program, and has a third mode, 200 programs in an async function that waits before every third statement. The suite also runs `tests/async.sh`, `tests/par.sh`, `tests/tools.sh`, `tests/infix.sh` and `tests/tokens.sh`; it had 2413 checks on 2026-11-20. See [Tools in AIL](../architecture/tools-in-ail.md).
 - The older facts below that speak of two compilers describe the suite before that date.
 - `tests/make.sh` (since 2026-11-20) checks the recipe for examples in a scratch copy with the
   compiler already built: a good example builds and runs; after its source is broken the build

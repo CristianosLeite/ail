@@ -1,3 +1,3 @@
 fn f
-args as p
+	args as p
 end

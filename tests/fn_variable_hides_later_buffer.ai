@@ -1,7 +1,7 @@
 # the same when the buffer is declared after the function
 fn f
-set 4 as b
-ret b
+	set 4 as b
+	ret b
 end
 buf b 8
 storeb b 1

@@ -1,6 +1,6 @@
 var gv
 fn f
-ret 1 2 3
+	ret 1 2 3
 end
 set 1 as a
 set 1 as b

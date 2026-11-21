@@ -16,8 +16,8 @@ call putn 0-r
 call print " "
 i=0
 while i<4096
-storeb long+i 97
-i+=1
+	storeb long+i 97
+	i+=1
 end
 call fileread long 4096 b as r
 call putn 0-r

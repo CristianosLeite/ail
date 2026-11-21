@@ -1,9 +1,9 @@
 # a function, its parameter, a label and a top-level variable share a name
 fn x x
-jz x x
-ret x
-label x
-ret 4
+	jz x x
+	ret x
+	label x
+	ret 4
 end
 set 0 as x
 call x x as x

@@ -1,8 +1,8 @@
 # a function may return several values; the call names one variable each
 fn divmod a b
-div a b as q
-mod a b as r
-ret q r
+	div a b as q
+	mod a b as r
+	ret q r
 end
 call divmod 47 5 as q r
 mul q 10 as q

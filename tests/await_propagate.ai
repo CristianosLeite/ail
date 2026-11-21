@@ -6,35 +6,35 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 use "lib/async/io.ai"
 async fn dial port
-await asyncconnect 0x7f000001 port as c
-if c>-4096
-ret c
-end
-call asyncclose c
-ret 0
+	await asyncconnect 0x7f000001 port as c
+	if c>-4096
+		ret c
+	end
+	call asyncclose c
+	ret 0
 end
 async fn fetch port
-await dial port as r
-if r
-ret r-1000
-end
-ret 1
+	await dial port as r
+	if r
+		ret r-1000
+	end
+	ret 1
 end
 async fn leaf v
-await asyncyield
-ret v*2
+	await asyncyield
+	ret v*2
 end
 async fn mid v
-await leaf v+1 as x
-ret x+1
+	await leaf v+1 as x
+	ret x+1
 end
 async fn top v
-await mid v as x
-await mid x as y
-ret y
+	await mid v as x
+	await mid x as y
+	ret y
 end
 async fn nothing
-await asyncyield
+	await asyncyield
 end
 call asynclisten 0x7f000001 0 as l
 call asyncport l as port

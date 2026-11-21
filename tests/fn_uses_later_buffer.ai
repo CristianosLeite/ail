@@ -1,5 +1,5 @@
 fn f
-storeb b 5
+	storeb b 5
 end
 call f
 loadb b as x

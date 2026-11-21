@@ -14,3 +14,8 @@
 - [x] 2026-11-20 — The redesign of `docs/REDESIGN.md`: seed bootstrap and removal of stage0, infix expressions and `while`, instruction selection, corpus and compiler rewritten; report in `docs/performance.md` ([seed](../architecture/seed-bootstrap.md), [syntax](../architecture/expression-syntax.md))
 - [ ] 2026-11-20 — `collatz` is 12.6% behind C; closing it needs analysis across statements (a loop-invariant address in a register, a scaled index, folding one branch into another)
 - [ ] 2026-11-19 — Compare the tiktoken counts with Claude's tokenizer ([page](../architecture/token-cost-measurement.md))
+- [x] 2026-11-20 — Port the Python tools to AIL ([page](../architecture/tools-in-ail.md))
+- [x] 2026-11-20 — Native asynchronous execution: runtime, `async fn` and `await`, pool, channels, measurements ([page](../architecture/async-runtime.md))
+- [x] 2026-11-20 — "Source style and editor tooling" of `docs/TODO.md`: convention, `build/tools/indent`, VS Code extension, every source indented ([page](../architecture/source-style.md))
+- [ ] 2026-11-20 — Load the VS Code extension of `editors/vscode/` into the editor and check the grammar there; keep indentation in `fuse` and `infix` ([page](../architecture/source-style.md))
+- [ ] 2026-11-20 — Keep in registers the variables of an async function that cross no `await` ([page](../architecture/async-runtime.md))

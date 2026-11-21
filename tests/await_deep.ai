@@ -2,11 +2,11 @@
 # of its own and none on the stack
 use "lib/async/task.ai"
 async fn down n
-ifz n
-ret 0
-end
-await down n-1 as x
-ret x+1
+	ifz n
+		ret 0
+	end
+	await down n-1 as x
+	ret x+1
 end
 await down 10000 as r
 sys exit_group r==10000

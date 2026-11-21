@@ -44,6 +44,7 @@ $(B)/tools/%: tools/%.ai $(B)/ailc
 TL := lib/io.ai lib/bytes.ai lib/file.ai
 
 $(B)/tools/hashcol: lib/io.ai
+$(B)/tools/indent: $(TL)
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.ai tools/lib/flow.ai
 $(B)/tools/randvars: $(TL) lib/proc.ai tools/lib/rng.ai
 $(B)/tools/perf: $(TL) lib/proc.ai tools/lib/rng.ai tools/lib/fmt.ai
@@ -76,7 +77,7 @@ ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
-	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; \
+	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
 	tests/par.sh || f=1; AILC=$(B)/ailc tests/async.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; \

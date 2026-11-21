@@ -1,19 +1,19 @@
 # functions that tail to each other and have no ret never return: a
 # call may name any results, and a function with a ret may tail to them
 fn ping n
-ifz n
-sys exit 7
-end
-tail pong n-1
+	ifz n
+		sys exit 7
+	end
+	tail pong n-1
 end
 fn pong n
-tail ping n
+	tail ping n
 end
 fn stop a
-if a
-ret a a
-end
-tail ping 3
+	if a
+		ret a a
+	end
+	tail ping 3
 end
 call stop 0 as a b
 call ping 3 as a b c d e f

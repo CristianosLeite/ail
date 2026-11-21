@@ -7,11 +7,11 @@ use "lib/async/task.ai"
 use "lib/async/time.ai"
 var got told
 async fn waiter e
-await e as v
-got=v
-await asyncsleep 5000 as r
-told=r
-ret 1
+	await e as v
+	got=v
+	await asyncsleep 5000 as r
+	told=r
+	ret 1
 end
 call asyncclock as t0
 call async 64 0 as e

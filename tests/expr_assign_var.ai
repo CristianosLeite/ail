@@ -1,8 +1,8 @@
 # a var is assigned and changed the same way, also from a function
 var g h
 fn bump n
-g+=n*2
-h=g+1
+	g+=n*2
+	h=g+1
 end
 g=4
 call bump 3

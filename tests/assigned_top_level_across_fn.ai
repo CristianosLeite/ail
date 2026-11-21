@@ -1,8 +1,8 @@
 # a function between two lines of the top level changes nothing for it
 set 4 as x
 fn f
-set 1 as y
-ret y
+	set 1 as y
+	ret y
 end
 call f as y
 add x y as x
