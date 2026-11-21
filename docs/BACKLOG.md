@@ -766,3 +766,6 @@ asked for statements in the compiler.
 
 - [x] Convert between binary32 and binary64: `f4to8 a as x` and
   `f8to4 a as x`, rows of `optab` around `cvtss2sd` and `cvtsd2ss`.
+- [x] Score binary32 where it lies: `fdot4 a p q n as x`, the loop of `fdot`
+  with a `movss` and a `cvtss2sd` between registers for each element of the
+  first run; the bits of `f4to8`, `fmul` and `fadd` in order.

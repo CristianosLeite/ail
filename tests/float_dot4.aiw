@@ -1,0 +1,75 @@
+# fdot4 adds to a start the products of a run of binary32, each made a
+# double, with a run of doubles, each product rounded and then added, in
+# the order of the runs: what a loop of load4, f4to8, fmul and fadd gives
+buf a 32
+buf b 56
+buf c 40
+fn slow s p q n
+	while n
+		load4 p as x
+		f4to8 x as x
+		load q as y
+		fmul x y as x
+		fadd s x as s
+		p+=4
+		q+=8
+		n-=1
+	end
+	ret s
+end
+fn dots s p q n v1 v2 v3 v4 v5
+	fdot4 s p q n as x
+	call slow s p q n as y
+	fdot4 s+v1-v1 p+v2-v2 q+v3-v3 n+v4-v4 as z
+	ret (x==y)+(z==y)+v5
+end
+# 1.5 times 4 and 2.25 times 0.5 after 10: 17.125
+store4 a 0x3fc00000
+store4 a+4 0x40100000
+store b 0x4010000000000000
+store b+8 0x3fe0000000000000
+fdot4 0x4024000000000000 a b 2 as x
+r=x==0x4031200000000000
+# a product that is not rounded before it is added would give another
+# sum: (1+2^-23) times (1+2^-30) is a tie that goes down, less 1
+store4 a 0x3f800001
+store b 0x3ff0000000400000
+fdot4 0xbff0000000000000 a b 1 as x
+r+=x==0x3e80200000000000
+# no element: the start
+fdot4 0x4000000000000000 a b 0 as x
+r+=x==0x4000000000000000
+# 0.1 times 1 to 7 rounded to binary32, and 1/1 to 1/7
+itof 10 as t
+i=0
+while i<7
+	itof i+1 as x
+	fdiv x t as y
+	f8to4 y as y
+	store4 a+i*4 y
+	itof 1 as y
+	fdiv y x as y
+	store b+i*8 y
+	i+=1
+end
+call dots 0 a b 7 1 2 3 4 0 as x
+call dots 0x3ff0000000000000 a b 7 1 2 3 4 0 as y
+r+=x+y
+# the same seven at an address that is no multiple of 4
+i=0
+while i<28
+	loadb a+i as x
+	storeb c+1+i x
+	i+=1
+end
+fdot4 0 a b 7 as x
+fdot4 0 c+1 b 7 as y
+r+=x==y
+# an infinity and what is no number among the elements go the way of
+# the loop
+store4 a+8 0x7f800000
+call dots 0 a b 7 1 2 3 4 0 as x
+store4 a+12 0x7f800001
+call dots 0 a b 7 1 2 3 4 0 as y
+r+=x+y
+sys exit r

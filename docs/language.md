@@ -291,6 +291,12 @@ end
 
 Each element is added to the sum of those before it, in that order, and a product is rounded before it is added: nothing is taken two at a time, since that would add in another order and give other last digits. What the statements gain is that the sum stays in a floating-point register for the whole run, where the `fadd` of the loop takes it from a general register and back at every element. `s` is any number of bytes, also negative, and 0 adds one double `n` times; with `n` 0 the result is `a`. The addresses are not checked.
 
+```
+fdot4 a p q n as x
+```
+
+`fdot4` is `fdot` for data kept as [binary32](#single-precision): the `n` elements from `p` on are binary32, 4 bytes each, and those from `q` on doubles, 8 bytes each. Each binary32 is made a double as `f4to8` makes it, which rounds nothing, multiplied by its double, and the rounded product added to the sum: the bits of the loop above with `load4 p as v`, `f4to8 v as v`, an `fmul` with the double at `q` and the `fadd`, `p` stepped by 4 and `q` by 8. The addresses need no alignment. It is the statement for a score against stored vectors: the query is widened once into doubles, and each vector is read where it lies.
+
 ### Atomic operations
 
 ```

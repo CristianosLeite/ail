@@ -55,6 +55,7 @@ Or put it in `examples/foo.aiw` and run `make build/foo`.
 | `f4to8 a as x`, `f8to4 a as x` | An IEEE binary32, held in the low 32 bits, as a double, and a double rounded to one |
 | `padd psub pmul pdiv pmadd` as `op p q r` | The same arithmetic on two doubles at once, from the addresses `q` and `r` to `p`; `pmadd` adds the products to what is there |
 | `fsum a p n s as x`, `fdot a p q n as x` | The doubles of a run added to `a` one after the other, and the products of two runs, the sum kept in a floating-point register |
+| `fdot4 a p q n as x` | The same sum of products with the first run kept as binary32, each element made a double where it is read |
 | `xadd p v as x`, `cas p old new as x` | Atomic add and compare-and-swap on the 64 bits at `p` |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
 | `local b 64` | 64 bytes in the frame of the current function; `b` is their address until it returns |

@@ -198,6 +198,7 @@ That is the general way, and what the table below shows. The statements that onl
 | `pmadd` | the two loads / `mulpd xmm0, xmm1` / `movupd xmm1, [rax]` / `addpd xmm1, xmm0` / `movupd [rax], xmm1` |
 | `fsum` | `movq xmm0, rax` / `test rsi, rsi` / `jz` over / `addsd xmm0, [rdi]` / `add rdi, rdx` / `dec rsi` / `jnz` back / `movq rax, xmm0` |
 | `fdot` | the same around `movsd xmm1, [rdi]` / `mulsd xmm1, [rsi]` / `addsd xmm0, xmm1`, both addresses stepped by 8, the count in `rdx` |
+| `fdot4` | the loop of `fdot` with `movss xmm1, [rdi]` / `cvtss2sd xmm1, xmm1` for the load, the first address stepped by 4. Not `cvtss2sd xmm1, [rdi]`: that form keeps the high half of `xmm1`, so every round would wait for the product of the one before |
 | `xadd` | `lock xadd [rax], rdi` / `mov rax, rdi` |
 | `cas` | `mov rcx, rax` / `mov rax, rdi` / `lock cmpxchg [rcx], rsi` / `sete al` / `movzx eax, al` |
 | `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
