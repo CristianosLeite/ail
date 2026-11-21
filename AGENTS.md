@@ -101,6 +101,7 @@ A tool written in AIL is `tools/<name>.aw`, compiled by `build/ailc` after the b
 - `eq ne lt le gt ge` as `op a b as x`: 64-bit comparison, unsigned order, result `1` or `0`.
 - `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq`: the same values read as IEEE doubles; no float literals.
 - `padd psub pmul pdiv` as `op p q r`: the two doubles at the address `p` become the sums, differences, products, quotients of the two at `q` and the two at `r`; `pmadd p q r` adds the two products to those at `p`. No `as`; unaligned, unchecked, both read before the write, the same bits as the statements on one double. They are plain rows of `optab` with three operands and the flag `AS_NONE`, SSE2 between memory and `xmm0`/`xmm1`.
+- `fsum a p n s as x`, `fdot a p q n as x`: `a` plus the `n` doubles from the address `p` on, `s` bytes apart, added one after the other, and `a` plus the products of the `n` doubles at `p` with those at `q`, 8 bytes apart, each rounded and then added; the bits of the loop of `fadd` (and `fmul`), with the sum in `xmm0` for the whole run. Rows of `optab` with four operands whose code is a loop.
 - `xadd p v as x`, `cas p old new as x`: atomic add (old value) and compare-and-swap (1 if stored) on the 64 bits at `p`.
 - `sdiv smod sar` and `slt sle sgt sge`: the signed forms of `div mod shr` and of the four orderings. Nothing is checked: overflow wraps, a zero divisor is `SIGFPE`.
 - `buf name size`: reserves zero-filled writable bytes (rounded up to 8); the name is a constant address. The size is a number or a `const` and may be 0.

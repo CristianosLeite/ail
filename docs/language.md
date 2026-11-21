@@ -246,6 +246,27 @@ end
 
 What such a loop gains is the way of a double: `fadd` takes each from a general register to a floating-point one and back, these read and write memory. The statements keep no value, so they have no `as`. Both values are read before anything is written: `p` may be `q` or `r`, or lie across them. The addresses need no alignment and are not checked, at compile time or after. A number that is to go with every pair is written twice into 16 bytes, a [`local`](#local) or a `buf`, whose address is then `q` or `r`. The instructions are those of SSE2, which every x86-64 processor has.
 
+### A sum in its order
+
+```
+fsum a p n s as x
+fdot a p q n as x
+```
+
+`fsum` adds to the double `a` the `n` doubles that lie from the address `p` on, each `s` bytes behind the one before, one after the other, and `x` is the sum. `fdot` adds to `a` the products of the `n` doubles from `p` on with the `n` from `q` on, both one behind the other, 8 bytes each. `fsum` gives the bits of this loop, and `fdot` those of the same loop with an `fmul` of the two elements before the `fadd`:
+
+```
+x=a
+while n
+	load p as v
+	fadd x v as x
+	p+=s
+	n-=1
+end
+```
+
+Each element is added to the sum of those before it, in that order, and a product is rounded before it is added: nothing is taken two at a time, since that would add in another order and give other last digits. What the statements gain is that the sum stays in a floating-point register for the whole run, where the `fadd` of the loop takes it from a general register and back at every element. `s` is any number of bytes, also negative, and 0 adds one double `n` times; with `n` 0 the result is `a`. The addresses are not checked.
+
 ### Atomic operations
 
 ```

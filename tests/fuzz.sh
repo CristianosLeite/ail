@@ -48,7 +48,7 @@ mutate() {
             "sys set add sub mul div mod and or xor shl shr eq ne lt le gt ge " \
             "slt sdiv sar buf data var const local len at load loadb load2 load4 " \
             "store storeb store2 store4 label jmp jz jnz jeq jlt jsge if ifz ifeq " \
-            "else end fn ret tail call ref callp use alloc free args as itof fadd padd " \
+            "else end fn ret tail call ref callp use alloc free args as itof fadd fsum padd " \
             "xadd cas a b c x y n p 0 1 7 255 4096 -1 0x10 0xffffffffffffffff " \
             "18446744073709551616 0x11111111111111111 -9223372036854775809 " \
             "\"s\" \"\\n\" \"\\x4\" \"\\q\" # \" - _", w, " ")

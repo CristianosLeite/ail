@@ -53,6 +53,7 @@ Or put it in `examples/foo.aw` and run `make build/foo`.
 | `sdiv smod sar`, `slt sle sgt sge` | Division, remainder, right shift and ordering of signed values |
 | `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq` | Arithmetic, conversion and comparison of doubles, kept as their 64 bits |
 | `padd psub pmul pdiv pmadd` as `op p q r` | The same arithmetic on two doubles at once, from the addresses `q` and `r` to `p`; `pmadd` adds the products to what is there |
+| `fsum a p n s as x`, `fdot a p q n as x` | The doubles of a run added to `a` one after the other, and the products of two runs, the sum kept in a floating-point register |
 | `xadd p v as x`, `cas p old new as x` | Atomic add and compare-and-swap on the 64 bits at `p` |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
 | `local b 64` | 64 bytes in the frame of the current function; `b` is their address until it returns |
