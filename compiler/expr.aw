@@ -1255,7 +1255,8 @@ fn erexm w g b x f
 		call eb v|64
 	end
 end
-# ModRM, SIB and displacement of [b + x + d], with g in the reg field
+# ModRM, SIB and displacement of [b + x + d], with g in the reg field; the
+# index x counts 1, 2, 4 or 8 times, by xms
 fn emodm g b x d
 	g=(g&7)<<3
 	b&=7
@@ -1287,7 +1288,7 @@ fn emodm g b x d
 		call eb m|4
 		i=4
 		if x!=16
-			i=x&7
+			i=x&7|xms<<3
 		end
 		call eb i<<3|b
 	else
@@ -1316,20 +1317,22 @@ fn xwidth
 	ret 8
 end
 # Compute the nodes 0 up to e of ex, an address, as base, index and number
-# in xmb, xmx and xmd. A number added or subtracted last is the number, and
-# a variable that has a register, added last, is the index; the rest is
-# computed into a register, which is that of a variable if the rest is one.
+# in xmb, xmx and xmd. A number added or subtracted last is the number;
+# what is then added last is the index if it is a variable that has a
+# register, or such a variable times 2, 4 or 8 or shifted left by 1, 2 or
+# 3, which xms says as the power of two; the rest is computed into a
+# register, which is that of a variable if the rest is one.
 fn xaddr e
 	xmx=16
 	xmd=0
+	xms=0
 	h=e
-	p=(e-1)*32+ex
+	p=(h-1)*32+ex
 	load p as k
 	if k==6
 		load p+8 as o
-		q=p-32
-		load q as rk
-		load q+8 as ra
+		load p-32 as rk
+		load p-24 as ra
 		if rk==1
 			t=0
 			v=0
@@ -1344,16 +1347,45 @@ fn xaddr e
 			if t
 				ifz v+0x80000000>>32
 					xmd=v
-					h=e-2
+					h-=2
 				end
 			end
 		end
+	end
+	p=(h-1)*32+ex
+	load p as k
+	load p+8 as o
+	if (k==6)&(o==3)&(h>=3)
+		q=p-32
+		load q as rk
+		load q+8 as ra
 		if rk==4
-			if o==3
-				call vplace ra as kk pp
+			call vplace ra as kk pp
+			ifz kk
+				xmx=pp
+				h-=2
+			end
+		end
+		# variable, number, * or <<: the three nodes before the +
+		if (rk==6)&(h>=5)
+			load q+16 as li
+			load q-32 as nk
+			load q-24 as n
+			load q-64 as vk0
+			load q-56 as vi
+			t=4
+			if ra==0
+				t=(n==2)+(n==4)*2+(n==8)*3
+			end
+			if ra==5
+				t=n
+			end
+			if (li==h-4)&(nk==1)&(vk0==4)&(t-1<3)
+				call vplace vi as kk pp
 				ifz kk
 					xmx=pp
-					h=e-2
+					xms=t
+					h-=4
 				end
 			end
 		end

@@ -290,6 +290,22 @@ The source of each program, in tokens (`tools/tokens.sh`, the kernel and the two
 | total | 1516 | 1613 | 1783 |
 | relative to AIL | 1.00 | 1.06 | 1.18 |
 
+## Scaled indexes, 2026-11-20
+
+The first step of the follow-up in the backlog. A load or store whose address ends in a variable times 2, 4 or 8, as `load p+i*8` and `load a+c*8+8`, was an `imul`, an `add` and a `mov`; it is one `mov` now, with the variable as a scaled index in the memory operand (`[rbx+rbp*8+8]`), and a number and an index are both taken into the operand where one of them was before. The same full run of `perf` before and after, AIL against C in the geometric mean of the kernel times of each program:
+
+| program | before | after |
+|---|---:|---:|
+| quicksort | 1.818 | 1.856 |
+| mergesort | 2.175 | 2.068 |
+| heapsort | 1.462 | 1.227 |
+| bsearch | 1.085 | 0.882 |
+| hashtab | 1.993 | 1.883 |
+| graph | 1.709 | 1.695 |
+| all 48 kernel times | 1.753 | 1.639 |
+
+`heapsort` and `bsearch` index an array in their inner loops and gain most: the kernel of `heapsort` takes 14 to 31% less time, and `bsearch` on a thousand elements 30% less, which puts it ahead of C there (0.74 and 0.76), while on a million, where the memory decides, it gains 6%. `hashtab` gains 4 to 9% and `mergesort` up to 17% on input in order. `quicksort` walks pointers and has one such address outside its loops, so its times moved by less than 2% either way; its ratio differs by what the C times of the two runs differ. `graph` gained up to 7% at a thousand vertices and lost 7% in one row at a million (`bfs`, few neighbours), within what that row varies between runs of the earlier table. The five CPU-bound programs stay at 1.04 (1.038 and 1.039).
+
 ## Tasks, 2026-11-20
 
 `tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.

@@ -355,7 +355,7 @@ and elapsed times separately. The `hashtab` and `mergesort` prototypes below
 were compared byte for byte on the checked inputs and timed over 15 rounds
 with shuffled run order. See [benchmark method](performance.md#method).
 
-1. [ ] **Emit scaled indexes in loads and stores.** In
+1. [x] **Emit scaled indexes in loads and stores.** In
    [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
    register index scaled by 2, 4 or 8 into the x86-64 memory operand when it
    fits. `load p+i*8` currently emits `imul`, `add` and `mov` in a test with

@@ -76,7 +76,7 @@ var xst xso
 # since the output stood at xflgpos
 var xflg xflgpos
 # the memory of a load or store: base, index (16 for none) and number
-var xmb xmx xmd
+var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
 # address in the source; ename, enamel = the name it is about, or 0;
 # mainend = end of the source from stdin; curunit = 0, or 1 + the file of
