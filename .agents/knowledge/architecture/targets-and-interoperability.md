@@ -1,7 +1,7 @@
 ---
 title: Targets and interoperability
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, docs/TODO.md, stage0/ailc.s, compiler/ailc.aw, compiler/tables.aw]
+sources: [conversation 2026-11-20, docs/BACKLOG.md, stage0/ailc.s, compiler/ailc.aw, compiler/tables.aw]
 status: current
 ---
 # Targets and interoperability

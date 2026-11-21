@@ -1,7 +1,7 @@
 ---
 title: Stage0 functions
 last-verified: 2026-11-19
-sources: [docs/TODO.md functions item 2026-11-19, functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, stage0/ailc.s, tests/fn_*, tests/call_*, tests/buf_*fn*]
+sources: [docs/BACKLOG.md functions item 2026-11-19, functions review 2026-11-19 (REVIEW.md), conversation 2026-11-19, stage0/ailc.s, tests/fn_*, tests/call_*, tests/buf_*fn*]
 status: current
 ---
 

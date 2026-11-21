@@ -1,7 +1,7 @@
 ---
 title: Numerical arrays (lib/nd)
 last-verified: 2026-11-21
-sources: [conversation 2026-11-21, docs/TODO.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tests/nd/gen.py, tests/lib/ndfix.aw, bench/algo/harness.aw, tools/perf.aw, tests/algo.sh]
+sources: [conversation 2026-11-21, docs/BACKLOG.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tests/nd/gen.py, tests/lib/ndfix.aw, bench/algo/harness.aw, tools/perf.aw, tests/algo.sh]
 status: current
 ---
 # Numerical arrays (lib/nd)

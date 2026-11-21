@@ -1,7 +1,7 @@
 ---
 title: Language extensions
 last-verified: 2026-11-19
-sources: [conversation 2026-11-19, docs/TODO.md, stage0/ailc.s, compiler/ailc.aw]
+sources: [conversation 2026-11-19, docs/BACKLOG.md, stage0/ailc.s, compiler/ailc.aw]
 status: current
 ---
 # Language extensions
@@ -14,7 +14,7 @@ status: current
 > algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
 > `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
 
-**Summary.** Decisions taken while implementing the backlog in `docs/TODO.md`, one commit per item, in
+**Summary.** Decisions taken while implementing the backlog in `docs/BACKLOG.md`, one commit per item, in
 both compilers. Each section says what was chosen, why, and what to keep in mind when touching it.
 
 ## Facts
