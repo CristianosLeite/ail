@@ -2,7 +2,7 @@
 #   switch <tasks> <waits>
 # Every task awaits asyncyield <waits> times, so each wait is a task
 # made, two polls and a record given back. One line: the waits in all,
-# milliseconds, and nanoseconds a wait.
+# milliseconds, and nanoseconds a wait, 0 where there is none.
 use "lib/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
@@ -37,5 +37,10 @@ call putn n
 call print " "
 call putn (t1-t0)/1000000
 call print " "
-call putn (t1-t0)/n
+# no wait, no time a wait
+p=0
+if n
+	p=(t1-t0)/n
+end
+call putn p
 call print "\n"

@@ -103,6 +103,13 @@ while [ $t -lt 10 ]; do
     want=$((want + s))
     t=$((t + 1))
 done
+# a count of 0 is no round and no division
+for a in "0 5 5" "5 0 5" "5 5 0"; do
+    timeout --signal=KILL 10 "$tmp/calc" $a > "$tmp/out" || r=1
+    [ "$(cut -d' ' -f2,4 "$tmp/out")" = "0 0" ] || r=1
+done
+timeout --signal=KILL 10 "$tmp/switch" 0 5 > "$tmp/out" || r=1
+[ "$(cat "$tmp/out")" = "0 0 0" ] || r=1
 timeout --signal=KILL 10 "$tmp/calc" 10 10 10 > "$tmp/out" || r=1
 [ "$(cut -d' ' -f1-2 "$tmp/out")" = "$(printf '%u' $want) 1000" ] || r=1
 say async_figures $r

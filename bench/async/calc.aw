@@ -4,7 +4,8 @@
 # loop of <steps> rounds of arithmetic on variables that no wait falls
 # into, which the compiler keeps in registers; the sum goes across the
 # waits and lives in the record of the task. One line: the sum of the
-# results, the rounds in all, milliseconds, and picoseconds a round.
+# results, the rounds in all, milliseconds, and picoseconds a round, 0
+# where a count is 0 and there is no round.
 use "lib/io.aw"
 use "lib/async/task.aw"
 use "lib/async/time.aw"
@@ -55,5 +56,10 @@ call putn n
 call print " "
 call putn (t1-t0)/1000000
 call print " "
-call putn (t1-t0)*1000/n
+# no round, no time a round
+p=0
+if n
+	p=(t1-t0)*1000/n
+end
+call putn p
 call print "\n"
