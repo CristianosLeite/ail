@@ -11,8 +11,8 @@
 # has no escapes: one that ends with a backslash ends there. It does not check the program: an end too
 # many closes nothing, and a block without an end stays open.
 #
-# dtkind and dtstrend are its reading of a line, for a tool that needs
-# the same.
+# dtkind, dtstrend and dtafter are its reading of a line, for a tool
+# that needs the same.
 
 # the words that open a block, each with its length before it
 data dtopen 2 "fn" 5 "async" 5 "while" 2 "if" 3 "ifz"
@@ -61,6 +61,20 @@ fn dtstrend dtp dte dts
 		dtp+=1
 	end
 	ret dts
+end
+
+# whether the line from dtp to dte, which starts outside a string and
+# with no blank, ends inside one: as dtstrend has it, but for a use,
+# whose path has no escapes and ends on its line
+fn dtafter dtp dte
+	if dte-dtp>=4
+		call dtsame dtp 3 "use" as dtr
+		loadb dtp+3 as dtc
+		if dtr&((dtc==32)|(dtc==9))
+			ret 0
+		end
+	end
+	tail dtstrend dtp dte 0
 end
 
 # what the line from dtp to dte, which starts with no blank, does to the
@@ -194,15 +208,7 @@ fn dtindent dtp dtn dto dtf dta dtb
 			ifz dtr
 				ret -1
 			end
-			call dtstrend dts dtle 0 as dtinstr
-			# the path of a use has no escapes and ends on its line
-			if dtle-dts>=4
-				call dtsame dts 3 "use" as dtr
-				loadb dts+3 as dtc
-				if dtr&((dtc==32)|(dtc==9))
-					dtinstr=0
-				end
-			end
+			call dtafter dts dtle as dtinstr
 		end
 		dtp=dtle
 		if dtp<dte

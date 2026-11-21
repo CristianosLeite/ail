@@ -729,15 +729,18 @@ fn main
 		label eol
 		# a line is read without the blanks before it, unless it starts
 		# inside a string
-		ifz instr
+		if instr
+			call dtstrend p q 1 as instr
+		else
 			while p<q
 				loadb p as c
 				jz (c==32)|(c==9) first
 				p+=1
 			end
 			label first
+			# as the formatter has it: no string goes on behind a use
+			call dtafter p q as instr
 		end
-		call dtstrend p q instr as instr
 		store l p
 		store l+8 q-p
 		store l+32 0

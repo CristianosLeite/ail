@@ -83,6 +83,13 @@ cp tests/fuse/in.aw "$tmp/dented.aw" && build/tools/indent "$tmp/dented.aw" &&
     [ "$(cat "$tmp/said")" = "fused 6 blocks 7" ] &&
     build/tools/indent --check "$tmp/dout.aw" > /dev/null
 say tools_fuse_indented $?
+# the path of a use has no escapes: one that ends with a backslash opens
+# no string, and the indented lines behind it are read like any others
+printf 'use "a\\"\nfn f a b\n\tlt a b as c\n\tjz c l\n\tret 1\n\tlabel l\n\tret 0\nend\n' > "$tmp/bs.aw"
+build/tools/fuse "$tmp/bs.aw" "$tmp/bs.out.aw" 2> "$tmp/said" &&
+    [ "$(cat "$tmp/said")" = "fused 1 blocks 1" ] &&
+    [ "$(cat "$tmp/bs.out.aw")" = "$(printf 'use "a\\"\nfn f a b\n\tiflt a b\n\t\tret 1\n\tend\n\tret 0\nend')" ]
+say tools_fuse_use_path_ends_with_backslash $?
 build/tools/fuse tests/fuse/same.aw "$tmp/same.aw" 2> /dev/null &&
     cmp -s "$tmp/same.aw" tests/fuse/same.aw
 say tools_fuse_leaves_alone $?
