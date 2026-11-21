@@ -1,7 +1,7 @@
 ---
 title: Algorithm benchmarks and collections
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, docs/TODO.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/vec.aw, lib/queue.aw, lib/heap.aw, lib/map.aw]
+sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/TODO.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/vec.aw, lib/queue.aw, lib/heap.aw, lib/map.aw]
 status: current
 ---
 # Algorithm benchmarks and collections
@@ -19,7 +19,10 @@ min-heap and a hash map.
   1 the input, 2 the result. A short input or a count of 2^28 or more is status 1.
 - `tests/algo.sh` (in `make test`, which therefore depends on `make all`) checks AIL, and C
   if there is a `gcc`, against `sort(1)` and awk at the counts 0, 1, 2, 3 and 1000. Rust is
-  only compared with C, by `perf` and `tools/bench.sh`.
+  only compared with C, by `perf` and `tools/bench.sh`. `hashtab` is also run at 8 keys of
+  few values and at 261 keys, where a lookup goes round the end of the table; the function
+  `wraps` of the script proves that with a table in shell, so a change to the harness that
+  loses the wrap fails the test instead of passing unseen.
 - Words are compared as 16 hexadecimal digits: awk has no 64-bit integers, and digits of a
   fixed width sort as the numbers do. The script writes its input with octal escapes, since
   the `printf` of dash has no `\x`.
@@ -36,7 +39,7 @@ min-heap and a hash map.
 - `tests/lib_vec_no_memory` and `tests/lib_map_no_memory` reach a refused `alloc` by limiting
   the address space with `setrlimit` (64 MiB), which is not a built-in syscall name: the test
   declares `const setrlimit 160`.
-- The compiler changes that followed, and the figure after each (1.753 to 1.257), are on
+- The compiler changes that followed, and the figure after each (1.753 to 1.201), are on
   [their own page](generated-code-follow-up.md).
 
 ## Why
