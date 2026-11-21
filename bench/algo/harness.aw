@@ -14,9 +14,11 @@
 # its result.
 #
 # A program names its kernels with ref and calls one of algosort,
-# algosearch, algohash and algograph, which do not return an error: they
-# end the program. Every name of this file starts with "algo".
+# algosearch, algohash, algograph and algonum, which do not return an
+# error: they end the program. Every name of this file starts with
+# "algo".
 buf algoin 40
+buf algoks 24
 buf algoout 32
 buf algots 16
 buf algorng 8
@@ -325,4 +327,55 @@ fn algograph algokb algokd
 	store algoout+8 algoy
 	store algoout+16 algoh
 	tail algoend algom algoa algon+1+algox algow algon*2 2
+end
+
+# kernels on numbers: up to three, 0 for none after the last, each given
+# two arrays of doubles, the place for as many results, all zero at
+# first, and the count. With algosq an array has the count times the
+# count of numbers, a square, and a count whose square is 2^28 or more
+# ends the program with the status 1. A number is the lowest 20 bits of
+# the word the shape gives, divided by 1024, less 512: every language
+# gets the same bits. The input is the two arrays, the result the
+# results of the kernels one behind the other.
+fn algonum algoka algokb algokc algosq
+	call algoread as algon algos algor algom
+	algol=algon
+	if algosq
+		algol=algon*algon
+		if algol>>28
+			sys exit 1
+		end
+	end
+	store algoks algoka
+	store algoks+8 algokb
+	store algoks+16 algokc
+	algok=(algoka!=0)+(algokb!=0)+(algokc!=0)
+	call algomem algol*(2+algok) as algoa
+	algow=algoa+algol*16
+	call algofill algoa algol*2 algos
+	itof 1024 as algod
+	itof 512 as algoh
+	algoi=0
+	while algoi<algol*2
+		load algoa+algoi*8 as algov
+		itof algov&0xfffff as algov
+		fdiv algov algod as algov
+		fsub algov algoh as algov
+		store algoa+algoi*8 algov
+		algoi+=1
+	end
+	while algor
+		algoi=0
+		while algoi<algok
+			load algoks+algoi*8 as algop
+			call algonow as algob
+			callp algop algoa algoa+algol*8 algow+algoi*algol*8 algon as algox
+			call algonow as algoe
+			load algoout+8+algoi*8 as algox
+			store algoout+8+algoi*8 algox+algoe-algob
+			algoi+=1
+		end
+		algor-=1
+	end
+	tail algoend algom algoa algol*2 algow algol*algok algok
 end

@@ -194,3 +194,32 @@ pub fn graph(
     input.extend_from_slice(&q);
     end(i.mode, &input, &w, &[y, h]);
 }
+
+pub type Kern = fn(&[f64], &[f64], &mut [f64], usize);
+
+pub fn num(ks: &[Kern], sq: bool) {
+    let mut i = read();
+    let n = i.n;
+    let mut l = n;
+    if sq {
+        l = n * n;
+        if l >> 28 != 0 {
+            exit(1);
+        }
+    }
+    let mut a = vec![0u64; l * 2];
+    fill(&mut i, &mut a);
+    let x: Vec<f64> = a.iter().map(|&v| (v & 0xfffff) as i64 as f64 / 1024.0 - 512.0).collect();
+    let mut r = vec![0f64; l * ks.len()];
+    let mut ns = vec![0u64; ks.len()];
+    for _ in 0..i.runs {
+        for (j, k) in ks.iter().enumerate() {
+            let b = Instant::now();
+            k(&x[..l], &x[l..], &mut r[j * l..(j + 1) * l], n);
+            ns[j] += b.elapsed().as_nanos() as u64;
+        }
+    }
+    let input: Vec<u64> = x.iter().map(|v| v.to_bits()).collect();
+    let result: Vec<u64> = r.iter().map(|v| v.to_bits()).collect();
+    end(i.mode, &input, &result, &ns);
+}
