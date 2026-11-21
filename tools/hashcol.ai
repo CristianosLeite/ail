@@ -19,15 +19,15 @@ buf name 64
 
 # the bucket of the n bytes at p as a name of kind k in the scope sc
 fn bucket p n k sc
-h=2166136261
-while n
-loadb p as c
-h=(h^c)*16777619&0xffffffff
-p+=1
-n-=1
-end
-h^=sc*0x9e3779b1+k&0xffffffff
-ret (h^h>>15)&1048575
+	h=2166136261
+	while n
+		loadb p as c
+		h=(h^c)*16777619&0xffffffff
+		p+=1
+		n-=1
+	end
+	h^=sc*0x9e3779b1+k&0xffffffff
+	ret (h^h>>15)&1048575
 end
 
 # a global name has the kind 1 and the scope 0
@@ -44,8 +44,8 @@ i=n
 label carry
 loadb name+i as c
 if c<122
-storeb name+i c+1
-jmp try
+	storeb name+i c+1
+	jmp try
 end
 storeb name+i 97
 i-=1

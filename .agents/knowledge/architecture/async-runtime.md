@@ -39,7 +39,7 @@ scheduler on several threads.
   the 32-bit distance of a local stays positive behind the record header or the stack slots.
 - Measured (i7-12700H, medians): a wait is 22 ns, a sleeping task 272 bytes, work handed to
   the pool 1.1 to 3.5 us; the echo server carries what the `epoll` server in C carries (about
-  297600 against 295200 round trips a second at 100 connections) in 245 tokens against 503.
+  297600 against 295200 round trips a second at 100 connections) in 259 tokens against 503 (245 before the sources were indented).
 - The examples are in `bench/async/`, not `examples/`: `tools/bench.sh` expects a C and a Rust
   mirror of every file in `examples/`.
 

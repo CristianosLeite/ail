@@ -5,12 +5,12 @@ use "lib/io.ai"
 use "lib/async/task.ai"
 use "lib/async/time.ai"
 async fn tick n ms
-while n
-await asyncsleep ms
-call putn ms
-call print "\n"
-n-=1
-end
+	while n
+		await asyncsleep ms
+		call putn ms
+		call print "\n"
+		n-=1
+	end
 end
 call tick 3 100 as a
 call tick 2 150 as b

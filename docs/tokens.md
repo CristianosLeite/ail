@@ -141,7 +141,7 @@ That decided the [source style](language.md#source-style): one tab a level, set 
 | `join h as x` | 5 |
 | the same with library functions only: `ref steps as p`, `call spawn p lo hi 0 0 0 as h`, `call join h as x` | 25 |
 
-A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.
+A task that is spawned and joined is 12 tokens in two lines, against 25 in three if `spawn` were only a function, which would also need every unused value written, since a call is checked against the parameters. A program pays 6 more once, for `use "lib/task.ai"`. What makes a program with tasks longer is not the forms but the cutting of the work: in the three programs of `bench/par/` the loop that cuts a range into pieces, keeps the handles and adds up the results is 90 of the 107 to 115 tokens added, counted before the programs were indented ([performance](performance.md#tasks-2026-11-20)). A helper that does it for any function would need a function as a value of `spawn`, which the statement does not take; that is left until more programs show the same loop.
 
 ## Async, measured on 2026-11-20
 
@@ -178,8 +178,8 @@ With the statements in the compiler, the programs of `bench/async/` as they are 
 
 | program | AIL | C |
 |---|---:|---:|
-| `timer`: two tasks that print at their own pace | 78 | |
-| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 245 | 503 |
-| `ping`: load for it, with the time of every round trip and its distribution | 614 | |
+| `timer`: two tasks that print at their own pace | 82 | |
+| `echod`: a TCP echo server, a task a connection (`echo.ai` and `echod.ai`) | 259 | 503 |
+| `ping`: load for it, with the time of every round trip and its distribution | 648 | |
 
-The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 245 tokens, 119 are the two functions that serve, 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.
+The server in C (`echod.c`) is written on `epoll` by hand, as the AIL one would be without the library: it keeps no state for a connection and retries a write that finds the socket full in a loop, which the tasks do properly, by waiting. Of the 259 tokens, 133 are the two functions that serve (119 before they were indented), 48 the six `use` lines and 78 the reading of the port and the start. An AI that writes the server writes a loop around `await asyncread` and `await asyncwriteall`; what it does not write is the state of each connection and the table of who waits for what.
