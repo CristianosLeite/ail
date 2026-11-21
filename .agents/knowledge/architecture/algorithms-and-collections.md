@@ -57,6 +57,16 @@ min-heap and a hash map.
 - The compiler changes that followed, and the figure after each (1.753 to 1.201), are on
   [their own page](generated-code-follow-up.md).
 
+- The collections are timed since 2026-11-21 by `examples/collseq.aw` (vec, queue, heap) and
+  `examples/collmap.aw` (put, get, del on one map), with C (by hand, `malloc`) and Rust (`Vec`,
+  `VecDeque`, `BinaryHeap`, `HashMap`) in `bench/`, over `algocoll` of the harness, rows of
+  `perf`, references in `tests/algo.sh`. Chosen by the user: against C and Rust, not AIL alone.
+  At a million keys AIL / C is 1.07 (heap), 1.12 to 1.73 (map), 2.0 to 2.2 (vec, queue). At a
+  thousand keys it is 16 (vec), 10 (queue), 7 (put), because every `alloc` is an `mmap` and
+  every `free` a `munmap`: 10000 pairs in 2000 runs of `collseq`, 34 system calls in all in C
+  (`strace -c`). Geometric mean over 21 kernel times 2.816. A collection made and dropped in
+  a loop is better made once and used again; an allocator that reuses blocks is not in the language.
+
 ## Why
 - **A shared harness instead of programs that stand alone:** the token count of an example is
   then that of the algorithm, and the three languages cannot differ in their input. The
@@ -73,4 +83,3 @@ min-heap and a hash map.
   pop and a push for every change.
 
 ## Open
-- No collection has been timed on its own.

@@ -1111,3 +1111,51 @@ Every variable of an async function lived in the record of its task, since a tas
 | 10 | 2.70 | 2.33 |
 
 A loop between waits is a fifth faster, and still a seventh with a wait every ten rounds. `switch`, a task that only waits and whose one variable is in use across every wait, takes 199 ms for ten million waits where it took 198: a function without such variables saves `rbx` and nothing else, as before. The other programs of [the async section](#async-2026-11-20) have their variables in loops with awaits and are the same code but for that.
+
+## Collections, 2026-11-21
+
+`lib/vec.aw`, `queue.aw`, `heap.aw` and `map.aw` had tests and no time. Two programs now time them over the harness, with the same in C and in Rust: `collseq` pushes every key to a vector and pops them, sends them through a queue with room for 1024, and pushes them to a heap and takes them out in order; `collmap` puts every key into a map with its index, gets each, and deletes each, three kernels on one map. A kernel makes its collection and gives it back inside the clock. In C the collections are written by hand in the program, arrays from `malloc` and `realloc` and a table with the layout, the hash and the growth of `lib/map.aw`; in Rust they are `Vec`, `VecDeque`, `BinaryHeap` and `HashMap` of the standard library. `tests/algo.sh` requires of the three what awk and `sort(1)` make of the keys. Median time of the kernel in milliseconds (first and third quartile):
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| collseq, random, 1000 x 2000 | 58.64 (58.05, 59.16) | 23.01 (22.64, 23.22) | 39.28 (39.04, 39.51) | 2.548 slow |
+| collseq, few, 1000 x 2000 | 57.58 (57.45, 57.92) | 26.97 (26.60, 27.06) | 39.31 (39.18, 39.40) | 2.135 slow |
+| collseq, random, 1000000 x 2 | 227.93 (227.06, 229.17) | 205.20 (204.24, 206.28) | 173.35 (171.62, 175.40) | 1.111 slow |
+| collmap, random, 1000 x 2000 | 129.30 (128.85, 130.63) | 22.73 (21.97, 23.44) | 75.96 (75.65, 76.11) | 5.689 slow |
+| collmap, few, 1000 x 5000 | 77.52 (77.32, 77.75) | 29.39 (28.84, 30.00) | 98.52 (98.26, 98.82) | 2.638 slow |
+| collmap, random, 1000000 x 2 | 266.49 (265.10, 267.37) | 226.32 (225.70, 226.82) | 263.44 (261.16, 265.83) | 1.178 slow |
+| collmap, few, 1000000 x 4 | 81.85 (81.48, 82.25) | 56.64 (56.26, 57.12) | 86.78 (86.34, 87.68) | 1.445 slow |
+
+Geometric mean of AIL / C over 7 inputs: 2.054
+
+Algorithms, median time of the kernel in milliseconds (first and third quartile)
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| collseq vec, random, 1000 x 2000 | 14.27 (14.16, 14.48) | 0.87 (0.87, 0.88) | 1.36 (1.35, 1.37) | 16.358 slow |
+| collseq queue, random, 1000 x 2000 | 9.74 (9.54, 10.02) | 0.96 (0.96, 0.98) | 3.37 (3.35, 3.39) | 10.109 slow |
+| collseq heap, random, 1000 x 2000 | 34.26 (33.92, 34.60) | 20.74 (20.36, 20.98) | 33.98 (33.76, 34.11) | 1.652 slow |
+| collseq vec, few, 1000 x 2000 | 14.30 (14.17, 14.70) | 0.88 (0.87, 0.88) | 1.36 (1.35, 1.37) | 16.309 slow |
+| collseq queue, few, 1000 x 2000 | 9.81 (9.63, 10.03) | 0.97 (0.96, 0.97) | 3.37 (3.35, 3.39) | 10.130 slow |
+| collseq heap, few, 1000 x 2000 | 33.19 (32.97, 33.40) | 24.71 (24.30, 24.77) | 33.99 (33.90, 34.08) | 1.343 slow |
+| collseq vec, random, 1000000 x 2 | 11.97 (11.89, 12.34) | 5.38 (5.32, 5.45) | 5.84 (5.83, 5.93) | 2.227 slow |
+| collseq queue, random, 1000000 x 2 | 5.88 (5.80, 5.95) | 2.93 (2.89, 2.98) | 4.14 (4.09, 4.21) | 2.005 slow |
+| collseq heap, random, 1000000 x 2 | 203.05 (202.05, 203.49) | 190.18 (189.34, 191.28) | 156.37 (154.50, 158.13) | 1.068 |
+| collmap put, random, 1000 x 2000 | 102.91 (102.61, 103.95) | 14.69 (14.11, 15.62) | 45.12 (44.85, 45.27) | 7.007 slow |
+| collmap get, random, 1000 x 2000 | 10.74 (10.66, 10.80) | 3.65 (3.63, 3.68) | 12.25 (12.24, 12.30) | 2.940 slow |
+| collmap del, random, 1000 x 2000 | 15.24 (15.17, 15.36) | 3.79 (3.70, 3.90) | 17.90 (17.86, 18.04) | 4.024 slow |
+| collmap put, few, 1000 x 5000 | 27.98 (27.85, 28.04) | 9.98 (9.90, 10.18) | 34.88 (34.75, 35.03) | 2.802 slow |
+| collmap get, few, 1000 x 5000 | 17.72 (17.65, 17.81) | 8.22 (8.12, 8.34) | 30.21 (30.15, 30.41) | 2.156 slow |
+| collmap del, few, 1000 x 5000 | 31.32 (31.17, 31.56) | 10.60 (10.07, 10.73) | 32.56 (32.44, 32.71) | 2.956 slow |
+| collmap put, random, 1000000 x 2 | 161.87 (161.24, 162.72) | 144.32 (143.94, 144.45) | 93.24 (92.79, 93.75) | 1.122 slow |
+| collmap get, random, 1000000 x 2 | 45.21 (44.76, 45.46) | 34.99 (34.71, 35.39) | 77.94 (76.99, 79.22) | 1.292 slow |
+| collmap del, random, 1000000 x 2 | 50.90 (50.40, 52.20) | 40.09 (39.58, 40.97) | 85.47 (83.24, 87.98) | 1.270 slow |
+| collmap put, few, 1000000 x 4 | 20.97 (20.87, 21.10) | 12.11 (11.98, 12.20) | 26.39 (26.31, 27.08) | 1.731 slow |
+| collmap get, few, 1000000 x 4 | 19.33 (19.22, 19.53) | 13.10 (12.87, 13.18) | 26.55 (26.23, 26.87) | 1.476 slow |
+| collmap del, few, 1000000 x 4 | 34.10 (34.00, 34.33) | 24.83 (24.79, 25.01) | 26.75 (26.63, 27.00) | 1.373 slow |
+
+The geometric mean of AIL / C over the 21 kernel times is 2.816, and it is two different things.
+
+- **At a million keys the collections are 1.07 to 2.2 times C**: the heap 1.07, the map 1.12 to 1.29 on keys that differ and 1.37 to 1.73 on sixteen keys, the vector and the queue 2.0 to 2.2, 6 ns a key against 2.7 for a push and a pop. Against Rust the map is ahead on keys that differ in `get` and `del` (45 and 51 ms for 78 and 85), since `HashMap` computes SipHash, and behind in `put` (162 for 93).
+- **At a thousand keys they are 10 to 16 times C for the vector and the queue, 7 times for `put`.** That is not the code of the collections: it is `alloc`, which is one `mmap` for each call, and `free`, one `munmap`. A run of `collseq` at a thousand keys makes five of each (the vector grows once, the queue has its room, the heap grows once) and a run of `collmap` six, 10000 and 12000 pairs in the 2000 runs, where the C program makes 34 system calls in all, because `malloc` hands out again what was freed (`strace -c`). A vector of a thousand keys costs 7.1 microseconds a run in AIL and 0.44 in C, and nearly all of the difference is those calls and the pages they bring in zeroed. `get` and `del`, which allocate nothing, are 2.9 and 4.0 times C at a thousand keys on keys that differ: a call of `mapget` for each key, where C has the probe in the loop.
+- **What this says for a program**: a collection that lives long costs about what it costs in C; one made and dropped in a loop pays a system call each time it grows, and is better made once and used again. An allocator that keeps freed blocks would change the first table and nothing else; it is not part of the language today, where `alloc` is the system call by design.

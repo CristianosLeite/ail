@@ -233,3 +233,24 @@ static inline int algo_num(algo_kern ka, algo_kern kb, algo_kern kc, int sq)
     memcpy(w, r, l * k * 8);
     return algo_end(a, l * 2, w, l * k, k);
 }
+
+typedef void (*algo_ckern)(const u64 *a, u64 n, u64 *r, void **st);
+
+static inline int algo_coll(algo_ckern ka, algo_ckern kb, algo_ckern kc)
+{
+    algo_read();
+    algo_ckern ks[3] = {ka, kb, kc};
+    u64 n = algo_in[1], k = (ka != 0) + (kb != 0) + (kc != 0);
+    u64 *a = algo_mem(n * (1 + k)), *w = a + n;
+    void *st[8];
+    algo_fill(a, n, algo_in[2]);
+    for (u64 t = algo_in[3]; t; --t) {
+        memset(st, 0, sizeof st);
+        for (u64 i = 0; i < k; ++i) {
+            u64 b = algo_now();
+            ks[i](a, n, w + i * n, st);
+            algo_out[1 + i] += algo_now() - b;
+        }
+    }
+    return algo_end(a, n, w, n * k, k);
+}

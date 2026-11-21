@@ -225,3 +225,23 @@ pub fn num(ks: &[Kern], sq: bool) {
     let result: Vec<u64> = r.iter().map(|v| v.to_bits()).collect();
     end(i.mode, &input, &result, &ns);
 }
+
+// The 64 bytes of the others are a value of the program's choosing here,
+// made anew for each run and dropped behind the clock.
+pub fn coll<S: Default>(ks: &[fn(&[u64], &mut [u64], &mut S)]) {
+    let mut i = read();
+    let n = i.n;
+    let mut a = vec![0u64; n];
+    fill(&mut i, &mut a);
+    let mut w = vec![0u64; n * ks.len()];
+    let mut ns = vec![0u64; ks.len()];
+    for _ in 0..i.runs {
+        let mut st = S::default();
+        for (j, k) in ks.iter().enumerate() {
+            let b = Instant::now();
+            k(&a, &mut w[j * n..(j + 1) * n], &mut st);
+            ns[j] += b.elapsed().as_nanos() as u64;
+        }
+    }
+    end(i.mode, &a, &w, &ns);
+}

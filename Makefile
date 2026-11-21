@@ -28,13 +28,17 @@ $(B)/%: examples/%.aw $(B)/ailc
 
 # The algorithm programs name their harness with use, so they are built
 # again when it changes.
-$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul): bench/algo/harness.aw
+$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul collseq collmap): bench/algo/harness.aw
 
 # Their kernels are files of lib/algo/.
 $(patsubst %,$(B)/%,quicksort mergesort heapsort isort): lib/algo/sort.aw
 $(B)/bsearch: lib/algo/search.aw
 $(B)/hashtab: lib/algo/hash.aw
 $(B)/graph: lib/algo/graph.aw
+
+# The collection programs name the collections.
+$(B)/collseq: lib/vec.aw lib/queue.aw lib/heap.aw
+$(B)/collmap: lib/map.aw
 
 # The array programs also name the library of arrays.
 $(patsubst %,$(B)/%,ndelem ndreduce ndmatmul): lib/nd/array.aw lib/nd/elem.aw
