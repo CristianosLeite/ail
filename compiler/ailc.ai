@@ -98,49 +98,49 @@ buf vlocal 512      # per variable of the function that is a local: 1 + its offs
 buf vlocsz 512      # per local: its size as declared
 buf locfree 560     # per place: the last mention of its variable
 buf loops 22369632    # 1398102 backward jumps of the function: where the source has
-                    # the label, and the jump
+# the label, and the jump
 buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
-                    # value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
+# value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
 buf opd 96          # what is known of the first two values of the statement, 32 bytes
-                    # each: kind (1 number, 2 name plus number, 3 string), then the
-                    # number, or name, length and number; a third entry is scratch
+# each: kind (1 number, 2 name plus number, 3 string), then the
+# number, or name, length and number; a third entry is scratch
 buf vk 2048         # the same per variable of the current scope
 buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
-                    # length, offset, width + 256 for a store
+# length, offset, width + 256 for a store
 buf runend 7456544    # per run of data statements: the address after its last byte
 buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
-                    # the block, asg, and (4 bytes each) 1 for an else part and dead
-                    # at its end (for a while, the number of variables at its head),
-                    # and for a while the address of its first line and the place of
-                    # its value in the source, else 0
+# the block, asg, and (4 bytes each) 1 for an else part and dead
+# at its end (for a while, the number of variables at its head),
+# and for a while the address of its first line and the place of
+# its value in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
 buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
-                    # yet defined, length, next node, scope, index in the table of
-                    # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
-                    # label with jumps but no definition yet)
+# yet defined, length, next node, scope, index in the table of
+# its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
+# label with jumps but no definition yet)
 buf ustart 9586984  # per file of use: where its bytes start,
 buf uendp 9586984   # and end
 buf ucur 9586984    # per use being compiled: curunit outside it
 buf numbuf 24       # a line number in decimal
 buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
 buf ustack 19173968   # per use being compiled: where its line ended, and the end of
-                    # the unit that has it
+# the unit that has it
 buf pathbuf 4096    # the path of a use, with a NUL for open
 buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
-                    # source, variables assigned on every way to it
+# source, variables assigned on every way to it
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
-                    # variables assigned at the jump
+# variables assigned at the jump
 buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
-                    # (4 bytes each) results, 0 for a function with a tail and no ret
-                    # until fin knows, and the head of the list of the tails to it
+# (4 bytes each) results, 0 for a function with a tail and no ret
+# until fin knows, and the head of the list of the tails to it
 buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
-                    # stands in and the next tail to the same function, as index + 1
+# stands in and the next tail to the same function, as index + 1
 buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
-                    # passed on
+# passed on
 buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
-                    # 4-byte counts: values (all ones for ref) and names after "as",
-                    # or for a tail its function with the bit 31 set;
-                    # the shortest line is "await a", 8 bytes for two entries
+# 4-byte counts: values (all ones for ref) and names after "as",
+# or for a tail its function with the bit 31 set;
+# the shortest line is "await a", 8 bytes for two entries
 buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
 buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
 buf exs 8388609      # and as many operators or open parentheses, a byte each
@@ -148,7 +148,7 @@ buf xrows 128        # the rows of the statements of the sixteen operators
 buf exnm 8           # the name of a statement that compares and jumps
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
 buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
-                    # imm32 address, 0 for its address or 1 for its length
+# imm32 address, 0 for its address or 1 for its length
 
 # ---- the functions are files of their own, compiled here in this order:
 # errors, input, tables of names, expressions and their code, output
@@ -166,15 +166,15 @@ q=in+inmax
 label rd
 r=q-p
 ifz r
-call ebig
+	call ebig
 end
 sys read 0 p r as r
 if r
-if r>inmax
-call erd
-end
-p+=r
-jmp rd
+	if r>inmax
+		call erd
+	end
+	p+=r
+	jmp rd
 end
 ie=p
 srcend=p
@@ -193,46 +193,46 @@ jnz d n1
 jeq c 10 n1
 jeq c 35 n2
 if c==13
-call crlf
-label n1
-call adv
-jmp next
-label n2
-call adv
-call pk as c
-jeq c 256 uend
-jeq c 10 next
-jne c 13 n2
-call crlf
-jmp n2
+	call crlf
+	label n1
+	call adv
+	jmp next
+	label n2
+	call adv
+	call pk as c
+	jeq c 256 uend
+	jeq c 10 next
+	jne c 13 n2
+	call crlf
+	jmp n2
 end
 call pk as c
 call low c as d
 ifz d
-call estmt
+	call estmt
 end
 call name
 call exasg as d
 jnz d asgn
 call kw as r
 ifz r
-call estmt
+	call estmt
 end
 loadb r+1 as f
 if f==255
-loadb r as d
-jeq d 1 fndef
-jeq d 2 bufdef
-jeq d 3 fnend
-jeq d 4 labdef
-jeq d 5 datadef
-jeq d 6 vardef
-jeq d 7 constdef
-jeq d 8 localdef
-jeq d 9 usedef
-jeq d 10 elsedef
-jeq d 12 asydef
-jmp whiledef
+	loadb r as d
+	jeq d 1 fndef
+	jeq d 2 bufdef
+	jeq d 3 fnend
+	jeq d 4 labdef
+	jeq d 5 datadef
+	jeq d 6 vardef
+	jeq d 7 constdef
+	jeq d 8 localdef
+	jeq d 9 usedef
+	jeq d 10 elsedef
+	jeq d 12 asydef
+	jmp whiledef
 end
 cur=r
 ai=0
@@ -244,59 +244,59 @@ call blank c as d
 call ok d
 call blanks
 if f&32
-ifz infn
-call eplace
-end
+	ifz infn
+		call eplace
+	end
 end
 loadb cur+2 as d
 if d&16
-if infn
-call eplace
-end
+	if infn
+		call eplace
+	end
 end
 call xclass as d
 xst=d
 if d
-call exinit
+	call exinit
 end
 if f&16
-loadb cur+2 as d
-if d&32
-# spawn and join call the function named like them; join has only values,
-# spawn the name of a function, whose address is the value before its own
-kwn=ns
-kwl=nl
-if d&64
-# await: a word that is a variable or a global name is the handle, like
-# any value; any other name is a function to call, whose result is
-awf=0
-call pk as c
-call low c as d
-jz d arg
-call excomp as d
-jnz d arg
-q=ip
-call name
-call lvar as r
-if r==-1
-call lbuf as r
-end
-if r!=-1
-ip=q
-jmp arg
-end
-awf=1
-cn=ns
-cl=nl
-jmp tokend
-end
-jz d&2 arg
-ai=1
-end
-call rname
-cn=ns
-cl=nl
-jmp tokend
+	loadb cur+2 as d
+	if d&32
+		# spawn and join call the function named like them; join has only values,
+		# spawn the name of a function, whose address is the value before its own
+		kwn=ns
+		kwl=nl
+		if d&64
+			# await: a word that is a variable or a global name is the handle, like
+			# any value; any other name is a function to call, whose result is
+			awf=0
+			call pk as c
+			call low c as d
+			jz d arg
+			call excomp as d
+			jnz d arg
+			q=ip
+			call name
+			call lvar as r
+			if r==-1
+				call lbuf as r
+			end
+			if r!=-1
+				ip=q
+				jmp arg
+			end
+			awf=1
+			cn=ns
+			cl=nl
+			jmp tokend
+		end
+		jz d&2 arg
+		ai=1
+	end
+	call rname
+	cn=ns
+	cl=nl
+	jmp tokend
 end
 jz f&4 arg
 call pk as c
@@ -331,7 +331,7 @@ jmp next
 label uend
 jz nustk fin
 if infn
-call eend
+	call eend
 end
 nustk-=1
 load nustk*8+ucur as curunit
@@ -345,7 +345,7 @@ jmp next
 # it here, unless a use with the same path was compiled before
 label usedef
 if infn
-call eplace
+	call eplace
 end
 call blank1
 call pk as c
@@ -355,14 +355,14 @@ p=ip
 label u1
 call pk as c
 if c==256
-call estr
+	call estr
 end
 if c!=34
-if c==10
-call estr
-end
-call adv
-jmp u1
+	if c==10
+		call estr
+	end
+	call adv
+	jmp u1
 end
 q=ip-p
 call adv
@@ -378,32 +378,32 @@ nuses+=1
 r=pathbuf
 label u8
 if q
-loadb p as c
-storeb r c
-p+=1
-r+=1
-q-=1
-jmp u8
+	loadb p as c
+	storeb r c
+	p+=1
+	r+=1
+	q-=1
+	jmp u8
 end
 storeb r 0
 epos=ns
 sys open pathbuf 0 0 as f
 ifslt f 0
-call euse
+	call euse
 end
 r=srcend
 label u4
 q=in+inmax-srcend
 ifz q
-call ebig
+	call ebig
 end
 sys read f srcend q as c
 ifslt c 0
-call euse
+	call euse
 end
 if c
-srcend+=c
-jmp u4
+	srcend+=c
+	jmp u4
 end
 sys close f
 epos=0
@@ -434,29 +434,29 @@ jeq c 35 a1
 call blank c as d
 jnz d a2
 if c!=13
-jnz xst xarg
-jeq c 34 str
-call excomp as d
-jnz d earg
-call low c as d
-jnz d ident
-jeq c 45 num
-call dig c as d
-jnz d num
-call err
+	jnz xst xarg
+	jeq c 34 str
+	call excomp as d
+	jnz d earg
+	call low c as d
+	jnz d ident
+	jeq c 45 num
+	call dig c as d
+	jnz d num
+	call err
 end
 call crlf
 label a1
 jnz wend wclose
 loadb cur+1 as f
 if f&8
-call emlab
+	call emlab
 end
 if f&1
-call eas
+	call eas
 end
 if xst==5
-call xmstore
+	call xmstore
 end
 call xjcond
 call eop
@@ -470,12 +470,12 @@ p+=8
 store p 0
 p+=8
 ifz whead
-store p 0
+	store p 0
 else
-# a while: its first line is behind this jump, and its value sees the
-# variables there are now when it is read again
-store p op+4
-store4 p-4 nv
+	# a while: its first line is behind this jump, and its value sees the
+	# variables there are now when it is read again
+	store p op+4
+	store4 p-4 nv
 end
 p+=8
 store p wsrc
@@ -495,10 +495,10 @@ call no d
 loadb cur+1 as r
 call no r&64
 if r&8
-loadb cur as d
-if ai>=d
-call err
-end
+	loadb cur as d
+	if ai>=d
+		call err
+	end
 end
 call exinit
 call exparse 0
@@ -511,17 +511,17 @@ jmp tokend
 label xarg
 call low c as d
 if d
-q=ip
-call name
-r=cur
-loadb r+1 as f
-if f&8
-loadb r as f
-jge ai f jtarget
-end
-call isas as d
-jnz d capture
-ip=q
+	q=ip
+	call name
+	r=cur
+	loadb r+1 as f
+	if f&8
+		loadb r as f
+		jge ai f jtarget
+	end
+	call isas as d
+	jnz d capture
+	ip=q
 end
 call exparse ai
 ai+=1
@@ -573,8 +573,8 @@ call name
 r=cur
 loadb r+1 as f
 if f&8
-loadb r as f
-jge ai f jtarget
+	loadb r as f
+	jge ai f jtarget
 end
 call isas as d
 jnz d capture
@@ -582,24 +582,24 @@ call atfirst as d
 jnz d atname
 loadb cur+1 as r
 if r&64
-call lbuf as r
-if r==-1
-call mov 0
-r=1
-jmp i9
-end
-call gent r as r
-load r+32 as d
-call no d
-load r+24 as r
-call mov r
-jmp tokend
+	call lbuf as r
+	if r==-1
+		call mov 0
+		r=1
+		jmp i9
+	end
+	call gent r as r
+	load r+32 as d
+	call no d
+	load r+24 as r
+	call mov r
+	jmp tokend
 end
 call lvar as r
 jeq r -1 i2
 store r*8+vlast ip
 ifz asg>>r&1
-call eunasg
+	call eunasg
 end
 call opdp as d
 call cp4 r*32+vk d
@@ -623,20 +623,20 @@ jmp tokend
 label atname
 call lvar as r
 if r!=-1
-load r*8+vlocal as d
-call ok d
-store r*8+vlast ip
-call vmov r 0 139
-ai=1
-load r*8+vlocsz as d
-call mov d
-jmp tokend
+	load r*8+vlocal as d
+	call ok d
+	store r*8+vlast ip
+	call vmov r 0 139
+	ai=1
+	load r*8+vlocsz as d
+	call mov d
+	jmp tokend
 end
 call lbuf as r
 if r!=-1
-call gent r as p
-load p+32 as d
-call no d
+	call gent r as p
+	load p+32 as d
+	call no d
 end
 call elea
 call addref 0
@@ -647,15 +647,15 @@ label i4
 call gent r as p
 load p+32 as d
 if d!=1
-if d==2
-load p+24 as r
-call opdp as d
-store d 1
-store d+8 r
-call mov r
-jmp tokend
-end
-jmp i8
+	if d==2
+		load p+24 as r
+		call opdp as d
+		store d 1
+		store d+8 r
+		call mov r
+		jmp tokend
+	end
+	jmp i8
 end
 load p+16 as r
 call ldvar r
@@ -665,7 +665,7 @@ jmp tokend
 label capture
 loadb cur+1 as r
 if r&2
-call enoas
+	call enoas
 end
 label cp0
 call blanks
@@ -684,7 +684,7 @@ ip=q
 call defvar as p
 load p*8+vlocal as d
 if d
-call edup
+	call edup
 end
 f=0
 label cp3
@@ -707,12 +707,12 @@ call err
 label cp4
 call eol
 if xst
-if xst==4
-call xmload
-jmp next
-end
-call xcap
-jmp next
+	if xst==4
+		call xmload
+		jmp next
+	end
+	call xcap
+	jmp next
 end
 call eop
 r=0
@@ -723,10 +723,10 @@ load d as f
 load d+8 as p
 call areg r as q
 ifz f
-asg|=1<<p
-call prop p
-call vmov p q 137
-jmp cp7
+	asg|=1<<p
+	call prop p
+	call vmov p q 137
+	jmp cp7
 end
 call emem q 1 p 137
 label cp7
@@ -742,13 +742,13 @@ call blank1
 call pk as c
 call low c as d
 if d
-call cname as r
-jmp b2
+	call cname as r
+	jmp b2
 end
 call rdnum as r
 label b2
 if r>0x7fffffff
-call ebuf
+	call ebuf
 end
 call eol
 store p+32 0
@@ -758,7 +758,7 @@ r=r+7>>3<<3
 q=bsssz
 r+=q
 if r>0x7fffffff
-call ebuf
+	call ebuf
 end
 bsssz=r
 p+=16
@@ -770,20 +770,20 @@ jmp next
 # takes one of its variables, whose value is the address
 label localdef
 ifz infn
-call eplace
+	call eplace
 end
 call blank1
 q=nv
 call defvar as r
 if nv==q
-call edup
+	call edup
 end
 call blank1
 call pk as c
 call low c as d
 if d
-call cname as p
-jmp l3
+	call cname as p
+	jmp l3
 end
 call rdnum as p
 label l3
@@ -792,7 +792,7 @@ label l3
 # of a task, and before it lie the slots of the variables and either the
 # values pushed for a call or the 64 bytes of the record
 if p>0x7ffff000
-call ebuf
+	call ebuf
 end
 call eol
 store r*8+vlocsz p
@@ -800,7 +800,7 @@ p=p+7>>3<<3
 store r*8+vlocal loccur+1
 p+=loccur
 if p>0x7ffff000
-call ebuf
+	call ebuf
 end
 loccur=p
 asg|=1<<r
@@ -851,16 +851,16 @@ call pk as c
 call no c==256
 call low c as d
 if d
-call rdname
-call newglob as p
-call tokchk
-f=1
+	call rdname
+	call newglob as p
+	call tokchk
+	f=1
 end
 if op!=dataend
-call eb 233
-datarel=op
-call z 4
-nruns+=1
+	call eb 233
+	datarel=op
+	call z 4
+	nruns+=1
 end
 q=op
 r=0
@@ -873,9 +873,9 @@ jeq c 10 d6
 jeq c 13 d6
 jeq c 35 d6
 if c==34
-call adv
-call sbytes
-jmp d5
+	call adv
+	call sbytes
+	jmp d5
 end
 call rdnum as c
 call no c>255
@@ -888,11 +888,11 @@ label d6
 call ok r
 call eol
 if f
-store p+32 0
-store p+40 nruns
-store p+24 op-q
-store p+16 q-out
-call globdone
+	store p+32 0
+	store p+40 nruns
+	store p+24 op-q
+	store p+16 q-out
+	call globdone
 end
 p=datarel
 q=op
@@ -933,7 +933,7 @@ jeq r -1 j1
 r=(r+labbase)*40+labs
 load r+32 as d
 if d&(asg^-1)
-call eunasgj
+	call eunasgj
 end
 jne pass 1 j2
 load r+24 as r
@@ -945,8 +945,8 @@ jmp j2
 label j1
 call hfind 4 scope as q
 ifz q
-call hadd 4 scope 0 as q
-store q+8 -1
+	call hadd 4 scope 0 as q
+	store q+8 -1
 end
 q+=8
 load q as d
@@ -972,7 +972,7 @@ jmp next
 # registers and open a scope whose first variables are the parameters
 label fndef
 if infn
-call eplace
+	call eplace
 end
 jnz pass f0
 sip=ip
@@ -1011,11 +1011,11 @@ q=op
 p+=16
 store p q
 if fnasy
-call asyent
+	call asyent
 else
-loadb fnregs+pushlen as q
-call cp fnpush q
-call frame 236
+	loadb fnregs+pushlen as q
+	call cp fnpush q
+	call frame 236
 end
 topvars=nv
 nv=0
@@ -1041,20 +1041,20 @@ jeq c 35 f2
 q=nv
 call defvar as r
 if nv==q
-call edup
+	call edup
 end
 asg|=1<<r
 if fnasy
-# the code that makes the task has stored the parameter
-if r>5
-call ecount
-end
-jmp f1
+	# the code that makes the task has stored the parameter
+	if r>5
+		call ecount
+	end
+	jmp f1
 end
 if r<6
-call areg r as f
-call vmov r f 137
-jmp f1
+	call areg r as f
+	call vmov r f 137
+	jmp f1
 end
 call emem 11 2 (fnnpar-r+fnslots+fnregs)*8+fnlocal 139
 call vmov r 11 137
@@ -1072,7 +1072,7 @@ jmp next
 # "async fn ...": a function whose call makes a task, which runs it
 label asydef
 if infn
-call eplace
+	call eplace
 end
 asyn=ns
 asyl=nl
@@ -1090,7 +1090,7 @@ jmp fndef
 label fnend
 jgt nblk blkbase blkend
 ifz infn
-call eplace
+	call eplace
 end
 call eol
 q=fnres
@@ -1103,18 +1103,18 @@ jz fntail e0
 d=0
 label e0
 if fnasy
-# a call gives one result, the task; its own result is 0 here
-store (nfuncs-1)*40+funs+32 1
-call eb 49
-call eb 192
-call cp asyret 11
+	# a call gives one result, the task; its own result is 0 here
+	store (nfuncs-1)*40+funs+32 1
+	call eb 49
+	call eb 192
+	call cp asyret 11
 else
-store (nfuncs-1)*40+funs+32 d
-loadb q+zerolen-1 as p
-call cp zeroes p
-call frame 196
-call popskip as q
-call cp retc+q 11-q
+	store (nfuncs-1)*40+funs+32 d
+	loadb q+zerolen-1 as p
+	call cp zeroes p
+	call frame 196
+	call popskip as q
+	call cp retc+q 11-q
 end
 call resolve
 nfix=fixbase
@@ -1167,68 +1167,68 @@ call eol
 p=(nblk-1)*40+blks
 load p+24 as r
 if r
-# The end of a while: here its value is read again from the source, as the
-# value of a jnz that leads back to the first line of the loop (wclose),
-# and behind that the jump of the head lands. A round is thus one jump. The way
-# back must have assigned what was assigned at the head, like a jump back
-# to a label, and in the first pass over a function the loop is noted for
-# alloc. At the test and after the loop, what is assigned is what the head
-# had.
-ifz dead
-load p+8 as q
-if q&(asg^-1)
-call eunasgj
-end
-end
-if pass==1
-load p+32 as q
-d=nloops*16+loops
-store d q
-store d+8 ip
-nloops+=1
-end
-load p+8 as q
-wasg=q
-asg=q
-dead=0
-wbody=r
-load4 p+20 as q
-wnv=q
-load p+32 as q
-wip=ip
-ip=q
-p=exnm
-store2 p 0x6e6a
-storeb p+2 122
-p=exnm
-ns=p
-nl=3
-call kw as r
-cur=r
-ai=0
-ncap=0
-store opd 0
-store opd+32 0
-call xclass as d
-xst=d
-if d
-call exinit
-end
-wend=1
-jmp arg
+	# The end of a while: here its value is read again from the source, as the
+	# value of a jnz that leads back to the first line of the loop (wclose),
+	# and behind that the jump of the head lands. A round is thus one jump. The way
+	# back must have assigned what was assigned at the head, like a jump back
+	# to a label, and in the first pass over a function the loop is noted for
+	# alloc. At the test and after the loop, what is assigned is what the head
+	# had.
+	ifz dead
+		load p+8 as q
+		if q&(asg^-1)
+			call eunasgj
+		end
+	end
+	if pass==1
+		load p+32 as q
+		d=nloops*16+loops
+		store d q
+		store d+8 ip
+		nloops+=1
+	end
+	load p+8 as q
+	wasg=q
+	asg=q
+	dead=0
+	wbody=r
+	load4 p+20 as q
+	wnv=q
+	load p+32 as q
+	wip=ip
+	ip=q
+	p=exnm
+	store2 p 0x6e6a
+	storeb p+2 122
+	p=exnm
+	ns=p
+	nl=3
+	call kw as r
+	cur=r
+	ai=0
+	ncap=0
+	store opd 0
+	store opd+32 0
+	call xclass as d
+	xst=d
+	if d
+		call exinit
+	end
+	wend=1
+	jmp arg
 end
 call blktop as p
 nblk-=1
 load4 p+16 as d
 if d
-load4 p+20 as d
-jnz d be3
+	load4 p+20 as d
+	jnz d be3
 end
 load p+8 as q
 if dead
-asg=q
-dead=0
-jmp be3
+	asg=q
+	dead=0
+	jmp be3
 end
 asg&=q
 label be3
@@ -1241,12 +1241,12 @@ jmp next
 # its "if" lands here
 label elsedef
 if nblk<=blkbase
-call eplace
+	call eplace
 end
 call eol
 load (nblk-1)*40+blks+24 as d
 if d
-call eplace
+	call eplace
 end
 call eb 233
 r=op
@@ -1254,7 +1254,7 @@ call z 4
 call blktop as p
 load4 p+16 as d
 if d
-call eplace
+	call eplace
 end
 store p r
 q=p+8
@@ -1290,17 +1290,17 @@ store opd+32 0
 call xclass as d
 xst=d
 if d
-call exinit
+	call exinit
 end
 jmp arg
 
 # ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
 label fin
 if infn
-call eend
+	call eend
 end
 if nblk
-call eend
+	call eend
 end
 call cp exit0 9
 rwstart=op-out+4095>>12<<12
@@ -1309,130 +1309,130 @@ call tailres
 p=calls
 r=ncalls
 while r
-call getn p
-epos=ns
-call lfn as c
-if c==-1
-call efn
-end
-c=c*40+funs
-load4 p+24 as q
-jeq q 0xffffffff c5
-load c+24 as d
-ifz d==q
-call eargc
-end
-load4 c+32 as d
-load4 p+28 as q
-if q&0x80000000
-# a tail: its function returns what the target does, so the two counts
-# are one, unless the target never returns
-load4 (q&0x7fffffff)*40+funs+32 as q
-if d
-if d!=q
-call eresf
-end
-end
-else
-# a function that never returns may be asked for any number
-ifz d
-d=6
-end
-if q>d
-call eresf
-end
-end
-load c+16 as c
-load p+16 as q
-store4 q c-q-4
-jmp c7
-label c5
-load c+16 as c
-load p+16 as q
-store4 q c-q-4
-label c7
-p+=32
-r-=1
+	call getn p
+	epos=ns
+	call lfn as c
+	if c==-1
+		call efn
+	end
+	c=c*40+funs
+	load4 p+24 as q
+	jeq q 0xffffffff c5
+	load c+24 as d
+	ifz d==q
+		call eargc
+	end
+	load4 c+32 as d
+	load4 p+28 as q
+	if q&0x80000000
+		# a tail: its function returns what the target does, so the two counts
+		# are one, unless the target never returns
+		load4 (q&0x7fffffff)*40+funs+32 as q
+		if d
+			if d!=q
+				call eresf
+			end
+		end
+	else
+		# a function that never returns may be asked for any number
+		ifz d
+			d=6
+		end
+		if q>d
+			call eresf
+		end
+	end
+	load c+16 as c
+	load p+16 as q
+	store4 q c-q-4
+	jmp c7
+	label c5
+	load c+16 as c
+	load p+16 as q
+	store4 q c-q-4
+	label c7
+	p+=32
+	r-=1
 end
 p=refs
 r=nrefs
 while r
-load p+24 as f
-if f==3
-load p as q
-q=q*8-8+rwstart
-jmp r7
-end
-call getn p
-epos=ns
-call lbuf as c
-if c==-1
-call eund
-end
-call gent c as c
-load c+32 as d
-if d
-call eund
-end
-load c+16 as q
-load c+40 as d
-ifz f
-jnz d r7
-q=q+ngv*8+rwstart
-label r7
-load p+16 as d
-store4 d q-(d-out+4)
-jmp r8
-end
-jnz f!=2 r6
-jz d r6
-load d*8+runend-8 as d
-q=d-q
-jmp r5
-label r6
-load c+24 as q
-label r5
-load p+16 as d
-store4 d q
-label r8
-p+=32
-r-=1
+	load p+24 as f
+	if f==3
+		load p as q
+		q=q*8-8+rwstart
+		jmp r7
+	end
+	call getn p
+	epos=ns
+	call lbuf as c
+	if c==-1
+		call eund
+	end
+	call gent c as c
+	load c+32 as d
+	if d
+		call eund
+	end
+	load c+16 as q
+	load c+40 as d
+	ifz f
+		jnz d r7
+		q=q+ngv*8+rwstart
+		label r7
+		load p+16 as d
+		store4 d q-(d-out+4)
+		jmp r8
+	end
+	jnz f!=2 r6
+	jz d r6
+	load d*8+runend-8 as d
+	q=d-q
+	jmp r5
+	label r6
+	load c+24 as q
+	label r5
+	load p+16 as d
+	store4 d q
+	label r8
+	p+=32
+	r-=1
 end
 p=chks
 r=nchks
 while r
-call getn p
-load4 p+28 as d
-epos=d+in
-call lbuf as c
-jeq c -1 k4
-call gent c as c
-load c+32 as d
-jnz d k4
-load c+40 as d
-if d
-load p+24 as q
-if q&256
-call eacc
-end
-load d*8+runend-8 as d
-load c+16 as q
-d-=q
-jmp k6
-end
-load c+24 as d
-label k6
-load p+16 as q
-if q>=d
-call eacc
-end
-d-=q
-loadb p+24 as q
-jle q d k4
-call eacc
-label k4
-p+=32
-r-=1
+	call getn p
+	load4 p+28 as d
+	epos=d+in
+	call lbuf as c
+	jeq c -1 k4
+	call gent c as c
+	load c+32 as d
+	jnz d k4
+	load c+40 as d
+	if d
+		load p+24 as q
+		if q&256
+			call eacc
+		end
+		load d*8+runend-8 as d
+		load c+16 as q
+		d-=q
+		jmp k6
+	end
+	load c+24 as d
+	label k6
+	load p+16 as q
+	if q>=d
+		call eacc
+	end
+	d-=q
+	loadb p+24 as q
+	jle q d k4
+	call eacc
+	label k4
+	p+=32
+	r-=1
 end
 epos=-1
 q=op-out
@@ -1443,13 +1443,13 @@ store out+144 rwstart
 c=ngv*8+bsssz
 store out+160 c
 if c+rwstart>0x7fffffff
-call ebuf
+	call ebuf
 end
 p=out
 label w1
 sys write 1 p q as c
 ifz c-1<q
-call ewr
+	call ewr
 end
 p+=c
 q-=c
