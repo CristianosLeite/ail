@@ -347,6 +347,41 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    3.5 times C, since their order of adding is kept. No further dtypes,
    indexing, file formats or array syntax until a program needs them
    ([results](performance.md#after-the-measurements)).
+6. [ ] **Keep ordered floating-point accumulators in XMM registers.** Prototype
+   compiler support for keeping the running value of `ndsum` and `nddot` in
+   XMM across iterations. The current `fadd` moves its operands from general
+   registers and moves the result back on every addition. Preserve index
+   order and round the multiply and add separately in `nddot`. The current
+   kernels take 3.35–3.53 times as long as the C loops. Measure the prototype
+   against both baselines and check the compiler fixed point.
+7. [ ] **Use packed operations on reversed contiguous views.** In `ndrun`,
+   start at the lowest address when the result and vector operands all have
+   a stride of −8 bytes and any scalar operands have stride zero. Reuse the
+   existing forward packed loops and keep the general strided path. A
+   prototype gave a 3.8x speedup at 1,000 elements and 2.1–2.4x at a million.
+   Compare bits for odd lengths, scalar broadcasts and exact in-place views.
+8. [ ] **Reduce setup cost for small contiguous vectors.** Add a direct path
+   for nonempty contiguous rank-one doubles when the output is disjoint
+   from both inputs, including scalar operands. Share the arithmetic loops
+   and preserve shape, broadcasting and alias checks in the general path.
+   Reusing descriptors saved 5–9% at 1,000 elements. With descriptors already
+   reused, the direct path saved another 11–13% at 1,000 elements and 26–28%
+   at 16. Report timings with descriptor setup inside and outside the clock.
+9. [ ] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
+   four `pmadd` operations per iteration, followed by packed and scalar
+   tails. A prototype cut single-core kernel time by 19% at side 100 and 7%
+   at side 1,000. Preserve the order of `k` and compare bits for odd widths,
+   views and the parallel path.
+10. [ ] **Measure task granularity for matrix multiplication.** Compare
+    `ndmatmul` and `ndmatmulp` over worker and task counts. On the
+    i7-12700H, side 1,000 took 252 ms serially and 39 ms with 20 tasks,
+    while four tasks beat 20 at side 30. Measure with a cold and a reused
+    pool, include rectangular shapes, and document when parallel calls
+    pay off.
+
+Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
+integers, transposes and mixed strides when checking for regressions beyond
+the contiguous and reversed double workloads measured so far.
 
 ## Algorithm benchmarks and collection APIs
 
