@@ -355,6 +355,11 @@ end
 # Doubles one behind the other go two at a time, with ndx twice in ndkk
 fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 	local ndkk 16
+	# no element: the end less 8 would lie before the start, and at an
+	# address below 8 behind every address
+	ifz ndn
+		ret 0
+	end
 	if (nds==8)&(ndt==8)
 		nde=ndp+ndn*8
 		ndu=ndq-ndp
