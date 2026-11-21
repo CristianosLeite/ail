@@ -1004,8 +1004,9 @@ call llab as r
 call nodup r
 r=nlabels
 # a label that a jump went back to in the first pass is the first line
-# of a loop
-if pass==2
+# of a loop. Not in a body compiled in place: its labels have the numbers
+# that later labels of the function get, and the byte is for those
+if (pass==2)&(ilon==0)
 	loadb lback+r as d
 	if d
 		storeb lback+r 0
