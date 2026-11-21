@@ -1,0 +1,54 @@
+# an element is found by one index for each axis, each below the length
+# of its axis; an element may be 0, so a second result says there is one;
+# what is no array has no element
+use "lib/io.aw"
+use "lib/nd/array.aw"
+buf a 176
+buf e 176
+buf ix 24
+call ndmat a 3 4 as r
+i=0
+while i<3
+	j=0
+	while j<4
+		store ix i
+		store ix+8 j
+		call ndset a ix i*10+j as r
+		j+=1
+	end
+	i+=1
+end
+load a as p
+s=0
+i=0
+while i<12
+	load p+i*8 as x
+	s=s*3+x
+	i+=1
+end
+call putn s
+store ix 2
+store ix+8 1
+call ndget a ix as x b
+call ndat a ix as q c
+store ix+8 4
+call ndget a ix as y d
+call ndset a ix 1 as f
+store ix 3
+store ix+8 0
+call ndget a ix as y g
+store ix 0
+call ndget a ix as z h
+store ix 18446744073709551615
+call ndat a ix as y k
+call ndget e ix as y l
+call ndset e ix 1 as m
+call print " "
+call putn x
+call print " "
+call putn q-p
+call print " "
+call putn z
+call print "\n"
+call ndfree a
+sys exit r+b+c+h+d+f+g+k+l+m

@@ -13,17 +13,144 @@
 # each; in mode 1 it writes the words of its input and in mode 2 those of
 # its result.
 #
+# The clock is the function __vdso_clock_gettime that the kernel maps
+# into the process, which is what clock_gettime of the C library and
+# Instant::now of Rust call: about 6 ns a reading where the system call
+# takes 45, so that a kernel run often costs the same clock in the three
+# languages. algoclk finds it once; where it is not found the clock is
+# the system call. The function is called with the stack as it is, 8
+# bytes off a multiple of 16 or not, which the vDSO of Linux does not
+# mind; it keeps the registers that hold variables.
+#
 # A program names its kernels with ref and calls one of algosort,
-# algosearch, algohash and algograph, which do not return an error: they
-# end the program. Every name of this file starts with "algo".
+# algosearch, algohash, algograph and algonum, which do not return an
+# error: they end the program. Every name of this file starts with
+# "algo".
 buf algoin 40
+buf algoks 24
 buf algoout 32
 buf algots 16
 buf algorng 8
 
+# the function that reads the clock, the path of the values the kernel
+# gave the process, and the name the vDSO has for its function
+buf algovd 8
+buf algoaux 1024
+data algoauxp "/proc/self/auxv" 0
+data algovdn "__vdso_clock_gettime" 0
+
+# the clock by a system call, called as the function of the vDSO is
+fn algosysc algoz algoc algop
+	sys clock_gettime algoc algop
+end
+
+# find the clock of the vDSO: the kernel maps that file into every
+# process and gives its address as the value 33 (AT_SYSINFO_EHDR) of the
+# auxiliary vector. It is an ELF file: the program headers name the
+# dynamic table, that the symbols, their names and (in the hash table)
+# their count. Without any of those the clock stays the system call.
+fn algoclk
+	ref algosysc as algof
+	store algovd algof
+	sys open algoauxp 0 0 as algof
+	ifslt algof 0
+		ret 0
+	end
+	algon=0
+	label more
+	sys read algof algoaux+algon 1024-algon as algor
+	ifsgt algor 0
+		algon+=algor
+		jlt algon 1024 more
+	end
+	sys close algof
+	algob=0
+	algoi=0
+	while algoi+16<=algon
+		load algoaux+algoi as algot
+		if algot==33
+			load algoaux+algoi+8 as algob
+		end
+		algoi+=16
+	end
+	ifz algob
+		ret 0
+	end
+	# the distance of the file from its addresses, and the dynamic table
+	load algob+32 as algop
+	algop+=algob
+	load2 algob+54 as algoe
+	load2 algob+56 as algok
+	algod=0
+	algox=0
+	algoh=0
+	while algok
+		load4 algop as algot
+		if (algot==1)&(algoh==0)
+			load algop+8 as algox
+			load algop+16 as algov
+			algox=algob+algox-algov
+			algoh=1
+		end
+		if algot==2
+			load algop+16 as algod
+		end
+		algop+=algoe
+		algok-=1
+	end
+	ifz (algod!=0)&algoh
+		ret 0
+	end
+	algod+=algox
+	algoh=0
+	algos=0
+	algoy=0
+	load algod as algot
+	while algot
+		load algod+8 as algov
+		if algot==4
+			algoh=algov+algox
+		end
+		if algot==5
+			algos=algov+algox
+		end
+		if algot==6
+			algoy=algov+algox
+		end
+		algod+=16
+		load algod as algot
+	end
+	ifz (algoh!=0)&(algos!=0)&(algoy!=0)
+		ret 0
+	end
+	load4 algoh+4 as algok
+	while algok
+		load4 algoy as algop
+		load2 algoy+6 as algot
+		algop+=algos
+		algoi=0
+		loadb algop as algoa
+		loadb algovdn as algoc
+		while (algoa==algoc)&(algoa!=0)
+			algoi+=1
+			loadb algop+algoi as algoa
+			loadb algovdn+algoi as algoc
+		end
+		if (algoa==algoc)&(algot!=0)
+			load algoy+8 as algov
+			store algovd algov+algox
+			ret 1
+		end
+		algoy+=24
+		algok-=1
+	end
+	ret 0
+end
+
 # the monotonic clock in nanoseconds
 fn algonow
-	sys clock_gettime 1 algots
+	load algovd as algof
+	callp algof 0 1 algots as algos
 	load algots as algos
 	load algots+8 as algon
 	ret algos*1000000000+algon
@@ -41,6 +168,7 @@ end
 
 # read the five words; the count, the shape, the runs and the mode
 fn algoread
+	call algoclk
 	algon=0
 	while algon<40
 		sys read 0 algoin+algon 40-algon as algor
@@ -325,4 +453,55 @@ fn algograph algokb algokd
 	store algoout+8 algoy
 	store algoout+16 algoh
 	tail algoend algom algoa algon+1+algox algow algon*2 2
+end
+
+# kernels on numbers: up to three, 0 for none after the last, each given
+# two arrays of doubles, the place for as many results, all zero at
+# first, and the count. With algosq an array has the count times the
+# count of numbers, a square, and a count whose square is 2^28 or more
+# ends the program with the status 1. A number is the lowest 20 bits of
+# the word the shape gives, divided by 1024, less 512: every language
+# gets the same bits. The input is the two arrays, the result the
+# results of the kernels one behind the other.
+fn algonum algoka algokb algokc algosq
+	call algoread as algon algos algor algom
+	algol=algon
+	if algosq
+		algol=algon*algon
+		if algol>>28
+			sys exit 1
+		end
+	end
+	store algoks algoka
+	store algoks+8 algokb
+	store algoks+16 algokc
+	algok=(algoka!=0)+(algokb!=0)+(algokc!=0)
+	call algomem algol*(2+algok) as algoa
+	algow=algoa+algol*16
+	call algofill algoa algol*2 algos
+	itof 1024 as algod
+	itof 512 as algoh
+	algoi=0
+	while algoi<algol*2
+		load algoa+algoi*8 as algov
+		itof algov&0xfffff as algov
+		fdiv algov algod as algov
+		fsub algov algoh as algov
+		store algoa+algoi*8 algov
+		algoi+=1
+	end
+	while algor
+		algoi=0
+		while algoi<algok
+			load algoks+algoi*8 as algop
+			call algonow as algob
+			callp algop algoa algoa+algol*8 algow+algoi*algol*8 algon as algox
+			call algonow as algoe
+			load algoout+8+algoi*8 as algox
+			store algoout+8+algoi*8 algox+algoe-algob
+			algoi+=1
+		end
+		algor-=1
+	end
+	tail algoend algom algoa algol*2 algow algol*algok algok
 end

@@ -1,0 +1,82 @@
+# integers wrap at 64 bits in every kernel; a divisor with a 0 among its
+# elements is refused and nothing is written, the lowest integer by -1
+# stays what it is, and a mean of integers is a double
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+use "tests/lib/ndshow.aw"
+const top 0x7fffffffffffffff
+const low 0x8000000000000000
+buf a 176
+buf b 176
+buf c 176
+buf f 176
+buf k 176
+buf ix 8
+buf sh 16
+call ndvec a 4 as r
+call ndkind a 2 as r
+call ndvec b 4 as r
+call ndkind b 2 as r
+call ndvec c 4 as r
+call ndkind c 2 as r
+call ndfill a top
+call count b 1 1
+# the highest integer plus 1 is the lowest, and so on
+call ndadd c a b as s
+load c as p
+load p as x
+load p+24 as y
+call putn x==low
+call putn y==low+3
+call ndmul c a b as t
+load p+8 as x
+call putn x==0-2
+call ndsum a as x u
+call putn x==top*4
+call nddot a b as x v
+call putn x==top*10
+call print " "
+# a 0 among the divisors: refused, c as it was; without it -7 / 2 is -3
+call count c 9 0
+store ix 2
+call ndset b ix 0 as w
+call nddiv c a b as d
+call showi c
+call ndset b ix 2 as w
+call count a -7 5
+call nddiv c a b as e
+call showi c
+# the lowest integer by -1, and 5 by -1
+call ndfill a low
+store ix 3
+call ndset a ix 5 as w
+call ndscalar k -1
+call ndkind k 2 as w
+call nddiv c a k as g
+load p as x
+load p+24 as y
+call putn x==low
+call putn y==0-5
+call print " "
+# the mean of 1 2 3 4 and of the rows of 1 2 / 3 4, as doubles
+call count a 1 1
+call ndmean a as x h
+call showx x
+store sh 2
+store sh+8 2
+call ndreshape a a 2 sh as l
+call ndvec f 2 as m
+call ndmeanax f a 1 as n
+call show f
+# a result of integers for the means is refused
+call ndslice c c 0 0 2 1 as o
+call ndmeanax c a 1 as q
+call putn q
+call print "\n"
+call ndfree a
+call ndfree b
+call ndfree c
+call ndfree f
+sys exit r+s+t+u+v+w+e+g+h+l+m+n+o+d

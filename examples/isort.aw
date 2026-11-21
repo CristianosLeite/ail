@@ -1,6 +1,8 @@
 # fill 30000 numbers from a seed of 8 bytes read from stdin, sort them
-# by insertion and write a 64-bit checksum of the order as 8 bytes;
+# by insertion (sortins of lib/algo/sort.aw) and write a 64-bit checksum
+# of the order as 8 bytes;
 # exit status 1 on failure
+use "lib/algo/sort.aw"
 const count 30000
 buf b 8
 buf a 240000
@@ -13,20 +15,7 @@ while i<count
 	store a+i*8 x>>33
 	i+=1
 end
-i=1
-while i<count
-	p=a+i*8
-	load p as x             # the number to place
-	while p!=a
-		load p-8 as v
-		jle v x place
-		store p v               # a larger one moves up
-		p-=8
-	end
-	label place
-	store p x
-	i+=1
-end
+call sortins a count
 n=0
 i=0
 while i<count

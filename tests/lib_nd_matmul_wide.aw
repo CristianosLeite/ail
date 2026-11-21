@@ -1,0 +1,87 @@
+# a row of the product is added eight doubles a round, then two, then
+# one: for results of 1 to 20 and of 33 columns the bits must be those
+# of the same product into a result with its columns backwards, which
+# is added one double at a time, of the product in tasks, and of the
+# product of views whose elements lie apart
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+use "lib/task.aw"
+use "lib/nd/par.aw"
+use "tests/lib/ndcheck.aw"
+buf a 176
+buf b 176
+buf o 176
+buf p 176
+buf q 176
+buf t 176
+buf u 176
+buf rb 176
+buf rp 176
+fn fill x s
+	call ndsize x as n
+	load x as q
+	i=0
+	while i<n
+		itof i*7+s as u
+		itof i+3 as v
+		fdiv u v as u
+		store q+i*8 u
+		i+=1
+	end
+end
+# 3 rows of 4 times 4 rows of l
+fn wide l
+	call ndmat a 3 4
+	call ndmat b 4 l
+	call ndmat o 3 l
+	call ndmat p 3 l
+	call ndmat q 3 l
+	call fill a 1
+	call fill b 11
+	call ndmatmul o a b as r
+	# one at a time
+	call ndslice rb b 1 0 l -1
+	call ndslice rp p 1 0 l -1
+	call ndmatmul rp a rb as s
+	call differ o p 0 as m
+	bad=m+2-r-s
+	# in tasks
+	call ndmatmulp q a b 3 as s
+	call differ o q 0 as m
+	bad+=m+1-s
+	# l rows of 4 with the axes exchanged is 4 rows of l whose elements
+	# lie apart, and the result may lie so too
+	call ndmat t l 4
+	call ndtrans u b
+	call ndput t u as s
+	call ndtrans u t
+	call ndfill q 0
+	call ndmatmul q a u as r
+	call differ o q 0 as m
+	bad+=m+2-r-s
+	call ndfree t
+	call ndmat t l 3
+	call ndtrans u t
+	call ndmatmul u a b as r
+	call differ o u 0 as m
+	bad+=m+1-r
+	call ndfree t
+	call ndfree a
+	call ndfree b
+	call ndfree o
+	call ndfree p
+	call ndfree q
+	ret bad
+end
+l=1
+while l<21
+	call wide l as x
+	call putn x
+	l+=1
+end
+call wide 33 as x
+call putn x
+call print "\n"
+sys exit_group 0

@@ -193,6 +193,10 @@ That is the general way, and what the table below shows. The statements that onl
 | `fadd` `fsub` `fmul` `fdiv` | `movq xmm0, rax` / `movq xmm1, rdi` / the `sd` instruction / `movq rax, xmm0` |
 | `fsqrt` `itof` `ftoi` | `sqrtsd`, `cvtsi2sd`, `cvttsd2si` between `rax` and `xmm0` |
 | `flt` `fle` `feq` | `ucomisd` / `seta`, `setae`, or `sete` and not parity / `movzx eax, al` |
+| `padd` `psub` `pmul` `pdiv` | `movupd xmm0, [rdi]` / `movupd xmm1, [rsi]` / the `pd` instruction / `movupd [rax], xmm0` |
+| `pmadd` | the two loads / `mulpd xmm0, xmm1` / `movupd xmm1, [rax]` / `addpd xmm1, xmm0` / `movupd [rax], xmm1` |
+| `fsum` | `movq xmm0, rax` / `test rsi, rsi` / `jz` over / `addsd xmm0, [rdi]` / `add rdi, rdx` / `dec rsi` / `jnz` back / `movq rax, xmm0` |
+| `fdot` | the same around `movsd xmm1, [rdi]` / `mulsd xmm1, [rsi]` / `addsd xmm0, xmm1`, both addresses stepped by 8, the count in `rdx` |
 | `xadd` | `lock xadd [rax], rdi` / `mov rax, rdi` |
 | `cas` | `mov rcx, rax` / `mov rax, rdi` / `lock cmpxchg [rcx], rsi` / `sete al` / `movzx eax, al` |
 | `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |

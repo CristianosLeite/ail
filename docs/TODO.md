@@ -273,6 +273,269 @@ a small internal interface for compiler-generated code.
    server. Measure source tokens, throughput, latency and memory per task
    on representative workloads before broadening the API.
 
+## Native numerical arrays
+
+Port NumPy's core array model to AIL on x86-64 Linux. Use `ndarray` views,
+broadcasting and elementwise operations as the reference for a compact
+library under `lib/nd/`. Programs bring it in with `use` and call prefixed
+functions. The implementation uses AIL's existing memory operations and
+scalar floating-point statements and runs without Python or BLAS.
+[NumPy copies and views](https://numpy.org/doc/stable/user/basics.copies.html)
+and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
+
+1. [x] **Establish the array descriptor and memory contract.** Follow the
+   collection libraries with caller-owned, zero-initialized descriptors and
+   no top-level initialization. Record dtype, rank, shape, signed byte
+   strides, the data origin and the backing storage bounds. Start with
+   row-major contiguous `f64` arrays and rank-1 and rank-2 workloads. Check
+   shape products, allocation sizes and offsets before accessing storage.
+   Define owned arrays and borrowed views, with the backing storage kept
+   alive by the caller until all views are finished. Free owned storage
+   and reset its descriptor. Return errors explicitly and preserve the
+   descriptor on failure.
+2. [x] **Add views and elementwise kernels.** Support basic slicing,
+   transpose and reshape of contiguous arrays as metadata operations, and
+   provide an explicit copy for materializing a view. Use one strided
+   traversal for same-shape and broadcast operations, with a flat loop for
+   contiguous inputs. Match dimensions from the right and use zero input
+   strides for expanded axes, including scalar operands. Start with add,
+   subtract, multiply and divide. Write to caller-provided outputs so
+   buffers can be reused across operations. Allow exact in-place matches
+   for elementwise kernels, reject other output overlap with inputs, and
+   reject output views that map multiple elements to one address.
+3. [x] **Add reductions and matrix products.** Implement sum and mean over
+   the whole array and along one axis, and add vector dot products and 2-D
+   matrix multiplication. Specify empty axes, NaNs, infinities and the
+   accumulation order. Evaluate pairwise summation against the scalar
+   baseline. Add `i64` with explicit conversions once the `f64` kernels
+   and fixtures are in place. Define integer overflow before extending
+   the reductions to integers.
+4. [x] **Verify the semantics and measure the kernels.** Check shapes,
+   negative strides, empty and singleton axes, incompatible broadcasting,
+   aliasing, overflow and allocation failure in `tests/lib_nd_*`. Generate
+   reference fixtures with a pinned NumPy version and commit the expected
+   results so `make test` runs offline without Python. Use tolerances for
+   floating-point results and check special values separately. Extend the
+   `perf` method to measure elementwise operations, reductions and matrix
+   products on identical inputs against C (`-O3`) and, in an optional run,
+   NumPy. Check results before timing, report kernel and end-to-end time
+   separately, and count caller tokens for equivalent workloads. Document
+   the API and results in [language.md](language.md) and
+   [performance.md](performance.md).
+   Done on 2026-11-21: the tests `lib_nd_ref_*` compare the library with
+   NumPy 2.3.5 through `tests/lib/ndfix.aw`, which `tests/nd/gen.py`
+   writes; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
+   kernels take 3.65 times as long as the loops of C in the geometric
+   mean of 14 times, 1.24 times where memory is the limit and up to 10
+   times at a thousand numbers; a caller is 608 tokens against 636 in C
+   ([results](performance.md#numerical-arrays-2026-11-21)).
+5. [x] **Optimize based on measurements.** Compare cache blocking for matrix
+   multiplication and coarse tasks with disjoint outputs using `spawn` and
+   `join`. Use the scalar baseline to evaluate selective SIMD support and
+   keep a scalar fallback if new instructions are added. Check numerical
+   behavior and the compiler fixed point for any code generation changes.
+   Use concrete workloads to decide when to add more dtypes, advanced
+   indexing, `.npy` I/O, linear algebra or FFTs, and use caller token counts
+   to decide whether array syntax is worth adding.
+   Done on 2026-11-21: a number as an operand has a loop over words; the
+   statements `padd`, `psub`, `pmul`, `pdiv` and `pmadd` compute two
+   doubles at once from memory to memory with the bits of one at a time,
+   and the kernels use them, which brings the geometric mean of AIL/C
+   over the 14 kernels from 3.650 to 2.175; `ndmatmulp` multiplies in
+   tasks, 5.5 times faster at a side of 1000 on 20 processors. Blocks in
+   the product gained 4% and were left out, and `sum` and `dot` stay at
+   3.5 times C, since their order of adding is kept. No further dtypes,
+   indexing, file formats or array syntax until a program needs them
+   ([results](performance.md#after-the-measurements)).
+6. [x] **Keep ordered floating-point accumulators in XMM registers.** Prototype
+   compiler support for keeping the running value of `ndsum` and `nddot` in
+   XMM across iterations. The current `fadd` moves its operands from general
+   registers and moves the result back on every addition. Preserve index
+   order and round the multiply and add separately in `nddot`. The current
+   kernels take 3.35–3.53 times as long as the C loops. Measure the prototype
+   against both baselines and check the compiler fixed point.
+   Done on 2026-11-21: `fsum` and `fdot` are the loop as one statement, with
+   the sum in `xmm0` for the whole run and the bits of the loop of `fadd`;
+   `sum` and `dot` take 1.00 to 1.03 times the time of C
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+7. [x] **Use packed operations on reversed contiguous views.** In `ndrun`,
+   start at the lowest address when the result and vector operands all have
+   a stride of −8 bytes and any scalar operands have stride zero. Reuse the
+   existing forward packed loops and keep the general strided path. A
+   prototype gave a 3.8x speedup at 1,000 elements and 2.1–2.4x at a million.
+   Compare bits for odd lengths, scalar broadcasts and exact in-place views.
+   Done on 2026-11-21: `ndrun` turns such a run round; 3.7 to 4.0 times
+   less time at 1,000 elements and 2.0 to 2.3 at a million, the time of the
+   arrays forwards, with the bits of a loop over the indices
+   (`tests/lib_nd_reversed`;
+   [results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+8. [x] **Reduce setup cost for small contiguous vectors.** Add a direct path
+   for nonempty contiguous rank-one doubles when the output is disjoint
+   from both inputs, including scalar operands. Share the arithmetic loops
+   and preserve shape, broadcasting and alias checks in the general path.
+   Reusing descriptors saved 5–9% at 1,000 elements. With descriptors already
+   reused, the direct path saved another 11–13% at 1,000 elements and 26–28%
+   at 16. Report timings with descriptor setup inside and outside the clock.
+   Done on 2026-11-21: `ndelem` calls `ndrun` at once for such arrays. With
+   the clock of the harness taken off, a call with its descriptors ready
+   takes 19 ns instead of 64 at 16 elements and 15% less at 1,000; setup
+   inside the clock adds 25 ns, 8% at 1,000
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+9. [x] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
+   four `pmadd` operations per iteration, followed by packed and scalar
+   tails. A prototype cut single-core kernel time by 19% at side 100 and 7%
+   at side 1,000. Preserve the order of `k` and compare bits for odd widths,
+   views and the parallel path.
+   Done on 2026-11-21: four `pmadd` a round, then pairs, then one. The
+   kernel takes 19% less time at side 100, 22% at 300 and 12% at 1,000, and
+   the same at 30; `tests/lib_nd_matmul_wide` compares the bits
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+10. [x] **Measure task granularity for matrix multiplication.** Compare
+    `ndmatmul` and `ndmatmulp` over worker and task counts. On the
+    i7-12700H, side 1,000 took 252 ms serially and 39 ms with 20 tasks,
+    while four tasks beat 20 at side 30. Measure with a cold and a reused
+    pool, include rectangular shapes, and document when parallel calls
+    pay off.
+    Done on 2026-11-21: `bench/nd/mmtasks.sh` times seven shapes at nine
+    pairs of threads and tasks. With the pool started tasks pay from 13
+    microseconds of work, with few tasks; the first call starts the
+    threads and pays from a side of about 100; side 1,000 takes 222 ms on
+    one thread and 39 ms in 20 tasks
+    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+11. [x] **Report requested and actual matrix task counts.** With 16 result
+    rows and 14 requested tasks, `ndmatmulp` uses blocks of two rows and
+    creates eight tasks. Show both counts in `bench/nd/mmtasks.sh` and the
+    performance table. Measure the current split before changing it. A
+    prototype that distributed the extra rows across blocks reduced the
+    warm-pool median from 74.7 to 58.4 microseconds in this case and
+    increased it for some other shapes.
+    Done on 2026-11-21: `ndruns` gives the rows of a run and the tasks
+    made, `ndmatmulp` uses it and `bench/nd/mmtasks.sh` prints both
+    counts. A balanced split was 5% to 19% faster where a task is ten
+    microseconds or more, up to 58% slower at a side of 30, and 1.00 on
+    the geometric mean of the eleven cells that differ, so the split
+    stays
+    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+12. [x] **Validate the first parallel matrix result before reusing its
+    buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
+    compares the output only after later calls have overwritten it.
+    Compare the first result against the serial result before running
+    the warm-pool calls. Keep both result checks outside the timed
+    regions and verify that corrupting either result fails the benchmark.
+    Done on 2026-11-21: the first result is compared before the later
+    calls and the last one after them, both outside the clocks; a wrong
+    double stored after either makes the benchmark print 1 and
+    `mmtasks.sh` end with `differ` and the status 1.
+13. [x] **Validate the call that sets the warm minimum.** The last call
+    can overwrite an incorrect earlier result whose time is still the
+    minimum. In `bench/nd/mmtasks.aw`, capture the status of each timed
+    call and check it after stopping the clock. When a call would lower
+    the minimum, compare its output bit for bit with the serial result
+    before accepting its time and before reusing the output buffer.
+    Keep the first- and last-call checks. Verify that an incorrect
+    intermediate call that would set the minimum makes the script fail
+    even when the last call gives the correct result.
+    Done on 2026-11-21: every timed call's status is counted, and a call
+    faster than all before it is compared with the serial result before
+    its time is taken. A wrong element stored after the first later
+    call, with its time made 0, prints 1 and the time of a right call,
+    and `mmtasks.sh` ends with `differ`; before, it printed a time of 0
+    and no error.
+14. [x] **Label the reported count as planned row blocks.** Rename
+    `tasks made` to `row blocks` in `bench/nd/mmtasks.sh` and use the
+    same term in `bench/nd/mmtasks.aw` and `performance.md`. Keep the
+    requested task count beside it and show the count returned by
+    `ndruns`. Explain that the serial path runs one block on the
+    caller and a failed `spawn` also leaves its block to the caller.
+    Check that the report shows one row block for a serial call and
+    eight for 16 rows with 14 tasks requested.
+    Done on 2026-11-21: the column and the texts say row blocks, the
+    count `ndruns` plans, with the note on the caller's block; the
+    report shows 1 for a call with one task and 8 for 16 rows with 14
+    tasks asked for.
+
+Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
+integers, transposes and mixed strides when checking for regressions beyond
+the contiguous and reversed double workloads measured so far.
+
+## Harness clock and an algorithm library
+
+The AIL harness reads the clock with `sys clock_gettime`, a system call,
+while the C and Rust harnesses read it through the vDSO. On the i7-12700H a
+kernel that does nothing takes 91 ns per run in AIL and 12 ns in C. Kernel
+times summed over many short runs therefore overstate AIL/C: each `ndelem`
+kernel at 1,000 elements and 20,000 runs carries 1.8 ms of clock in AIL
+against 0.24 ms in C. See
+[the call cost measurements](performance.md#array-kernels-after-the-first-round-2026-11-21).
+The fix touches every algorithm program, so move their kernels into a
+library in the same pass and leave the examples as callers.
+
+1. [x] **Make the clock cost the same in the three harnesses.** Compare
+   three ways: time a run around nothing in each harness and write the
+   total as an extra word that `perf` subtracts and reports; call
+   `__vdso_clock_gettime` from AIL, found through `AT_SYSINFO_EHDR` in the
+   auxiliary vector behind `args` and called with `callp`; or read the
+   clock with the raw system call in C and Rust as well. For the vDSO call,
+   check the argument registers, the stack alignment and which registers
+   survive. Keep `harness.aw`, `harness.h` and `harness.rs` the same in
+   what they time, and update `tests/algo.sh` and `perf` if the output
+   gains a word. Accept the change when an empty kernel costs the same
+   within a few nanoseconds in the three languages.
+   Done on 2026-11-21: the harness in AIL finds `__vdso_clock_gettime`
+   through `/proc/self/auxv` and calls it with `callp`. An empty kernel
+   costs 13 ns a run in AIL, 12 in C and 12 in Rust, where it was 91, 12
+   and 12; the system call in all three gave 91, 91 and 89, and the
+   subtraction would have left the system call in every run
+   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
+2. [x] **Rerun the kernel tables the clock skewed.** The bias of a row is
+   its runs times the difference per run, so it matters for the rows with
+   thousands of short runs in the algorithm and array tables and not for
+   those at a million elements. Rerun `build/tools/perf` with the corrected
+   harness, report the old and new ratios side by side, and note in the
+   earlier sections of [performance.md](performance.md) which figures
+   included the clock. Leave the historical tables as measured.
+   Done on 2026-11-21: over the 62 kernel times AIL / C is 1.201 where
+   the system call gave 1.266, and over the 30 rows of a thousand runs
+   or more 1.286 against 1.425; the rows of fewer runs did not move.
+   The three earlier sections carry a note
+   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
+3. [x] **Move the algorithm kernels into a library.** Put the sorts
+   (`quicksort`, `mergesort`, `heapsort` and `isort`), the lower-bound
+   search, the open-addressing table of `hashtab` and the two traversals
+   of `graph` under `lib/algo/`. Follow the library rules: a prefix on
+   every function, parameter and variable, no top-level code, no `var`,
+   caller-provided scratch storage and explicit results. Reduce each
+   program in `examples/` to its `use` lines, the adapter the harness
+   calls and the `call algo...` line, as the array programs already are.
+   Keep each algorithm, its memory layout and its output: `tests/algo.sh`
+   must pass unchanged and the results must stay byte-identical to the C
+   and Rust programs. Decide how the fixed table of `hashtab` and the
+   in-place heap of `heapsort` relate to `lib/map.aw` and `lib/heap.aw`,
+   and keep them separate where the benchmark layout differs. Add the new
+   files to the Makefile prerequisites and to `tests/indent.sh`, test the
+   functions on their own in `tests/lib_algo_*` (empty, single, duplicate
+   and already sorted input), and document them in
+   [language.md](language.md).
+   Done on 2026-11-21: `lib/algo/sort.aw`, `search.aw`, `hash.aw` and
+   `graph.aw`, a prefix a file since the harness owns `algo`. The six
+   harness programs compile to the same bytes as before; the heap and
+   the table stay apart from `lib/heap.aw` and `lib/map.aw`, whose
+   layouts are others ([reference](language.md#the-algo-library)).
+4. [x] **Measure what the move changes.** Check that `place` and `lower`
+   are still compiled in place at their calls, which needs the callee
+   before the caller and no global name in its body. Compare kernel times
+   before and after over several placements of the code, since a kernel
+   moved by a few bytes varied by a fifth at 1,000 elements. Report the
+   token counts of a caller and of the library separately against the C
+   and Rust programs, which keep their kernels inline, and update
+   [tokens.md](tokens.md).
+   Done on 2026-11-21: the six harness programs are byte for byte the
+   files they were, so the calls in place and the times are the same;
+   `isort` takes 54.3 ms against 54.6 and from 54.1 to 65.1 over four
+   placements. The six callers are 260 tokens against 1613 in C and
+   1783 in Rust, and their library functions 1793
+   ([results](performance.md#the-algorithm-kernels-in-a-library-2026-11-21)).
+
 ## Algorithm benchmarks and collection APIs
 
 Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)

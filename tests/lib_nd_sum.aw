@@ -1,0 +1,71 @@
+# the sum and the mean of all elements, of arrays and of views with
+# steps and exchanged axes, one element after the other; in pairs the
+# same where every sum is exact
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+use "tests/lib/ndshow.aw"
+buf a 176
+buf v 176
+buf b 176
+buf k 176
+call ndmat a 3 4 as r
+call ramp a 4 2
+# 1 1.5 2 ... 6.5
+call ndsum a as x s
+call showx x
+call ndmean a as x t
+call showx x
+call ndsumpw a as x u
+call showx x
+# the columns 3 and 1, as rows
+call ndslice v a 1 0 4 -2 as w
+call ndtrans v v as w
+call ndsum v as x y
+call showx x
+call ndmean v as x z
+call showx x
+call ndsumpw v as x c
+call showx x
+# 1000 elements: 1 + 2 + ... + 1000, exact either way
+call ndvec b 1000 as d
+call ramp b 4 4
+call ndsum b as x e
+call showx x
+call ndsumpw b as q f
+call putn x==q
+call print " "
+call ndmean b as x g
+call showx x
+# one number
+itof 7 as x
+call ndscalar k x
+call ndsum k as x h
+call showx x
+call ndmean k as x l
+call showx x
+call print "\n"
+# one after the other is another number than in pairs: a million
+# elements of 0.1 are 100000 only nearly, and in pairs more nearly
+call ndfree b
+call ndvec b 1000000 as m
+itof 1 as x
+itof 10 as q
+fdiv x q as x
+call ndfill b x
+call ndsum b as x n
+call ndsumpw b as q o
+itof 100000 as p
+fsub x p as x
+fsub q p as q
+# the errors in units of 2^-40
+itof 0x10000000000 as p
+fmul x p as x
+fmul q p as q
+call showx x
+call showx q
+call print "\n"
+call ndfree a
+call ndfree b
+sys exit r+s+t+u+w+y+z+c+d+e+f+g+h+l+m+n+o

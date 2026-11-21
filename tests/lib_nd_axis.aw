@@ -1,0 +1,68 @@
+# sums and means along one axis: of a table the sums of its columns and
+# of its rows, of three axes each of the three, of views, and into a
+# result that is itself a view with a step
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+use "tests/lib/ndshow.aw"
+buf a 176
+buf c 176
+buf w 176
+buf v 176
+buf p 176
+buf e 176
+buf f 176
+buf sh 24
+call ndmat a 3 4 as r
+call ramp a 0 4
+# 0 1 2 3 / 4 5 6 7 / 8 9 10 11
+call ndvec c 4 as r
+call ndvec w 3 as r
+call ndsumax c a 0 as s
+call show c
+call ndsumax w a 1 as t
+call show w
+call ndmeanax c a 0 as u
+call show c
+call ndmeanax w a 1 as x
+call show w
+# the table with its axes exchanged gives the same the other way round
+call ndtrans v a as y
+call ndsumax c v 1 as z
+call show c
+# rows backwards and every other column from the last: 11 9 / 7 5 / 3 1
+call ndslice v a 0 0 3 -1 as y
+call ndslice v v 1 0 4 -2 as y
+call ndsumax w v 1 as b
+call show w
+# into every other element of the four
+call ndfill c 0
+call ndslice e c 0 0 4 2 as d
+call ndsumax e v 0 as g
+call show c
+# three axes, 2 by 3 by 2: 0 1 / 2 3 / 4 5 // 6 7 / 8 9 / 10 11
+store sh 2
+store sh+8 3
+store sh+16 2
+call ndreshape p a 3 sh as h
+call ndmat f 3 2 as k
+call ndsumax f p 0 as l
+call show f
+call ndfree f
+call ndmat f 2 2 as k
+call ndsumax f p 1 as m
+call show f
+call ndfree f
+call ndmat f 2 3 as k
+call ndmeanax f p 2 as n
+call show f
+# one axis gives an array without axes
+call ndscalar e 0
+call ndsumax e w 0 as o
+call show e
+call ndfree a
+call ndfree c
+call ndfree w
+call ndfree f
+sys exit r+s+t+u+x+y+z+b+d+g+h+k+l+m+n+o

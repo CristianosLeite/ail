@@ -12,6 +12,11 @@
 #              of the key, and -1 for each key that was not
 #   graph      the two orders that awk reaches the vertices in, with a
 #              queue and with a stack of its own
+#   an array   program (ndelem, ndreduce, ndmatmul): the sums and
+#              products that awk computes of the numbers of the input
+#              with loops of its own, each result within 1e-9 of the
+#              sizes, for the counts 0, 1, 2, 3 and 1000, or 30 where
+#              the count is the side of a square
 #   checksum   mode 0 must write the checksum of the result, computed
 #              here, and 8 bytes for each of its kernels
 # Words are compared as 16 hexadecimal digits, which sort as the numbers
@@ -183,6 +188,64 @@ reached() {
     done
 }
 
+# numbered program: kernels on doubles. awk reads the words of the input
+# as doubles (sign, exponent and 52 bits), computes what the program of
+# that name is to compute, and compares the words of the result
+numbered() {
+    name=${1##*/}
+    kernels=3
+    side=30
+    [ "$name" = ndelem ] && side=1000
+    [ "$name" = ndmatmul ] && kernels=1
+    for s in 0 1 2 3; do
+        for n in 0 1 2 3 $side; do
+            l=$n
+            [ "$name" = ndelem ] || l=$((n * n))
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/in")" -eq $((l * 2)) ] || return 1
+            [ "$(wc -l < "$tmp/res")" -eq $((l * kernels)) ] || return 1
+            cat "$tmp/in" "$tmp/res" | awk -v p="$name" -v n=$n -v l=$l '
+                function hex(s,  i, v) {
+                    v = 0
+                    for (i = 1; i <= length(s); i++)
+                        v = v * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+                    return v
+                }
+                function dbl(w,  h, e, m) {
+                    h = hex(substr(w, 1, 3)); e = h % 2048; m = hex(substr(w, 4))
+                    if (e == 0 && m == 0) return 0
+                    return (h >= 2048 ? -1 : 1) * (1 + m / 4503599627370496) * 2 ^ (e - 1023)
+                }
+                NR <= l { a[NR - 1] = dbl($0); next }
+                NR <= l * 2 { b[NR - 1 - l] = dbl($0); next }
+                { r[NR - 1 - l * 2] = dbl($0) }
+                END {
+                    if (p == "ndelem")
+                        for (i = 0; i < n; i++) {
+                            w[i] = a[i] + b[i]; w[n + i] = a[i] * b[i]; w[n * 2 + i] = a[i] * b[0]
+                        }
+                    if (p == "ndreduce" && n) {
+                        for (i = 0; i < l; i++) {
+                            w[0] += a[i]; w[l + i % n] += a[i]; w[l * 2] += a[i] * b[i]
+                        }
+                    }
+                    if (p == "ndmatmul")
+                        for (i = 0; i < n; i++)
+                            for (k = 0; k < n; k++)
+                                for (j = 0; j < n; j++)
+                                    w[i * n + j] += a[i * n + k] * b[k * n + j]
+                    for (i = 0; i < NR - l * 2; i++) {
+                        d = w[i] - r[i]; if (d < 0) d = -d
+                        x = w[i] < 0 ? -w[i] : w[i]; y = r[i] < 0 ? -r[i] : r[i]
+                        if (d > 1e-9 * (x + y)) exit 1
+                    }
+                }' || return 1
+            summed "$1" $n $s $kernels || return 1
+        done
+    done
+}
+
 # each kind program ...: check the programs, and their C forms
 each() {
     kind=$1
@@ -206,17 +269,37 @@ each sorted $sorts
 each searched bsearch
 each hashed hashtab
 each reached graph
+each numbered ndelem ndreduce ndmatmul
 
 # anything but five whole words is refused
 r=0
-for p in $sorts bsearch hashtab graph; do
+for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul; do
     printf 12345678 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
     words 7 268435456 0 1 0 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
 done
+# a square of 2^28 numbers or more as well
+for p in ndreduce ndmatmul; do
+    words 7 16384 0 1 0 | "build/$p" > "$tmp/res"
+    [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
+done
 if [ $r -eq 0 ]
 then echo "ok   algo refuses"
 else echo "FAIL algo refuses"; fail=1
+fi
+
+# the time of every kernel is there: more than nothing, since the clock
+# counts nanoseconds and a kernel is many, and less than the ten seconds
+# a run may take, which a clock that went wrong would not give
+r=0
+for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul; do
+    words 7 100 0 3 0 | "build/$p" | od -An -v -tu8 -w8 | awk '
+        NR > 1 && ($1 == 0 || $1 >= 10000000000) { bad = 1 }
+        END { exit bad || NR < 2 }' || r=1
+done
+if [ $r -eq 0 ]
+then echo "ok   algo clock"
+else echo "FAIL algo clock"; fail=1
 fi
 exit $fail

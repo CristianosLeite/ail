@@ -1,0 +1,109 @@
+# the product of matrices in tasks is the product, bit for bit, for any
+# number of tasks and of threads: none, one, more than rows, more than
+# 64; on views and on integers; it refuses what ndmatmul refuses; and
+# ndruns gives the runs it cuts the rows into
+use "lib/io.aw"
+use "lib/task.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+use "lib/nd/par.aw"
+use "tests/lib/ndcheck.aw"
+buf a 176
+buf b 176
+buf o 176
+buf q 176
+buf v 176
+buf w 176
+fn fill x s
+	call ndsize x as n
+	load x as p
+	i=0
+	while i<n
+		itof i*7+s as u
+		itof i%5+3 as v
+		fdiv u v as u
+		store p+i*8 u
+		i+=1
+	end
+end
+# the runs that rows are cut into: equal but the last, so fewer than
+# the tasks asked for where the rows do not go round
+fn runs n t
+	call ndruns n t as c k
+	call print " "
+	call putn c
+	call print " "
+	call putn k
+end
+# how the product in t tasks differs from the one in q
+fn tasks t
+	call ndfill o 0x7ff8000000000000
+	call ndmatmulp o a b t as r
+	call differ o q 0 as d
+	call putn d+1-r
+end
+call ndmat a 70 5 as r
+call ndmat b 5 9 as r
+call ndmat o 70 9 as r
+call ndmat q 70 9 as r
+call fill a 1
+call fill b 11
+call ndmatmul q a b as r
+call workers 3
+call tasks 0
+call tasks 1
+call tasks 2
+call tasks 3
+call tasks 7
+call tasks 64
+call tasks 69
+call tasks 70
+call tasks 1000
+call workers 0
+call tasks 5
+call workers 16
+call tasks 33
+call print " "
+# views: the rows of a backwards and every other one, into every other
+# row of the result
+call ndslice v a 0 0 70 -2 as s
+call ndslice w o 0 0 70 2 as s
+call ndslice q q 0 0 35 1 as s
+call ndmatmul q v b as s
+call ndfill o 0
+call ndmatmulp w v b 4 as t
+call differ w q 0 as d
+call putn d+1-t
+# integers
+call ndkind a 2 as u
+call ndkind b 2 as u
+call ndkind o 2 as u
+call ndkind q 2 as u
+call ndkind v 2 as u
+call ndkind w 2 as u
+call ndmatmul q v b as u
+call ndmatmulp w v b 6 as x
+call differ w q 0 as d
+call putn d+1-x
+call print " "
+# refused: lengths that do not go together, twice, and two kinds
+call ndmatmulp o b a 3 as c
+call ndmatmulp v v b 3 as e
+call ndkind b 1 as f
+call ndmatmulp w v b 3 as g
+call putn c+e+g
+call runs 16 14
+call runs 16 16
+call runs 70 69
+call runs 70 1000
+call runs 1000 64
+call runs 70 1
+call runs 70 0
+call runs 0 5
+call print "\n"
+call ndfree a
+call ndfree b
+call ndfree o
+# the threads of the pool are still there: end them all
+sys exit_group r+s+u+f

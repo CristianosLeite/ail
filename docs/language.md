@@ -224,6 +224,49 @@ fmul r k as r
 ftoi r as n             # n = 1414
 ```
 
+### Two doubles at once
+
+```
+padd p q r
+psub p q r
+pmul p q r
+pdiv p q r
+pmadd p q r
+```
+
+`p`, `q` and `r` are addresses, and at each lie two doubles, 16 bytes. `padd` makes the two at `p` the sums of those at `q` and at `r`, the first with the first and the second with the second; `psub`, `pmul` and `pdiv` make them the differences, the products and the quotients, `q` first. `pmadd` adds the two products to what is at `p`. Each double is computed as `fadd`, `fsub`, `fmul` and `fdiv` compute one, and `pmadd` as an `fmul` and then an `fadd`, so a loop that takes its doubles two at a time gives the bits that one at a time gives:
+
+```
+i=0
+while i+1<n
+	padd o+i*8 a+i*8 b+i*8  # o[i] = a[i] + b[i], and the same for i+1
+	i+=2
+end
+```
+
+What such a loop gains is the way of a double: `fadd` takes each from a general register to a floating-point one and back, these read and write memory. The statements keep no value, so they have no `as`. Both values are read before anything is written: `p` may be `q` or `r`, or lie across them. The addresses need no alignment and are not checked, at compile time or after. A number that is to go with every pair is written twice into 16 bytes, a [`local`](#local) or a `buf`, whose address is then `q` or `r`. The instructions are those of SSE2, which every x86-64 processor has.
+
+### A sum in its order
+
+```
+fsum a p n s as x
+fdot a p q n as x
+```
+
+`fsum` adds to the double `a` the `n` doubles that lie from the address `p` on, each `s` bytes behind the one before, one after the other, and `x` is the sum. `fdot` adds to `a` the products of the `n` doubles from `p` on with the `n` from `q` on, both one behind the other, 8 bytes each. `fsum` gives the bits of this loop, and `fdot` those of the same loop with an `fmul` of the two elements before the `fadd`:
+
+```
+x=a
+while n
+	load p as v
+	fadd x v as x
+	p+=s
+	n-=1
+end
+```
+
+Each element is added to the sum of those before it, in that order, and a product is rounded before it is added: nothing is taken two at a time, since that would add in another order and give other last digits. What the statements gain is that the sum stays in a floating-point register for the whole run, where the `fadd` of the loop takes it from a general register and back at every element. `s` is any number of bytes, also negative, and 0 adds one double `n` times; with `n` 0 the result is `a`. The addresses are not checked.
+
 ### Atomic operations
 
 ```
@@ -1115,6 +1158,175 @@ call putn a+b
 - **Errors**: `mapput` returns 0 when the kernel has no memory for a new table, and the map is then as it was, every key with its value. The second result of `mapget` says whether the key was there, since a value may be 0.
 - **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
 - **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
+
+## The algo library
+
+The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: sorts, a binary search, a hash table of a fixed size and two walks over a graph. They allocate nothing and return no error, since nothing can fail in them; the caller gives every array, also the ones to work in. The algorithm programs of `examples/` are callers of them. Each file is used by itself and has its own prefix.
+
+| Function | File | Does |
+|---|---|---|
+| `sortquick p q` | `sort.aw` | sorts the words from the address `p` up to `q`, in place |
+| `sortmerge a n t` | `sort.aw` | sorts the `n` words at `a`, with `n` words at `t` to work in; equal words stay in their order |
+| `sortheap a n` | `sort.aw` | sorts the `n` words at `a` in place, as a heap |
+| `sortins a n` | `sort.aw` | sorts the `n` words at `a` in place, by insertion |
+| `searchlower a n k` | `search.aw` | returns the first index of the `n` rising words at `a` whose word is not smaller than `k`, or `n` |
+| `hashplace t m k` | `hash.aw` | returns the address of the place of the key `k` in the table `t`, or of the free place where it goes; `m` is twice the places, less two |
+| `hashfill t m q n` | `hash.aw` | puts the `n` keys at `q` into the table `t` of `m+1` places, each with its index as value |
+| `hashfind t m q n r` | `hash.aw` | writes to `r` the value of each of the `n` keys at `q`, or -1 |
+| `graphbfs off nbr n seen r` | `graph.aw` | writes to `r` the `n` vertices in the order they are reached breadth first |
+| `graphdfs off nbr n seen st r` | `graph.aw` | the same depth first, with the stack `st` |
+
+```
+use "lib/io.aw"
+use "lib/algo/sort.aw"
+use "lib/algo/search.aw"
+buf a 32
+store a 40
+store a+8 7
+store a+16 19
+store a+24 7
+call sortheap a 4
+call searchlower a 4 19 as i
+call putn i
+```
+
+- **Order**: words are compared as unsigned numbers and sorted lowest first. A count of 0 or 1 leaves the words as they are.
+- **Sorts**: `sortquick` takes the median of the first, the middle and the last word as its pivot and puts the words equal to it between the smaller and the larger ones in one pass; it calls itself for the smaller side only, so the calls are no deeper than the logarithm of the count. `sortmerge` merges runs of 1, 2, 4, ... words from one array into the other, from the bottom up, and what it leaves in the work array is not specified; the two arrays must not overlap. `sortheap` makes the words a heap with the largest first and takes that to the end, again and again. `sortins` moves each word down past the larger ones before it: a time of `n*n`, and of `n` for words nearly in order.
+- **Search**: `searchlower` is where the key is, the first of equal words, or where it would go; `n` says that every word is smaller. In words that do not rise it returns some index up to `n`.
+- **Table**: a place is 16 bytes, a key and its value, in bytes of the caller that are zero at first: a power of two of places, of which `hashfill` and `hashfind` take the number less one. The key 0 is a free place, so 0 is no key. A key goes to the place its hash names or to the next free one, round the end; a key put in again gets the new value. Nothing is taken out and the table does not grow, so it must have more places than keys: with every place taken, a key that is not there is looked for without end. The [map library](#the-map-library) is the table that grows, takes keys out and has 0 as a key, at 24 bytes a place.
+- **Graph**: the neighbours of the vertex `v` are the words of `nbr` from the index in word `v` of `off` up to the index in word `v+1`, so `off` has `n+1` words. `seen` is a byte for each vertex that the caller makes zero; both walks begin again at the lowest vertex not reached, so every vertex is written once and its byte is 1 afterwards. `graphbfs` uses `r` as its queue; the stack of `graphdfs` has room for a word an edge and one more, and the neighbour written last is taken first.
+- **Heaps**: `sortheap` is not the [heap library](#the-heap-library), which is a heap that grows in a vector and gives the smallest first; here the heap is the array to be sorted.
+- **Names**: `sort.aw` owns every name that starts with `sort`, `search.aw` those with `search`, `hash.aw` those with `hash` and `graph.aw` those with `graph`.
+
+## The nd library
+
+`lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is 8 bytes, a [double](#floating-point) unless the array is said to be of integers, and has one index for each axis, from 0.
+
+| At | Holds |
+|---:|---|
+| 0 | the address of the element whose indices are all 0 |
+| 8 | the kind of the elements: 1 doubles, 2 integers of 64 bits with a sign; 0 is no array |
+| 16 | the number of axes, 0 to 8 |
+| 24, 32 | the address and the bytes of the storage the elements are in |
+| 40 | 1 if the storage is the array's own |
+| 48 | the length of each axis, 8 words |
+| 112 | the stride of each axis, 8 words: the bytes from an element to the next along that axis, a signed number |
+
+| Function | Does |
+|---|---|
+| `ndnew d r s` | makes `d` an array of zeros with `r` axes whose lengths are the words at `s`, in storage of its own; returns 1 |
+| `ndvec d n`, `ndmat d n m` | the same with one axis of `n` elements, and with `n` rows of `m` |
+| `ndwrap d p b r s` | makes `d` an array of the `b` bytes at `p`, which stay the caller's; returns 1 |
+| `ndfree d` | gives the storage back if it is the array's; `d` is no array then and may be used again |
+| `ndsize d` | returns the number of elements, 0 for what is no array |
+| `ndat d x` | returns the address of the element whose indices are the words at `x`, and 1, or 0 and 0 if there is none |
+| `ndget d x` | returns that element and 1, or 0 and 0 |
+| `ndset d x v` | makes `v` that element; returns 1, or 0 if there is none |
+| `ndslice d s a lo hi st` | makes `d` a view of `s` with, on the axis `a`, the indices from `lo` up to but not `hi`: every `st`-th from `lo` on, or with a negative `st` from `hi-1` on downwards; returns 1 |
+| `ndtrans d s` | makes `d` a view of `s` with the axes in the reverse order; returns 1 |
+| `ndswap d s a b` | makes `d` a view of `s` with the axes `a` and `b` exchanged; returns 1 |
+| `ndreshape d s r sh` | makes `d` a view of `s` with `r` axes whose lengths are the words at `sh`; returns 1 |
+| `ndcontig d` | returns 1 if the elements lie one behind the other, the last index fastest |
+| `ndcopy d s` | makes `d` an array with storage of its own and the elements of `s`, one behind the other; returns 1 |
+| `ndfill d v` | makes every element of `d` the value `v` |
+| `ndkind d k` | reads the elements of `d` as the kind `k` from now on, 1 doubles and 2 integers, with their bits as they are; returns 1, or 0 for what is no array and for another `k` |
+| `ndvalid d` | returns 1 if `d` is an array whose elements all lie in its storage, for 176 bytes a program wrote itself |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+buf a 176
+buf x 16
+call ndmat a 3 4
+store x 2
+store x+8 1
+itof 42 as v
+call ndset a x v
+call ndget a x as w ok
+ftoi w as n
+call putn n
+```
+
+- **Storage**: the element with the indices `i`, `j`, ... is at the address at 0 plus `i` times the first stride plus `j` times the second, and so on. `ndnew` and `ndwrap` lay the elements one behind the other with the last index running fastest (the last stride is 8, each one before it the next times the length of the next axis), so the elements of such an array are also the words at the address at 0, as many as `ndsize` says. An array without axes is one element. An axis of length 0 gives an array without elements.
+- **Views**: `ndslice`, `ndtrans`, `ndswap` and `ndreshape` write 176 bytes and move no element: the view has the storage of `s`, so a store through one is seen through the other, and it never owns that storage. A slice with the step -1 is the axis backwards, with a negative stride; `ndslice v a 0 1 3 1` are the rows 1 and 2 of `a`. `ndreshape` needs elements that lie one behind the other (`ndcontig`) and as many of them as the new lengths give; a view that does not lie so, a transposed one or one with a step, is copied first. `d` and `s` may be the same 176 bytes, which then keep the storage if they owned it; an array that `ndscalar` made has its element in those bytes, where the lengths go, and is refused there, while another `d` takes it. `ndcopy` is the one that moves elements: it takes storage for them, and with `d` and `s` the same it frees what `s` owned.
+- **Errors**: `ndnew` and `ndwrap` return 0 for more than 8 axes, for an axis or a number of elements of 2^60 or more, `ndnew` when the kernel has no memory and `ndwrap` when the bytes are too few for the elements; the 176 bytes are then as they were, an array that was there with every element. `ndat`, `ndget` and `ndset` test each index against the length of its axis, and the second result says whether there was an element, since an element may be 0. The functions that make a view return 0 for an axis the array has not got, for `lo` above `hi` or `hi` above the length, a step of 0, lengths that give another number of elements, and for what is no array, `ndcopy` without memory; `d` is then as it was. Bytes that are no array and not all zero are a fault of the program.
+- **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. A view is good as long as the storage it was made of: the array that owns it is freed last, and `ndfree` of a view frees nothing. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
+- **Names**: the library owns every name that starts with `nd`; a program has no `var` of such a name.
+
+`lib/nd/elem.aw`, used after `lib/nd/array.aw`, is the arithmetic on elements. Every function takes the result first, an array the caller made, and computes as many elements as that has.
+
+| Function | Does |
+|---|---|
+| `ndadd o a b`, `ndsub o a b`, `ndmul o a b`, `nddiv o a b` | makes each element of `o` the sum, difference, product, quotient of the elements of `a` and `b` at its indices; returns 1 |
+| `ndput o a` | makes each element of `o` the element of `a` at its indices; returns 1 |
+| `ndscalar d x` | makes `d` an array without axes whose one element is `x`, kept in the 176 bytes |
+| `ndtoi o a` | makes each element of `o`, an array of integers, the double of `a` at its indices cut off towards 0; returns 1 |
+| `ndtof o a` | makes each element of `o`, an array of doubles, the integer of `a` at its indices as a double; returns 1 |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+buf a 176
+buf k 176
+buf x 16
+call ndmat a 2 3
+itof 3 as v
+call ndfill a v
+itof 2 as v
+call ndscalar k v
+call ndmul a a k
+call ndget a x as w ok
+ftoi w as n
+call putn n
+```
+
+- **Lengths**: `a` and `b` need not have the lengths of `o`. The axes of an array with fewer are matched with the last axes of `o`, and an axis of length 1 gives its one element to every index of that axis of `o`: three elements go with every row of a table of rows of three, a column of length 1 with every column, an array without axes with everything. This is the broadcasting of NumPy, but that the result is given and never made: an axis of `a` or `b` that is neither 1 nor the length in `o`, or more axes than `o` has, is refused.
+- **Storage**: nothing is allocated, so one array serves as the result of one operation after another. `o` may be `a` or `b` or both, or a view of the same elements under the same indices (`ndadd a a b` adds `b` to `a`). Any other storage that `o` shares with `a` or `b` is refused: the lowest and highest address of each are compared, so this also refuses two views whose elements alternate. A result with a stride of 0 on an axis longer than 1 is refused, its elements being one.
+- **Speed**: a call on arrays of doubles with one axis, apart from the result, costs about 20 ns before its loop, and any other call about 60. Arrays that are all taken backwards (a slice with the step -1 of each, or one element) are computed as fast as forwards. Arrays whose elements lie one behind the other, each with as many as `o` or with one, are one loop over the words, in which an array of one element is a number read once and doubles are computed [two at a time](#two-doubles-at-once), with the same bits as one at a time; everything else is a loop along the last axis for each combination of the other indices, at the cost of a call for each.
+- **Integers**: an array is one of doubles when it is made, and of integers after `ndkind d 2`, which is for a new array, all zero in both kinds, or for bits the program wrote as integers. The three arrays of an operation are of one kind, or it is refused; `ndtoi` and `ndtof` are the two that go from one kind to the other, as [`ftoi` and `itof`](#floating-point) do for one value, so a double that is no number or too large becomes the lowest integer. Integers wrap at 64 bits in sums, differences and products, as everywhere in the language. Their quotient has a sign and is cut off towards 0 (-7 by 2 is -3, where NumPy's `//` gives -4); a divisor with a 0 among its elements is refused before anything is written, where a program's own `sdiv` would end it with `SIGFPE`, and the lowest integer by -1, which does not fit, stays the lowest integer. A view has the kind of its array when it is made.
+- **Errors**: 0 for lengths that do not go together, storage shared as above, arrays of two kinds, an integer divisor of 0, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
+
+`lib/nd/reduce.aw`, used after the two, makes one number of many.
+
+| Function | Does |
+|---|---|
+| `ndsum d` | returns the sum of all elements and 1, or 0 and 0 for what is no array |
+| `ndmean d` | returns their mean and 1, or 0 and 0 |
+| `ndsumpw d` | returns the sum, added in pairs, and 1, or 0 and 0 |
+| `ndsumax o d a` | makes each element of `o` the sum of the elements of `d` along its axis `a`; returns 1 |
+| `ndmeanax o d a` | makes each element of `o` their mean; returns 1 |
+| `nddot a b` | returns the sum of the products of the elements of `a` and `b`, two arrays of one axis and the same length, and 1, or 0 and 0 |
+| `ndmatmul o a b` | makes `o` the product of the matrices `a` and `b`; returns 1 |
+| `ndmatmulp o a b t` | the same in `t` tasks, of `lib/nd/par.aw`; returns 1 |
+| `ndruns n t` | how `ndmatmulp` cuts `n` rows for `t` tasks: the rows of a run and the number of runs, the row blocks |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "lib/nd/reduce.aw"
+buf a 176
+buf c 176
+call ndmat a 3 4
+itof 2 as v
+call ndfill a v
+call ndvec c 4
+call ndsumax c a 0
+call ndsum c as w ok
+ftoi w as n
+call putn n
+```
+
+- **Along an axis**: the result is an array of the caller with the lengths of `d` without the axis `a`: for a table, `ndsumax c t 0` gives the sums of the columns in a `c` as long as a row, and `ndsumax r t 1` those of the rows. An array of one axis gives a result without axes ([`ndscalar`](#the-nd-library) makes one). Each of those lengths must be the one of `d`: a result with an axis of length 1 where `d` has more is refused, not given every element as in `ndadd`. The result may be a view, and may not share storage with `d`.
+- **Order**: a sum starts from 0 and adds one element after the other in the order of the indices, the last fastest, and along an axis from the index 0 up, as a loop in C does. NumPy adds in pairs, so the last digits of a long sum can differ from its: a million times 0.1 is 100000.0000013 added so and 99999.9999999998 in pairs, which `ndsumpw` does, halves of halves down to runs of 128 elements at most. A mean is the sum divided by the number of elements.
+- **No element**: the sum of no element is 0 and the mean is 0 divided by 0, no number, also for each element of a result along an axis of length 0.
+- **Special values**: what is no number stays so through a sum, an infinity stays one, and infinities of both signs together are no number, as `fadd` has it; a sum along an axis keeps that to the elements it concerns.
+- **Products**: `ndmatmul` takes three arrays of two axes: `n` rows of `m` elements times `m` rows of `l` give a result of `n` rows of `l`, each element the sum over `k` of the element `i`, `k` of `a` times the element `k`, `j` of `b`, added from 0 in the order of `k`, as `nddot` adds in the order of the index. A column or a row is a matrix with one of them (`ndreshape`, or a slice of one index). Any of the three may be a view; the result may not share storage with `a` or `b`, so a matrix is not multiplied in place, and each of its elements must be at an address of its own: strides of 0, strides that are no multiple of 8, by which elements would share some of their bytes, or strides by which some steps along one axis are some along the other (8 and 8, or 24 and 16 for three rows of four), are refused, since the elements are summed where they lie and, in tasks, by several threads. A product without elements writes nothing and is done at once, whatever the number of its rows, and one over no `k` (`m` is 0) is zeros. Other lengths, another number of axes and such a result are refused with 0 and nothing written; `nddot` returns 0 and 0 for lengths that differ and for arrays that have not one axis.
+- **Speed**: `ndsum`, `ndsumpw`, `ndmean` and `nddot` add doubles with [`fsum` and `fdot`](#a-sum-in-its-order), in the order they promise and in the time of a loop in C. The sums along an axis and the product of matrices compute doubles that lie one behind the other [two at a time](#two-doubles-at-once), since each element of their result is computed alone; the bits are those of one at a time. `ndsum`, `ndmean` and `nddot` add every element to the one sum before it and go one at a time.
+- **Integers**: `ndsum`, `ndsumpw`, `ndsumax`, `nddot` and `ndmatmul` of integers compute in integers, wrapping at 64 bits, and their result is of integers; arrays of two kinds are refused. A mean is always a double: of integers it is the sum of the elements as doubles divided by their number, and the result of `ndmeanax` is an array of doubles whatever `d` is of.
+- **Tasks**: `lib/nd/par.aw`, used after `lib/task.aw` and the three files, has `ndmatmulp o a b t`, the product of matrices in `t` [tasks](#tasks): the rows of the result are cut into runs and each task computes its own, which no other touches, so the result is the bits of `ndmatmul` and what is refused is the same. A run is the rows divided by `t`, rounded up, and the last run what is left, so fewer tasks than `t` are made where the rows do not go round: 16 rows for 14 tasks are 8 runs of 2. `ndruns n t` gives the rows of a run and the number of runs, the row blocks, which is what `ndmatmulp` uses; it is the plan and no count of tasks, since one block alone is computed by the caller and so is a block whose `spawn` fails. At most 64 tasks are made and no more than there are rows; with 0 or 1 the rows are computed by the caller. The threads are those of the pool (`call workers n`), and the calling thread computes too while it waits; the three arrays must be there until the function returns, when every task has ended. On 20 processors a product of side 1000 takes 43 ms in 20 tasks against 238 ms in one, and one of side 30 gains nothing from more than four ([measurements](performance.md#numerical-arrays-2026-11-21)). A program that has run tasks ends with `sys exit_group` or at its last line, since `sys exit` ends only its own thread. With the pool started, tasks pay from some ten microseconds of work, a few of them; a first call, which starts the threads, from some hundred; as many tasks as threads is the number to start from ([measurements](performance.md#array-kernels-after-the-first-round-2026-11-21)).
+- **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
 
 ## The async library
 

@@ -1,7 +1,10 @@
 /* What the algorithm programs of bench/ share; bench/algo/harness.aw
-   says what it does, and this is the same statement for statement. */
+   says what it does, and this is the same statement for statement. The
+   clock is clock_gettime of the C library, which calls the function of
+   the vDSO that the harness in AIL finds and calls itself. */
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -199,4 +202,34 @@ static inline int algo_graph(void (*kb)(const u64 *off, const u64 *nbr, u64 n, u
     algo_out[1] = y;
     algo_out[2] = h;
     return algo_end(a, n + 1 + x, w, n * 2, 2);
+}
+
+typedef void (*algo_kern)(const double *a, const double *b, double *r, u64 n);
+
+static inline int algo_num(algo_kern ka, algo_kern kb, algo_kern kc, int sq)
+{
+    algo_read();
+    algo_kern ks[3] = {ka, kb, kc};
+    u64 n = algo_in[1], l = n, k = (ka != 0) + (kb != 0) + (kc != 0);
+    if (sq) {
+        l = n * n;
+        if (l >> 28)
+            exit(1);
+    }
+    u64 *a = algo_mem(l * (2 + k)), *w = a + l * 2;
+    double *x = calloc(l * 2 ? l * 2 : 1, 8), *r = calloc(l * k ? l * k : 1, 8);
+    if (!x || !r)
+        exit(1);
+    algo_fill(a, l * 2, algo_in[2]);
+    for (u64 i = 0; i < l * 2; ++i)
+        x[i] = (double)(int64_t)(a[i] & 0xfffff) / 1024 - 512;
+    memcpy(a, x, l * 16);
+    for (u64 t = algo_in[3]; t; --t)
+        for (u64 i = 0; i < k; ++i) {
+            u64 b = algo_now();
+            ks[i](x, x + l, r + i * l, n);
+            algo_out[1 + i] += algo_now() - b;
+        }
+    memcpy(w, r, l * k * 8);
+    return algo_end(a, l * 2, w, l * k, k);
 }

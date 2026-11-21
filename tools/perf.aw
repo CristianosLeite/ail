@@ -45,27 +45,30 @@ use "tools/lib/fmt.aw"
 data progs 5 "hello" 4 "echo" 5 "count" 4 "fact" 4 "loop"
 data 7 "compute" 5 "sieve" 7 "collatz" 3 "fnv" 5 "isort"
 data 9 "quicksort" 9 "mergesort" 8 "heapsort" 7 "bsearch" 7 "hashtab" 5 "graph"
-data pkind 0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2
+data 6 "ndelem" 8 "ndreduce" 8 "ndmatmul"
+data pkind 0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2
 # 0 nothing, 1 the bytes 0 to 255 sixteen times, 2 the number
 # 0x123456789abcdef0 as 8 bytes, 3 16000000 so, 4 500000 so, 5 the bytes 0
 # to 255 4096 times
-data pinput 0 1 1 0 0 2 3 4 5 2 0 0 0 0 0 0
+data pinput 0 1 1 0 0 2 3 4 5 2 0 0 0 0 0 0 0 0 0
 # 0 nothing, 1 the greeting, 2 its input, 3 the count, 4 the digits,
 # 9 whatever the C program writes
-data pwant 1 2 3 0 4 9 9 9 9 9 9 9 9 9 9 9
-data pstat 0 0 0 120 0 0 0 0 0 0 0 0 0 0 0 0
-const nprogs 16
+data pwant 1 2 3 0 4 9 9 9 9 9 9 9 9 9 9 9 9 9 9
+data pstat 0 0 0 120 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+const nprogs 19
 # the algorithm programs, kind 2, from the first on: how many kernels
 # each has, and their names in that order; the first three are sorts
 const firstalgo 10
 const nsorts 3
-data pkern 1 1 1 1 3 2
+data pkern 1 1 1 1 3 2 3 3 1
 data knames 0 "" 0 "" 0 "" 0 "" 6 "insert" 3 "hit" 4 "miss" 3 "bfs" 3 "dfs"
+data 3 "add" 3 "mul" 5 "scale" 3 "sum" 4 "cols" 3 "dot" 0 ""
 data shapes 6 "random" 6 "sorted" 8 "reversed" 3 "few"
 # their inputs, a row each: the program, the count as a power of ten, the
 # shape, and the runs in one process as a number times a power of ten.
 # The shape 3 is few distinct values for a sort, small steps for bsearch,
-# few distinct keys for hashtab and at most one neighbour for graph.
+# few distinct keys for hashtab and at most one neighbour for graph. The
+# count of ndreduce and ndmatmul is the side of a square of numbers.
 data work 10 3 0 1 3
 data 10 3 1 1 3
 data 10 3 2 1 3
@@ -102,7 +105,13 @@ data 15 3 0 2 3
 data 15 3 3 5 3
 data 15 6 0 1 0
 data 15 6 3 2 0
-const nwork 36
+data 16 3 0 2 4
+data 16 6 0 2 1
+data 17 2 0 1 3
+data 17 3 0 2 1
+data 18 2 0 2 1
+data 18 3 0 1 0
+const nwork 42
 data langs 3 "AIL" 1 "C" 4 "Rust" 3 "asm"
 data sgcc "gcc" 0
 data so3 "-O3" 0
@@ -138,12 +147,12 @@ buf ord 32
 buf ksamp 6144
 # the results: for each program and language 32 bytes, 1 if there is a
 # figure, the median as a double, the two quartiles as numbers
-buf res 2048
+buf res 2432
 # those of the algorithm programs: for each row of work the same 128
 # bytes four times, for the process and for each of three kernels
-buf ares 18432
+buf ares 21504
 # the programs asked for, in their order, and their number
-buf sel 128
+buf sel 152
 var gnsel
 # 1 with --qsort
 var gqsort

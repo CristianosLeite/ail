@@ -1,0 +1,203 @@
+# lib/algo/sort.aw -- four ways to sort 64-bit words in the unsigned
+# order, lowest first.
+#
+# The words lie one behind the other at an address of the caller and
+# are sorted where they are; nothing is allocated and nothing fails, so
+# no function returns a value. A count of 0 or 1 leaves the words as
+# they are.
+#
+# sortquick  the words from an address up to another, by a pivot that
+#            is the median of the first, the middle and the last word
+#            and one pass that puts the smaller words before those equal
+#            to it and the larger ones behind. The smaller side is
+#            sorted by a call and the larger one by going round, so the
+#            calls are never deeper than the logarithm of the count.
+#            Runs in a time of n log n but for inputs made against the
+#            pivot.
+# sortmerge  n words, with n words of the caller to work in: from the
+#            bottom up, runs of 1, 2, 4, ... words are merged in pairs
+#            from one array into the other, which change places after
+#            each pass. Of two equal words the one that came first
+#            stays first. What is in the work array afterwards is not
+#            specified; the two must not overlap.
+# sortheap   n words: they are made a heap with the largest first, each
+#            at i not smaller than its two at 2i+1 and 2i+2, and then
+#            the first changes places with the last of the heap, which
+#            is one shorter each time. No work array and no call deeper
+#            than one. This is not lib/heap.aw, which is a heap that
+#            grows, in a vector, with the smallest first: here the heap
+#            is the array to be sorted and is gone when it is.
+# sortins    n words, by insertion: each word moves down past the
+#            larger ones before it. The time is that of n*n for words in
+#            any order and of n for words nearly in order.
+#
+# Every name of this file starts with "sort".
+
+# sort the words from sortp up to sortq
+fn sortquick sortp sortq
+	while sortq-sortp>8
+		load sortp as sorta
+		load sortp+(sortq-sortp>>4<<3) as sortb
+		load sortq-8 as sortc
+		if sorta>sortb
+			sortx=sorta
+			sorta=sortb
+			sortb=sortx
+		end
+		if sortb>sortc
+			sortb=sortc
+			if sorta>sortb
+				sortb=sorta
+			end
+		end
+		sortl=sortp
+		sorti=sortp
+		sortg=sortq
+		while sorti<sortg
+			load sorti as sortv
+			if sortv<sortb
+				load sortl as sortx
+				store sorti sortx
+				store sortl sortv
+				sortl+=8
+				sorti+=8
+			else
+				if sortv>sortb
+					sortg-=8
+					load sortg as sortx
+					store sorti sortx
+					store sortg sortv
+				else
+					sorti+=8
+				end
+			end
+		end
+		if sortl-sortp<sortq-sortg
+			call sortquick sortp sortl
+			sortp=sortg
+		else
+			call sortquick sortg sortq
+			sortq=sortl
+		end
+	end
+end
+
+# sort the sortn words at sorta with the sortn words at sortt to work in
+fn sortmerge sorta sortn sortt
+	sorte=sortn*8
+	sortw=8
+	sorts=sorta
+	sortd=sortt
+	while sortw<sorte
+		sorto=0
+		while sorto<sorte
+			sortm=sorto+sortw
+			if sortm>sorte
+				sortm=sorte
+			end
+			sorth=sortm+sortw
+			if sorth>sorte
+				sorth=sorte
+			end
+			sorti=sorts+sorto
+			sortp=sorts+sortm
+			sortj=sortp
+			sortq=sorts+sorth
+			sortk=sortd+sorto
+			while (sorti<sortp)&(sortj<sortq)
+				load sorti as sortu
+				load sortj as sortv
+				if sortv<sortu
+					store sortk sortv
+					sortj+=8
+				else
+					store sortk sortu
+					sorti+=8
+				end
+				sortk+=8
+			end
+			while sorti<sortp
+				load sorti as sortu
+				store sortk sortu
+				sorti+=8
+				sortk+=8
+			end
+			while sortj<sortq
+				load sortj as sortv
+				store sortk sortv
+				sortj+=8
+				sortk+=8
+			end
+			sorto=sorth
+		end
+		sortx=sorts
+		sorts=sortd
+		sortd=sortx
+		sortw*=2
+	end
+	if sorts!=sorta
+		sorti=0
+		while sorti<sorte
+			load sorts+sorti as sortu
+			store sorta+sorti sortu
+			sorti+=8
+		end
+	end
+end
+
+# put sortv where the word sorti of the heap of sortn words at sorta
+# is, and move it down
+fn sortsift sorta sorti sortn sortv
+	sortc=sorti*2+1
+	while sortc<sortn
+		load sorta+sortc*8 as sortx
+		if sortc+1<sortn
+			load sorta+sortc*8+8 as sorty
+			if sorty>sortx
+				sortx=sorty
+				sortc+=1
+			end
+		end
+		jle sortx sortv put
+		store sorta+sorti*8 sortx
+		sorti=sortc
+		sortc=sorti*2+1
+	end
+	label put
+	store sorta+sorti*8 sortv
+end
+# sort the sortn words at sorta as a heap
+fn sortheap sorta sortn
+	sorti=sortn>>1
+	while sorti
+		sorti-=1
+		load sorta+sorti*8 as sortv
+		call sortsift sorta sorti sortn sortv
+	end
+	while sortn>1
+		sortn-=1
+		load sorta+sortn*8 as sortv
+		load sorta as sortx
+		store sorta+sortn*8 sortx
+		call sortsift sorta 0 sortn sortv
+	end
+end
+
+# sort the sortn words at sorta by insertion
+fn sortins sorta sortn
+	sorte=sorta+sortn*8
+	sorti=sorta+8
+	while sorti<sorte
+		sortp=sorti
+		load sortp as sortx
+		while sortp!=sorta
+			load sortp-8 as sortv
+			jle sortv sortx place
+			store sortp sortv
+			sortp-=8
+		end
+		label place
+		store sortp sortx
+		sorti+=8
+	end
+end

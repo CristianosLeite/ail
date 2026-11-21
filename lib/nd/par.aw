@@ -1,0 +1,79 @@
+# lib/nd/par.aw -- the product of matrices in tasks; needs lib/task.aw
+# and the three files lib/nd/array.aw, elem.aw and reduce.aw.
+#
+# ndmatmulp is ndmatmul with a number of tasks: the rows of the result
+# are cut into runs (ndruns says how), and each run is a
+# task of lib/task.aw that computes its rows, which no other task
+# touches. The result is the same bits as that of ndmatmul, and what is
+# refused is the same. At most 64 tasks are made, and no more than there
+# are rows; with 0 or 1 the rows are computed here. How many threads
+# run the tasks is the limit of the pool ("call workers n"); the thread
+# that calls runs tasks too while it waits for them. A task that there
+# is no memory for is computed here, so the function does not fail for
+# that.
+#
+# The three arrays must be there until the function returns, which is
+# when every task has ended.
+
+# how ndn rows are cut for ndt tasks: the rows of a run and the number
+# of runs, the row blocks. All runs have the same rows but the last,
+# which has what is left, so there may be fewer runs than tasks asked
+# for: 16 rows for 14 tasks are 8 runs of 2. At most 64 runs, no more
+# than rows, and one run of all rows for 0 or 1 task. It is the plan
+# and not a count of tasks: ndmatmulp computes one run alone itself,
+# without a task, and also a run whose spawn gives 0
+fn ndruns ndn ndt
+	if ndt>64
+		ndt=64
+	end
+	if ndt>ndn
+		ndt=ndn
+	end
+	if ndt<2
+		ret ndn 1
+	end
+	ndc=(ndn+ndt-1)/ndt
+	ret ndc (ndn+ndc-1)/ndc
+end
+
+# make ndo the product of the matrices nda and ndb in ndt tasks
+fn ndmatmulp ndo nda ndb ndt
+	local ndh 512
+	call ndmmok ndo nda ndb as ndok
+	ifz ndok
+		ret 0
+	end
+	# a result without elements is done, before any run of rows is
+	# planned: it may have any number of rows
+	load ndo+48 as ndn
+	load ndo+56 as ndl
+	ifz (ndn!=0)&(ndl!=0)
+		ret 1
+	end
+	call ndfill ndo 0
+	call ndruns ndn ndt as ndc ndi
+	if ndi<2
+		tail ndrows ndo nda ndb 0 ndn
+	end
+	ndi=0
+	ndlo=0
+	while ndlo<ndn
+		ndhi=ndlo+ndc
+		if ndhi>ndn
+			ndhi=ndn
+		end
+		spawn ndrows ndo nda ndb ndlo ndhi as ndx
+		ifz ndx
+			call ndrows ndo nda ndb ndlo ndhi
+		end
+		store ndh+ndi*8 ndx
+		ndi+=1
+		ndlo=ndhi
+	end
+	while ndi
+		ndi-=1
+		load ndh+ndi*8 as ndx
+		join ndx as ndy
+	end
+	ret 1
+end
