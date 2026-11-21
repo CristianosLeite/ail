@@ -43,7 +43,9 @@ Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/token
 | total | 1524 | 1613 | 1783 |
 | relative to AIL | 1.00 | 1.06 | 1.17 |
 
-AIL is 6% cheaper than C and 15% cheaper than Rust on them, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
+Since 2026-11-21 there are also three programs on arrays of doubles, whose kernels in AIL are calls of [`lib/nd/`](language.md#the-nd-library) and in C and Rust plain loops: `ndelem` 215, 197 and 200 tokens, `ndreduce` 252, 276 and 268, `ndmatmul` 141, 163 and 142, together 608, 636 and 610. A call of a kernel is 5 to 7 tokens and each array 12 more before its first use, which comes to what the loops cost ([performance](performance.md#numerical-arrays-2026-11-21)). They are not in the table above, which stays that of the six.
+
+AIL is 6% cheaper than C and 15% cheaper than Rust on the six, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 

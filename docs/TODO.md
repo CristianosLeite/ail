@@ -310,7 +310,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    baseline. Add `i64` with explicit conversions once the `f64` kernels
    and fixtures are in place. Define integer overflow before extending
    the reductions to integers.
-4. [ ] **Verify the semantics and measure the kernels.** Check shapes,
+4. [x] **Verify the semantics and measure the kernels.** Check shapes,
    negative strides, empty and singleton axes, incompatible broadcasting,
    aliasing, overflow and allocation failure in `tests/lib_nd_*`. Generate
    reference fixtures with a pinned NumPy version and commit the expected
@@ -322,6 +322,13 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    separately, and count caller tokens for equivalent workloads. Document
    the API and results in [language.md](language.md) and
    [performance.md](performance.md).
+   Done on 2026-11-21: the tests `lib_nd_ref_*` compare the library with
+   NumPy 2.3.5 through `tests/lib/ndfix.aw`, which `tests/nd/gen.py`
+   writes; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
+   kernels take 3.65 times as long as the loops of C in the geometric
+   mean of 14 times, 1.24 times where memory is the limit and up to 10
+   times at a thousand numbers; a caller is 608 tokens against 636 in C
+   ([results](performance.md#numerical-arrays-2026-11-21)).
 5. [ ] **Optimize based on measurements.** Compare cache blocking for matrix
    multiplication and coarse tasks with disjoint outputs using `spawn` and
    `join`. Use the scalar baseline to evaluate selective SIMD support and

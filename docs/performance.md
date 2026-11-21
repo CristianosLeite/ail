@@ -625,3 +625,94 @@ Tokio polls tasks on a pool of threads, each with a queue of its own that idle t
 *What it would gain.* The server above spends nine tenths of its time in the kernel, and that part does run in parallel. A second thread would raise what one process carries past the 280000 round trips a second of one processor. Work that computes is already parallel: `asyncblock` gives it to the pool.
 
 *The decision.* No scheduler on several threads for now. One thread carries as much as a server in C on one thread, its limit is the kernel's work on one processor, and the programs stay free of locks. If a program needs more than that, the form to build is a thread per processor with a runtime of its own each, tasks never moving, connections spread by the kernel (`SO_REUSEPORT`): it keeps the rule that the tasks of one runtime never run at the same time. Processes do that today without a change, each started with its own copy of the server; for threads the state of the library would have to be found through the thread instead of in a `buf`, which needs a thread-local cell that the language does not have. Work stealing would be the step after, and only measurement of such a program could ask for it.
+
+## Numerical arrays, 2026-11-21
+
+`lib/nd/` is arrays of numbers on the model of NumPy ([the nd library](language.md#the-nd-library)). Three programs time its kernels by the method of the [algorithm programs](#algorithms-2026-11-20): `ndelem` adds and multiplies two arrays element by element and multiplies one by a number, `ndreduce` sums a square of numbers, sums its columns and takes a dot product, `ndmatmul` multiplies two square matrices. In AIL a kernel makes arrays of the memory the harness gives it (`ndwrap`) and calls the library, so what is timed is the library as a program uses it; in C and Rust the kernel is a plain loop over the same doubles in the same order.
+
+The harness gives every language the same doubles (`algonum`: the lowest 20 bits of a word of splitmix64, divided by 1024, less 512), and the kernels add in the same order, so the result is the same bytes in the three, which `perf` requires before it times anything. That the results are right is checked apart: `tests/algo.sh` computes them in awk, and the tests `lib_nd_ref_*` compare the library with what NumPy 2.3.5 computed for arrays of `tests/nd/gen.py`. The counts are a thousand and a million numbers for `ndelem` and sides of 100 and 1000 for the two others.
+
+The time of the kernels (same machine, CPU and compilers as above):
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| ndelem add, random, 1000 x 20000 | 15.79 (15.73, 15.91) | 2.62 (2.58, 2.63) | 2.63 (2.56, 2.70) | 6.035 slow |
+| ndelem mul, random, 1000 x 20000 | 16.12 (16.02, 16.32) | 2.58 (2.57, 2.61) | 2.49 (2.43, 2.55) | 6.240 slow |
+| ndelem scale, random, 1000 x 20000 | 24.13 (23.98, 24.38) | 2.34 (2.33, 2.35) | 1.94 (1.93, 1.99) | 10.322 slow |
+| ndelem add, random, 1000000 x 20 | 16.36 (16.00, 17.19) | 13.15 (12.79, 14.03) | 12.62 (12.21, 13.42) | 1.244 slow |
+| ndelem mul, random, 1000000 x 20 | 17.02 (16.68, 17.68) | 13.48 (12.87, 13.72) | 13.45 (12.98, 14.05) | 1.262 slow |
+| ndelem scale, random, 1000000 x 20 | 20.58 (20.34, 21.19) | 11.54 (11.11, 11.85) | 11.43 (10.87, 11.97) | 1.784 slow |
+| ndreduce sum, random, 100 x 1000 | 15.51 (15.47, 15.58) | 4.41 (4.40, 4.45) | 4.40 (4.39, 4.44) | 3.522 slow |
+| ndreduce cols, random, 100 x 1000 | 7.44 (7.41, 7.45) | 1.33 (1.33, 1.34) | 1.41 (1.41, 1.43) | 5.582 slow |
+| ndreduce dot, random, 100 x 1000 | 15.50 (15.46, 15.56) | 4.41 (4.39, 4.47) | 4.42 (4.40, 4.46) | 3.514 slow |
+| ndreduce sum, random, 1000 x 20 | 31.43 (31.24, 31.76) | 9.40 (9.35, 9.49) | 9.47 (9.39, 9.71) | 3.345 slow |
+| ndreduce cols, random, 1000 x 20 | 12.79 (12.64, 13.26) | 3.59 (3.48, 3.63) | 3.74 (3.65, 3.84) | 3.564 slow |
+| ndreduce dot, random, 1000 x 20 | 32.74 (32.41, 33.18) | 10.22 (10.03, 10.44) | 10.87 (10.72, 11.48) | 3.203 slow |
+| ndmatmul, random, 100 x 20 | 17.64 (17.62, 17.73) | 3.45 (3.43, 3.46) | 3.62 (3.61, 3.63) | 5.120 slow |
+| ndmatmul, random, 1000 x 1 | 885.04 (883.93, 886.81) | 174.88 (173.84, 179.24) | 174.87 (173.93, 177.36) | 5.061 slow |
+
+Geometric mean of AIL / C over 14 kernel times: 3.650
+
+The elapsed time of the same processes:
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| ndelem, random, 1000 x 20000 | 61.80 (61.39, 62.30) | 8.65 (8.60, 8.72) | 8.37 (8.29, 8.56) | 7.145 slow |
+| ndelem, random, 1000000 x 20 | 77.18 (76.02, 78.83) | 60.78 (59.50, 63.19) | 65.90 (64.23, 67.14) | 1.270 slow |
+| ndreduce, random, 100 x 1000 | 39.64 (39.57, 39.78) | 11.32 (11.18, 11.48) | 11.67 (11.43, 12.51) | 3.503 slow |
+| ndreduce, random, 1000 x 20 | 103.52 (102.78, 104.84) | 50.67 (50.44, 51.15) | 57.08 (56.66, 58.06) | 2.043 slow |
+| ndmatmul, random, 100 x 20 | 18.55 (18.50, 18.60) | 4.47 (4.40, 4.54) | 4.78 (4.75, 4.84) | 4.149 slow |
+| ndmatmul, random, 1000 x 1 | 907.10 (905.95, 908.32) | 191.28 (190.23, 196.54) | 196.97 (195.79, 199.52) | 4.742 slow |
+
+Geometric mean of AIL / C over 6 inputs: 3.294
+
+NumPy 2.3.5 on the same operations and sizes, in an optional run that is no part of `perf` (`taskset -c 2 python3 tests/nd/bench.py`: one thread, a result that is there before the clock starts, the median of 15 rounds; its numbers are not those of the harness, so only the time is compared), beside the kernel times of the table above, in milliseconds:
+
+| kernel, count x runs | AIL | C | NumPy |
+|---|---:|---:|---:|
+| add, 1000 x 20000 | 15.79 | 2.62 | 7.14 |
+| mul, 1000 x 20000 | 16.12 | 2.58 | 7.24 |
+| scale, 1000 x 20000 | 24.13 | 2.34 | 9.04 |
+| add, 1000000 x 20 | 16.36 | 13.15 | 9.14 |
+| mul, 1000000 x 20 | 17.02 | 13.48 | 9.51 |
+| scale, 1000000 x 20 | 20.58 | 11.54 | 5.62 |
+| sum, 100 x 1000 | 15.51 | 4.41 | 2.08 |
+| cols, 100 x 1000 | 7.44 | 1.33 | 2.63 |
+| dot, 100 x 1000 | 15.50 | 4.41 | 4.86 |
+| sum, 1000 x 20 | 31.43 | 9.40 | 3.13 |
+| cols, 1000 x 20 | 12.79 | 3.59 | 3.19 |
+| dot, 1000 x 20 | 32.74 | 10.22 | 8.83 |
+| matmul, 100 x 20 | 17.64 | 3.45 | 3.11 |
+| matmul, 1000 x 1 | 885.04 | 174.88 | 169.92 |
+
+What the figures say:
+
+- The library takes 3.65 times as long as the loops of C in the geometric mean of its kernels, far more than the 1.26 of the algorithm programs. No kernel is within 10% of C.
+- Where the memory is the limit the gap nearly closes: adding a million numbers to a million takes 1.24 times as long as in C, a thousand to a thousand 6 times. A thousand numbers stay in the first cache, and there one element costs 0.79 ns in AIL and 0.13 ns in C. The likely cause is that `gcc -O3` adds two doubles with one instruction and several such instructions a round, while the code of `fadd` takes each double from a general register to a floating-point one and back; that is to be measured with the C loop kept from such instructions, in the next step.
+- `scale`, an array times one number, is 10 times C at a thousand numbers and half as slow again as `add`. The number goes along with a stride of 0, which takes the loop with strides and a choice of the operation for each element, not the loop over words. That is a matter of the library alone.
+- A sum takes 1.55 ns an element against 0.44 ns in C, and the dot product the same. Each element is added to the one sum before it, so the time is that of one addition after the other: in C an addition of two floating-point registers, in AIL also the two moves between the kinds of registers. The sums of the columns, which go to different elements of the result, take 0.74 ns an element.
+- The product of matrices is 5 times C at both sides. Its inner loop is the one of `add` with a multiplication, a row at a time.
+- NumPy is faster than the loops of C wherever it adds in more than one place at once, sums above all (0.2 ns an element), and no faster in the product of matrices, 170 ms at a side of 1000 on one thread. A call of `add` on a thousand numbers takes 0.36 microseconds in NumPy, 0.13 in C and 0.79 in the library: NumPy is 2.7 times behind C there, where a call costs it more than the work, and the library 2.2 times behind NumPy.
+- A call of the library costs little beside the work: the arrays of a kernel are wrapped again at every run, and at a thousand numbers `add` still spends its time in the loop.
+
+**The sum in pairs.** `ndsumpw` adds halves of halves down to runs of 128 elements, which is what NumPy does for accuracy. Timed in one program on an array of the value 0.1, nanoseconds a call, on a quiet processor:
+
+| elements | `ndsum` | `ndsumpw` |
+|---:|---:|---:|
+| 1000 | 1620 | 1327 |
+| 10000 | 15150 | 10467 |
+| 1000000 | 1507559 | 1199275 |
+
+In pairs it is not slower but a fifth to a third faster, though both spend their time in the one loop of `ndacc`. Keeping that loop from being compiled [in place](#calls-compiled-in-place-2026-11-20) in the plain sum changes nothing (1615, 15110 and 1503486 ns), so that is not the cause. The likely one is that a plain sum is one chain of additions, each waiting for the one before, while every run of 128 or fewer starts a chain of its own from 0, and the processor works on the end of one run and the start of the next at once; the gain is largest at 10000 elements, where the runs are 78 long. The error of a million times 0.1 is 1.3e-6 one after the other and 2.3e-10 in pairs ([the order of a sum](language.md#the-nd-library)). `ndsum` stays the sum in the order of the indices all the same: that order is what a loop in C computes, so its result can be compared byte for byte with one, and it is the same whether the elements lie one behind the other or not. A program that wants the accuracy, or the time, calls `ndsumpw`.
+
+The source of each program, in tokens (`tools/tokens.sh`, without comments). In AIL it is the code of a caller of the library, the wrapping of the arrays and the calls; in C and Rust it is the loops themselves:
+
+| program | AIL | C | Rust |
+|---|---:|---:|---:|
+| ndelem | 215 | 197 | 200 |
+| ndreduce | 252 | 276 | 268 |
+| ndmatmul | 141 | 163 | 142 |
+| total | 608 | 636 | 610 |
+| relative to AIL | 1.00 | 1.05 | 1.00 |
+
+A call of a kernel is 5 to 7 tokens (`call ndadd z x y`), but each array is 12 more before its first use (`buf x 176` and a `call ndwrap x a n*8 1 s`), so three kernels on the same arrays cost what three short loops cost in C. The library is 8252 tokens (3343, 2314 and 2595 for `array.aw`, `elem.aw` and `reduce.aw`), which a program does not pay as source. What a caller gains is in what the loops of C do not do: views, steps, other lengths and the checks, each a call.
