@@ -439,6 +439,12 @@ fn ndmmok ndo nda ndb
 	if (ndn>1)&(ndso==0)|((ndl>1)&(ndsp==0))
 		ret 0
 	end
+	# two elements that share some of their 8 bytes: a stride that is no
+	# multiple of 8, on an axis with more than one element. With
+	# multiples, elements at two addresses are 8 bytes apart or more
+	if (ndn>1)&((ndso&7)!=0)|((ndl>1)&((ndsp&7)!=0))
+		ret 0
+	end
 	# and where some steps along one axis are some along the other: the
 	# fewest are each stride divided by what divides both
 	if (ndn>1)&(ndl>1)

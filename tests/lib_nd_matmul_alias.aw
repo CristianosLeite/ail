@@ -1,8 +1,11 @@
 # a result of a product whose elements are not all at their own address
 # is refused, on one thread and in tasks, which would write it at once:
 # strides of 8 and 8 put the element 0, 1 where 1, 0 is, as do -8 and 8,
-# and with 24 and 16 two steps down are three across. A result taken
-# the other way round, 8 and 16, has every element apart and is computed
+# and with 24 and 16 two steps down are three across. Strides of 12 and
+# 8, of 16 and 4, and of 4 for two rows of one element put elements at
+# addresses of their own that share some of their bytes, and are
+# refused too. A result taken the other way round, 8 and 16, has every
+# element apart and is computed
 use "lib/io.aw"
 use "lib/task.aw"
 use "lib/nd/array.aw"
@@ -14,6 +17,7 @@ buf a 176
 buf b 176
 buf c 176
 buf d 176
+buf f 176
 buf o 176
 buf q 176
 fn fill x s
@@ -53,12 +57,14 @@ call ndmat a 2 2 as r
 call ndmat b 2 2 as r
 call ndmat c 3 2 as r
 call ndmat d 2 4 as r
+call ndmat f 2 1 as r
 call ndmat o 4 4 as r
 call ndmat q 2 2 as r
 call fill a 1
 call fill b 5
 call fill c 2
 call fill d 7
+call fill f 4
 call workers 2
 call shape 2 2 8 8 0
 call both a b
@@ -66,6 +72,13 @@ call shape 2 2 -8 8 1
 call both a b
 call shape 3 4 24 16 0
 call both c d
+call print " "
+call shape 2 2 12 8 0
+call both a b
+call shape 2 2 16 4 0
+call both a b
+call shape 2 1 4 8 0
+call both a f
 call print " "
 # the other way round: the product, element for element
 call ndmatmul q a b as r
