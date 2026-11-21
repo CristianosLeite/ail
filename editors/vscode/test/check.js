@@ -56,14 +56,17 @@ function statements() {
 }
 
 // the columns of a line that are a comment and those that are a string,
-// s saying whether the line starts inside a string: [mask, s at the end]
+// s saying whether the line starts inside a string: [mask, s at the end].
+// The path of a use has no escapes: a backslash before its closing quote
+// is a byte of the path, and no string goes on behind the line
 function classes(line, s) {
   const mask = new Array(line.length).fill('');
+  const use = !s && /^[ \t]*use[ \t]/.test(line);
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
     if (s) {
       mask[i] = 's';
-      if (c === '\\' && i + 1 < line.length) mask[++i] = 's';
+      if (c === '\\' && !use && i + 1 < line.length) mask[++i] = 's';
       else if (c === '"') s = false;
     } else if (c === '#') {
       for (; i < line.length; i++) mask[i] = 'c';
@@ -72,7 +75,7 @@ function classes(line, s) {
       s = true;
     }
   }
-  return [mask, s];
+  return [mask, use ? false : s];
 }
 
 // the blocks of a text by the depths the formatter gives its lines: a
@@ -120,9 +123,13 @@ async function main() {
   const say = (f, i, msg) => {
     if (++bad <= (+process.env.SHOW || 20)) console.log(`${f}:${i + 1}: ${msg}`);
   };
-  for (const f of files) {
+  // lines that no source of the repository has, checked like one: a use
+  // whose path ends with a backslash, with a comment behind it, and the
+  // statement after it
+  const own = 'use "a\\" # the path is a and a backslash\nif x\n\tsys 60 "b\\"" # a comment\nend\n';
+  for (const f of ['(lines of check.js)', ...files]) {
     // bytes as characters, so that a column is a byte
-    const text = fs.readFileSync(f).toString('latin1');
+    const text = f.startsWith('(') ? own : fs.readFileSync(f).toString('latin1');
     const lines = text.split('\n');
     let stack = tm.INITIAL;
     let instr = false;
@@ -138,8 +145,6 @@ async function main() {
       const began = instr;
       const [mask, s] = classes(line, instr);
       instr = s;
-      // a use ends its string on its line, as the compiler has it
-      if (!began && /^[ \t]*use[ \t]/.test(line)) instr = false;
       for (let c = 0; c < line.length; c++) {
         if (mask[c] === 'c' && !scope[c].includes('comment.')) { say(f, i, `column ${c + 1} of a comment is ${scope[c] || 'nothing'}`); break; }
         if (mask[c] === 's' && !scope[c].includes('string.')) { say(f, i, `column ${c + 1} of a string is ${scope[c] || 'nothing'}`); break; }
