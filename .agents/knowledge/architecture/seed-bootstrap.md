@@ -32,7 +32,7 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   seed 2. The pages of this base name the files by the new path; the revisions that the seeds
   of `seed/MANIFEST` were built from have them under `stage1/`.
 
-- `compiler/tables.ai` is its own source since 2026-11-20 (`tools/tables.sh` and `make tables` are
+- `compiler/tables.aw` is its own source since 2026-11-20 (`tools/tables.sh` and `make tables` are
   gone). `tests/tables.sh` checks its form and `tests/insn.sh` its bytes against hex that GNU
   `as` wrote; 90 cases, one or more for every row and table.
 
@@ -55,7 +55,7 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   dependency. Six mutations of the table each failed the instruction test, eight the form test.
 
 ## How to apply
-- A new or changed row of `compiler/tables.ai` gets a case in `tests/insn.cases`: write the
+- A new or changed row of `compiler/tables.aw` gets a case in `tests/insn.cases`: write the
   instructions, take the hex from `tests/insn.sh hex`, run `tests/insn.sh asm`.
 - `as` picks the short form of a jump, a displacement or an immediate where the compiler writes
   the long one: `{disp32}` forces the first two, and a four-byte immediate that fits one byte

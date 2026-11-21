@@ -12,10 +12,10 @@ status: current
 output and differ from them in a few stated places.
 
 ## Facts
-- Shared code is in `tools/lib/` (`scan.ai`, `flow.ai`, `rng.ai`, `fmt.ai`, `o200k.ai`) and in
-  `lib/` (`bytes.ai`, `file.ai`, `proc.ai`). The prerequisites of each tool in the Makefile must
+- Shared code is in `tools/lib/` (`scan.aw`, `flow.aw`, `rng.aw`, `fmt.aw`, `o200k.aw`) and in
+  `lib/` (`bytes.aw`, `file.aw`, `proc.aw`). The prerequisites of each tool in the Makefile must
   be its `use` lines; `tests/tools.sh` compares them.
-- The tokenizer (`tools/lib/o200k.ai`) needs two pinned files in `tools/pins/`, fetched by
+- The tokenizer (`tools/lib/o200k.aw`) needs two pinned files in `tools/pins/`, fetched by
   `tools/pin.sh` and ignored by git; `tests/tokens.sh` skips without them. Unicode is 16.0.0,
   the version tiktoken 0.14.0 splits by; with another the fixtures fail.
 - Deliberate differences from the scripts: `fuse` leaves a jump with a string alone; `randvars`
@@ -24,8 +24,8 @@ output and differ from them in a few stated places.
   lower.
 - `infix` never folds a name that a `var` declares. It reads the `var` lines of every file the
   source reaches with `use` (paths as written, from the current directory, like the compiler)
-  and of files named after `out.ai`, for a source that another file includes:
-  `build/tools/infix compiler/emit.ai out.ai compiler/ailc.ai`. A `use` that cannot be read
+  and of files named after `out.aw`, for a source that another file includes:
+  `build/tools/infix compiler/emit.aw out.aw compiler/ailc.aw`. A `use` that cannot be read
   ends the tool.
 - That reading follows the compiler's lexing: leading spaces and tabs, a name ended by `#`, a
   string that goes on over the end of a line (its lines declare nothing), and a `use` path
@@ -47,7 +47,7 @@ output and differ from them in a few stated places.
 
 ## How to apply
 - Run `infix` from the top of the repository, and for a file of the compiler name
-  `compiler/ailc.ai` after the output.
+  `compiler/ailc.aw` after the output.
 - A scanner added to a tool that reads AIL source must agree with the compiler on tabs,
   comments, strings over lines and `use` paths; test each form.
 - A new `use` in a tool needs the file in its Makefile line.

@@ -1,1 +1,1 @@
-ailc: tests/lib/bad_name.ai:2: undefined variable absent
+ailc: tests/lib/bad_name.aw:2: undefined variable absent

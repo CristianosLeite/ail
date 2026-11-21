@@ -1,7 +1,7 @@
 #!/bin/sh
 # Check the compiler on random programs whose result no AIL program
-# computed, and tools/randvars.ai itself.
-# - tests/randvars/seed<s>[-top]-<n>-<form>.ai are programs that the
+# computed, and tools/randvars.aw itself.
+# - tests/randvars/seed<s>[-top]-<n>-<form>.aw are programs that the
 #   Python script wrote which the tool was ported from, each in its three
 #   forms, and seed<s>[-top]-<n>.code is the exit status that Python
 #   computed for it. Every form must compile and exit with that status,
@@ -28,7 +28,7 @@ for code in tests/randvars/*.code; do
     want=$(cat "$code")
     r=0
     for form in statements flat expressions; do
-        timeout --signal=KILL 10 "$ailc" < "$base-$form.ai" > "$tmp/$form" 2> /dev/null && chmod +x "$tmp/$form" || r=1
+        timeout --signal=KILL 10 "$ailc" < "$base-$form.aw" > "$tmp/$form" 2> /dev/null && chmod +x "$tmp/$form" || r=1
         timeout --signal=KILL 10 "$tmp/$form" > /dev/null 2>&1
         [ $? -eq "$want" ] || r=1
     done
@@ -46,7 +46,7 @@ mkdir "$tmp/run"
 (cd "$tmp/run" && "$top/build/tools/randvars" /bin/false 3 1 > out 2> /dev/null; echo $? > code)
 r=0
 [ "$(cat "$tmp/run/code")" = 1 ] || r=1
-n=$(grep -c '^FAIL randvars [0-9]* as [a-z]*: does not compile:  (kept as build/randvars/seed1-[0-9]*-[a-z]*\.ai)$' "$tmp/run/out")
+n=$(grep -c '^FAIL randvars [0-9]* as [a-z]*: does not compile:  (kept as build/randvars/seed1-[0-9]*-[a-z]*\.aw)$' "$tmp/run/out")
 [ "$n" -gt 0 ] && [ "$n" -eq "$(wc -l < "$tmp/run/out")" ] || r=1
 [ "$n" -eq "$(ls "$tmp/run/build/randvars" 2> /dev/null | wc -l)" ] || r=1
 say randvars_reports_failures $r

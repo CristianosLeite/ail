@@ -1,0 +1,15 @@
+# bytes, single bytes and numbers are added in order
+use "lib/io.aw"
+use "lib/bytes.aw"
+buf b 24
+call byadd b "ab" as r
+call byaddb b 99 as s
+call byaddn b 0 as t
+call byaddb b 32
+call byaddn b 18446744073709551615
+call byadd b "" as u
+call byaddb b 10
+load b as p
+load b+8 as n
+call print p n
+sys exit r+s+t+u

@@ -1,7 +1,7 @@
 ---
 title: Source style and the formatter
 last-verified: 2026-11-20
-sources: [conversation 2026-11-20, docs/language.md, tools/indent.ai, tests/indent.sh, editors/vscode/, docs/tokens.md]
+sources: [conversation 2026-11-20, docs/language.md, tools/indent.aw, tests/indent.sh, editors/vscode/, docs/tokens.md]
 status: current
 ---
 # Source style and the formatter
@@ -24,7 +24,7 @@ Indentation costs 2% in tokens and nothing in the compiled program.
 - The tool does not validate: an `end` too many closes nothing and the rest is indented as far
   as it goes. A formatter that refused a wrong program would be of no use in an editor.
 - A comment-only line gets the depth of its block (the user's choice). The 23 comments of
-  `compiler/ailc.ai` that were aligned with spaces under the comment of a `buf` line went to
+  `compiler/ailc.aw` that were aligned with spaces under the comment of a `buf` line went to
   column one.
 - Scope chosen by the user: every source, tests included. Not indented: the tests of the
   separators (`tests/indent/skip`) and the fixtures under `tests/infix/`, `tests/fuse/`,

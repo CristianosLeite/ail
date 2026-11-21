@@ -1,9 +1,0 @@
-# q and qeept fall into one bucket of the hash of names (tools/hashcol.ai
-# finds such pairs): the longer name, declared first, must not be taken
-# for the shorter one that starts it
-data qeept 9
-data q 4
-loadb q as x
-loadb qeept as y
-add x y as x
-sys exit x

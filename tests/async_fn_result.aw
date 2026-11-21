@@ -1,0 +1,13 @@
+# a call of an async function gives a task, which runs when it is polled
+# and has the value of its ret as its result
+use "lib/async/task.aw"
+var ran
+async fn f a b
+	ran+=1
+	c=a*b
+	ret c+1
+end
+call f 6 7 as h
+x=ran
+call await h 0 as y
+sys exit_group x*100+y+ran

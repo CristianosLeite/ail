@@ -5,7 +5,7 @@ sources: [stage1 review 2026-11-19 (REVIEW.md), control-flow review 2026-11-19 (
 status: current
 ---
 
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.ai` alone, built from a seed ([Seed bootstrap](../architecture/seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aw` alone, built from a seed ([Seed bootstrap](../architecture/seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 test suite
 
 **Summary.** What the runner in `tests/run.sh` can and cannot prove, and the lessons from the
@@ -17,7 +17,7 @@ layout of a test; this page records why some fixtures look the way they do.
   stage0. What replaced the comparison of the two compilers: `tests/self.sh` and `tests/fuzz.sh`
   compare `build/ailc1` (the source compiled by the seed) with `build/ailc` (compiled by that),
   one program in two translations; the fuzz also requires a proper end (status 0 with output
-  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` (since ported to AIL as `tools/randvars.ai`) runs
+  and no message, or status 1 with one `ailc: ` line and no output); `tools/randvars.py` (since ported to AIL as `tools/randvars.aw`) runs
   in `make test` (200 programs in a function, 200 at top level) against results computed in
   Python; `tests/insn.sh` checks instruction bytes against an assembler's. `make test` went
   from 2485 checks to 1635, since every test ran twice before.

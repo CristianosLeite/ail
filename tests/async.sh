@@ -25,7 +25,7 @@ say() {
 
 r=0
 for p in timer echod ping switch mem hop; do
-    timeout --signal=KILL 10 "$ailc" < bench/async/$p.ai > "$tmp/$p" 2> "$tmp/err" &&
+    timeout --signal=KILL 10 "$ailc" < bench/async/$p.aw > "$tmp/$p" 2> "$tmp/err" &&
         [ ! -s "$tmp/err" ] && chmod +x "$tmp/$p" || r=1
 done
 say async_programs_compile $r

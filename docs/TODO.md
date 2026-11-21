@@ -74,12 +74,12 @@ See the [roadmap](roadmap.md) for project history.
 ## Compiler scale, output and tooling
 
 - [x] Split the compiler using the existing [`use`](language.md#use) statement,
-  which the pinned seed already supports for `compiler/tables.ai`.
-  - Keep `compiler/ailc.ai` as the entry point with the shared declarations and
+  which the pinned seed already supports for `compiler/tables.aw`.
+  - Keep `compiler/ailc.aw` as the entry point with the shared declarations and
     parser state machine. Its states share top-level variables and labels.
     Extract whole functions along the existing section boundaries. Suggested
-    files under `compiler/` are `diag.ai`, `lex.ai`, `names.ai`, `expr.ai` and
-    `emit.ai` for diagnostics, token reading, name lookup, expressions and code
+    files under `compiler/` are `diag.aw`, `lex.aw`, `names.aw`, `expr.aw` and
+    `emit.aw` for diagnostics, token reading, name lookup, expressions and code
     emission.
   - Put each `use` where the extracted code stood. A used file shares the
     top-level scope and is compiled at that point, so preserve the order of
@@ -123,18 +123,18 @@ See the [roadmap](roadmap.md) for project history.
 
 ## Port the Python tools to AIL
 
-Give each tool an entry point at `tools/<name>.ai` and an executable at
+Give each tool an entry point at `tools/<name>.aw` and an executable at
 `build/tools/<name>`. Build the tools with `build/ailc` after the bootstrap.
 Add a `make tools` target and declare each tool's source dependencies so edits
 to a shared file rebuild its callers. Have `make test` build the tools it runs.
 
 Use the existing [`use`](language.md#use) and keep dependencies one way.
 Tool entry points handle arguments, diagnostics and exit status. Put shared
-token and line scanning in `tools/lib/scan.ai` and shared control-flow
-analysis in `tools/lib/flow.ai`. Keep each tool's rewrite rules, generator or
-reporting code with that tool. Add `lib/bytes.ai`, `lib/file.ai` and
-`lib/proc.ai` for byte buffers, file I/O and child processes as callers need
-them. Reuse `lib/io.ai` for arguments and output. Keep Linux syscall details
+token and line scanning in `tools/lib/scan.aw` and shared control-flow
+analysis in `tools/lib/flow.aw`. Keep each tool's rewrite rules, generator or
+reporting code with that tool. Add `lib/bytes.aw`, `lib/file.aw` and
+`lib/proc.aw` for byte buffers, file I/O and child processes as callers need
+them. Reuse `lib/io.aw` for arguments and output. Keep Linux syscall details
 in the file and process helpers and the compiler bootstrap independent of
 the tools.
 
@@ -204,7 +204,7 @@ its AIL replacement passes the corresponding checks.
   `--check` to report indentation violations without rewriting files, as the
   first lint rule. Verify that formatting is idempotent and that formatted
   examples compile to the same bytes.
-- [x] Add a VS Code extension for `.ai` files with syntax highlighting, block
+- [x] Add a VS Code extension for `.aw` files with syntax highlighting, block
   folding and formatting through the same AIL formatter.
 - [x] Apply the convention to the examples first. Reindent the compiler in a
   separate formatting commit and verify the bootstrap fixed point.
@@ -281,7 +281,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Add CPU-bound workloads to the corpus: `sieve`, `collatz`, `fnv`, `isort`.
 - [x] Record the first seed of the compiler in a manifest and release it.
 - [x] Build the compiler from the pinned seed, in three generations.
-- [x] Make `compiler/tables.ai` its own source, checked by form and by bytes.
+- [x] Make `compiler/tables.aw` its own source, checked by form and by bytes.
 - [x] Check the one compiler without comparing it to stage0.
 - [x] Remove stage0.
 - [x] Fix the expression syntax from token counts on the corpus.

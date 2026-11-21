@@ -1,0 +1,1460 @@
+# ailc -- the AIL compiler in AIL, a translation of stage0/ailc.s.
+# usage: ailc < prog.aw > prog      (same output, byte for byte, as stage0)
+#
+# The fixed registers of stage0 are global vars here, since a function
+# sees no top-level variable:
+#   ip = input cursor    ie = input end     op = output cursor
+#   ai = argument index of the statement    nv = variables of the scope
+#   cur = optab row of the statement (at its operand count)
+#   ns, nl = start and length of the name read last
+# Top level uses the variables c d r f p q only.
+var ip ie op ai nv cur ns nl
+# the counters and the saved scope of stage0, under its names: nbufs counts
+# the global names and ngv those that are vars; cn, cl = name of this call
+var nbufs bsssz nlabels nfix infn topvars fnskip labbase fixbase cn cl
+# kwn, kwl = the keyword of a spawn or join, the name of the function they call
+var kwn kwl
+# fnasy = 1 in an async function; asyn, asyl = the word async of it, the
+# name of the function that makes its task
+var fnasy asyn asyl
+# awf = 1 in an await that names a function to call
+var awf
+var nfuncs ncalls ngv dataend datarel nrefs
+# pass is 1 while a function is compiled to measure its variables and 2 when
+# it is compiled again for good; the s* vars are the state to return to
+var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
+# pushed = bytes of call values pushed so far in this statement; fnnpar =
+# parameters of the function; immpos = where mov wrote its last imm32
+var pushed fnnpar immpos
+# asg: bit i is set when variable i of the scope is assigned on every way to
+# this point, all ones where no way leads; dead = 1 after jmp or ret, until
+# the next label; jmask = asg when dead was set; t* = those of the top level
+var asg dead jmask tasg tdead tjmask
+# nchks = loads and stores to check at the end; nruns = runs of data
+# statements; snk, snu = both before the first pass over a function
+var nchks nruns snk snu
+# loccur = bytes of locals declared so far in this pass; fnlocal = those of
+# the function, after its first pass
+var loccur fnlocal
+# fnregs = how many of the six registers the function uses
+var fnregs
+# srcend = end of all source read so far; nuses = files compiled through
+# use; nustk = uses being compiled
+var srcend nuses nustk
+# fnres = results of the open function, 0 until its first ret; fntail = 1
+# once it has a tail; ncap = names after "as" in this statement
+var fnres fntail ncap
+# nblk = open blocks; blkbase = those opened outside the open function;
+# topblk = blkbase of the top level, in a function
+var nblk blkbase topblk whead wsrc
+# while the value of a while is read again at the end of its loop: that
+# it is, where the source goes on, the first line of the loop in the
+# output, and what was assigned at the head
+var wend wip wbody wasg wnv
+# the hash of names: nhn = its nodes, hbkt = the bucket hhash found last,
+# scope = 0 at top level or the number of the open function, nscope =
+# functions opened so far, snh = nhn before the first pass over a function
+var nhn hbkt scope nscope snh
+# rwstart = where the writable segment starts in the image, known in fin
+var rwstart
+# expressions: the nodes, values and operators of the one being parsed, and
+# whether it divides or shifts
+var nex nexv nexs exdm exsh
+# code for expressions: the free registers and the preferred one, the
+# number of values that wait and of those that hold no register, the two
+# operands of the operator at hand, and how many bytes of the row of a
+# statement eop is to leave out
+var xfree xpref nxs xspl xlk xla xlb xlc xrk xra xrb xrc xskip xcl xct
+# for an assignment to a variable that has a register: that register (else
+# 16), whether the operator at hand is the last, and whether the result is
+# already in the register
+var xtr xlast xtin
+# the kind of the statement at hand if it is compiled like an expression
+# (else 0), and the operator of one that computes
+var xst xso
+# the register whose value the zero flag describes, if nothing was written
+# since the output stood at xflgpos
+var xflg xflgpos
+# the memory of a load or store: base, index (16 for none) and number
+var xmb xmx xmd
+# epos = where an error is: 0 for the input cursor, -1 for nowhere, else an
+# address in the source; ename, enamel = the name it is about, or 0;
+# mainend = end of the source from stdin; curunit = 0, or 1 + the file of
+# use being read
+var epos ename enamel mainend curunit
+# the source limit of 8 MiB is in the sizes below: in holds one byte more,
+# out 16 times as much (see OUTSZ in stage0), and each table one entry for
+# every shortest line that makes one
+const inmax 8388609
+buf in inmax
+buf out 134217728
+buf sig 32          # struct sigaction
+buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
+buf topcell 512     # per top-level variable after the sixth: the address of its cell
+buf vfirst 512      # per variable of the function: where the source defines it,
+buf vlast 512       # and mentions it last
+buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
+buf vlocal 512      # per variable of the function that is a local: 1 + its offset
+buf vlocsz 512      # per local: its size as declared
+buf locfree 560     # per place: the last mention of its variable
+buf loops 22369632    # 1398102 backward jumps of the function: where the source has
+# the label, and the jump
+buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
+# value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
+buf opd 96          # what is known of the first two values of the statement, 32 bytes
+# each: kind (1 number, 2 name plus number, 3 string), then the
+# number, or name, length and number; a third entry is scratch
+buf vk 2048         # the same per variable of the current scope
+buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
+# length, offset, width + 256 for a store
+buf runend 7456544    # per run of data statements: the address after its last byte
+buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
+# the block, asg, and (4 bytes each) 1 for an else part and dead
+# at its end (for a while, the number of variables at its head),
+# and for a while the address of its first line and the place of
+# its value in the source, else 0
+buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
+buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
+# yet defined, length, next node, scope, index in the table of
+# its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
+# label with jumps but no definition yet)
+buf ustart 9586984  # per file of use: where its bytes start,
+buf uendp 9586984   # and end
+buf ucur 9586984    # per use being compiled: curunit outside it
+buf numbuf 24       # a line number in decimal
+buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
+buf ustack 19173968   # per use being compiled: where its line ended, and the end of
+# the unit that has it
+buf pathbuf 4096    # the path of a use, with a NUL for open
+buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
+# source, variables assigned on every way to it
+buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
+# variables assigned at the jump
+buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
+# (4 bytes each) results, 0 for a function with a tail and no ret
+# until fin knows, and the head of the list of the tails to it
+buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
+# stands in and the next tail to the same function, as index + 1
+buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
+# passed on
+buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
+# 4-byte counts: values (all ones for ref) and names after "as",
+# or for a tail its function with the bit 31 set;
+# the shortest line is "await a", 8 bytes for two entries
+buf ex 268435488     # 8388609 nodes of an expression, 32 bytes: kind and three cells
+buf exv 111848480    # 2796212 values of 40 bytes while it is parsed: node, what is known
+buf exs 8388609      # and as many operators or open parentheses, a byte each
+buf xrows 128        # the rows of the statements of the sixteen operators
+buf exnm 8           # the name of a statement that compares and jumps
+buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
+buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
+# imm32 address, 0 for its address or 1 for its length
+
+# ---- the functions are files of their own, compiled here in this order:
+# errors, input, tables of names, expressions and their code, output
+use "compiler/diag.aw"
+use "compiler/lex.aw"
+use "compiler/names.aw"
+use "compiler/expr.aw"
+use "compiler/emit.aw"
+
+# ---- start: a closed output pipe must be a write error, not a death
+store sig 1
+sys rt_sigaction 13 sig 0 8
+p=in
+q=in+inmax
+label rd
+r=q-p
+ifz r
+	call ebig
+end
+sys read 0 p r as r
+if r
+	if r>inmax
+		call erd
+	end
+	p+=r
+	jmp rd
+end
+ie=p
+srcend=p
+mainend=p
+ip=in
+op=out
+call cp hdr 176
+
+# ---- statement
+label next
+call ochk
+call pk as c
+jeq c 256 uend
+call blank c as d
+jnz d n1
+jeq c 10 n1
+jeq c 35 n2
+if c==13
+	call crlf
+	label n1
+	call adv
+	jmp next
+	label n2
+	call adv
+	call pk as c
+	jeq c 256 uend
+	jeq c 10 next
+	jne c 13 n2
+	call crlf
+	jmp n2
+end
+call pk as c
+call low c as d
+ifz d
+	call estmt
+end
+call name
+call exasg as d
+jnz d asgn
+call kw as r
+ifz r
+	call estmt
+end
+loadb r+1 as f
+if f==255
+	loadb r as d
+	jeq d 1 fndef
+	jeq d 2 bufdef
+	jeq d 3 fnend
+	jeq d 4 labdef
+	jeq d 5 datadef
+	jeq d 6 vardef
+	jeq d 7 constdef
+	jeq d 8 localdef
+	jeq d 9 usedef
+	jeq d 10 elsedef
+	jeq d 12 asydef
+	jmp whiledef
+end
+cur=r
+ai=0
+ncap=0
+store opd 0
+store opd+32 0
+call pk as c
+call blank c as d
+call ok d
+call blanks
+if f&32
+	ifz infn
+		call eplace
+	end
+end
+loadb cur+2 as d
+if d&16
+	if infn
+		call eplace
+	end
+end
+call xclass as d
+xst=d
+if d
+	call exinit
+end
+if f&16
+	loadb cur+2 as d
+	if d&32
+		# spawn and join call the function named like them; join has only values,
+		# spawn the name of a function, whose address is the value before its own
+		kwn=ns
+		kwl=nl
+		if d&64
+			# await: a word that is a variable or a global name is the handle, like
+			# any value; any other name is a function to call, whose result is
+			awf=0
+			call pk as c
+			call low c as d
+			jz d arg
+			call excomp as d
+			jnz d arg
+			q=ip
+			call name
+			call lvar as r
+			if r==-1
+				call lbuf as r
+			end
+			if r!=-1
+				ip=q
+				jmp arg
+			end
+			awf=1
+			cn=ns
+			cl=nl
+			jmp tokend
+		end
+		jz d&2 arg
+		ai=1
+	end
+	call rname
+	cn=ns
+	cl=nl
+	jmp tokend
+end
+jz f&4 arg
+call pk as c
+call low c as d
+jz d num
+call sname as r
+call mov r
+jmp tokend
+
+# The value of a while has been read again, at the end of its loop, as the
+# value of a jnz: compare or test it, and jump back to the first line of
+# the loop while it holds. The jump of the head, taken when the value does
+# not hold at first, lands behind.
+label wclose
+call xjcond
+call eop
+call e4 wbody-op-4
+call blktop as p
+nblk-=1
+wend=0
+ip=wip
+asg=wasg
+dead=0
+jmp be3
+
+# "<name>=<expression>" and "<name><operator>=<expression>"
+label asgn
+call exasn d-2
+jmp next
+
+# the end of a unit of source: go on after the use that named it, or finish
+label uend
+jz nustk fin
+if infn
+	call eend
+end
+nustk-=1
+load nustk*8+ucur as curunit
+p=nustk*16+ustack
+load p as ip
+p+=8
+load p as ie
+jmp next
+
+# "use "<path>"": read the file behind the source read so far and compile
+# it here, unless a use with the same path was compiled before
+label usedef
+if infn
+	call eplace
+end
+call blank1
+call pk as c
+call ok c==34
+call adv
+p=ip
+label u1
+call pk as c
+if c==256
+	call estr
+end
+if c!=34
+	if c==10
+		call estr
+	end
+	call adv
+	jmp u1
+end
+q=ip-p
+call adv
+call eol
+ns=p
+nl=q
+call ok q
+call no q>4095
+call look uses nuses 16 as r
+jne r -1 next
+call putn nuses*16+uses
+nuses+=1
+r=pathbuf
+label u8
+if q
+	loadb p as c
+	storeb r c
+	p+=1
+	r+=1
+	q-=1
+	jmp u8
+end
+storeb r 0
+epos=ns
+sys open pathbuf 0 0 as f
+ifslt f 0
+	call euse
+end
+r=srcend
+label u4
+q=in+inmax-srcend
+ifz q
+	call ebig
+end
+sys read f srcend q as c
+ifslt c 0
+	call euse
+end
+if c
+	srcend+=c
+	jmp u4
+end
+sys close f
+epos=0
+p=nuses*8
+store p+ustart-8 r
+store p+uendp-8 srcend
+store nustk*8+ucur curunit
+curunit=nuses
+p=nustk*16+ustack
+store p ip
+p+=8
+store p ie
+nustk+=1
+ip=r
+ie=srcend
+jmp next
+
+# ---- arguments
+# every token must be followed by a space, tab, comment or end of line
+label tokend
+call tokchk
+label arg
+call ochk
+call pk as c
+jeq c 256 a1
+jeq c 10 a1
+jeq c 35 a1
+call blank c as d
+jnz d a2
+if c!=13
+	jnz xst xarg
+	jeq c 34 str
+	call excomp as d
+	jnz d earg
+	call low c as d
+	jnz d ident
+	jeq c 45 num
+	call dig c as d
+	jnz d num
+	call err
+end
+call crlf
+label a1
+jnz wend wclose
+loadb cur+1 as f
+if f&8
+	call emlab
+end
+if f&1
+	call eas
+end
+if xst==5
+	call xmstore
+end
+call xjcond
+call eop
+loadb cur+2 as f
+jz f&8 next
+p=nblk*40+blks
+store p op
+p+=8
+store p asg
+p+=8
+store p 0
+p+=8
+ifz whead
+	store p 0
+else
+	# a while: its first line is behind this jump, and its value sees the
+	# variables there are now when it is read again
+	store p op+4
+	store4 p-4 nv
+end
+p+=8
+store p wsrc
+whead=0
+call z 4
+nblk+=1
+jmp next
+label a2
+call adv
+jmp arg
+
+# an expression: not where a name must stand (the first value of at, the
+# operand of len, the label of a jump)
+label earg
+call atfirst as d
+call no d
+loadb cur+1 as r
+call no r&64
+if r&8
+	loadb cur as d
+	if ai>=d
+		call err
+	end
+end
+call exinit
+call exparse 0
+call exarg
+jmp tokend
+
+# a value of a statement that is compiled like an expression: parsed now,
+# computed when the statement is complete. A name may be as, or the label
+# of a jump that has its values.
+label xarg
+call low c as d
+if d
+	q=ip
+	call name
+	r=cur
+	loadb r+1 as f
+	if f&8
+		loadb r as f
+		jge ai f jtarget
+	end
+	call isas as d
+	jnz d capture
+	ip=q
+end
+call exparse ai
+ai+=1
+jmp tokend
+
+label num
+call atfirst as d
+call no d
+call rdnum as r
+loadb cur+1 as d
+call no d&64
+call opdp as p
+store p 1
+p+=8
+store p r
+call mov r
+jmp tokend
+
+# string: the bytes go into the code behind a jmp. sys and call get two
+# values (address, length), len the length, the rest the address
+label str
+call atfirst as d
+call no d
+call adv
+call eb 233
+r=op
+call z 4
+p=op
+call sbytes
+q=op-p
+store4 r q
+call opdp as d
+store d 3
+store d+8 q
+loadb cur+1 as r
+jnz r&64 s1
+call elea
+store4 immpos p-immpos-4
+jnz r&20 s1
+loadb cur+2 as d
+jz d&4 tokend
+label s1
+call mov q
+jmp tokend
+
+# a name: a variable or buffer to pass, "as", or the label of a jump
+label ident
+call name
+r=cur
+loadb r+1 as f
+if f&8
+	loadb r as f
+	jge ai f jtarget
+end
+call isas as d
+jnz d capture
+call atfirst as d
+jnz d atname
+loadb cur+1 as r
+if r&64
+	call lbuf as r
+	if r==-1
+		call mov 0
+		r=1
+		jmp i9
+	end
+	call gent r as r
+	load r+32 as d
+	call no d
+	load r+24 as r
+	call mov r
+	jmp tokend
+end
+call lvar as r
+jeq r -1 i2
+store r*8+vlast ip
+ifz asg>>r&1
+	call eunasg
+end
+call opdp as d
+call cp4 r*32+vk d
+call aidx as d
+call areg d as f
+call vmov r f 139
+call anext
+jmp tokend
+label i2
+call lbuf as r
+jne r -1 i4
+label i8
+call opda
+call elea
+r=0
+label i9
+call addref r
+jmp tokend
+
+# the first value of at: a name, passed as its address and its size
+label atname
+call lvar as r
+if r!=-1
+	load r*8+vlocal as d
+	call ok d
+	store r*8+vlast ip
+	call vmov r 0 139
+	ai=1
+	load r*8+vlocsz as d
+	call mov d
+	jmp tokend
+end
+call lbuf as r
+if r!=-1
+	call gent r as p
+	load p+32 as d
+	call no d
+end
+call elea
+call addref 0
+call mov 0
+call addref 2
+jmp tokend
+label i4
+call gent r as p
+load p+32 as d
+if d!=1
+	if d==2
+		load p+24 as r
+		call opdp as d
+		store d 1
+		store d+8 r
+		call mov r
+		jmp tokend
+	end
+	jmp i8
+end
+load p+16 as r
+call ldvar r
+jmp tokend
+
+# "as <name>": emit the statement and keep rax in the variable
+label capture
+loadb cur+1 as r
+if r&2
+	call enoas
+end
+label cp0
+call blanks
+q=ip
+call rdname
+call lbuf as r
+jeq r -1 cp1
+call gent r as p
+load p+32 as d
+jz d==1 cp1
+load p+16 as p
+f=1
+jmp cp3
+label cp1
+ip=q
+call defvar as p
+load p*8+vlocal as d
+if d
+	call edup
+end
+f=0
+label cp3
+call ok ncap<6
+d=ncap*16+caps
+store d f
+store d+8 p
+ncap+=1
+call blanks
+call pk as c
+jeq c 256 cp4
+jeq c 10 cp4
+jeq c 13 cp4
+jeq c 35 cp4
+loadb cur+1 as d
+jnz d&16 cp0
+loadb cur+2 as d
+jnz d&4 cp0
+call err
+label cp4
+call eol
+if xst
+	if xst==4
+		call xmload
+		jmp next
+	end
+	call xcap
+	jmp next
+end
+call eop
+r=0
+label cp5
+jge r ncap next
+d=r*16+caps
+load d as f
+load d+8 as p
+call areg r as q
+ifz f
+	asg|=1<<p
+	call prop p
+	call vmov p q 137
+	jmp cp7
+end
+call emem q 1 p 137
+label cp7
+r+=1
+jmp cp5
+
+# "buf <name> <size>"
+label bufdef
+call blank1
+call rdname
+call newglob as p
+call blank1
+call pk as c
+call low c as d
+if d
+	call cname as r
+	jmp b2
+end
+call rdnum as r
+label b2
+if r>0x7fffffff
+	call ebuf
+end
+call eol
+store p+32 0
+store p+40 0
+store p+24 r
+r=r+7>>3<<3
+q=bsssz
+r+=q
+if r>0x7fffffff
+	call ebuf
+end
+bsssz=r
+p+=16
+store p q
+call globdone
+jmp next
+
+# "local <name> <size>": bytes in the frame of the open function; the name
+# takes one of its variables, whose value is the address
+label localdef
+ifz infn
+	call eplace
+end
+call blank1
+q=nv
+call defvar as r
+if nv==q
+	call edup
+end
+call blank1
+call pk as c
+call low c as d
+if d
+	call cname as p
+	jmp l3
+end
+call rdnum as p
+label l3
+# The locals of a function together stay a page short of 2 GiB: a local
+# is addressed by a signed 32-bit distance from rsp, or from the record
+# of a task, and before it lie the slots of the variables and either the
+# values pushed for a call or the 64 bytes of the record
+if p>0x7ffff000
+	call ebuf
+end
+call eol
+store r*8+vlocsz p
+p=p+7>>3<<3
+store r*8+vlocal loccur+1
+p+=loccur
+if p>0x7ffff000
+	call ebuf
+end
+loccur=p
+asg|=1<<r
+store r*32+vk 0
+jmp next
+
+# "var <name>...": global cells, below the buffers, the first one highest
+label vardef
+call blank1
+label v1
+call rdname
+call newglob as p
+store p+32 1
+r=ngv+1
+ngv=r
+store p+16 r
+call globdone
+call tokchk
+call blanks
+call pk as c
+jeq c 256 v2
+jeq c 10 v2
+jeq c 13 v2
+jne c 35 v1
+label v2
+call eol
+jmp next
+
+# "const <name> <number>"
+label constdef
+call blank1
+call rdname
+call newglob as p
+call blank1
+call rdnum as r
+call eol
+store p+24 r
+store p+32 2
+call globdone
+jmp next
+
+# "data [<name>] <item>...": bytes behind a jmp; data statements that
+# follow each other share the jmp, so their bytes are contiguous
+label datadef
+call blank1
+f=0
+call pk as c
+call no c==256
+call low c as d
+if d
+	call rdname
+	call newglob as p
+	call tokchk
+	f=1
+end
+if op!=dataend
+	call eb 233
+	datarel=op
+	call z 4
+	nruns+=1
+end
+q=op
+r=0
+label d3
+call ochk
+call blanks
+call pk as c
+jeq c 256 d6
+jeq c 10 d6
+jeq c 13 d6
+jeq c 35 d6
+if c==34
+	call adv
+	call sbytes
+	jmp d5
+end
+call rdnum as c
+call no c>255
+call eb c
+label d5
+call tokchk
+r+=1
+jmp d3
+label d6
+call ok r
+call eol
+if f
+	store p+32 0
+	store p+40 nruns
+	store p+24 op-q
+	store p+16 q-out
+	call globdone
+end
+p=datarel
+q=op
+store4 p q-p-4
+dataend=q
+store nruns*8+runend-8 q-out
+jmp next
+
+# "label <name>"
+label labdef
+call blank1
+call rname
+call eol
+call llab as r
+call nodup r
+r=nlabels
+p=r*40+labs
+call putn p
+p+=16
+store p op
+p+=8
+store p ip
+call labasg
+call clrvk
+xflg=16
+p+=8
+store p asg
+call hadd 3 scope r
+nlabels=r+1
+dataend=0
+jmp next
+
+# the label name of a jump: its rel32 is filled in by resolve
+label jtarget
+call eol
+call llab as r
+jeq r -1 j1
+r=(r+labbase)*40+labs
+load r+32 as d
+if d&(asg^-1)
+	call eunasgj
+end
+jne pass 1 j2
+load r+24 as r
+p=nloops*16+loops
+store p r
+store p+8 ip
+nloops+=1
+jmp j2
+label j1
+call hfind 4 scope as q
+ifz q
+	call hadd 4 scope 0 as q
+	store q+8 -1
+end
+q+=8
+load q as d
+store q d&asg
+label j2
+call xjcond
+call eop
+r=nfix
+p=r*32+fixs
+call putn p
+p+=16
+store p op
+p+=8
+store p asg
+call z 4
+nfix=r+1
+loadb cur as d
+jnz d next
+call godead
+jmp next
+
+# "fn <name> <parameter>...": jump over the body, save the variable
+# registers and open a scope whose first variables are the parameters
+label fndef
+if infn
+	call eplace
+end
+jnz pass f0
+sip=ip
+sop=op
+snb=nbufs
+snv=ngv
+sbs=bsssz
+snc=ncalls
+snf=nfuncs
+snr=nrefs
+sde=dataend
+sdr=datarel
+snk=nchks
+snu=nruns
+snh=nhn
+pass=1
+fnslots=0
+fnregs=6
+fnlocal=0
+nloops=0
+label f0
+loccur=0
+fnres=0
+fntail=0
+call clrloc
+call blank1
+call rname
+call lfn as r
+call nodup r
+p=nfuncs*40+funs
+call putn p
+call eb 233
+fnskip=op
+call z 4
+q=op
+p+=16
+store p q
+if fnasy
+	call asyent
+else
+	loadb fnregs+pushlen as q
+	call cp fnpush q
+	call frame 236
+end
+topvars=nv
+nv=0
+topblk=blkbase
+blkbase=nblk
+tasg=asg
+tdead=dead
+tjmask=jmask
+asg=0
+dead=0
+infn=1
+nscope+=1
+scope=nscope
+labbase=nlabels
+fixbase=nfix
+label f1
+call blanks
+call pk as c
+jeq c 256 f2
+jeq c 10 f2
+jeq c 13 f2
+jeq c 35 f2
+q=nv
+call defvar as r
+if nv==q
+	call edup
+end
+asg|=1<<r
+if fnasy
+	# the code that makes the task has stored the parameter
+	if r>5
+		call ecount
+	end
+	jmp f1
+end
+if r<6
+	call areg r as f
+	call vmov r f 137
+	jmp f1
+end
+call emem 11 2 (fnnpar-r+fnslots+fnregs)*8+fnlocal 139
+call vmov r 11 137
+jmp f1
+label f2
+call eol
+fnnpar=nv
+store p+8 nv
+p=nfuncs*40+funs
+call getn p
+call hadd 2 0 nfuncs
+nfuncs=nfuncs+1
+jmp next
+
+# "async fn ...": a function whose call makes a task, which runs it
+label asydef
+if infn
+	call eplace
+end
+asyn=ns
+asyl=nl
+call blank1
+call rname
+call ok nl==2
+loadb ns as c
+loadb ns+1 as d
+call ok c==102
+call ok d==110
+fnasy=1
+jmp fndef
+
+# "end": return 0, resolve the function's jumps, drop its labels and jumps
+label fnend
+jgt nblk blkbase blkend
+ifz infn
+	call eplace
+end
+call eol
+q=fnres
+d=q
+jnz q e0
+q=1
+d=1
+jz fntail e0
+# only tails: the results are those of their targets, which fin finds
+d=0
+label e0
+if fnasy
+	# a call gives one result, the task; its own result is 0 here
+	store (nfuncs-1)*40+funs+32 1
+	call eb 49
+	call eb 192
+	call cp asyret 11
+else
+	store (nfuncs-1)*40+funs+32 d
+	loadb q+zerolen-1 as p
+	call cp zeroes p
+	call frame 196
+	call popskip as q
+	call cp retc+q 11-q
+end
+call resolve
+nfix=fixbase
+nlabels=labbase
+fixbase=0
+labbase=0
+infn=0
+scope=0
+asg=tasg
+dead=tdead
+jmask=tjmask
+blkbase=topblk
+call clrvk
+p=fnskip
+store4 p op-p-4
+jne pass 1 e1
+fnlocal=loccur
+call alloc
+ip=sip
+op=sop
+nbufs=snb
+ngv=snv
+bsssz=sbs
+ncalls=snc
+nfuncs=snf
+nrefs=snr
+dataend=sde
+datarel=sdr
+nchks=snk
+nruns=snu
+call hundo snh
+nv=topvars
+pass=2
+jmp fndef
+label e1
+call clrloc
+fnasy=0
+pass=0
+fnslots=0
+fnregs=6
+fnlocal=0
+nv=topvars
+jmp next
+
+# "end" with a block open: what is assigned after it is what both ways
+# here have assigned, its last line and the jump past it, or after an else
+# part the last line of the part before
+label blkend
+call eol
+p=(nblk-1)*40+blks
+load p+24 as r
+if r
+	# The end of a while: here its value is read again from the source, as the
+	# value of a jnz that leads back to the first line of the loop (wclose),
+	# and behind that the jump of the head lands. A round is thus one jump. The way
+	# back must have assigned what was assigned at the head, like a jump back
+	# to a label, and in the first pass over a function the loop is noted for
+	# alloc. At the test and after the loop, what is assigned is what the head
+	# had.
+	ifz dead
+		load p+8 as q
+		if q&(asg^-1)
+			call eunasgj
+		end
+	end
+	if pass==1
+		load p+32 as q
+		d=nloops*16+loops
+		store d q
+		store d+8 ip
+		nloops+=1
+	end
+	load p+8 as q
+	wasg=q
+	asg=q
+	dead=0
+	wbody=r
+	load4 p+20 as q
+	wnv=q
+	load p+32 as q
+	wip=ip
+	ip=q
+	p=exnm
+	store2 p 0x6e6a
+	storeb p+2 122
+	p=exnm
+	ns=p
+	nl=3
+	call kw as r
+	cur=r
+	ai=0
+	ncap=0
+	store opd 0
+	store opd+32 0
+	call xclass as d
+	xst=d
+	if d
+		call exinit
+	end
+	wend=1
+	jmp arg
+end
+call blktop as p
+nblk-=1
+load4 p+16 as d
+if d
+	load4 p+20 as d
+	jnz d be3
+end
+load p+8 as q
+if dead
+	asg=q
+	dead=0
+	jmp be3
+end
+asg&=q
+label be3
+xflg=16
+call clrvk
+dataend=0
+jmp next
+
+# "else": the block so far ends with a jump past the rest, and the jump of
+# its "if" lands here
+label elsedef
+if nblk<=blkbase
+	call eplace
+end
+call eol
+load (nblk-1)*40+blks+24 as d
+if d
+	call eplace
+end
+call eb 233
+r=op
+call z 4
+call blktop as p
+load4 p+16 as d
+if d
+	call eplace
+end
+store p r
+q=p+8
+load q as f
+store q asg
+store4 p+20 dead
+store4 p+16 1
+asg=f
+dead=0
+call clrvk
+jmp next
+
+# "while <value>": an if on the value, whose block ends with the value
+# read again and a jump back to its first line while it holds. A
+# jump reaches the loop, so what is known of the variables is forgotten, as
+# at a label.
+label whiledef
+call blank1
+call clrvk
+dataend=0
+whead=op
+wsrc=ip
+p=exnm
+store2 p 0x6669
+ns=p
+nl=2
+call kw as r
+cur=r
+ai=0
+ncap=0
+store opd 0
+store opd+32 0
+call xclass as d
+xst=d
+if d
+	call exinit
+end
+jmp arg
+
+# ---- implicit exit(0), patch jumps, calls and sizes, write the ELF
+label fin
+if infn
+	call eend
+end
+if nblk
+	call eend
+end
+call cp exit0 9
+rwstart=op-out+4095>>12<<12
+call resolve
+call tailres
+p=calls
+r=ncalls
+while r
+	call getn p
+	epos=ns
+	call lfn as c
+	if c==-1
+		call efn
+	end
+	c=c*40+funs
+	load4 p+24 as q
+	jeq q 0xffffffff c5
+	load c+24 as d
+	ifz d==q
+		call eargc
+	end
+	load4 c+32 as d
+	load4 p+28 as q
+	if q&0x80000000
+		# a tail: its function returns what the target does, so the two counts
+		# are one, unless the target never returns
+		load4 (q&0x7fffffff)*40+funs+32 as q
+		if d
+			if d!=q
+				call eresf
+			end
+		end
+	else
+		# a function that never returns may be asked for any number
+		ifz d
+			d=6
+		end
+		if q>d
+			call eresf
+		end
+	end
+	load c+16 as c
+	load p+16 as q
+	store4 q c-q-4
+	jmp c7
+	label c5
+	load c+16 as c
+	load p+16 as q
+	store4 q c-q-4
+	label c7
+	p+=32
+	r-=1
+end
+p=refs
+r=nrefs
+while r
+	load p+24 as f
+	if f==3
+		load p as q
+		q=q*8-8+rwstart
+		jmp r7
+	end
+	call getn p
+	epos=ns
+	call lbuf as c
+	if c==-1
+		call eund
+	end
+	call gent c as c
+	load c+32 as d
+	if d
+		call eund
+	end
+	load c+16 as q
+	load c+40 as d
+	ifz f
+		jnz d r7
+		q=q+ngv*8+rwstart
+		label r7
+		load p+16 as d
+		store4 d q-(d-out+4)
+		jmp r8
+	end
+	jnz f!=2 r6
+	jz d r6
+	load d*8+runend-8 as d
+	q=d-q
+	jmp r5
+	label r6
+	load c+24 as q
+	label r5
+	load p+16 as d
+	store4 d q
+	label r8
+	p+=32
+	r-=1
+end
+p=chks
+r=nchks
+while r
+	call getn p
+	load4 p+28 as d
+	epos=d+in
+	call lbuf as c
+	jeq c -1 k4
+	call gent c as c
+	load c+32 as d
+	jnz d k4
+	load c+40 as d
+	if d
+		load p+24 as q
+		if q&256
+			call eacc
+		end
+		load d*8+runend-8 as d
+		load c+16 as q
+		d-=q
+		jmp k6
+	end
+	load c+24 as d
+	label k6
+	load p+16 as q
+	if q>=d
+		call eacc
+	end
+	d-=q
+	loadb p+24 as q
+	jle q d k4
+	call eacc
+	label k4
+	p+=32
+	r-=1
+end
+epos=-1
+q=op-out
+store out+96 q
+store out+104 q
+store out+136 rwstart
+store out+144 rwstart
+c=ngv*8+bsssz
+store out+160 c
+if c+rwstart>0x7fffffff
+	call ebuf
+end
+p=out
+label w1
+sys write 1 p q as c
+ifz c-1<q
+	call ewr
+end
+p+=c
+q-=c
+jnz q w1
+
+# ---- the read-only tables are a file of their own, compiled here: a data
+# name may be declared after its uses
+use "compiler/tables.aw"

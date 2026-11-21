@@ -1,2 +1,0 @@
-# found when the function ends, reported where the jump is
-use "tests/lib/bad_label.ai"

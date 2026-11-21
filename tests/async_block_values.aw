@@ -1,0 +1,33 @@
+# the four values of work for the pool arrive as they were given, and
+# none of them is read as anything else: after work whose values are
+# what a size class would be, the record of the work is the record that
+# the next piece of work gets, as after any other
+use "lib/task.aw"
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+use "lib/async/io.aw"
+use "lib/async/pool.aw"
+fn mix a b c d
+	ret a*1000+b*100+c*10+d
+end
+fn third a b c d
+	ret c
+end
+# run the work, and say whether its record is used again by the next
+fn again v
+	ref third as p
+	call asyncblock p v v v v as h
+	load h+64 as j
+	await h as r
+	call asyncblock p 1 1 1 1 as h
+	load h+64 as k
+	await h
+	ret (r==v)&(j==k)
+end
+ref mix as p
+await asyncblock p 1 2 3 4 as x
+call again 5 as a
+call again 256 as b
+call again 0xff00 as c
+call again -1 as d
+sys exit_group (x==1234)+a*2+b*4+c*8+d*16

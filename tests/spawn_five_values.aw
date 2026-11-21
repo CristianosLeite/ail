@@ -1,0 +1,8 @@
+use "lib/task.aw"
+fn work a b c d e
+	ret a+b*2+c*4+d*8+e*16
+end
+n=1
+spawn work n n+1 3 n<<2 5 as h
+join h as x
+sys exit_group x

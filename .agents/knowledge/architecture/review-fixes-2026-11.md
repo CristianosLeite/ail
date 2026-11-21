@@ -1,7 +1,7 @@
 ---
 title: Review fixes of 2026-11-20
 last-verified: 2026-11-20
-sources: [PR #4, PR #5, REVIEW.md of 2026-11-20, conversation 2026-11-20, compiler/ailc.ai, compiler/emit.ai, compiler/names.ai]
+sources: [PR #4, PR #5, REVIEW.md of 2026-11-20, conversation 2026-11-20, compiler/ailc.aw, compiler/emit.aw, compiler/names.aw]
 status: current
 ---
 # Review fixes of 2026-11-20
@@ -48,7 +48,7 @@ tool fixes of the same reviews are on the pages of those subjects.
 - A statement that returns from a function must record what `fin` needs to check its count;
   `calls` entries of a tail carry the function index with bit 31 set.
 - Anything read twice from the source must resolve names as at the first reading.
-- After a compiler change compare its output with the compiler before on every `.ai` of the
+- After a compiler change compare its output with the compiler before on every `.aw` of the
   repository, then `make fuzz N=20000` and `randvars` in its three modes.
 - A reproduction from a review becomes a test that fails on the code before the fix.
 

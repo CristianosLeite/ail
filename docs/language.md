@@ -27,7 +27,7 @@ use "path"
 Compiles the file `path` at this place, as if its lines stood here: its functions, global names and top-level statements become part of the program, and its top-level statements run where the `use` stands. A program is thus split into files by listing them, and a file of functions and data is a library.
 
 ```
-use "lib/io.ai"
+use "lib/io.aw"
 call print "hello\n"
 ```
 
@@ -73,9 +73,9 @@ fn gcd a b
 end
 ```
 
-`build/tools/indent file.ai ...` (`tools/indent.ai`) indents files that way in place and changes no byte but the spaces and tabs at the start of a line, so the compiled program stays the same; `build/tools/indent --check file.ai ...` only prints `path:line` for each line that is not as the rule has it, and exits with 1 if there is one; `build/tools/indent -` reads a source from stdin and writes it to stdout. It does not check the program: an `end` too many closes nothing. Every source of the repository is indented that way and `make test` checks it (`tests/indent.sh`), but for the tests of the separators, listed in `tests/indent/skip`, and the fixtures that a tool must reproduce byte for byte.
+`build/tools/indent file.aw ...` (`tools/indent.aw`) indents files that way in place and changes no byte but the spaces and tabs at the start of a line, so the compiled program stays the same; `build/tools/indent --check file.aw ...` only prints `path:line` for each line that is not as the rule has it, and exits with 1 if there is one; `build/tools/indent -` reads a source from stdin and writes it to stdout. It does not check the program: an `end` too many closes nothing. Every source of the repository is indented that way and `make test` checks it (`tests/indent.sh`), but for the tests of the separators, listed in `tests/indent/skip`, and the fixtures that a tool must reproduce byte for byte.
 
-`editors/vscode/` is an extension for VS Code that colours `.ai` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
+`editors/vscode/` is an extension for VS Code that colours `.aw` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
 
 Tabs, because they cost fewer tokens than spaces (measured in [token cost](tokens.md)); an editor shows one two columns wide, which `.editorconfig` asks for.
 
@@ -152,7 +152,7 @@ add p 8 as q
 load q as name          # address of the program's name
 ```
 
-`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/io.ai`](#the-io-library) does that and offers `argc` and `argv`.
+`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/io.aw`](#the-io-library) does that and offers `argc` and `argv`.
 
 ### `set` and arithmetic
 
@@ -433,7 +433,7 @@ Nothing is known about the function at a `callp`: the number of values is not ch
 #### Tasks
 
 ```
-use "lib/task.ai"
+use "lib/task.aw"
 spawn name x y as h
 join h as result
 ```
@@ -441,7 +441,7 @@ join h as result
 `spawn` submits the function `name` with up to five values as a task and keeps a handle of it; `join` waits until the task has run and keeps the first result of the function. Tasks are independent pieces of work that may run at the same time as the code that spawned them:
 
 ```
-use "lib/task.ai"
+use "lib/task.aw"
 fn work a b
 ret a*b
 end
@@ -449,7 +449,7 @@ spawn work 6 7 as h
 join h as x             # 42
 ```
 
-The two statements are calls of the functions `spawn` and `join` of the program, which `lib/task.ai` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
+The two statements are calls of the functions `spawn` and `join` of the program, which `lib/task.aw` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
 
 - **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 80 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
 - **The result** is the first value the function returns, 0 if it reaches its `end`. Further results are lost; a task with more to give writes it to memory it was passed.
@@ -458,7 +458,7 @@ The two statements are calls of the functions `spawn` and `join` of the program,
 - **Errors**: a task has no failure of its own. What it reports, it reports in its result. A fault in a task (a trap of `at`, a division by zero, a bad address) ends the whole program, as anywhere else.
 - **The end of the program**: reaching the last line ends the program with every task, run or not. So does `sys exit_group`; `sys exit` ends only the thread that runs it.
 
-**The pool.** Tasks are run by worker threads that `lib/task.ai` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
+**The pool.** Tasks are run by worker threads that `lib/task.aw` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
 
 ```
 call workers 4
@@ -475,7 +475,7 @@ call workers 4
 #### Async functions
 
 ```
-use "lib/async/task.ai"
+use "lib/async/task.aw"
 async fn name a b
 ...
 ret x
@@ -486,7 +486,7 @@ call name 1 2 as h
 `async fn` defines a function that runs as a task of [the async library](#the-async-library). A call of it runs none of its lines: it makes the task, with the values of the call as its parameters, puts it in the queue and returns its handle, which is the one result of the call. The lines run when the task is polled, and the value of its `ret` is the result of the task, which `await` gives:
 
 ```
-use "lib/async/task.ai"
+use "lib/async/task.aw"
 async fn mul a b
 ret a*b
 end
@@ -513,10 +513,10 @@ await g as y
 
 - **At top level and in a plain function** there is no task to put aside: `await` polls tasks until the one it waits for is done, and that is how a program runs its tasks. If nothing can happen any more before that, the result is -35.
 
-The statement is a call of the function `await` of the program, which `lib/async/task.ai` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
+The statement is a call of the function `await` of the program, which `lib/async/task.aw` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
 
 - An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, `spawn` and `join` included, which hold the thread while they wait, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
-- The task is made by the function `async` of the program, which `lib/async/task.ai` defines; without that `use` an async function is an `undefined function async`.
+- The task is made by the function `async` of the program, which `lib/async/task.aw` defines; without that `use` an async function is an `undefined function async`.
 - **Its variables live in the record of the task**, not in registers and not on the stack, so that they are there when the task goes on after a wait: every use of a variable is a use of memory. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
 - The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
 
@@ -868,7 +868,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 
 ## The io library
 
-`lib/io.ai` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/io.ai"`; put that line first, since it also records the program's arguments where it stands.
+`lib/io.aw` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/io.aw"`; put that line first, since it also records the program's arguments where it stands.
 
 | Function | Does |
 |---|---|
@@ -882,7 +882,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 | `argv i` | two results: the address and the length of argument `i`, or 0 and 0 if there is none |
 
 ```
-use "lib/io.ai"
+use "lib/io.aw"
 call argv 1 as p n
 ifz p
 call die "usage: greet name\n"
@@ -896,7 +896,7 @@ A string literal is the two values that `print` takes. The library defines the v
 
 ## The bytes library
 
-`lib/bytes.ai` is a buffer of bytes that grows as bytes are added, for text whose length is not known when the program is written. The buffer is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the bytes, their number, and the room at that address. All zero is an empty buffer, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes.
+`lib/bytes.aw` is a buffer of bytes that grows as bytes are added, for text whose length is not known when the program is written. The buffer is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the bytes, their number, and the room at that address. All zero is an empty buffer, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes.
 
 | Function | Does |
 |---|---|
@@ -909,8 +909,8 @@ A string literal is the two values that `print` takes. The library defines the v
 | `bycopy d s n` | copies `n` bytes from `s` to `d`, which do not overlap; any memory, not only a buffer |
 
 ```
-use "lib/io.ai"
-use "lib/bytes.ai"
+use "lib/io.aw"
+use "lib/bytes.aw"
 buf b 24
 call byadd b "total "
 call byaddn b 42
@@ -927,7 +927,7 @@ call print p n
 
 ## The file library
 
-`lib/file.ai` reads a whole file into a buffer of the bytes library and writes one from memory; a program that uses it has `use "lib/bytes.ai"` before it. A path is an address and a length, as a string literal and the two results of `argv` are, without a NUL byte and shorter than 4096 bytes.
+`lib/file.aw` reads a whole file into a buffer of the bytes library and writes one from memory; a program that uses it has `use "lib/bytes.aw"` before it. A path is an address and a length, as a string literal and the two results of `argv` are, without a NUL byte and shorter than 4096 bytes.
 
 | Function | Does |
 |---|---|
@@ -941,9 +941,9 @@ call print p n
 | `filenames p n b` | adds the names in the directory at the path to the buffer `b`, each with a NUL byte after it, without `.` and `..`, in the order of the kernel; returns their number |
 
 ```
-use "lib/io.ai"
-use "lib/bytes.ai"
-use "lib/file.ai"
+use "lib/io.aw"
+use "lib/bytes.aw"
+use "lib/file.aw"
 buf b 24
 call argv 1 as p n
 call fileread p n b as r
@@ -961,7 +961,7 @@ call filewrite "copy" q r
 
 ## The process library
 
-`lib/proc.ai` starts another program as a child process and waits for it; a program that uses it has `use "lib/io.ai"` before it, which knows where the arguments and the environment are.
+`lib/proc.aw` starts another program as a child process and waits for it; a program that uses it has `use "lib/io.aw"` before it, which knows where the arguments and the environment are.
 
 | Function | Does |
 |---|---|
@@ -973,10 +973,10 @@ call filewrite "copy" q r
 | `procpin cpu` | binds this thread, and the children it starts afterwards, to the processor `cpu`, or to the lowest it may run on if that is none of them; returns the processor, or a negative error number |
 
 ```
-use "lib/io.ai"
-use "lib/bytes.ai"
-use "lib/file.ai"
-use "lib/proc.ai"
+use "lib/io.aw"
+use "lib/bytes.aw"
+use "lib/file.aw"
+use "lib/proc.aw"
 data sh "/bin/sh" 0
 data c "-c" 0
 data s "ls | wc -l" 0
@@ -999,7 +999,7 @@ call procwait p 10000 as r
 
 ## The async library
 
-`lib/async/task.ai` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.ai"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
+`lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
 
 | Function | Does |
 |---|---|
@@ -1015,7 +1015,7 @@ call procwait p 10000 as r
 | `asyncyield` | makes a task that is done at its first poll, with the result 0; a task that awaits it lets the tasks in the queue run first |
 
 ```
-use "lib/async/task.ai"
+use "lib/async/task.aw"
 fn poll t
 load t+64 as e          # the first value: an event to wait for
 call await e t as v r
@@ -1050,7 +1050,7 @@ call await h 0 as x     # 42
 
 ### Timers
 
-`lib/async/time.ai`, used after `lib/async/task.ai`, makes events of time.
+`lib/async/time.aw`, used after `lib/async/task.aw`, makes events of time.
 
 | Function | Does |
 |---|---|
@@ -1073,7 +1073,7 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 
 ### Files and sockets
 
-`lib/async/io.ai`, used after the other two, makes events of the work of the kernel on a descriptor.
+`lib/async/io.aw`, used after the other two, makes events of the work of the kernel on a descriptor.
 
 | Function | Does |
 |---|---|
@@ -1087,9 +1087,9 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 | `asyncclose fd` | closes the descriptor, after ending the events that wait for it with the result -125; returns what `close` returns |
 
 ```
-use "lib/async/task.ai"
-use "lib/async/time.ai"
-use "lib/async/io.ai"
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+use "lib/async/io.aw"
 buf b 512
 call asynclisten 0 8080 as l
 call asyncaccept l as h
@@ -1111,7 +1111,7 @@ call asyncclose c
 
 ### Work that holds a thread
 
-One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.ai` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/task.ai` and the three files above before it.
+One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.aw` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/task.aw` and the three files above before it.
 
 | Function | Does |
 |---|---|
@@ -1137,7 +1137,7 @@ end
 
 ### Channels and the first of several
 
-`lib/async/chan.ai`, used after `lib/async/task.ai`, carries values between tasks and waits for several things at once.
+`lib/async/chan.aw`, used after `lib/async/task.aw`, carries values between tasks and waits for several things at once.
 
 | Function | Does |
 |---|---|
@@ -1204,7 +1204,7 @@ The compiler stops at the first fault it finds, prints one line on stderr and ex
 
 ```
 ailc: 12: undefined label done
-ailc: lib/io.ai:7: wrong operand count
+ailc: lib/io.aw:7: wrong operand count
 ailc: source too big
 ```
 
@@ -1231,7 +1231,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.ai`, with the name `spawn` or `join` |
+| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/task.aw`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |

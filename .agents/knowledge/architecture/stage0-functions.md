@@ -5,7 +5,7 @@ sources: [docs/TODO.md functions item 2026-11-19, functions review 2026-11-19 (R
 status: current
 ---
 
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.ai` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aw` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 functions
 
 **Summary.** Why `fn` / `end` / `call` / `ret` in `stage0/ailc.s` work the way they do, what was
@@ -20,7 +20,7 @@ this page records the reasoning.
 - Values travel in argument positions 0-5 (`rax rdi rsi rdx r10 r8`), the result in `rax`. The
   callee pushes all six variable registers at entry and pops them at every `ret` and at `end`:
   21 bytes of code per function and per `ret`, 56 bytes of stack per call.
-- `examples/fact.ai` compiles to 319 bytes and exits with 120.
+- `examples/fact.aw` compiles to 319 bytes and exits with 120.
 - 66 tests were added with the feature and 4 after its review (214 in all). Mutations tried on a scratch copy of the compiler, each failing
   at least one new test: not saving `r13`; skipping the last entry of `calls`; not cutting
   `nlabels` or `nfix` back at `end`; no arity comparison; no `xor eax, eax` at `end`; not

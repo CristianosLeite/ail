@@ -1,0 +1,40 @@
+# three tasks that sleep are woken in the order of their times, whatever
+# the order they were made in, and no earlier than asked
+use "lib/io.aw"
+use "lib/async/task.aw"
+use "lib/async/time.aw"
+buf ch 8
+fn poll t
+	load t+8 as h
+	ifz h
+		load t+64 as ms
+		call asyncsleep ms as h
+		store t+8 h
+	end
+	call await h t as v r
+	ifz r
+		ret 0
+	end
+	load t+72 as c
+	storeb ch c
+	call print ch 1
+	ret 1
+end
+fn task ms c
+	ref poll as p
+	call async 80 p as h
+	store h+64 ms
+	store h+72 c
+	ret h
+end
+call asyncclock as t0
+call task 30 97 as a
+call task 10 98 as b
+call task 20 99 as c
+call asyncrun as n
+call asyncclock as t1
+call print "\n"
+call await a 0
+call await b 0
+call await c 0
+sys exit_group n*2+(t1-t0<30000000)
