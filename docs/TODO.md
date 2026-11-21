@@ -343,6 +343,53 @@ separate success or found result wherever zero is a valid value.
   contracts in [`language.md`](language.md) and record benchmark results in
   [`performance.md`](performance.md).
 
+## Performance follow-up
+
+On the Core i7-12700H, `build/tools/perf --qsort` measured a geometric mean
+of AIL/C time ratios of 1.037 across five CPU-bound programs and 1.760 across
+48 algorithm kernel timings. The loopback echo servers in AIL and C were
+within about 2% of each other at 1, 100 and 1,000 connections. Prioritize the
+compiler's generated code and task granularity. Repeat comparisons with the
+same inputs and affinity, checking output before timing and reporting kernel
+and elapsed times separately. The `hashtab` and `mergesort` prototypes below
+were compared byte for byte on the checked inputs and timed over 15 rounds
+with shuffled run order. See [benchmark method](performance.md#method).
+
+1. [ ] **Emit scaled indexes in loads and stores.** In
+   [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
+   register index scaled by 2, 4 or 8 into the x86-64 memory operand when it
+   fits. `load p+i*8` currently emits `imul`, `add` and `mov` in a test with
+   both operands in registers. GNU `as` confirmed the equivalent indexed
+   `mov` reduces the sequence from 10 to 4 bytes. Preserve displacement
+   handling and static access diagnostics. Add instruction-byte cases for
+   scaled loads and stores, including displacements, and measure kernel times
+   on `graph`, `bsearch` and the full suite. The instruction reduction is
+   verified and the runtime gain is still unmeasured.
+2. [ ] **Reduce stack accesses in hot loops and evaluate selective inlining.**
+   Inspect [`alloc`](../compiler/emit.aw) and the generated code for
+   [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
+   keys, manually inlining `place` lowered insertion and successful lookup
+   times by 12–20%, while unsuccessful lookups on random keys took 30% longer
+   and the loop gained stack accesses. Measure all three operations at 1,000
+   and 1,000,000 keys with random and duplicate-heavy inputs. Compare the
+   generated stack accesses and code size as well as elapsed time.
+3. [ ] **Find a profitable lowering for compound loop conditions.** Use
+   [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
+   its two bounds comparisons into separate branches, cutting kernel time
+   by up to 7% on sorted and reversed inputs while increasing it by up to
+   18% on small random or duplicate-heavy inputs. Preserve AIL's eager
+   evaluation semantics, including possible traps, and compare alternative
+   branch layouts across all four input shapes and both input sizes.
+4. [ ] **Tune task granularity before changing the pool.** Using medians from
+   three runs per configuration (`build/tools/par --runs 3`), 160 tasks at
+   20 threads gave a 10.21x speedup for `collatz`, 10.86x for `primes` and
+   3.35x for `memsum`.
+   At 20 threads, `memsum` took 62.5 ms with 200 tasks per pass and 374 ms
+   with 20,000. All three workloads lost to their sequential versions at a
+   million tasks. Sweep batch sizes across worker counts and use the results
+   to document useful starting sizes for CPU-bound and memory-bound work.
+   [Task benchmark method](performance.md#tasks-2026-11-20)
+
 ## Redesign
 
 From `REDESIGN.md`; one commit per item.
