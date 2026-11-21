@@ -139,7 +139,7 @@ Where the work departed from the document:
 - **The old forms were not kept as copies of the examples.** The statements remain in the language and compile to the same code as the expressions that say the same, which `tools/randvars.aw` checks byte for byte; about 900 tests are still written with them.
 - **The seed is a release of a private repository**, so fetching it needs `gh` and a login, or a local copy; `curl` alone works once the repository is public.
 
-Not done: the comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer, which stays an open item.
+The comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer was not done then; it was on 2026-11-21, and the order of the languages holds, with AIL further ahead ([tokens.md](tokens.md#claudes-tokenizers-measured-on-2026-11-21)).
 
 ## The measuring tool in AIL, 2026-11-20
 

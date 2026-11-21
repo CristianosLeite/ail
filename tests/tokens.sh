@@ -45,6 +45,10 @@ r=0
 a=$(build/tools/tokens -c '#' "$tmp/with.aw" 2> /dev/null) || r=1
 b=$(build/tools/tokens --ids "$tmp/without.aw" 2> /dev/null | wc -l) || r=1
 [ "$a" = "$b $tmp/with.aw" ] || r=1
+build/tools/tokens --code '#' "$tmp/with.aw" > "$tmp/code.aw" 2> /dev/null &&
+    cmp -s "$tmp/code.aw" "$tmp/without.aw" || r=1
+build/tools/tokens --code '#' > /dev/null 2> "$tmp/said"
+[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "tokens: usage: tokens --code <mark> file" ] || r=1
 say tokens_counts_code $r
 
 r=0

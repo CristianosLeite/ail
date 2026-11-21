@@ -6,7 +6,7 @@
 - [Stage1 self-hosting](architecture/stage1-self-hosting.md) — the compiler in AIL: decisions, differential and mutation checks, friction found in the language
 - [Seed bootstrap](architecture/seed-bootstrap.md) — the compiler in AIL built from a released copy of itself: the manifest, why a GitHub release, the rule for new syntax in the compiler source
 - [Expression syntax](architecture/expression-syntax.md) — infix without spaces, `x=e` and `x+=e`, Rust's precedence; the eight spellings counted and why the earlier rejection of infix was reversed
-- [Token cost measurement](architecture/token-cost-measurement.md) — o200k_base counts against C, Rust and assembly, where AIL tokens go, rules for new syntax
+- [Token cost measurement](architecture/token-cost-measurement.md) — o200k_base counts against C, Rust and assembly, where AIL tokens go, rules for new syntax, the same counted with Claude's tokenizers
 - [Language extensions](architecture/language-extensions.md) — decisions taken while working through the TODO backlog: data and strings, and the ones that follow
 - [Targets and interoperability](architecture/targets-and-interoperability.md) — evaluation of a second architecture, object files, a platform ABI and dynamic linking: none now, with what each would take and when to reopen
 - [Async runtime](architecture/async-runtime.md) — `async fn`/`await` as polled tasks on one thread: the two await forms, eager futures, cancellation, why no multithreaded scheduler

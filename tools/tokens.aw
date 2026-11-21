@@ -4,6 +4,7 @@
 #   build/tools/tokens [name ...]        (default: every example in examples/)
 #   build/tools/tokens -c <mark> file ...
 #   build/tools/tokens --ids file
+#   build/tools/tokens --code <mark> file
 #
 # The AIL source is examples/<name>.aw; the others are bench/<name>.<ext>.
 # Comments and blank lines are removed first, so only code is counted. A
@@ -15,6 +16,9 @@
 # start with the mark ("#", "//") and run to the end of the line, and
 # without its blank lines: a line "<count> <file>" for each. With --ids
 # the numbers of the tokens of the file as it is are printed, one a line.
+# With --code the text that -c counts is printed, the file without its
+# comments and blank lines, for a count by another tokenizer
+# (tools/claudetokens.sh).
 #
 # The tokens are those of the encoding o200k_base (tools/lib/o200k.aw),
 # from the two files that tools/pins/MANIFEST pins; tools/pin.sh fetches
@@ -375,6 +379,32 @@ end
 
 fn main
 	call argc as n
+	# the code of a file as it is counted needs no table of tokens
+	if n>1
+		call argv 1 as p m
+		if m==6
+			call same p "--code" as r
+			if r
+				if n!=4
+					call fail3 "usage: tokens --code <mark> file" "" ""
+				end
+				call argv 2 as mp mn
+				call argv 3 as fp fn
+				call readraw fp fn as r
+				ifz r
+					call fail3 "cannot read " fp fn ""
+				end
+				load raw as p
+				load raw+8 as m
+				call code p m mp mn
+				load src as p
+				load src+8 as m
+				call add ob p m
+				call say
+				ret 0
+			end
+		end
+	end
 	call tkinit "tools/pins/o200k_base.tiktoken" "tools/pins/UnicodeData.txt" as r
 	ifslt r 0
 		call fail3 "cannot use tools/pins/o200k_base.tiktoken and tools/pins/UnicodeData.txt;" " run tools/pin.sh" " o200k_base.tiktoken UnicodeData.txt"
