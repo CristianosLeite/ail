@@ -58,8 +58,8 @@ $(B)/tools/%: tools/%.aw $(B)/ailc
 TL := lib/io.aw lib/bytes.aw lib/file.aw
 
 $(B)/tools/hashcol: lib/io.aw
-$(B)/tools/indent: $(TL)
-$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw
+$(B)/tools/indent: $(TL) tools/lib/dent.aw
+$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw tools/lib/dent.aw
 $(B)/tools/randvars: $(TL) lib/proc.aw tools/lib/rng.aw
 $(B)/tools/perf: $(TL) lib/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
 $(B)/tools/tokens: $(TL) tools/lib/fmt.aw tools/lib/o200k.aw

@@ -8,7 +8,10 @@
 # the same program. tests/infix/edge.aw has the lines at the edges of the
 # rules (separators, CR, comments, the limit of 100 bytes) and must become
 # tests/infix/edge.out.aw. The three .out.aw files are what the Python
-# script made that the tool was ported from. The tool must say what it
+# script made that the tool was ported from, indented since by
+# build/tools/indent, which changed no other byte: the tool writes its
+# result indented. tests/infix/in.aw has no indentation; indented first,
+# it must give the same result. The tool must say what it
 # did, and fail with a message without its two files or its input.
 # A var declared in a file the source names with use (tests/infix/use.aw)
 # or in a file named after the two (tests/infix/part.aw) is not folded,
@@ -32,6 +35,15 @@ build/tools/infix tests/infix/out.aw "$tmp/again.aw" 2> "$tmp/said" &&
     cmp -s "$tmp/again.aw" tests/infix/out.aw &&
     [ "$(cat "$tmp/said")" = "spelled 0, loops 0, folded 0" ]
 say infix_rewritten_stays $?
+# the source indented gives the same result, and the result is indented
+# as build/tools/indent has it
+cp tests/infix/in.aw "$tmp/dented.aw" && build/tools/indent "$tmp/dented.aw" &&
+    ! cmp -s "$tmp/dented.aw" tests/infix/in.aw &&
+    build/tools/infix "$tmp/dented.aw" "$tmp/dout.aw" 2> "$tmp/said" &&
+    cmp -s "$tmp/dout.aw" tests/infix/out.aw &&
+    [ "$(cat "$tmp/said")" = "spelled 20, loops 1, folded 5" ] &&
+    build/tools/indent --check "$tmp/dout.aw" > /dev/null
+say infix_indented $?
 r=0
 for f in in out; do
     timeout --signal=KILL 10 "$ailc" < tests/infix/$f.aw > "$tmp/$f" 2> /dev/null && chmod +x "$tmp/$f" || r=1
@@ -82,7 +94,7 @@ say infix_keeps_var_of_used_file $r
 # declared: the line that sets it must stay
 keeps() {
     printf '%b' "$2" > "$tmp/$1_lib.aw"
-    printf 'use "%s"\nshared=42\nif shared\nsys exit 1\nend\n' "$tmp/$1_lib.aw" > "$tmp/$1.aw"
+    printf 'use "%s"\nshared=42\nif shared\n\tsys exit 1\nend\n' "$tmp/$1_lib.aw" > "$tmp/$1.aw"
     build/tools/infix "$tmp/$1.aw" "$tmp/$1.out.aw" 2> /dev/null &&
         cmp -s "$tmp/$1.aw" "$tmp/$1.out.aw" &&
         "$ailc" < "$tmp/$1.aw" > /dev/null 2>&1
@@ -98,7 +110,7 @@ keeps string_over_lines 'data s "a\\\nvar other\nuse \\"none.aw\\"" 0 # "\nvar s
 r=0
 printf 'var other\n' > "$tmp/more\\"
 printf 'use "%s/more\\"\nvar shared\n' "$tmp" > "$tmp/back\\"
-printf 'use "%s/back\\"\nshared=42\nif shared\nsys exit 1\nend\n' "$tmp" > "$tmp/bs.aw"
+printf 'use "%s/back\\"\nshared=42\nif shared\n\tsys exit 1\nend\n' "$tmp" > "$tmp/bs.aw"
 build/tools/infix "$tmp/bs.aw" "$tmp/bs.out.aw" 2> /dev/null &&
     cmp -s "$tmp/bs.aw" "$tmp/bs.out.aw" &&
     "$ailc" < "$tmp/bs.aw" > /dev/null 2>&1 || r=1

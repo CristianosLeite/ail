@@ -1,6 +1,6 @@
 # the fixture of tests/infix.sh for the lines at the edges of the rules;
 # tests/infix/edge.out.aw is what the Python script made of it, which
-# the tool was ported from. It is compared, not compiled.
+# the tool was ported from, indented. It is compared, not compiled.
 # a line without a string is written anew: one space between its words,
 # no CR at its end, also when nothing else changes
 set 1 as x

@@ -1,6 +1,6 @@
 ---
 title: Source style and the formatter
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, docs/language.md, tools/indent.aw, tests/indent.sh, editors/vscode/, docs/tokens.md]
 status: current
 ---
@@ -30,8 +30,14 @@ Indentation costs 2% in tokens and nothing in the compiled program.
   separators (`tests/indent/skip`) and the fixtures under `tests/infix/`, `tests/fuse/`,
   `tests/randvars/`, `tests/tokens/` and `tests/indent/`, which tools must reproduce byte for
   byte. `tests/indent.sh` runs `--check` on the rest in `make test`.
-- `fuse` and `infix` still write their lines at column one, since their expected files are what
-  the Python scripts wrote; `indent` runs after them. Preserving indentation in them is open.
+- `fuse` and `infix` write their results indented since 2026-11-21: the walk of `indent` is
+  `dtindent` in `tools/lib/dent.aw`, and both pass their output through it. Copying the
+  blanks of the source would not do, since a jump that becomes a block puts untouched lines a
+  level deeper. `fuse` matched nothing in an indented function before (its patterns began at
+  column one) and now reads a line without its blanks. The expected files are the old ones
+  run through `indent` (whitespace only), so the Python oracle still holds.
+- A `use` path has no escapes: `indent` took `use "a\\"` for an open string and left the rest
+  of the file alone. `dtindent` and `extension.js` now end the string at a `use` line.
 - The published token figures are those of the indented sources: corpus 990 (was 970), 11%
   below C and 17% below Rust, `collatz` two tokens above its C program; echo server 259.
 - The extension is plain JavaScript without a build step or dependency (the user's choice). It

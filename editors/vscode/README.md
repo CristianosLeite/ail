@@ -25,6 +25,6 @@ workspace folder of the file; the setting `ail.indentPath` names another
 place. Folding and highlighting need no tool.
 
 The rules of a line (which word opens a block, when a line is inside a
-string) are those of `tools/indent.aw`, written again in `extension.js`
+string) are those of `tools/lib/dent.aw`, written again in `extension.js`
 for the folding; a new block statement of the language is added in both,
 in the grammar and in `language-configuration.json`.

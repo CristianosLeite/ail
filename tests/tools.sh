@@ -7,7 +7,8 @@
 # - hashcol must print the pair of names that the test hash_collision_prefix
 #   declares, so that the test still has two names in one bucket.
 # - fuse must make tests/fuse/out.aw of tests/fuse/in.aw, byte for byte,
-#   which is what the Python tool it was ported from made of it, and say
+#   which is what the Python tool it was ported from made of it, indented
+#   since by build/tools/indent, and of that source indented too, and say
 #   what it did; leave that result and tests/fuse/same.aw as they are; and
 #   both programs must compile and exit alike. Without its two files it
 #   must fail with a message, and so for a file it cannot read.
@@ -73,6 +74,15 @@ build/tools/fuse tests/fuse/out.aw "$tmp/again.aw" 2> "$tmp/said" &&
     cmp -s "$tmp/again.aw" tests/fuse/out.aw &&
     [ "$(cat "$tmp/said")" = "fused 0 blocks 0" ]
 say tools_fuse_rewritten_stays $?
+# the source indented, where every line of a function starts with a tab,
+# gives the same result, and the result is indented
+cp tests/fuse/in.aw "$tmp/dented.aw" && build/tools/indent "$tmp/dented.aw" &&
+    ! cmp -s "$tmp/dented.aw" tests/fuse/in.aw &&
+    build/tools/fuse "$tmp/dented.aw" "$tmp/dout.aw" 2> "$tmp/said" &&
+    cmp -s "$tmp/dout.aw" tests/fuse/out.aw &&
+    [ "$(cat "$tmp/said")" = "fused 6 blocks 7" ] &&
+    build/tools/indent --check "$tmp/dout.aw" > /dev/null
+say tools_fuse_indented $?
 build/tools/fuse tests/fuse/same.aw "$tmp/same.aw" 2> /dev/null &&
     cmp -s "$tmp/same.aw" tests/fuse/same.aw
 say tools_fuse_leaves_alone $?

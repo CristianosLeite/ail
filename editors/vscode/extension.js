@@ -7,7 +7,7 @@ const path = require('path');
 const OPENERS = new Set(['fn', 'async', 'while', 'if', 'ifz', 'ifeq', 'ifne', 'iflt',
   'ifle', 'ifgt', 'ifge', 'ifslt', 'ifsle', 'ifsgt', 'ifsge']);
 
-// What a line does to the depth, as kind in tools/indent.aw has it: 1 it
+// What a line does to the depth, as dtkind in tools/lib/dent.aw has it: 1 it
 // opens a block, 2 it is else, 3 it is end, 0 anything else. The first
 // word counts only when a blank, a comment or the end of the line follows.
 function kind(line) {
@@ -18,7 +18,7 @@ function kind(line) {
   return OPENERS.has(m[1]) ? 1 : 0;
 }
 
-// Whether a line ends inside a string, as strend in tools/indent.aw.
+// Whether a line ends inside a string, as dtstrend in tools/lib/dent.aw.
 function strend(line, s) {
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
@@ -51,7 +51,8 @@ function folds(lines) {
       if (i - 1 > from) out.push([from, i - 1]);
     }
     if (k === 1 || k === 2) open.push(i);
-    instr = strend(lines[i], false);
+    // the path of a use has no escapes and ends on its line
+    instr = !/^[ \t]*use[ \t]/.test(lines[i]) && strend(lines[i], false);
   }
   return out;
 }

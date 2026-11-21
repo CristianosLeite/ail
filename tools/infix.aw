@@ -29,7 +29,10 @@
 # Lines with a string are left alone, as are signed and float statements,
 # which have no operator. Comments stay on the lines that stay. A line
 # that is rewritten is written with one space between its words and
-# without a CR at its end; every other line keeps its bytes.
+# without a CR at its end; every other line keeps its bytes but for the
+# spaces and tabs before it: the result is written indented as
+# build/tools/indent would (tools/lib/dent.aw), so the lines of a loop
+# that became a while stand one level deeper.
 #
 # On stderr: "spelled A, loops B, folded C". Status 0, or 1 with a message
 # when a file cannot be read or written. An expression with more than 497
@@ -41,6 +44,7 @@ use "lib/bytes.aw"
 use "lib/file.aw"
 use "tools/lib/scan.aw"
 use "tools/lib/flow.aw"
+use "tools/lib/dent.aw"
 
 # the lines, gnl of 176 bytes each at gltab; the fields are named below
 var gltab gnl
@@ -102,6 +106,7 @@ buf scr 24
 buf tmp 24
 buf nvals 24
 buf out 24
+buf dent 24
 # the paths read by declfile, address and length
 buf seen 24
 
@@ -713,8 +718,17 @@ fn mkline l p n
 		store l+lpad r
 		store l+lpadn q-r
 	end
-	store l+lwas p
-	store l+lwasn cn
+	# the code as it was, for the column of its comment, starts behind
+	# the indentation, which is made anew when the result is written
+	r=p
+	while r<p+cn
+		loadb r as c
+		jz (c==32)|(c==9) dented
+		r+=1
+	end
+	label dented
+	store l+lwas r
+	store l+lwasn p+cn-r
 	load wbuf+8 as ws
 	call split p p+cn as wc fp fl
 	store l+lws ws/8
@@ -1661,6 +1675,12 @@ fn main
 	end
 	load out as p
 	load out+8 as n
+	call dtindent p n dent 0 0 0 as r
+	ifslt r 0
+		call oom
+	end
+	load dent as p
+	load dent+8 as n
 	call filewrite op ol p n as r
 	ifslt r 0
 		call failpath "cannot write " op ol
