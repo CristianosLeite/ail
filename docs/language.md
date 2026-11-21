@@ -1118,12 +1118,12 @@ call putn a+b
 
 ## The nd library
 
-`lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is a [double](#floating-point), 8 bytes, and has one index for each axis, from 0.
+`lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is 8 bytes, a [double](#floating-point) unless the array is said to be of integers, and has one index for each axis, from 0.
 
 | At | Holds |
 |---:|---|
 | 0 | the address of the element whose indices are all 0 |
-| 8 | the kind of the elements: 1 a double; 0 is no array |
+| 8 | the kind of the elements: 1 doubles, 2 integers of 64 bits with a sign; 0 is no array |
 | 16 | the number of axes, 0 to 8 |
 | 24, 32 | the address and the bytes of the storage the elements are in |
 | 40 | 1 if the storage is the array's own |
@@ -1147,6 +1147,7 @@ call putn a+b
 | `ndcontig d` | returns 1 if the elements lie one behind the other, the last index fastest |
 | `ndcopy d s` | makes `d` an array with storage of its own and the elements of `s`, one behind the other; returns 1 |
 | `ndfill d v` | makes every element of `d` the value `v` |
+| `ndkind d k` | reads the elements of `d` as the kind `k` from now on, 1 doubles and 2 integers, with their bits as they are; returns 1, or 0 for what is no array and for another `k` |
 | `ndvalid d` | returns 1 if `d` is an array whose elements all lie in its storage, for 176 bytes a program wrote itself |
 
 ```
@@ -1177,6 +1178,8 @@ call putn n
 | `ndadd o a b`, `ndsub o a b`, `ndmul o a b`, `nddiv o a b` | makes each element of `o` the sum, difference, product, quotient of the elements of `a` and `b` at its indices; returns 1 |
 | `ndput o a` | makes each element of `o` the element of `a` at its indices; returns 1 |
 | `ndscalar d x` | makes `d` an array without axes whose one element is `x`, kept in the 176 bytes |
+| `ndtoi o a` | makes each element of `o`, an array of integers, the double of `a` at its indices cut off towards 0; returns 1 |
+| `ndtof o a` | makes each element of `o`, an array of doubles, the integer of `a` at its indices as a double; returns 1 |
 
 ```
 use "lib/io.aw"
@@ -1199,7 +1202,8 @@ call putn n
 - **Lengths**: `a` and `b` need not have the lengths of `o`. The axes of an array with fewer are matched with the last axes of `o`, and an axis of length 1 gives its one element to every index of that axis of `o`: three elements go with every row of a table of rows of three, a column of length 1 with every column, an array without axes with everything. This is the broadcasting of NumPy, but that the result is given and never made: an axis of `a` or `b` that is neither 1 nor the length in `o`, or more axes than `o` has, is refused.
 - **Storage**: nothing is allocated, so one array serves as the result of one operation after another. `o` may be `a` or `b` or both, or a view of the same elements under the same indices (`ndadd a a b` adds `b` to `a`). Any other storage that `o` shares with `a` or `b` is refused: the lowest and highest address of each are compared, so this also refuses two views whose elements alternate. A result with a stride of 0 on an axis longer than 1 is refused, its elements being one.
 - **Speed**: arrays whose elements lie one behind the other, each with as many as `o` or with one, are one loop over the words; everything else is a loop along the last axis for each combination of the other indices, at the cost of a call for each.
-- **Errors**: 0 for lengths that do not go together, storage shared as above, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
+- **Integers**: an array is one of doubles when it is made, and of integers after `ndkind d 2`, which is for a new array, all zero in both kinds, or for bits the program wrote as integers. The three arrays of an operation are of one kind, or it is refused; `ndtoi` and `ndtof` are the two that go from one kind to the other, as [`ftoi` and `itof`](#floating-point) do for one value, so a double that is no number or too large becomes the lowest integer. Integers wrap at 64 bits in sums, differences and products, as everywhere in the language. Their quotient has a sign and is cut off towards 0 (-7 by 2 is -3, where NumPy's `//` gives -4); a divisor with a 0 among its elements is refused before anything is written, where a program's own `sdiv` would end it with `SIGFPE`, and the lowest integer by -1, which does not fit, stays the lowest integer. A view has the kind of its array when it is made.
+- **Errors**: 0 for lengths that do not go together, storage shared as above, arrays of two kinds, an integer divisor of 0, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
 
 `lib/nd/reduce.aw`, used after the two, makes one number of many.
 
@@ -1235,6 +1239,7 @@ call putn n
 - **No element**: the sum of no element is 0 and the mean is 0 divided by 0, no number, also for each element of a result along an axis of length 0.
 - **Special values**: what is no number stays so through a sum, an infinity stays one, and infinities of both signs together are no number, as `fadd` has it; a sum along an axis keeps that to the elements it concerns.
 - **Products**: `ndmatmul` takes three arrays of two axes: `n` rows of `m` elements times `m` rows of `l` give a result of `n` rows of `l`, each element the sum over `k` of the element `i`, `k` of `a` times the element `k`, `j` of `b`, added from 0 in the order of `k`, as `nddot` adds in the order of the index. A column or a row is a matrix with one of them (`ndreshape`, or a slice of one index). Any of the three may be a view; the result may not share storage with `a` or `b`, so a matrix is not multiplied in place. Other lengths, another number of axes and such a result are refused with 0 and nothing written; `nddot` returns 0 and 0 for lengths that differ and for arrays that have not one axis.
+- **Integers**: `ndsum`, `ndsumpw`, `ndsumax`, `nddot` and `ndmatmul` of integers compute in integers, wrapping at 64 bits, and their result is of integers; arrays of two kinds are refused. A mean is always a double: of integers it is the sum of the elements as doubles divided by their number, and the result of `ndmeanax` is an array of doubles whatever `d` is of.
 - **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
 
 ## The async library

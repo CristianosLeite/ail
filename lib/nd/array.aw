@@ -4,7 +4,8 @@
 # called the array, and the functions take their address:
 #
 #     0  the address of the element whose indices are all 0
-#     8  the kind of its elements: 1 a double; 0 is no array
+#     8  the kind of its elements: 1 doubles, 2 integers of 64 bits
+#        with a sign; 0 is no array
 #    16  the number of axes, 0 to 8
 #    24  the address of the storage the elements are in
 #    32  the bytes of that storage
@@ -50,6 +51,10 @@
 #    16  the indices, 8 words      80  the lengths, 8 words
 #   144  for each of three arrays 80 bytes: the address of the run, the
 #        stride along the last axis, the strides of all axes
+#
+# A new array is one of doubles. ndkind says that its elements are read
+# as the other kind from now on and changes no bit of them; a view has
+# the kind of its array when it is made and keeps its own after.
 #
 # Every variable and parameter of this file has a name that starts with
 # "nd"; a program has no var of such a name (see lib/io.aw).
@@ -610,5 +615,20 @@ fn ndvalid ndd
 	if ndhi-ndp>ndb
 		ret 0
 	end
+	ret 1
+end
+
+# read the elements of ndd as the kind ndk from now on, 1 doubles and 2
+# integers, with their bits as they are: 1, or 0 for what is no array
+# and for another kind
+fn ndkind ndd ndk
+	load ndd+8 as ndt
+	ifz ndt
+		ret 0
+	end
+	if ndk-1>1
+		ret 0
+	end
+	store ndd+8 ndk
 	ret 1
 end

@@ -303,7 +303,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    buffers can be reused across operations. Allow exact in-place matches
    for elementwise kernels, reject other output overlap with inputs, and
    reject output views that map multiple elements to one address.
-3. [ ] **Add reductions and matrix products.** Implement sum and mean over
+3. [x] **Add reductions and matrix products.** Implement sum and mean over
    the whole array and along one axis, and add vector dot products and 2-D
    matrix multiplication. Specify empty axes, NaNs, infinities and the
    accumulation order. Evaluate pairwise summation against the scalar

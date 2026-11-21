@@ -21,8 +21,15 @@
 # refused too. All return 1, or 0 for what is refused, and then no
 # element was written. Nothing is allocated.
 #
-# The elements are doubles: a division by zero gives an infinity or what
-# is no number, as fdiv does.
+# The three arrays are of one kind. Doubles are computed as fadd, fsub,
+# fmul and fdiv do: a division by zero gives an infinity or what is no
+# number. Integers wrap at 64 bits, as everywhere in the language; their
+# quotient has a sign and is cut off towards 0, a divisor that has a 0
+# among its elements is refused before anything is written, and the
+# lowest integer divided by -1, which does not fit, stays what it is.
+# ndtoi and ndtof are the only functions between the kinds: the result
+# is an array of integers made of one of doubles, as ftoi does, or one
+# of doubles made of integers, as itof does.
 
 # make ndd an array without axes whose one element is ndx, kept in the
 # 176 bytes themselves
@@ -99,18 +106,49 @@ fn ndflat nda ndn
 	ret 1+ndx*7
 end
 
+# 1 if an element of ndd is 0
+fn ndhas0 ndd
+	local ndw 384
+	call ndsize ndd as ndn
+	ifz ndn
+		ret 0
+	end
+	call ndwalk ndw ndd
+	call ndwarg ndw 0 ndd
+	load ndw+8 as ndn
+	load ndw+152 as nds
+	ndgo=1
+	while ndgo
+		load ndw+144 as ndp
+		ndi=ndn
+		while ndi
+			load ndp as ndx
+			ifz ndx
+				ret 1
+			end
+			ndp+=nds
+			ndi-=1
+		end
+		call ndstep ndw as ndgo
+	end
+	ret 0
+end
+
 # the operation ndk on a run of ndn elements: the result at ndp with the
-# stride ndso, the others at ndq and ndr with ndsa and ndsb
+# stride ndso, the others at ndq and ndr with ndsa and ndsb. 0 to 3 are
+# sum, difference, product and quotient of doubles and 8 to 11 those of
+# integers, 4 copies, 5 makes an integer of a double and 6 a double of
+# an integer
 fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 	if (ndso==8)&(ndsa==8)&(ndsb==8)
 		# all three one behind the other: an end and two distances
-		ndn=ndp+ndn*8
-		ndq-=ndp
-		ndr-=ndp
+		nde=ndp+ndn*8
+		ndu=ndq-ndp
+		ndv=ndr-ndp
 		if ndk==0
-			while ndp<ndn
-				load ndp+ndq as ndx
-				load ndp+ndr as ndy
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
 				fadd ndx ndy as ndx
 				store ndp ndx
 				ndp+=8
@@ -118,9 +156,9 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 			ret 0
 		end
 		if ndk==1
-			while ndp<ndn
-				load ndp+ndq as ndx
-				load ndp+ndr as ndy
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
 				fsub ndx ndy as ndx
 				store ndp ndx
 				ndp+=8
@@ -128,9 +166,9 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 			ret 0
 		end
 		if ndk==2
-			while ndp<ndn
-				load ndp+ndq as ndx
-				load ndp+ndr as ndy
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
 				fmul ndx ndy as ndx
 				store ndp ndx
 				ndp+=8
@@ -138,36 +176,113 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 			ret 0
 		end
 		if ndk==3
-			while ndp<ndn
-				load ndp+ndq as ndx
-				load ndp+ndr as ndy
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
 				fdiv ndx ndy as ndx
 				store ndp ndx
 				ndp+=8
 			end
 			ret 0
 		end
-		while ndp<ndn
-			load ndp+ndq as ndx
+		if ndk==8
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
+				ndx+=ndy
+				store ndp ndx
+				ndp+=8
+			end
+			ret 0
+		end
+		if ndk==9
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
+				ndx-=ndy
+				store ndp ndx
+				ndp+=8
+			end
+			ret 0
+		end
+		if ndk==10
+			while ndp<nde
+				load ndp+ndu as ndx
+				load ndp+ndv as ndy
+				ndx*=ndy
+				store ndp ndx
+				ndp+=8
+			end
+			ret 0
+		end
+		if ndk==4
+			while ndp<nde
+				load ndp+ndu as ndx
+				store ndp ndx
+				ndp+=8
+			end
+			ret 0
+		end
+	end
+	if ndk<4
+		while ndn
+			load ndq as ndx
+			load ndr as ndy
+			if ndk==0
+				fadd ndx ndy as ndx
+			end
+			if ndk==1
+				fsub ndx ndy as ndx
+			end
+			if ndk==2
+				fmul ndx ndy as ndx
+			end
+			if ndk==3
+				fdiv ndx ndy as ndx
+			end
 			store ndp ndx
-			ndp+=8
+			ndp+=ndso
+			ndq+=ndsa
+			ndr+=ndsb
+			ndn-=1
+		end
+		ret 0
+	end
+	if ndk<8
+		while ndn
+			load ndq as ndx
+			if ndk==5
+				ftoi ndx as ndx
+			end
+			if ndk==6
+				itof ndx as ndx
+			end
+			store ndp ndx
+			ndp+=ndso
+			ndq+=ndsa
+			ndn-=1
 		end
 		ret 0
 	end
 	while ndn
 		load ndq as ndx
 		load ndr as ndy
-		if ndk==0
-			fadd ndx ndy as ndx
+		if ndk==8
+			ndx+=ndy
 		end
-		if ndk==1
-			fsub ndx ndy as ndx
+		if ndk==9
+			ndx-=ndy
 		end
-		if ndk==2
-			fmul ndx ndy as ndx
+		if ndk==10
+			ndx*=ndy
 		end
-		if ndk==3
-			fdiv ndx ndy as ndx
+		if ndk==11
+			# the lowest integer by -1 does not fit and stays what it is
+			if ndy+1
+				sdiv ndx ndy as ndx
+			else
+				ndx=0-ndx
+			end
 		end
 		store ndp ndx
 		ndp+=ndso
@@ -180,7 +295,7 @@ end
 
 # make each element of ndo the result of the operation ndk on the
 # elements of nda and ndb: 0 add, 1 subtract, 2 multiply, 3 divide,
-# 4 the element of nda
+# 4 the element of nda, 5 that as an integer, 6 that as a double
 fn ndelem ndo nda ndb ndk
 	local ndw 384
 	load ndo+8 as ndt
@@ -188,6 +303,18 @@ fn ndelem ndo nda ndb ndk
 	load ndb+8 as ndy
 	ifz (ndt!=0)&(ndx!=0)&(ndy!=0)
 		ret 0
+	end
+	if ndk<5
+		ifz (ndt==ndx)&(ndt==ndy)
+			ret 0
+		end
+		if (ndt==2)&(ndk<4)
+			ndk+=8
+		end
+	else
+		ifz (ndt==7-ndk)&(ndx==ndk-4)
+			ret 0
+		end
 	end
 	# two elements of the result at one address
 	load ndo+16 as ndr
@@ -211,6 +338,13 @@ fn ndelem ndo nda ndb ndk
 	call ndclash ndo ndb as ndy
 	if ndx|ndy
 		ret 0
+	end
+	# an integer is not divided by 0
+	if ndk==11
+		call ndhas0 ndb as ndx
+		if ndx
+			ret 0
+		end
 	end
 	call ndsize ndo as ndn
 	ifz ndn
@@ -261,4 +395,13 @@ end
 # ndo = nda, element by element
 fn ndput ndo nda
 	tail ndelem ndo nda nda 4
+end
+
+# ndo = nda as integers, each double cut off towards 0, and ndo = nda as
+# doubles
+fn ndtoi ndo nda
+	tail ndelem ndo nda nda 5
+end
+fn ndtof ndo nda
+	tail ndelem ndo nda nda 6
 end

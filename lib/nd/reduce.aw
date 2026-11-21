@@ -27,10 +27,36 @@
 # i k of the first times the element k j of the second, added from 0 in
 # the order of k. It returns 1, or 0 for other lengths, for a result
 # that shares storage with one of the two, and for what is no array.
+#
+# Arrays of integers are summed and multiplied as integers, wrapping at
+# 64 bits, and the result of ndsumax, nddot and ndmatmul is of the kind
+# of what it is made of. A mean is always a double: of integers it is
+# the sum of the elements as doubles, each as itof gives it, divided by
+# their number, and the result of ndmeanax is an array of doubles.
 
 # the sum of the ndn elements from ndp on with the stride nds, added to
-# nda one after the other
-fn ndacc nda ndp ndn nds
+# nda one after the other: with ndm 0 doubles, 1 integers, 2 integers
+# as doubles
+fn ndacc nda ndp ndn nds ndm
+	if ndm==1
+		while ndn
+			load ndp as ndx
+			nda+=ndx
+			ndp+=nds
+			ndn-=1
+		end
+		ret nda
+	end
+	if ndm
+		while ndn
+			load ndp as ndx
+			itof ndx as ndx
+			fadd nda ndx as nda
+			ndp+=nds
+			ndn-=1
+		end
+		ret nda
+	end
 	while ndn
 		load ndp as ndx
 		fadd nda ndx as nda
@@ -41,24 +67,29 @@ fn ndacc nda ndp ndn nds
 end
 
 # the sum of the ndn elements from ndp on with the stride nds, in pairs
-fn ndpair ndp ndn nds
+fn ndpair ndp ndn nds ndm
 	if ndn<=128
-		tail ndacc 0 ndp ndn nds
+		tail ndacc 0 ndp ndn nds ndm
 	end
-	ndm=ndn>>1
-	call ndpair ndp ndm nds as ndx
-	call ndpair ndp+ndm*nds ndn-ndm nds as ndy
+	ndh=ndn>>1
+	call ndpair ndp ndh nds ndm as ndx
+	call ndpair ndp+ndh*nds ndn-ndh nds ndm as ndy
+	if ndm==1
+		ret ndx+ndy
+	end
 	fadd ndx ndy as ndx
 	ret ndx
 end
 
-# the sum of all elements of ndd, with ndk in pairs, and 1, or 0 and 0
-fn ndtotal ndd ndk
+# the sum of all elements of ndd and 1, or 0 and 0: with ndk in pairs,
+# with ndf integers as doubles
+fn ndtotal ndd ndk ndf
 	local ndw 384
 	load ndd+8 as ndt
 	ifz ndt
 		ret 0 0
 	end
+	ndm=(ndt-1)*(1+ndf)
 	nda=0
 	call ndsize ndd as ndn
 	ifz ndn
@@ -78,10 +109,14 @@ fn ndtotal ndd ndk
 	while ndgo
 		load ndw+144 as ndp
 		if ndk
-			call ndpair ndp ndn nds as ndx
-			fadd nda ndx as nda
+			call ndpair ndp ndn nds ndm as ndx
+			if ndm==1
+				nda+=ndx
+			else
+				fadd nda ndx as nda
+			end
 		else
-			call ndacc nda ndp ndn nds as nda
+			call ndacc nda ndp ndn nds ndm as nda
 		end
 		call ndstep ndw as ndgo
 	end
@@ -90,15 +125,15 @@ end
 
 # the sum of all elements and 1, or 0 and 0 for what is no array
 fn ndsum ndd
-	tail ndtotal ndd 0
+	tail ndtotal ndd 0 0
 end
 fn ndsumpw ndd
-	tail ndtotal ndd 1
+	tail ndtotal ndd 1 0
 end
 
-# their mean and 1, or 0 and 0
+# their mean, a double, and 1, or 0 and 0
 fn ndmean ndd
-	call ndtotal ndd 0 as ndx ndok
+	call ndtotal ndd 0 1 as ndx ndok
 	ifz ndok
 		ret 0 0
 	end
@@ -109,8 +144,8 @@ fn ndmean ndd
 end
 
 # make each element of ndo the sum of the elements of ndd along its axis
-# ndax
-fn ndsumax ndo ndd ndax
+# ndax; with ndf the result is of doubles whatever ndd is of
+fn ndaxis ndo ndd ndax ndf
 	local ndw 384
 	local ndv 176
 	load ndo+8 as ndt
@@ -118,6 +153,10 @@ fn ndsumax ndo ndd ndax
 	ifz (ndt!=0)&(ndx!=0)
 		ret 0
 	end
+	if ndt!=1+(ndx-1)*(1-ndf)
+		ret 0
+	end
+	ndm=(ndx-1)*(1+ndf)
 	load ndd+16 as ndr
 	load ndo+16 as ndq
 	if ndax>=ndr
@@ -173,7 +212,14 @@ fn ndsumax ndo ndd ndax
 			while ndi
 				load ndp as ndx
 				load ndq as ndy
-				fadd ndy ndx as ndy
+				if ndm==1
+					ndy+=ndx
+				else
+					if ndm
+						itof ndx as ndx
+					end
+					fadd ndy ndx as ndy
+				end
 				store ndq ndy
 				ndp+=nds
 				ndq+=ndt
@@ -181,19 +227,22 @@ fn ndsumax ndo ndd ndax
 			end
 		else
 			load ndq as ndy
-			call ndacc ndy ndp ndn nds as ndy
+			call ndacc ndy ndp ndn nds ndm as ndy
 			store ndq ndy
 		end
 		call ndstep ndw as ndgo
 	end
 	ret 1
 end
+fn ndsumax ndo ndd ndax
+	tail ndaxis ndo ndd ndax 0
+end
 
-# make each element of ndo the mean of the elements of ndd along its
-# axis ndax
+# make each element of ndo, an array of doubles, the mean of the
+# elements of ndd along its axis ndax
 fn ndmeanax ndo ndd ndax
 	local ndk 176
-	call ndsumax ndo ndd ndax as ndok
+	call ndaxis ndo ndd ndax 1 as ndok
 	ifz ndok
 		ret 0
 	end
@@ -204,21 +253,22 @@ fn ndmeanax ndo ndd ndax
 end
 
 # the sum of the products of the elements of nda and ndb, two arrays of
-# one axis and the same length, and 1, or 0 and 0
+# one axis, the same length and one kind, and 1, or 0 and 0
 fn nddot nda ndb
-	load nda+8 as ndx
+	load nda+8 as ndm
 	load ndb+8 as ndy
-	ifz (ndx!=0)&(ndy!=0)
+	ifz (ndm!=0)&(ndm==ndy)
 		ret 0 0
 	end
+	ndm-=1
 	load nda+16 as ndx
 	load ndb+16 as ndy
 	ifz (ndx==1)&(ndy==1)
 		ret 0 0
 	end
 	load nda+48 as ndn
-	load ndb+48 as ndm
-	if ndn!=ndm
+	load ndb+48 as ndx
+	if ndn!=ndx
 		ret 0 0
 	end
 	load nda as ndp
@@ -227,11 +277,20 @@ fn nddot nda ndb
 	load ndb+112 as ndt
 	ndz=0
 	if (nds==8)&(ndt==8)
-		ndn=ndp+ndn*8
-		ndq-=ndp
-		while ndp<ndn
+		nde=ndp+ndn*8
+		ndu=ndq-ndp
+		if ndm
+			while ndp<nde
+				load ndp as ndx
+				load ndp+ndu as ndy
+				ndz+=ndx*ndy
+				ndp+=8
+			end
+			ret ndz 1
+		end
+		while ndp<nde
 			load ndp as ndx
-			load ndp+ndq as ndy
+			load ndp+ndu as ndy
 			fmul ndx ndy as ndx
 			fadd ndz ndx as ndz
 			ndp+=8
@@ -241,8 +300,12 @@ fn nddot nda ndb
 	while ndn
 		load ndp as ndx
 		load ndq as ndy
-		fmul ndx ndy as ndx
-		fadd ndz ndx as ndz
+		if ndm
+			ndz+=ndx*ndy
+		else
+			fmul ndx ndy as ndx
+			fadd ndz ndx as ndz
+		end
 		ndp+=nds
 		ndq+=ndt
 		ndn-=1
@@ -251,13 +314,22 @@ fn nddot nda ndb
 end
 
 # add ndx times each of the ndn elements from ndq on, with the stride
-# ndt, to the elements from ndp on, with the stride nds
-fn ndaxpy ndp ndn nds ndx ndq ndt
+# ndt, to the elements from ndp on, with the stride nds; integers if ndm
+fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 	if (nds==8)&(ndt==8)
-		ndn=ndp+ndn*8
-		ndq-=ndp
-		while ndp<ndn
-			load ndp+ndq as ndy
+		nde=ndp+ndn*8
+		ndu=ndq-ndp
+		if ndm
+			while ndp<nde
+				load ndp+ndu as ndy
+				load ndp as ndz
+				store ndp ndz+ndx*ndy
+				ndp+=8
+			end
+			ret 0
+		end
+		while ndp<nde
+			load ndp+ndu as ndy
 			load ndp as ndz
 			fmul ndx ndy as ndy
 			fadd ndz ndy as ndz
@@ -269,8 +341,12 @@ fn ndaxpy ndp ndn nds ndx ndq ndt
 	while ndn
 		load ndq as ndy
 		load ndp as ndz
-		fmul ndx ndy as ndy
-		fadd ndz ndy as ndz
+		if ndm
+			ndz+=ndx*ndy
+		else
+			fmul ndx ndy as ndy
+			fadd ndz ndy as ndz
+		end
 		store ndp ndz
 		ndp+=nds
 		ndq+=ndt
@@ -281,12 +357,13 @@ end
 
 # make ndo the product of the matrices nda and ndb
 fn ndmatmul ndo nda ndb
-	load ndo+8 as ndt
+	load ndo+8 as ndf
 	load nda+8 as ndx
 	load ndb+8 as ndy
-	ifz (ndt!=0)&(ndx!=0)&(ndy!=0)
+	ifz (ndf!=0)&(ndx==ndf)&(ndy==ndf)
 		ret 0
 	end
+	ndf-=1
 	load ndo+16 as ndt
 	load nda+16 as ndx
 	load ndb+16 as ndy
@@ -331,7 +408,7 @@ fn ndmatmul ndo nda ndb
 		ndk=0
 		while ndk<ndm
 			load ndu as ndx
-			call ndaxpy ndp ndl ndsp ndx ndr ndsj
+			call ndaxpy ndp ndl ndsp ndx ndr ndsj ndf
 			ndu+=ndsk
 			ndr+=ndsb
 			ndk+=1
