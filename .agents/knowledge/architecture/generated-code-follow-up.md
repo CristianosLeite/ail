@@ -149,8 +149,9 @@ several places.
   other, since the C times move by a few percent between runs.
 
 ## Open items
-- 2026-11-20: `bsearch` at a thousand elements is 22 to 24% slower with registers by weight
-  than with scaled indexes alone (0.92 of C); cause unknown.
+- None. The loss of `bsearch` at a thousand elements noted here on 2026-11-20 (22 to 24%
+  with registers by weight) was the place of its loop: with loops aligned it is 0.881 to
+  0.888 of C at eight places.
 
 ## Related
 - [Algorithm benchmarks and collections](algorithms-and-collections.md)

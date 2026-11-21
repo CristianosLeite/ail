@@ -9,16 +9,16 @@
 - [Token cost measurement](architecture/token-cost-measurement.md) — o200k_base counts against C, Rust and assembly, where AIL tokens go, rules for new syntax, the same counted with Claude's tokenizers
 - [Language extensions](architecture/language-extensions.md) — decisions taken while working through the TODO backlog: data and strings, and the ones that follow
 - [Targets and interoperability](architecture/targets-and-interoperability.md) — evaluation of a second architecture, object files, a platform ABI and dynamic linking: none now, with what each would take and when to reopen
-- [Async runtime](architecture/async-runtime.md) — `async fn`/`await` as polled tasks on one thread: the two await forms, eager futures, cancellation, why no multithreaded scheduler
+- [Async runtime](architecture/async-runtime.md) — `async fn`/`await` as polled tasks on one thread: the two await forms, eager futures, cancellation, why no multithreaded scheduler, variables across an `await` in the record and the others in registers
 - [Tools in AIL](architecture/tools-in-ail.md) — the Python tools ported: shared libraries, stated differences, how `infix` finds vars of other files, `procstart`/`procwait` rules
-- [Source style and the formatter](architecture/source-style.md) — one tab a block, `build/tools/indent`, what is not indented, the VS Code extension, the token figures after indenting
-- [Algorithm benchmarks and collections](architecture/algorithms-and-collections.md) — six kernels in AIL, C and Rust over one harness, kernel timing in `perf` (1.75 times C), `tests/algo.sh`, the rules of `vec`, `queue`, `heap` and `map`
+- [Source style and the formatter](architecture/source-style.md) — one tab a block, `build/tools/indent` and `tools/lib/dent.aw`, which `fuse` and `infix` write through, what is not indented, the VS Code extension and its check of the grammar, the token figures after indenting
+- [Algorithm benchmarks and collections](architecture/algorithms-and-collections.md) — six kernels in AIL, C and Rust over one harness, kernel timing in `perf`, `tests/algo.sh` for the three languages, the rules of `vec`, `queue`, `heap` and `map` and what they cost (1.07 to 2.2 times C at a million keys, 7 to 16 at a thousand, where `alloc` is an `mmap`)
 - [Numerical arrays (lib/nd)](architecture/numerical-arrays.md) — the 176-byte descriptor, views, the one walk that is broadcasting, results given by the caller, sums in the order of a C loop, NumPy fixtures as data, 3.65 times C and 2.18 with two doubles at once, tasks for the product
-- [Generated code after the algorithm measurements](architecture/generated-code-follow-up.md) — scaled index, registers by weight, two-jump `while`, calls in place: 1.75 to 1.20 times C; code placement moves times by a fifth
+- [Generated code after the algorithm measurements](architecture/generated-code-follow-up.md) — scaled index, registers by weight, two-jump `while`, calls in place (also of bodies that call and name globals, four deep), short slot displacements, `test` with a mask and `lea`, loops aligned to 64 bytes so that placement moves times by 1 to 3% where it was a fifth, `perf --places`; what was decided against
 - [Review fixes of 2026-11-20](architecture/review-fixes-2026-11.md) — `tail` with a local, result count through `tail`, names of a `while` value, limit of locals, and why
 
 ## testing
 - [Stage0 test suite](testing/stage0-test-suite.md) — runner deadline, fixtures that must execute what they generate, mutation checks, what goes unchecked
 
 ## status
-- [Open items](status/open-items.md) — pending work
+- [Open items](status/open-items.md) — pending work; none since 2026-11-21

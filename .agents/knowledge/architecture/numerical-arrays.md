@@ -90,3 +90,4 @@ when first measured, 2.18 times since the loops take two doubles at once.
   exact sum. Integers and other strides keep `ndacc`.
 
 ## Open
+- None.

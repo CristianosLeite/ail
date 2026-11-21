@@ -1159,3 +1159,17 @@ The geometric mean of AIL / C over the 21 kernel times is 2.816, and it is two d
 - **At a million keys the collections are 1.07 to 2.2 times C**: the heap 1.07, the map 1.12 to 1.29 on keys that differ and 1.37 to 1.73 on sixteen keys, the vector and the queue 2.0 to 2.2, 6 ns a key against 2.7 for a push and a pop. Against Rust the map is ahead on keys that differ in `get` and `del` (45 and 51 ms for 78 and 85), since `HashMap` computes SipHash, and behind in `put` (162 for 93).
 - **At a thousand keys they are 10 to 16 times C for the vector and the queue, 7 times for `put`.** That is not the code of the collections: it is `alloc`, which is one `mmap` for each call, and `free`, one `munmap`. A run of `collseq` at a thousand keys makes five of each (the vector grows once, the queue has its room, the heap grows once) and a run of `collmap` six, 10000 and 12000 pairs in the 2000 runs, where the C program makes 34 system calls in all, because `malloc` hands out again what was freed (`strace -c`). A vector of a thousand keys costs 7.1 microseconds a run in AIL and 0.44 in C, and nearly all of the difference is those calls and the pages they bring in zeroed. `get` and `del`, which allocate nothing, are 2.9 and 4.0 times C at a thousand keys on keys that differ: a call of `mapget` for each key, where C has the probe in the loop.
 - **What this says for a program**: a collection that lives long costs about what it costs in C; one made and dropped in a loop pays a system call each time it grows, and is better made once and used again. An allocator that keeps freed blocks would change the first table and nothing else; it is not part of the language today, where `alloc` is the system call by design.
+
+## After the open items, 2026-11-21
+
+`build/tools/perf`, whole, with the compiler as it is after the sections from [stack slots](#stack-slots-2026-11-21) to [collections](#collections-2026-11-21): short distances to stack slots, a mask tested where it is, `lea` for a product, loops at multiples of 64 bytes, calls in place of bodies that call and name globals and of bodies in bodies. CPU-bound, median elapsed in milliseconds (first and third quartile):
+
+| program | AIL | C | Rust | asm | AIL / C |
+|---|---:|---:|---:|---:|---:|
+| compute | 134.12 (134.02, 134.78) | 134.69 (134.02, 135.09) | 134.62 (134.37, 135.07) | 134.01 (133.48, 134.57) | 0.996 |
+| sieve | 50.63 (49.94, 51.04) | 52.27 (51.74, 52.51) | 53.32 (52.84, 54.01) |  | 0.969 |
+| collatz | 89.15 (88.96, 89.90) | 79.31 (79.16, 79.94) | 58.81 (58.40, 59.18) |  | 1.124 slow |
+| fnv | 94.31 (94.09, 94.65) | 94.77 (94.26, 95.21) | 94.91 (94.37, 95.21) |  | 0.995 |
+| isort | 50.83 (50.67, 51.12) | 50.98 (50.88, 51.30) | 71.67 (71.49, 72.01) |  | 0.997 |
+
+The geometric mean of AIL / C over the five is 1.015, where the redesign ended at 1.039 and the follow-up at 1.032. `collatz` is the one program behind, 12.4%, as [its section](#collatz-within-its-statements-2026-11-21) explains. Over the 62 kernel times of the six algorithm programs and the three array programs the geometric mean is 1.145, where it was 1.201 with [the clock of the harness](#the-clock-of-the-harness-2026-11-21); by program it is `bsearch` 0.851, `mergesort` 0.969, `heapsort` 1.048, `hashtab` 1.127, `ndreduce` 1.174, `quicksort` 1.197, `graph` 1.250, `ndelem` 1.496 and `ndmatmul` 1.535. With the 21 kernel times of the collections, which are 2.808 in the mean for the reason given above, it is 1.436 over 83.
