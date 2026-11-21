@@ -26,6 +26,10 @@ endef
 $(B)/%: examples/%.aw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
+# The algorithm programs name their harness with use, so they are built
+# again when it changes.
+$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph): bench/algo/harness.aw
+
 # The tools written in AIL: tools/<name>.aw is build/tools/<name>, compiled
 # by the compiler after the bootstrap, which needs none of them. A tool
 # names the files of its functions with use, paths from the directory make
