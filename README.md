@@ -105,3 +105,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 - `docs/`: documentation
 - [ail-bench](https://github.com/CristianosLeite/ail-bench), a repository of its own: the examples in C, Rust and assembly, the algorithm programs with their harness in the three languages, the task and async programs that are timed, the tools that time them and count their tokens (`perf`, `par`, `tokens`), and the [token](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md) and [time](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md) measurements. It fetches this repository and builds the compiler from it
 - `AGENTS.md`, `.agents/knowledge/`: guidance and notes for AI coding agents
+
+## License
+
+[MIT](LICENSE).
