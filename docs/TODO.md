@@ -294,7 +294,7 @@ count, use `load` and `store` for 64-bit values, and size runtime buffers with
   Store graphs as a vertex-offset array and a contiguous neighbor array. Use
   a queue for BFS and an explicit stack for DFS, with the same neighbor order
   and visited representation in both implementations.
-- [ ] Extend [`perf`](../tools/perf.aw) for algorithm workloads. Run equivalent
+- [x] Extend [`perf`](../tools/perf.aw) for algorithm workloads. Run equivalent
   C kernels at `-O3` on identical input generated from fixed seeds. Include
   small and large arrays and random, sorted, reversed and duplicate-heavy
   inputs. Check full sorted output against an independent reference on test

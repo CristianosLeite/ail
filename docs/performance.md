@@ -8,6 +8,7 @@ build/tools/perf              # every program
 build/tools/perf compute      # some programs only
 build/tools/perf --quick      # few rounds, to see that it runs
 build/tools/perf --cpu 4      # another CPU than 2
+build/tools/perf --qsort      # the sorts against the qsort of the C library too
 ```
 
 ## Method
@@ -22,6 +23,8 @@ The programs are of two kinds, reported apart:
 
 - **Startup**: `hello`, `echo`, `count`, `fact` and `loop` do almost nothing, so their time is the cost of starting a process. 25 warm-up rounds and 500 timed ones, in microseconds.
 - **CPU-bound**: five programs that read their input, compute and write a 64-bit result. 2 warm-up rounds and 15 timed ones, in milliseconds. For these the table gives the ratio of AIL to C and, below it, the geometric mean of the ratios; a ratio above 1.10 is marked `slow`.
+
+- **Algorithms**: `quicksort`, `mergesort`, `heapsort`, `bsearch`, `hashtab` and `graph` are a kernel each and its call of `bench/algo/harness.aw`. They are run on several inputs, take the time of the kernel themselves and are reported in tables of their own; [the section below](#algorithms-2026-11-20) says how. The same rounds as the CPU-bound programs.
 
 | program | what it does | what it exercises |
 |---|---|---|
@@ -156,6 +159,136 @@ The figures above were taken by `tools/perf.py`, a Python script. The tool is no
 - **The order of a round** is shuffled with splitmix64 (`tools/lib/rng.aw`) from the seed 77, where the script used Python's generator with that seed: other orders, drawn the same way.
 
 The geometric mean is the n-th root by Newton's steps in doubles, where Python used `pow`; on 20000 random products of up to ten ratios the two print the same three digits. A run of every program with the tool gave 1.000, 1.029, 1.126, 0.999 and 1.043 for the five CPU-bound programs and a geometric mean of 1.038.
+
+## Algorithms, 2026-11-20
+
+The five CPU-bound programs above are loops over a few variables. The six algorithm programs ask what the compiler makes of code that calls functions and walks arrays: three sorts, a binary search, a hash table and a graph traversal, each the same algorithm with the same arrays in AIL, C and Rust.
+
+A program reads five words from stdin: a seed, a count, a shape, a number of runs and a mode (`bench/algo/harness.aw`, with `harness.h` and `harness.rs` for the other two languages). It makes its input from the seed with splitmix64, so the three languages work on the same words, and then runs its kernel that many times, each time on a fresh copy of the input. The copy, the making of the input, the clearing of a table and the checksum are outside the timed region: the monotonic clock is read just before and just after each call of the kernel (`clock_gettime` in AIL and C, `Instant` in Rust), and the sum over the runs is written behind a checksum of the last result. `perf` sends that output to a file, reads it after every run, requires the checksum of C in it, and reports the time of the kernel apart from the elapsed time of the process, which also has the start of the process and the setup in it.
+
+The inputs are rows of a table in `tools/perf.aw`: a thousand elements with enough runs for some tens of milliseconds, and a million with one to four runs, in up to four shapes. `random` is words of 64 bits; `sorted` and `reversed` rise and fall by steps below 65536; `few` is values below 16 for a sort, steps below 2 for `bsearch`, 128 distinct keys for `hashtab` and at most one neighbour a vertex for `graph`, where `random` is up to 15. A small array lies in the first cache and shows the instructions; a large one shows the memory as well.
+
+Before anything is timed the whole result, not its checksum, must be the same bytes as that of C at the counts 0, 1 and 1000 in the shape of the row. That the results are right, and not only alike, is checked by `tests/algo.sh` in `make test`: the sorts against `sort(1)`, the others against awk programs, the empty and the one-element array among the counts.
+
+The time of the kernels (same machine, CPU and compilers as above; the column `C qsort` is `bench/qsort.c`, the sort of the C library with a comparison function, on the same input):
+
+| program, input, count x runs | AIL | C | Rust | C qsort | AIL / C |
+|---|---:|---:|---:|---:|---:|
+| quicksort, random, 1000 x 1000 | 24.66 (24.53, 25.47) | 13.65 (13.41, 14.07) | 20.63 (20.44, 20.78) | 33.19 (32.75, 33.41) | 1.807 slow |
+| quicksort, sorted, 1000 x 1000 | 26.76 (26.50, 27.09) | 10.89 (10.85, 10.95) | 13.92 (13.89, 14.01) | 14.02 (13.96, 14.14) | 2.457 slow |
+| quicksort, reversed, 1000 x 1000 | 22.93 (22.69, 23.14) | 9.46 (9.42, 9.51) | 12.27 (12.11, 12.34) | 15.40 (15.32, 15.45) | 2.425 slow |
+| quicksort, few, 1000 x 1000 | 6.11 (6.07, 6.16) | 2.85 (2.83, 2.88) | 2.93 (2.89, 2.94) | 25.94 (25.56, 26.34) | 2.145 slow |
+| quicksort, random, 1000000 x 1 | 84.08 (83.80, 84.37) | 66.06 (65.90, 66.52) | 72.07 (71.96, 72.36) | 94.63 (94.37, 95.57) | 1.273 slow |
+| quicksort, sorted, 1000000 x 1 | 603.89 (598.82, 608.61) | 342.10 (338.97, 355.07) | 361.18 (356.02, 362.84) | 26.58 (26.37, 26.72) | 1.765 slow |
+| quicksort, reversed, 1000000 x 1 | 427.82 (425.07, 438.50) | 240.25 (218.28, 254.84) | 237.76 (235.80, 248.70) | 28.63 (28.43, 28.88) | 1.781 slow |
+| quicksort, few, 1000000 x 4 | 59.12 (58.88, 59.38) | 45.78 (45.46, 46.04) | 48.57 (48.36, 48.93) | 237.17 (236.64, 237.79) | 1.291 slow |
+| mergesort, random, 1000 x 1000 | 29.95 (29.69, 30.32) | 18.27 (17.91, 18.69) | 15.80 (15.69, 15.98) | 33.18 (32.66, 33.46) | 1.640 slow |
+| mergesort, sorted, 1000 x 1000 | 14.32 (14.22, 14.44) | 5.25 (5.23, 5.29) | 5.14 (5.11, 5.19) | 14.04 (14.03, 14.07) | 2.726 slow |
+| mergesort, reversed, 1000 x 1000 | 14.92 (14.85, 15.01) | 5.14 (5.12, 5.14) | 4.64 (4.63, 4.67) | 14.53 (14.43, 14.59) | 2.904 slow |
+| mergesort, few, 1000 x 1000 | 17.55 (17.49, 17.69) | 8.80 (8.75, 8.91) | 8.52 (8.48, 8.53) | 24.87 (24.77, 25.31) | 1.994 slow |
+| mergesort, random, 1000000 x 1 | 100.33 (100.08, 101.05) | 67.39 (66.88, 67.84) | 66.61 (66.28, 66.82) | 94.53 (94.34, 94.64) | 1.489 slow |
+| mergesort, sorted, 1000000 x 1 | 30.52 (29.94, 31.10) | 10.98 (10.76, 11.08) | 11.40 (11.10, 11.75) | 27.55 (27.21, 27.89) | 2.778 slow |
+| mergesort, reversed, 1000000 x 1 | 31.20 (29.99, 32.06) | 10.92 (10.75, 11.20) | 10.87 (10.62, 11.08) | 29.90 (28.62, 30.15) | 2.858 slow |
+| mergesort, few, 1000000 x 1 | 50.84 (50.14, 51.10) | 31.04 (30.54, 31.49) | 30.64 (30.40, 31.16) | 60.24 (60.06, 60.74) | 1.638 slow |
+| heapsort, random, 1000 x 1000 | 26.81 (25.79, 27.26) | 18.06 (17.72, 18.63) | 16.53 (16.04, 16.79) | 33.78 (33.25, 34.64) | 1.485 slow |
+| heapsort, sorted, 1000 x 1000 | 27.80 (26.89, 28.33) | 13.72 (13.46, 18.10) | 21.15 (20.97, 21.28) | 14.39 (14.30, 14.48) | 2.025 slow |
+| heapsort, reversed, 1000 x 1000 | 20.02 (19.04, 20.98) | 11.60 (11.23, 11.71) | 19.51 (19.16, 19.70) | 14.78 (14.63, 15.09) | 1.726 slow |
+| heapsort, few, 1000 x 1000 | 17.94 (17.46, 20.37) | 15.45 (15.20, 17.33) | 16.44 (16.35, 16.75) | 24.72 (24.55, 24.94) | 1.161 slow |
+| heapsort, random, 1000000 x 1 | 105.62 (105.13, 106.08) | 80.14 (79.61, 80.86) | 71.33 (70.70, 71.55) | 94.67 (94.44, 94.96) | 1.318 slow |
+| heapsort, sorted, 1000000 x 1 | 47.75 (47.63, 48.04) | 35.92 (35.89, 36.18) | 31.08 (30.96, 31.28) | 26.31 (26.20, 26.44) | 1.330 slow |
+| heapsort, reversed, 1000000 x 1 | 50.74 (50.59, 50.80) | 35.37 (35.09, 35.49) | 30.80 (30.67, 31.14) | 28.65 (28.52, 28.88) | 1.434 slow |
+| heapsort, few, 1000000 x 1 | 53.76 (53.45, 54.01) | 38.92 (38.75, 39.10) | 34.54 (34.34, 34.79) | 60.64 (60.46, 61.10) | 1.381 slow |
+| bsearch, random, 1000 x 2000 | 57.77 (57.19, 59.35) | 54.37 (53.98, 55.05) | 41.91 (41.40, 42.36) |  | 1.063 |
+| bsearch, few, 1000 x 2000 | 57.32 (57.03, 58.56) | 52.88 (52.30, 53.65) | 39.35 (39.08, 39.81) |  | 1.084 |
+| bsearch, random, 1000000 x 1 | 132.63 (130.53, 133.97) | 121.01 (119.84, 121.33) | 125.85 (125.19, 127.86) |  | 1.096 |
+| bsearch, few, 1000000 x 1 | 131.14 (130.12, 131.83) | 119.44 (118.84, 120.24) | 124.79 (123.83, 126.37) |  | 1.098 |
+| hashtab insert, random, 1000 x 5000 | 11.65 (11.61, 11.78) | 5.50 (5.46, 5.60) | 5.81 (5.70, 6.06) |  | 2.117 slow |
+| hashtab hit, random, 1000 x 5000 | 13.02 (12.98, 13.05) | 8.61 (8.53, 8.67) | 7.17 (7.13, 7.20) |  | 1.514 slow |
+| hashtab miss, random, 1000 x 5000 | 14.71 (14.66, 14.78) | 9.49 (9.40, 9.61) | 10.39 (10.30, 10.48) |  | 1.550 slow |
+| hashtab insert, few, 1000 x 5000 | 9.44 (9.42, 9.52) | 4.19 (4.04, 4.33) | 4.69 (4.62, 4.96) |  | 2.253 slow |
+| hashtab hit, few, 1000 x 5000 | 11.49 (11.38, 11.53) | 3.38 (3.36, 3.40) | 5.04 (5.03, 5.07) |  | 3.403 slow |
+| hashtab miss, few, 1000 x 5000 | 13.20 (13.18, 13.37) | 3.47 (3.44, 3.52) | 5.20 (5.17, 5.23) |  | 3.805 slow |
+| hashtab insert, random, 1000000 x 2 | 29.82 (29.47, 30.74) | 21.06 (20.54, 21.98) | 21.40 (21.20, 22.08) |  | 1.416 slow |
+| hashtab hit, random, 1000000 x 2 | 34.69 (34.33, 36.15) | 23.65 (23.39, 24.33) | 25.33 (25.07, 26.03) |  | 1.467 slow |
+| hashtab miss, random, 1000000 x 2 | 62.36 (61.09, 65.37) | 41.81 (41.27, 42.35) | 41.15 (40.76, 42.08) |  | 1.492 slow |
+| hashtab insert, few, 1000000 x 4 | 7.32 (7.30, 7.37) | 3.46 (3.39, 3.47) | 4.13 (4.05, 4.18) |  | 2.115 slow |
+| hashtab hit, few, 1000000 x 4 | 10.57 (10.51, 10.62) | 4.58 (4.49, 4.70) | 6.37 (6.25, 6.41) |  | 2.309 slow |
+| hashtab miss, few, 1000000 x 4 | 48.45 (47.97, 49.40) | 26.93 (26.68, 27.16) | 30.18 (29.61, 30.61) |  | 1.799 slow |
+| graph bfs, random, 1000 x 2000 | 21.76 (21.43, 22.16) | 10.93 (10.72, 11.06) | 9.80 (9.78, 10.05) |  | 1.991 slow |
+| graph dfs, random, 1000 x 2000 | 45.77 (45.17, 46.08) | 15.32 (14.99, 15.87) | 18.74 (18.62, 19.21) |  | 2.988 slow |
+| graph bfs, few, 1000 x 5000 | 14.55 (14.52, 14.56) | 8.05 (8.01, 8.10) | 8.80 (8.78, 8.82) |  | 1.807 slow |
+| graph dfs, few, 1000 x 5000 | 17.79 (17.72, 17.90) | 7.28 (7.26, 7.33) | 14.03 (14.01, 14.22) |  | 2.443 slow |
+| graph bfs, random, 1000000 x 1 | 90.59 (89.93, 91.37) | 57.51 (57.01, 58.56) | 74.07 (72.84, 77.64) |  | 1.575 slow |
+| graph dfs, random, 1000000 x 1 | 149.44 (147.44, 156.63) | 128.77 (127.87, 135.46) | 135.24 (132.86, 139.69) |  | 1.160 slow |
+| graph bfs, few, 1000000 x 2 | 31.65 (30.66, 32.00) | 26.30 (25.60, 27.02) | 27.81 (27.65, 27.98) |  | 1.204 slow |
+| graph dfs, few, 1000000 x 2 | 33.30 (33.12, 34.56) | 26.43 (26.15, 26.93) | 30.46 (30.34, 30.58) |  | 1.260 slow |
+
+Geometric mean of AIL / C over 48 kernel times: 1.753
+
+The elapsed time of the same processes:
+
+| program, input, count x runs | AIL | C | Rust | C qsort | AIL / C |
+|---|---:|---:|---:|---:|---:|
+| quicksort, random, 1000 x 1000 | 25.36 (25.20, 26.15) | 14.10 (13.83, 14.51) | 21.13 (20.99, 21.30) | 33.59 (33.15, 33.82) | 1.798 slow |
+| quicksort, sorted, 1000 x 1000 | 27.41 (27.15, 27.80) | 11.30 (11.26, 11.43) | 14.42 (14.36, 14.65) | 14.41 (14.38, 14.60) | 2.425 slow |
+| quicksort, reversed, 1000 x 1000 | 23.62 (23.39, 23.84) | 9.90 (9.85, 10.00) | 12.75 (12.60, 12.89) | 15.83 (15.71, 15.88) | 2.385 slow |
+| quicksort, few, 1000 x 1000 | 6.81 (6.77, 6.87) | 3.27 (3.24, 3.31) | 3.41 (3.38, 3.46) | 26.33 (25.98, 26.75) | 2.082 slow |
+| quicksort, random, 1000000 x 1 | 91.21 (91.06, 91.69) | 72.21 (71.94, 72.72) | 78.98 (78.88, 79.42) | 100.99 (100.59, 101.51) | 1.263 slow |
+| quicksort, sorted, 1000000 x 1 | 611.83 (606.55, 616.39) | 348.36 (345.54, 361.69) | 368.20 (362.39, 369.98) | 33.01 (32.69, 33.23) | 1.756 slow |
+| quicksort, reversed, 1000000 x 1 | 435.77 (433.10, 446.62) | 246.93 (224.36, 261.02) | 244.20 (242.34, 255.91) | 35.10 (34.97, 35.47) | 1.765 slow |
+| quicksort, few, 1000000 x 4 | 67.74 (67.24, 68.71) | 52.82 (52.42, 53.36) | 56.81 (56.25, 57.05) | 245.07 (244.29, 245.72) | 1.283 slow |
+| mergesort, random, 1000 x 1000 | 30.63 (30.37, 30.99) | 18.68 (18.35, 19.08) | 16.29 (16.18, 16.47) | 33.58 (33.07, 33.85) | 1.640 slow |
+| mergesort, sorted, 1000 x 1000 | 14.99 (14.87, 15.09) | 5.64 (5.60, 5.70) | 5.60 (5.56, 5.66) | 14.43 (14.40, 14.46) | 2.658 slow |
+| mergesort, reversed, 1000 x 1000 | 15.59 (15.49, 15.66) | 5.52 (5.50, 5.56) | 5.09 (5.08, 5.11) | 14.89 (14.81, 14.98) | 2.824 slow |
+| mergesort, few, 1000 x 1000 | 18.20 (18.16, 18.35) | 9.21 (9.14, 9.35) | 9.00 (8.97, 9.05) | 25.27 (25.18, 25.69) | 1.975 slow |
+| mergesort, random, 1000000 x 1 | 108.05 (107.44, 108.50) | 73.79 (73.30, 74.31) | 73.63 (73.30, 73.98) | 100.64 (100.18, 101.02) | 1.464 slow |
+| mergesort, sorted, 1000000 x 1 | 38.36 (37.61, 38.97) | 17.64 (17.39, 18.00) | 18.41 (17.86, 18.98) | 34.03 (33.69, 34.44) | 2.175 slow |
+| mergesort, reversed, 1000000 x 1 | 39.15 (37.64, 40.02) | 17.54 (17.31, 17.68) | 17.79 (17.39, 18.01) | 36.14 (34.96, 36.32) | 2.233 slow |
+| mergesort, few, 1000000 x 1 | 58.24 (57.44, 58.73) | 37.53 (37.00, 38.11) | 37.47 (37.27, 38.51) | 66.40 (65.74, 66.59) | 1.552 slow |
+| heapsort, random, 1000 x 1000 | 27.48 (26.46, 28.04) | 18.57 (18.17, 19.06) | 17.05 (16.55, 17.36) | 34.21 (33.72, 35.06) | 1.480 slow |
+| heapsort, sorted, 1000 x 1000 | 28.46 (27.58, 29.03) | 14.16 (13.88, 18.54) | 21.71 (21.50, 21.83) | 14.83 (14.73, 14.91) | 2.010 slow |
+| heapsort, reversed, 1000 x 1000 | 20.70 (19.70, 21.64) | 12.00 (11.73, 12.18) | 20.13 (19.66, 20.25) | 15.21 (15.05, 15.50) | 1.724 slow |
+| heapsort, few, 1000 x 1000 | 18.63 (18.12, 21.07) | 15.85 (15.61, 17.73) | 16.95 (16.88, 17.35) | 25.12 (24.96, 25.37) | 1.175 slow |
+| heapsort, random, 1000000 x 1 | 112.73 (112.33, 113.53) | 86.33 (85.71, 87.05) | 78.31 (77.60, 78.63) | 101.13 (100.64, 101.26) | 1.306 slow |
+| heapsort, sorted, 1000000 x 1 | 54.73 (54.48, 55.02) | 41.89 (41.76, 42.22) | 37.35 (36.86, 37.75) | 32.30 (31.99, 32.60) | 1.306 slow |
+| heapsort, reversed, 1000000 x 1 | 57.79 (57.54, 58.01) | 41.15 (40.88, 41.62) | 37.26 (37.04, 37.52) | 34.64 (34.24, 34.76) | 1.404 slow |
+| heapsort, few, 1000000 x 1 | 61.07 (60.39, 61.34) | 45.05 (44.58, 45.35) | 41.44 (41.07, 41.58) | 66.55 (66.13, 67.69) | 1.356 slow |
+| bsearch, random, 1000 x 2000 | 58.15 (57.54, 59.78) | 54.75 (54.39, 55.49) | 42.50 (41.92, 42.89) |  | 1.062 |
+| bsearch, few, 1000 x 2000 | 57.66 (57.40, 58.97) | 53.24 (52.72, 54.02) | 39.97 (39.62, 40.41) |  | 1.083 |
+| bsearch, random, 1000000 x 1 | 142.05 (139.81, 143.39) | 129.53 (128.66, 129.89) | 134.41 (133.76, 136.80) |  | 1.097 |
+| bsearch, few, 1000000 x 1 | 140.49 (139.45, 141.30) | 128.00 (127.29, 128.99) | 133.14 (132.33, 134.90) |  | 1.098 |
+| hashtab, random, 1000 x 5000 | 62.36 (61.10, 65.30) | 24.79 (24.65, 25.03) | 24.83 (24.46, 24.97) |  | 2.516 slow |
+| hashtab, few, 1000 x 5000 | 57.34 (56.26, 66.13) | 12.09 (11.99, 12.33) | 16.26 (16.10, 16.47) |  | 4.742 slow |
+| hashtab, random, 1000000 x 2 | 155.35 (154.03, 160.21) | 105.87 (105.00, 108.50) | 109.16 (107.96, 109.98) |  | 1.467 slow |
+| hashtab, few, 1000000 x 4 | 107.51 (107.06, 109.32) | 56.08 (55.88, 57.44) | 62.69 (61.88, 63.32) |  | 1.917 slow |
+| graph, random, 1000 x 2000 | 70.06 (69.42, 70.59) | 26.80 (26.19, 27.42) | 29.13 (29.02, 29.87) |  | 2.614 slow |
+| graph, few, 1000 x 5000 | 38.54 (38.48, 38.66) | 15.89 (15.83, 15.97) | 23.46 (23.41, 23.64) |  | 2.425 slow |
+| graph, random, 1000000 x 1 | 285.61 (281.74, 290.74) | 223.39 (222.66, 234.80) | 272.08 (268.99, 276.05) |  | 1.279 slow |
+| graph, few, 1000000 x 2 | 78.99 (78.20, 81.58) | 63.56 (63.09, 65.50) | 73.00 (72.81, 73.51) |  | 1.243 slow |
+
+Geometric mean of AIL / C over 36 inputs: 1.714
+
+What the figures say:
+
+- AIL takes 1.75 times as long as C in the geometric mean of the kernels, where the five CPU-bound programs take 1.04. The goal of the redesign was set and met on loops; these programs are where it is not met.
+- `bsearch` is within 10% of C at both sizes. Its inner loop is a load, a comparison and a branch that cannot be predicted.
+- The small inputs are mostly behind by more than the large ones: the sorts on random input take 1.5 to 1.8 times as long as C at a thousand elements and 1.3 to 1.5 times at a million, the two traversals 2.0 and 3.0 times against 1.6 and 1.2. At a million a part of the time is the memory, which costs every language the same; at a thousand everything is in the first cache and the instructions are all there is.
+- Where C is far ahead the kernel calls a small function in its inner loop, which `gcc -O3` puts in line and the AIL compiler does not: `place` in `hashtab` (1.5 to 3.8 times at a thousand keys), `sift` in `heapsort`. That is the likely cause, not a measured one; the merge loop of `mergesort`, which calls nothing, is 1.6 to 2.9 times behind as well, so the code of a loop with five variables in memory operands and two branches is part of it.
+- `quicksort` on a million words in order takes five to seven times as long as on random ones, in the three languages alike. The likely cause is the pass that keeps equal words in the middle: it brings the words from the end to the front one by one, which leaves the larger side of an ordered input out of order with its smallest word last, where the median of three picks a poor pivot. The `qsort` of the C library, a merge sort, is 13 times faster there than the C quicksort, and 5 times slower on few values, where the three-way pass has little to do.
+- Against the library's `qsort`, which a C program gets without writing a sort, the AIL kernels are faster on random input at both sizes except `mergesort` and `heapsort` at a million, and slower on input in order.
+
+The source of each program, in tokens (`tools/tokens.sh`, the kernel and the two or three lines that hand it to the harness, without comments):
+
+| program | AIL | C | Rust |
+|---|---:|---:|---:|
+| quicksort | 264 | 297 | 324 |
+| mergesort | 309 | 298 | 340 |
+| heapsort | 211 | 237 | 271 |
+| bsearch | 129 | 156 | 163 |
+| hashtab | 230 | 280 | 280 |
+| graph | 373 | 345 | 405 |
+| total | 1516 | 1613 | 1783 |
+| relative to AIL | 1.00 | 1.06 | 1.18 |
 
 ## Tasks, 2026-11-20
 
