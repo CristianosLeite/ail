@@ -1,14 +1,14 @@
 ---
 title: Stage1 self-hosting
 last-verified: 2026-11-19
-sources: [conversation 2026-11-19, compiler/ailc.aw, tests/stage1.sh]
+sources: [conversation 2026-11-19, compiler/ailc.aiw, tests/stage1.sh]
 status: current
 ---
 
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aw` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aiw` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage1 self-hosting
 
-**Summary.** `compiler/ailc.aw` is the stage0 compiler translated to AIL, routine by routine. It
+**Summary.** `compiler/ailc.aiw` is the stage0 compiler translated to AIL, routine by routine. It
 emits the same bytes as stage0 and compiles itself to an identical file. `docs/stage1.md`
 describes its structure; this page records the decisions, how it was verified and what it showed
 about the language.

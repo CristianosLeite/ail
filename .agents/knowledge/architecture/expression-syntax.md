@@ -7,12 +7,12 @@ status: current
 # Expression syntax
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** Infix expressions are written without spaces (`x=(x^x>>13)*1664525+1013904223`),
 spaces keep separating arguments, and assignment is `x=e` or `x+=e`. Chosen by counting the
@@ -32,7 +32,7 @@ ten-program corpus in eight spellings: 975 tokens against 1313 before, 1118 for 
   as numbers, variables or registers, and the statements that say the same as an expression
   (`add a b as x`, `jlt a b l`, loads and stores) go the same way and give the same bytes.
   Final figures: corpus 970 tokens, 990 since it is indented (C 1118, Rust 1191), time 1.039 times `gcc -O3` in the
-  geometric mean, compiler source 21% fewer tokens after `tools/infix.py` (now `tools/infix.aw`).
+  geometric mean, compiler source 21% fewer tokens after `tools/infix.py` (now `tools/infix.aiw`).
 - Faults that only random programs or rewriting the examples found: the register of an
   assignment's target handed out again as a scratch register; the address of a store left in
   `rax` while its value divided. Both have a case in `tests/insn.cases` now.

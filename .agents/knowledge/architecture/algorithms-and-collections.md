@@ -1,18 +1,18 @@
 ---
 title: Algorithm benchmarks and collections
 last-verified: 2026-11-21
-sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/BACKLOG.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/std/vec.aw, lib/std/queue.aw, lib/std/heap.aw, lib/std/map.aw]
+sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/BACKLOG.md, docs/performance.md, bench/algo/, tools/perf.aiw, tests/algo.sh, lib/std/vec.aiw, lib/std/queue.aiw, lib/std/heap.aiw, lib/std/map.aiw]
 status: current
 ---
 # Algorithm benchmarks and collections
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** Six algorithm programs (`quicksort`, `mergesort`, `heapsort`, `bsearch`,
 `hashtab`, `graph`) exist in AIL, C and Rust over one harness, and `perf` times their kernels
@@ -21,15 +21,15 @@ times, against 1.04 on the five CPU-bound programs. `lib/` has a vector, a bound
 min-heap and a hash map.
 
 ## Facts
-- Since 2026-11-21 the kernels are in `lib/algo/` (`sort.aw`, `search.aw`, `hash.aw`,
-  `graph.aw`, a prefix a file since the harness owns `algo`) and a program of `examples/` is
+- Since 2026-11-21 the kernels are in `lib/algo/` (`sort.aiw`, `search.aiw`, `hash.aiw`,
+  `graph.aiw`, a prefix a file since the harness owns `algo`) and a program of `examples/` is
   `use` lines, at most an adapter, and the call of the harness. The six programs compile to
   the bytes they had with the kernels in them, because the library is used where the kernel
   stood, behind the harness. `isort` calls `sortins` and carries the three other sorts too.
   The six callers are 260 tokens (C 1613, Rust 1783); the library functions 1793, more than
   the kernels were (about 1300), since every name has a prefix. The fixed corpus of ten is
   941 tokens with the new `isort`, from 990.
-- A program is its kernel and the call of `bench/algo/harness.aw` (`harness.h`, `harness.rs`):
+- A program is its kernel and the call of `bench/algo/harness.aiw` (`harness.h`, `harness.rs`):
   five words on stdin (seed, count, shape, runs, mode), input from splitmix64, the monotonic
   clock around the kernel only; mode 0 writes a checksum and the nanoseconds of each kernel,
   1 the input, 2 the result. A short input or a count of 2^28 or more is status 1.
@@ -65,8 +65,8 @@ min-heap and a hash map.
 - The compiler changes that followed, and the figure after each (1.753 to 1.201), are on
   [their own page](generated-code-follow-up.md).
 
-- The collections are timed since 2026-11-21 by `examples/collseq.aw` (vec, queue, heap) and
-  `examples/collmap.aw` (put, get, del on one map), with C (by hand, `malloc`) and Rust (`Vec`,
+- The collections are timed since 2026-11-21 by `examples/collseq.aiw` (vec, queue, heap) and
+  `examples/collmap.aiw` (put, get, del on one map), with C (by hand, `malloc`) and Rust (`Vec`,
   `VecDeque`, `BinaryHeap`, `HashMap`) in `bench/`, over `algocoll` of the harness, rows of
   `perf`, references in `tests/algo.sh`. Chosen by the user: against C and Rust, not AIL alone.
   At a million keys AIL / C is 1.07 (heap), 1.12 to 1.73 (map), 2.0 to 2.2 (vec, queue). At a

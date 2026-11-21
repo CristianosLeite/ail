@@ -1,0 +1,54 @@
+# results and errors go up through tasks as values: the error of a
+# connect that nobody answers, through two async functions; a result
+# through three; and the 0 of a task that reaches its end
+use "lib/std/io.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+async fn dial port
+	await asyncconnect 0x7f000001 port as c
+	if c>-4096
+		ret c
+	end
+	call asyncclose c
+	ret 0
+end
+async fn fetch port
+	await dial port as r
+	if r
+		ret r-1000
+	end
+	ret 1
+end
+async fn leaf v
+	await asyncyield
+	ret v*2
+end
+async fn mid v
+	await leaf v+1 as x
+	ret x+1
+end
+async fn top v
+	await mid v as x
+	await mid x as y
+	ret y
+end
+async fn nothing
+	await asyncyield
+end
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+await fetch port as ok
+call asyncclose l
+await fetch port as refused
+await top 1 as t
+await nothing as z
+call asyncstop as n
+call putn ok
+call print " "
+call putn 0-refused
+call print " "
+call putn t
+call putn z
+call putn n
+call print "\n"

@@ -2,14 +2,14 @@
 # not check: tests of the separators, whose spaces, tabs and CRs at the
 # start of a line are what they test. One path a line. The fixtures in
 # the directories under tests/ are left alone too; they are not listed.
-tests/comments_and_blanks.aw
-tests/data_tabs_crlf.aw
-tests/err_line_after_blanks_and_comments.aw
-tests/fn_separators.aw
-tests/gvar_tabs_comment.aw
-tests/if_with_comment_tabs.aw
-tests/indented_blocks.aw
-tests/jmp_with_comment.aw
-tests/lib/crlf.aw
-tests/separators_tab_crlf.aw
-tests/use_tab_crlf.aw
+tests/comments_and_blanks.aiw
+tests/data_tabs_crlf.aiw
+tests/err_line_after_blanks_and_comments.aiw
+tests/fn_separators.aiw
+tests/gvar_tabs_comment.aiw
+tests/if_with_comment_tabs.aiw
+tests/indented_blocks.aiw
+tests/jmp_with_comment.aiw
+tests/lib/crlf.aiw
+tests/separators_tab_crlf.aiw
+tests/use_tab_crlf.aiw

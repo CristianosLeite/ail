@@ -1,8 +1,0 @@
-use "lib/std/task.aw"
-var cell
-fn work
-	cell=9
-end
-spawn work as h
-join h as x
-sys exit_group cell+x

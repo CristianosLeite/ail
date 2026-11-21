@@ -1,0 +1,84 @@
+# lib/algo/graph.aiw -- reach every vertex of a graph, breadth first and
+# depth first.
+#
+# A graph of n vertices is two arrays of words of the caller: the
+# neighbours of the vertex v are the words of the second from the index
+# in word v of the first up to the index in word v+1, so the first has
+# n+1 words. Both functions take them, the count, a byte for each
+# vertex, which the caller makes zero and which is 1 afterwards for
+# every vertex, and a place for n words: the vertices in the order they
+# are reached. They begin at the lowest vertex not reached yet, so
+# every vertex is written once, whatever the edges. Nothing is
+# allocated and nothing fails.
+#
+# graphbfs uses the result as its queue. graphdfs takes before the
+# result a stack of the caller with room for a word an edge and one
+# more; it takes the neighbour written last first.
+#
+# Every name of this file starts with "graph".
+
+# breadth first: graphr is the queue as well, graphh the next vertex
+# to leave it
+fn graphbfs graphoff graphnbr graphn graphseen graphr
+	grapht=0
+	graphh=0
+	graphs=0
+	while graphs<graphn
+		loadb graphseen+graphs as graphc
+		ifz graphc
+			storeb graphseen+graphs 1
+			store graphr+grapht*8 graphs
+			grapht+=1
+			while graphh<grapht
+				load graphr+graphh*8 as graphv
+				graphh+=1
+				load graphoff+graphv*8 as graphe
+				load graphoff+graphv*8+8 as graphf
+				while graphe<graphf
+					load graphnbr+graphe*8 as graphw
+					loadb graphseen+graphw as graphc
+					ifz graphc
+						storeb graphseen+graphw 1
+						store graphr+grapht*8 graphw
+						grapht+=1
+					end
+					graphe+=1
+				end
+			end
+		end
+		graphs+=1
+	end
+end
+
+# depth first: graphst is a stack with room for every edge and one
+# vertex
+fn graphdfs graphoff graphnbr graphn graphseen graphst graphr
+	graphk=0
+	graphs=0
+	while graphs<graphn
+		loadb graphseen+graphs as graphc
+		ifz graphc
+			store graphst graphs
+			graphp=1
+			while graphp
+				graphp-=1
+				load graphst+graphp*8 as graphv
+				loadb graphseen+graphv as graphc
+				ifz graphc
+					storeb graphseen+graphv 1
+					store graphr+graphk*8 graphv
+					graphk+=1
+					load graphoff+graphv*8 as graphe
+					load graphoff+graphv*8+8 as graphf
+					while graphe<graphf
+						load graphnbr+graphe*8 as graphw
+						store graphst+graphp*8 graphw
+						graphp+=1
+						graphe+=1
+					end
+				end
+			end
+		end
+		graphs+=1
+	end
+end

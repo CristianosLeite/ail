@@ -1,9 +1,0 @@
-# the var is declared in the file named below, so the line that sets it
-# must stay: get reads the cell
-use "tests/infix/use_lib.aw"
-shared=42
-if shared
-	call get as r
-	sys exit r
-end
-sys exit 0

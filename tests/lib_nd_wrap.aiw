@@ -1,0 +1,39 @@
+# an array of bytes the caller has: the elements are those bytes, a
+# store through the array is seen in the buffer, bytes that are too few
+# are refused and leave the array as it was, and ndfree frees nothing
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+buf m 48
+buf a 176
+buf sh 16
+buf ix 16
+store m+40 9
+store sh 2
+store sh+8 3
+call ndwrap a m 48 2 sh as r
+load a as p
+load a+40 as o
+store ix 1
+store ix+8 2
+call ndget a ix as x f
+call ndset a ix 4 as g
+load m+40 as y
+store sh 7
+call ndwrap a m 48 2 sh as s
+call ndwrap a m 47 1 sh as t
+load a+48 as n
+load a+32 as b
+call ndwrap a m 56 1 sh as u
+load a+48 as k
+call ndfree a
+load m+40 as z
+load a+8 as e
+call putn x
+call putn y
+call putn n
+call putn b
+call putn k
+call putn z
+call putn e+s+t
+call print "\n"
+sys exit r+(p==m)+(o==0)+f+g+u

@@ -1,0 +1,46 @@
+# a vector that grows many times keeps its values: 100000 pushed one at a
+# time, then read by index; the room doubles from 512, the address
+# changes and an index stays good; a reserve of less than there is
+# changes nothing and one of more gives exactly that room
+use "lib/std/io.aiw"
+use "lib/std/vec.aiw"
+buf v 24
+call vecpush v 1
+load v as p
+load v+16 as c
+call putn c
+call print " "
+i=1
+while i<100000
+	call vecpush v i*7+1 as r
+	ifz r
+		sys exit 1
+	end
+	i+=1
+end
+load v as q
+load v+8 as n
+load v+16 as d
+s=0
+i=0
+while i<n
+	call vecget v i as x r
+	s+=x
+	i+=1
+end
+call vecreserve v 5 as r
+load v+16 as e
+call vecreserve v 200000 as t
+load v+16 as f
+call vecget v 99999 as x u
+call putn n
+call print " "
+call putn s
+call print " "
+call putn d
+call print " "
+call putn f
+call print " "
+call putn x
+call print "\n"
+sys exit (p!=q)+r+t+u+(d==e)

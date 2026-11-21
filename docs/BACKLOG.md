@@ -1,12 +1,12 @@
 # Backlog
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 The work that is done: every item that was in [TODO.md](TODO.md) and has been
 completed, with what was asked for and, where it was measured, what came of
@@ -83,12 +83,12 @@ item that is completed in TODO.md is moved here with its section. See the
 ## Compiler scale, output and tooling
 
 - [x] Split the compiler using the existing [`use`](language.md#use) statement,
-  which the pinned seed already supports for `compiler/tables.aw`.
-  - Keep `compiler/ailc.aw` as the entry point with the shared declarations and
+  which the pinned seed already supports for `compiler/tables.aiw`.
+  - Keep `compiler/ailc.aiw` as the entry point with the shared declarations and
     parser state machine. Its states share top-level variables and labels.
     Extract whole functions along the existing section boundaries. Suggested
-    files under `compiler/` are `diag.aw`, `lex.aw`, `names.aw`, `expr.aw` and
-    `emit.aw` for diagnostics, token reading, name lookup, expressions and code
+    files under `compiler/` are `diag.aiw`, `lex.aiw`, `names.aiw`, `expr.aiw` and
+    `emit.aiw` for diagnostics, token reading, name lookup, expressions and code
     emission.
   - Put each `use` where the extracted code stood. A used file shares the
     top-level scope and is compiled at that point, so preserve the order of
@@ -132,18 +132,18 @@ item that is completed in TODO.md is moved here with its section. See the
 
 ## Port the Python tools to AIL
 
-Give each tool an entry point at `tools/<name>.aw` and an executable at
+Give each tool an entry point at `tools/<name>.aiw` and an executable at
 `build/tools/<name>`. Build the tools with `build/ailc` after the bootstrap.
 Add a `make tools` target and declare each tool's source dependencies so edits
 to a shared file rebuild its callers. Have `make test` build the tools it runs.
 
 Use the existing [`use`](language.md#use) and keep dependencies one way.
 Tool entry points handle arguments, diagnostics and exit status. Put shared
-token and line scanning in `tools/lib/scan.aw` and shared control-flow
-analysis in `tools/lib/flow.aw`. Keep each tool's rewrite rules, generator or
-reporting code with that tool. Add `lib/std/bytes.aw`, `lib/std/file.aw` and
-`lib/std/proc.aw` for byte buffers, file I/O and child processes as callers need
-them. Reuse `lib/std/io.aw` for arguments and output. Keep Linux syscall details
+token and line scanning in `tools/lib/scan.aiw` and shared control-flow
+analysis in `tools/lib/flow.aiw`. Keep each tool's rewrite rules, generator or
+reporting code with that tool. Add `lib/std/bytes.aiw`, `lib/std/file.aiw` and
+`lib/std/proc.aiw` for byte buffers, file I/O and child processes as callers need
+them. Reuse `lib/std/io.aiw` for arguments and output. Keep Linux syscall details
 in the file and process helpers and the compiler bootstrap independent of
 the tools.
 
@@ -213,7 +213,7 @@ its AIL replacement passes the corresponding checks.
   `--check` to report indentation violations without rewriting files, as the
   first lint rule. Verify that formatting is idempotent and that formatted
   examples compile to the same bytes.
-- [x] Add a VS Code extension for `.aw` files with syntax highlighting, block
+- [x] Add a VS Code extension for `.aiw` files with syntax highlighting, block
   folding and formatting through the same AIL formatter.
 - [x] Apply the convention to the examples first. Reindent the compiler in a
   separate formatting commit and verify the bootstrap fixed point.
@@ -332,7 +332,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    the API and results in [language.md](language.md) and
    [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md).
    Done on 2026-11-21: the tests `lib_nd_ref_*` compare the library with
-   NumPy 2.3.5 through `tests/lib/ndfix.aw`, which `tests/nd/gen.py`
+   NumPy 2.3.5 through `tests/lib/ndfix.aiw`, which `tests/nd/gen.py`
    writes; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
    kernels take 3.65 times as long as the loops of C in the geometric
    mean of 14 times, 1.24 times where memory is the limit and up to 10
@@ -426,7 +426,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     stays
     ([results](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 12. [x] **Validate the first parallel matrix result before reusing its
-    buffer.** `bench/nd/mmtasks.aw` checks the first call's status but
+    buffer.** `bench/nd/mmtasks.aiw` checks the first call's status but
     compares the output only after later calls have overwritten it.
     Compare the first result against the serial result before running
     the warm-pool calls. Keep both result checks outside the timed
@@ -437,7 +437,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     `mmtasks.sh` end with `differ` and the status 1.
 13. [x] **Validate the call that sets the warm minimum.** The last call
     can overwrite an incorrect earlier result whose time is still the
-    minimum. In `bench/nd/mmtasks.aw`, capture the status of each timed
+    minimum. In `bench/nd/mmtasks.aiw`, capture the status of each timed
     call and check it after stopping the clock. When a call would lower
     the minimum, compare its output bit for bit with the serial result
     before accepting its time and before reusing the output buffer.
@@ -452,7 +452,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     and no error.
 14. [x] **Label the reported count as planned row blocks.** Rename
     `tasks made` to `row blocks` in `bench/nd/mmtasks.sh` and use the
-    same term in `bench/nd/mmtasks.aw` and `performance.md`. Keep the
+    same term in `bench/nd/mmtasks.aiw` and `performance.md`. Keep the
     requested task count beside it and show the count returned by
     `ndruns`. Explain that the serial path runs one block on the
     caller and a failed `spawn` also leaves its block to the caller.
@@ -486,7 +486,7 @@ library in the same pass and leave the examples as callers.
    auxiliary vector behind `args` and called with `callp`; or read the
    clock with the raw system call in C and Rust as well. For the vDSO call,
    check the argument registers, the stack alignment and which registers
-   survive. Keep `harness.aw`, `harness.h` and `harness.rs` the same in
+   survive. Keep `harness.aiw`, `harness.h` and `harness.rs` the same in
    what they time, and update `tests/algo.sh` and `perf` if the output
    gains a word. Accept the change when an empty kernel costs the same
    within a few nanoseconds in the three languages.
@@ -519,16 +519,16 @@ library in the same pass and leave the examples as callers.
    Keep each algorithm, its memory layout and its output: `tests/algo.sh`
    must pass unchanged and the results must stay byte-identical to the C
    and Rust programs. Decide how the fixed table of `hashtab` and the
-   in-place heap of `heapsort` relate to `lib/std/map.aw` and `lib/std/heap.aw`,
+   in-place heap of `heapsort` relate to `lib/std/map.aiw` and `lib/std/heap.aiw`,
    and keep them separate where the benchmark layout differs. Add the new
    files to the Makefile prerequisites and to `tests/indent.sh`, test the
    functions on their own in `tests/lib_algo_*` (empty, single, duplicate
    and already sorted input), and document them in
    [language.md](language.md).
-   Done on 2026-11-21: `lib/algo/sort.aw`, `search.aw`, `hash.aw` and
-   `graph.aw`, a prefix a file since the harness owns `algo`. The six
+   Done on 2026-11-21: `lib/algo/sort.aiw`, `search.aiw`, `hash.aiw` and
+   `graph.aiw`, a prefix a file since the harness owns `algo`. The six
    harness programs compile to the same bytes as before; the heap and
-   the table stay apart from `lib/std/heap.aw` and `lib/std/map.aw`, whose
+   the table stay apart from `lib/std/heap.aiw` and `lib/std/map.aiw`, whose
    layouts are others ([reference](language.md#the-algo-library)).
 4. [x] **Measure what the move changes.** Check that `place` and `lower`
    are still compiled in place at their calls, which needs the callee
@@ -547,12 +547,12 @@ library in the same pass and leave the examples as callers.
 
 ## Algorithm benchmarks and collection APIs
 
-Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)
+Use [`isort`](../examples/isort.aiw) and its [C counterpart](../bench/isort.c)
 as the starting point. Pass contiguous arrays as an address and an element
 count, use `load` and `store` for 64-bit values, and size runtime buffers with
 `alloc`. The algorithms can use the current language and calling convention.
 
-- [x] Add quicksort in `examples/quicksort.aw` and `bench/quicksort.c`.
+- [x] Add quicksort in `examples/quicksort.aiw` and `bench/quicksort.c`.
   Sort unsigned 64-bit values in place with the same pivot rule and three-way
   partition in both implementations. Use half-open ranges and recurse on the
   smaller partition while iterating over the larger one to bound stack depth.
@@ -566,7 +566,7 @@ count, use `load` and `store` for 64-bit values, and size runtime buffers with
   Store graphs as a vertex-offset array and a contiguous neighbor array. Use
   a queue for BFS and an explicit stack for DFS, with the same neighbor order
   and visited representation in both implementations.
-- [x] Extend [`perf`](../tools/perf.aw) for algorithm workloads. Run equivalent
+- [x] Extend [`perf`](../tools/perf.aiw) for algorithm workloads. Run equivalent
   C kernels at `-O3` on identical input generated from fixed seeds. Include
   small and large arrays and random, sorted, reversed and duplicate-heavy
   inputs. Check full sorted output against an independent reference on test
@@ -586,23 +586,23 @@ preserve the contents on allocation failure, document the lifetime of any
 exposed storage, and have `free` operations reset the descriptor. Return a
 separate success or found result wherever zero is a valid value.
 
-- [x] **Growable vector**, `lib/std/vec.aw`. Provide `vecreserve v n`,
+- [x] **Growable vector**, `lib/std/vec.aiw`. Provide `vecreserve v n`,
   `vecpush v x`, `vecpop v`, `vecget v i` and `vecfree v`. Keep a data
   address, length and capacity in a 24-byte descriptor, with length and
   capacity in elements. Grow geometrically and reuse `bycopy` for relocation
   if useful. Define `vecreserve` in terms of total capacity and document when
   growth invalidates addresses into the vector.
-- [x] **Bounded queue**, `lib/std/queue.aw`. Provide `queueinit q n`,
+- [x] **Bounded queue**, `lib/std/queue.aiw`. Provide `queueinit q n`,
   `queuepush q x`, `queuepop q` and `queuefree q`. Allocate a ring of `n`
   values with a head and count. Return failure on full and empty operations.
-  Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
+  Use [`lib/async/chan.aiw`](../lib/async/chan.aiw) as a layout reference and keep
   the queue usable in synchronous programs through its own functions.
-- [x] **Min-heap**, `lib/std/heap.aw`. Provide `heappush h x`, `heappeek h`,
+- [x] **Min-heap**, `lib/std/heap.aiw`. Provide `heappush h x`, `heappeek h`,
   `heappop h` and `heapfree h`. Store values in a growable array, using the
   vector storage if it fits the callers. Sift up on insertion and down on
-  removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
+  removal. Use the [timer heap](../lib/async/time.aiw) as a reference. Keep
   the in-place max-heap operations of heapsort in its benchmark.
-- [x] **Hash map**, `lib/std/map.aw`. Provide `mapput m k v`, `mapget m k`,
+- [x] **Hash map**, `lib/std/map.aiw`. Provide `mapput m k v`, `mapget m k`,
   `mapdel m k` and `mapfree m`. Use open addressing with linear probing,
   power-of-two capacity, and explicit slot states for empty, occupied and
   deleted entries so all 64-bit keys are usable. Update existing keys in place,
@@ -634,7 +634,7 @@ below were checked byte for byte and timed over 15 rounds with shuffled run
 order. See [benchmark method](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md#method).
 
 1. [x] **Emit scaled indexes in loads and stores.** In
-   [`xaddr` and the memory operand encoder](../compiler/expr.aw), fold a
+   [`xaddr` and the memory operand encoder](../compiler/expr.aiw), fold a
    register index scaled by 2, 4 or 8 into the x86-64 memory operand when it
    fits. With both operands in registers, `load p+i*8` went from `imul`,
    `add` and `mov` to a single indexed `mov`, reducing the sequence from
@@ -642,8 +642,8 @@ order. See [benchmark method](https://github.com/CristianosLeite/ail-bench/blob/
    ratio from 1.753 to 1.639. See the
    [scaled index measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#scaled-indexes-2026-11-20).
 2. [x] **Reduce stack accesses in hot loops and evaluate selective inlining.**
-   Inspect [`alloc`](../compiler/emit.aw) and the generated code for
-   [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
+   Inspect [`alloc`](../compiler/emit.aiw) and the generated code for
+   [`hashtab`](../examples/hashtab.aiw) before expanding inlining. At 1,000
    keys, manually inlining `place` lowered insertion and successful lookup
    times by 12–20%, while unsuccessful lookups on random keys took 30% longer
    and the loop gained stack accesses. Measure all three operations at 1,000
@@ -653,7 +653,7 @@ order. See [benchmark method](https://github.com/CristianosLeite/ail-bench/blob/
    most, and inlining `place` by hand is then faster in 11 of the 12 kernel
    times ([results](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#registers-by-weight-2026-11-20)).
 3. [x] **Find a profitable lowering for compound loop conditions.** Use
-   [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
+   [`mergesort`](../examples/mergesort.aiw) as a test case. A prototype split
    its two bounds comparisons into separate branches, cutting kernel time
    by up to 7% on sorted and reversed inputs while increasing it by up to
    18% on small random or duplicate-heavy inputs. Preserve AIL's eager
@@ -724,7 +724,7 @@ From `REDESIGN.md`; one commit per item.
 - [x] Add CPU-bound workloads to the corpus: `sieve`, `collatz`, `fnv`, `isort`.
 - [x] Record the first seed of the compiler in a manifest and release it.
 - [x] Build the compiler from the pinned seed, in three generations.
-- [x] Make `compiler/tables.aw` its own source, checked by form and by bytes.
+- [x] Make `compiler/tables.aiw` its own source, checked by form and by bytes.
 - [x] Check the one compiler without comparing it to stage0.
 - [x] Remove stage0.
 - [x] Fix the expression syntax from token counts on the corpus.

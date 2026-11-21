@@ -5,7 +5,7 @@
 # or exit status 1, nothing on stdout and one line "ailc: ..." on stderr.
 # A signal, a deadline, another status or anything else written fails.
 # The same source also goes to a second translation of the compiler,
-# build/ailc1, which the seed compiled from the same compiler/ailc.aw: the
+# build/ailc1, which the seed compiled from the same compiler/ailc.aiw: the
 # two must give the same status, output bytes and message, or the compiler
 # has compiled itself wrongly.
 # Usage: tests/fuzz.sh [count [seed]]     (default 300 sources, seed 1)
@@ -23,7 +23,7 @@ mkdir -p build/fuzz
 out=$(mktemp -d build/fuzz/run.XXXXXX) || exit 1
 trap 'rm -rf "$out"' EXIT
 trap 'exit 1' HUP INT TERM
-ls tests/*.aw examples/*.aw lib/std/*.aw lib/algo/*.aw tests/lib/*.aw > "$out/corpus"
+ls tests/*.aiw examples/*.aiw lib/std/*.aiw lib/algo/*.aiw tests/lib/*.aiw > "$out/corpus"
 n=$(wc -l < "$out/corpus")
 
 # print source number $1: one corpus file after one to four random edits
@@ -99,8 +99,8 @@ while [ "$i" -le "$count" ]; do
     timeout --signal=KILL $limit $b < "$out/src" > "$out/b.out" 2> "$out/b.err"; rb=$?
     if [ $ra -ne $rb ] || ! proper $rb ||
         ! cmp -s "$out/a.out" "$out/b.out" || ! cmp -s "$out/a.err" "$out/b.err"; then
-        cp "$out/src" "build/fuzz/seed$seed-$i.aw"
-        echo "FAIL fuzz $i (kept as build/fuzz/seed$seed-$i.aw)"
+        cp "$out/src" "build/fuzz/seed$seed-$i.aiw"
+        echo "FAIL fuzz $i (kept as build/fuzz/seed$seed-$i.aiw)"
         fail=1
     fi
     i=$((i + 1))

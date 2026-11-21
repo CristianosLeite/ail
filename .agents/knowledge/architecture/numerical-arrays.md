@@ -1,18 +1,18 @@
 ---
 title: Numerical arrays (lib/nd)
 last-verified: 2026-11-21
-sources: [conversation 2026-11-21, docs/BACKLOG.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tests/nd/gen.py, tests/lib/ndfix.aw, bench/algo/harness.aw, tools/perf.aw, tests/algo.sh]
+sources: [conversation 2026-11-21, docs/BACKLOG.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tests/nd/gen.py, tests/lib/ndfix.aiw, bench/algo/harness.aiw, tools/perf.aiw, tests/algo.sh]
 status: current
 ---
 # Numerical arrays (lib/nd)
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** `lib/nd/` is arrays of doubles or 64-bit integers on the model of NumPy:
 a descriptor of 176 bytes owned by the caller, views that move no element, elementwise
@@ -42,7 +42,7 @@ when first measured, 2.18 times since the loops take two doubles at once.
 - Integers wrap at 64 bits. Their quotient is cut off towards 0 (NumPy's `//` floors); a
   divisor array with a 0 is refused before anything is written; the lowest integer by -1
   stays what it is. A mean is always a double. Kinds are never mixed but by `ndtoi`/`ndtof`.
-- `tests/nd/gen.py` is the one Python file of the repository. It writes `tests/lib/ndfix.aw`
+- `tests/nd/gen.py` is the one Python file of the repository. It writes `tests/lib/ndfix.aiw`
   and is never run by `make test`; `tests/nd/bench.py` times NumPy for the docs.
 - The array programs `ndelem`, `ndreduce`, `ndmatmul` call `algonum` of the harness, which
   gives every language the same doubles (20 bits / 1024 - 512), so results are the same
@@ -72,7 +72,7 @@ when first measured, 2.18 times since the loops take two doubles at once.
 - `ndaxpy` takes four `pmadd` a round: 19 to 22% less time for the product at sides 100 and
   300, 12% at 1000, nothing at 30.
 - Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,
-  it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
+  it does not wait for memory. `ndmatmulp` (`lib/nd/par.aiw`) runs disjoint rows as tasks,
   5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30
   with 64 tasks.
 - Tasks for a product (`bench/nd/mmtasks.sh`): with the pool started they pay from 13

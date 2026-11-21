@@ -1,0 +1,20 @@
+# bycut keeps a prefix, byfree leaves an empty buffer that works again
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+buf b 24
+call byadd b "hello world"
+call bycut b 5
+call byadd b "\n"
+load b as p
+load b+8 as n
+call print p n
+call byfree b
+load b as p
+load b+8 as n
+load b+16 as c
+call byfree b
+call byadd b "again\n"
+load b as q
+load b+8 as m
+call print q m
+sys exit p+n+c

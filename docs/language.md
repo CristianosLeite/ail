@@ -27,7 +27,7 @@ use "path"
 Compiles the file `path` at this place, as if its lines stood here: its functions, global names and top-level statements become part of the program, and its top-level statements run where the `use` stands. A program is thus split into files by listing them, and a file of functions and data is a library.
 
 ```
-use "lib/std/io.aw"
+use "lib/std/io.aiw"
 call print "hello\n"
 ```
 
@@ -73,9 +73,9 @@ fn gcd a b
 end
 ```
 
-`build/tools/indent file.aw ...` (`tools/indent.aw`) indents files that way in place and changes no byte but the spaces and tabs at the start of a line, so the compiled program stays the same; `build/tools/indent --check file.aw ...` only prints `path:line` for each line that is not as the rule has it, and exits with 1 if there is one; `build/tools/indent -` reads a source from stdin and writes it to stdout. `build/tools/fuse` and `build/tools/infix` write what they make indented by the same rule. It does not check the program: an `end` too many closes nothing. Every source of the repository is indented that way and `make test` checks it (`tests/indent.sh`), but for the tests of the separators, listed in `tests/indent/skip`, and the fixtures that a tool must reproduce byte for byte.
+`build/tools/indent file.aiw ...` (`tools/indent.aiw`) indents files that way in place and changes no byte but the spaces and tabs at the start of a line, so the compiled program stays the same; `build/tools/indent --check file.aiw ...` only prints `path:line` for each line that is not as the rule has it, and exits with 1 if there is one; `build/tools/indent -` reads a source from stdin and writes it to stdout. `build/tools/fuse` and `build/tools/infix` write what they make indented by the same rule. It does not check the program: an `end` too many closes nothing. Every source of the repository is indented that way and `make test` checks it (`tests/indent.sh`), but for the tests of the separators, listed in `tests/indent/skip`, and the fixtures that a tool must reproduce byte for byte.
 
-[`editors/vscode/`](https://github.com/CristianosLeite/ail-extensions/tree/main/editors/vscode) of the repository ail-extensions is an extension for VS Code that colours `.aw` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
+[`editors/vscode/`](https://github.com/CristianosLeite/ail-extensions/tree/main/editors/vscode) of the repository ail-extensions is an extension for VS Code that colours `.aiw` files, folds their blocks and formats them with that tool; its `README.md` says how to install it.
 
 Tabs, because they cost fewer tokens than spaces (measured in [token cost](https://github.com/CristianosLeite/ail-bench/blob/main/docs/tokens.md)); an editor shows one two columns wide, which `.editorconfig` asks for.
 
@@ -152,7 +152,7 @@ add p 8 as q
 load q as name          # address of the program's name
 ```
 
-`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/std/io.aw`](#the-io-library) does that and offers `argc` and `argv`.
+`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/std/io.aiw`](#the-io-library) does that and offers `argc` and `argv`.
 
 ### `set` and arithmetic
 
@@ -478,7 +478,7 @@ Nothing is known about the function at a `callp`: the number of values is not ch
 #### Tasks
 
 ```
-use "lib/std/task.aw"
+use "lib/std/task.aiw"
 spawn name x y as h
 join h as result
 ```
@@ -486,7 +486,7 @@ join h as result
 `spawn` submits the function `name` with up to five values as a task and keeps a handle of it; `join` waits until the task has run and keeps the first result of the function. Tasks are independent pieces of work that may run at the same time as the code that spawned them:
 
 ```
-use "lib/std/task.aw"
+use "lib/std/task.aiw"
 fn work a b
 ret a*b
 end
@@ -494,7 +494,7 @@ spawn work 6 7 as h
 join h as x             # 42
 ```
 
-The two statements are calls of the functions `spawn` and `join` of the program, which `lib/std/task.aw` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
+The two statements are calls of the functions `spawn` and `join` of the program, which `lib/std/task.aiw` defines; without that `use` they are an `undefined function`. `spawn` needs `as` with one name. The number of its values is checked against the parameters of the function, which may be defined later; a string counts as two values. `join` takes the handle and an optional `as`.
 
 - **The handle** is a number that stands for the task until its `join`. Every task is joined exactly once, by any function, in any order; `join` releases the task, and its handle means nothing afterwards. A task that is never joined keeps its 80 bytes. A handle is 0 when the kernel had no memory for the task, which then never runs; `join` of 0 gives 0.
 - **The result** is the first value the function returns, 0 if it reaches its `end`. Further results are lost; a task with more to give writes it to memory it was passed.
@@ -503,7 +503,7 @@ The two statements are calls of the functions `spawn` and `join` of the program,
 - **Errors**: a task has no failure of its own. What it reports, it reports in its result. A fault in a task (a trap of `at`, a division by zero, a bad address) ends the whole program, as anywhere else.
 - **The end of the program**: reaching the last line ends the program with every task, run or not. So does `sys exit_group`; `sys exit` ends only the thread that runs it.
 
-**The pool.** Tasks are run by worker threads that `lib/std/task.aw` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
+**The pool.** Tasks are run by worker threads that `lib/std/task.aiw` starts when they are needed and keeps for the tasks that follow; a program that never reaches a `spawn` starts none and runs no code of the library.
 
 ```
 call workers 4
@@ -521,7 +521,7 @@ call workers 4
 #### Async functions
 
 ```
-use "lib/async/task.aw"
+use "lib/async/task.aiw"
 async fn name a b
 ...
 ret x
@@ -532,7 +532,7 @@ call name 1 2 as h
 `async fn` defines a function that runs as a task of [the async library](#the-async-library). A call of it runs none of its lines: it makes the task, with the values of the call as its parameters, puts it in the queue and returns its handle, which is the one result of the call. The lines run when the task is polled, and the value of its `ret` is the result of the task, which `await` gives:
 
 ```
-use "lib/async/task.aw"
+use "lib/async/task.aiw"
 async fn mul a b
 ret a*b
 end
@@ -559,10 +559,10 @@ await g as y
 
 - **At top level and in a plain function** there is no task to put aside: `await` polls tasks until the one it waits for is done, and that is how a program runs its tasks. If nothing can happen any more before that, the result is -35.
 
-The statement is a call of the function `await` of the program, which `lib/async/task.aw` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
+The statement is a call of the function `await` of the program, which `lib/async/task.aiw` defines, with the handle and the task that asks, or 0; without that `use` it is an `undefined function await`. A handle is awaited once, and means nothing afterwards.
 
 - An async function has at most six parameters. `ret` takes exactly one value; reaching `end` gives the result 0. `tail` is `not allowed here`. Everything else is as in any function, `spawn` and `join` included, which hold the thread while they wait, and it is called, counted and named like one: `call`, `ref` and a forward use work, and `wrong argument count` is reported the same way.
-- The task is made by the function `async` of the program, which `lib/async/task.aw` defines; without that `use` an async function is an `undefined function async`.
+- The task is made by the function `async` of the program, which `lib/async/task.aiw` defines; without that `use` an async function is an `undefined function async`.
 - **Its variables live in the record of the task** where they are in use across an `await`, so that they are there when the task goes on after a wait; a use of such a variable is a use of memory, and so is one of a parameter. A variable that no `await` falls into, computed and read between two of them, is in a register as in any function, so a loop between two waits costs what it costs elsewhere. A `local` is in the record too, so its address stays valid for the whole life of the task, and a large one makes a large record.
 - The handle is 0 if there was no memory for the record; `await` of 0 gives 0.
 
@@ -914,7 +914,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 
 ## The io library
 
-`lib/std/io.aw` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/std/io.aw"`; put that line first, since it also records the program's arguments where it stands.
+`lib/std/io.aiw` is a file of functions written in AIL for what almost every program needs. A program compiled from the top of the repository gets it with `use "lib/std/io.aiw"`; put that line first, since it also records the program's arguments where it stands.
 
 | Function | Does |
 |---|---|
@@ -928,7 +928,7 @@ The rest is computed when the program runs, the operands of an operator from lef
 | `argv i` | two results: the address and the length of argument `i`, or 0 and 0 if there is none |
 
 ```
-use "lib/std/io.aw"
+use "lib/std/io.aiw"
 call argv 1 as p n
 ifz p
 call die "usage: greet name\n"
@@ -942,7 +942,7 @@ A string literal is the two values that `print` takes. The library defines the v
 
 ## The bytes library
 
-`lib/std/bytes.aw` is a buffer of bytes that grows as bytes are added, for text whose length is not known when the program is written. The buffer is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the bytes, their number, and the room at that address. All zero is an empty buffer, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes.
+`lib/std/bytes.aiw` is a buffer of bytes that grows as bytes are added, for text whose length is not known when the program is written. The buffer is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the bytes, their number, and the room at that address. All zero is an empty buffer, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes.
 
 | Function | Does |
 |---|---|
@@ -955,8 +955,8 @@ A string literal is the two values that `print` takes. The library defines the v
 | `bycopy d s n` | copies `n` bytes from `s` to `d`, which do not overlap; any memory, not only a buffer |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/bytes.aw"
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
 buf b 24
 call byadd b "total "
 call byaddn b 42
@@ -973,7 +973,7 @@ call print p n
 
 ## The file library
 
-`lib/std/file.aw` reads a whole file into a buffer of the bytes library and writes one from memory; a program that uses it has `use "lib/std/bytes.aw"` before it. A path is an address and a length, as a string literal and the two results of `argv` are, without a NUL byte and shorter than 4096 bytes.
+`lib/std/file.aiw` reads a whole file into a buffer of the bytes library and writes one from memory; a program that uses it has `use "lib/std/bytes.aiw"` before it. A path is an address and a length, as a string literal and the two results of `argv` are, without a NUL byte and shorter than 4096 bytes.
 
 | Function | Does |
 |---|---|
@@ -987,9 +987,9 @@ call print p n
 | `filenames p n b` | adds the names in the directory at the path to the buffer `b`, each with a NUL byte after it, without `.` and `..`, in the order of the kernel; returns their number |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/bytes.aw"
-use "lib/std/file.aw"
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
 buf b 24
 call argv 1 as p n
 call fileread p n b as r
@@ -1007,7 +1007,7 @@ call filewrite "copy" q r
 
 ## The process library
 
-`lib/std/proc.aw` starts another program as a child process and waits for it; a program that uses it has `use "lib/std/io.aw"` before it, which knows where the arguments and the environment are.
+`lib/std/proc.aiw` starts another program as a child process and waits for it; a program that uses it has `use "lib/std/io.aiw"` before it, which knows where the arguments and the environment are.
 
 | Function | Does |
 |---|---|
@@ -1019,10 +1019,10 @@ call filewrite "copy" q r
 | `procpin cpu` | binds this thread, and the children it starts afterwards, to the processor `cpu`, or to the lowest it may run on if that is none of them; returns the processor, or a negative error number |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/bytes.aw"
-use "lib/std/file.aw"
-use "lib/std/proc.aw"
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
 data sh "/bin/sh" 0
 data c "-c" 0
 data s "ls | wc -l" 0
@@ -1045,7 +1045,7 @@ call procwait p 10000 as r
 
 ## The vector library
 
-`lib/std/vec.aw` is an array of 64-bit values that grows as values are added. The vector is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the values, their number, and the number there is room for. All zero is an empty vector, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes. A value has an index, from 0.
+`lib/std/vec.aiw` is an array of 64-bit values that grows as values are added. The vector is 24 bytes that the caller owns, in a `buf` or a `local`: the address of the values, their number, and the number there is room for. All zero is an empty vector, so a `buf` is one as it stands and a `local` after three stores of 0. The functions take the address of those 24 bytes. A value has an index, from 0.
 
 | Function | Does |
 |---|---|
@@ -1057,8 +1057,8 @@ call procwait p 10000 as r
 | `vecfree v` | gives the values back to the kernel; the vector is empty and may be used again |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/vec.aw"
+use "lib/std/io.aiw"
+use "lib/std/vec.aiw"
 buf v 24
 call vecpush v 30
 call vecpush v 12
@@ -1074,7 +1074,7 @@ call putn a+b
 
 ## The queue library
 
-`lib/std/queue.aw` is a queue of 64-bit values with a fixed room: values leave in the order they came. The queue is 32 bytes that the caller owns, in a `buf` or a `local`: the address of the values, the number there is room for, the index of the oldest and the number it holds. The functions take the address of those 32 bytes. It needs no other library and no task: a program without `async` uses it as it stands.
+`lib/std/queue.aiw` is a queue of 64-bit values with a fixed room: values leave in the order they came. The queue is 32 bytes that the caller owns, in a `buf` or a `local`: the address of the values, the number there is room for, the index of the oldest and the number it holds. The functions take the address of those 32 bytes. It needs no other library and no task: a program without `async` uses it as it stands.
 
 | Function | Does |
 |---|---|
@@ -1084,8 +1084,8 @@ call putn a+b
 | `queuefree q` | gives the room back to the kernel; the queue is all zero and may be given room again |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/queue.aw"
+use "lib/std/io.aiw"
+use "lib/std/queue.aiw"
 buf q 32
 call queueinit q 8
 call queuepush q 30
@@ -1102,7 +1102,7 @@ call putn a-b
 
 ## The heap library
 
-`lib/std/heap.aw` gives the smallest of the 64-bit values put into it, in the unsigned order. A heap is a vector of the vector library, and a program that uses it has `use "lib/std/vec.aw"` before it: 24 bytes that the caller owns, all zero for an empty heap.
+`lib/std/heap.aiw` gives the smallest of the 64-bit values put into it, in the unsigned order. A heap is a vector of the vector library, and a program that uses it has `use "lib/std/vec.aiw"` before it: 24 bytes that the caller owns, all zero for an empty heap.
 
 | Function | Does |
 |---|---|
@@ -1112,9 +1112,9 @@ call putn a-b
 | `heapfree h` | gives the values back to the kernel; the heap is empty and may be used again |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/vec.aw"
-use "lib/std/heap.aw"
+use "lib/std/io.aiw"
+use "lib/std/vec.aiw"
+use "lib/std/heap.aiw"
 buf h 24
 call heappush h 30
 call heappush h 12
@@ -1132,7 +1132,7 @@ call putn a+b
 
 ## The map library
 
-`lib/std/map.aw` keeps a 64-bit value for each of any number of 64-bit keys. The map is 32 bytes that the caller owns, in a `buf` or a `local`: the address of a table, the number of places in it, the number of keys, and the number of places that hold a key or held one. All zero is an empty map, so a `buf` is one as it stands. The functions take the address of those 32 bytes. Every key and every value can be used, 0 too.
+`lib/std/map.aiw` keeps a 64-bit value for each of any number of 64-bit keys. The map is 32 bytes that the caller owns, in a `buf` or a `local`: the address of a table, the number of places in it, the number of keys, and the number of places that hold a key or held one. All zero is an empty map, so a `buf` is one as it stands. The functions take the address of those 32 bytes. Every key and every value can be used, 0 too.
 
 | Function | Does |
 |---|---|
@@ -1142,8 +1142,8 @@ call putn a+b
 | `mapfree m` | gives the table back to the kernel; the map is empty and may be used again |
 
 ```
-use "lib/std/io.aw"
-use "lib/std/map.aw"
+use "lib/std/io.aiw"
+use "lib/std/map.aiw"
 buf m 32
 call mapput m 1000003 30
 call mapput m 7 12
@@ -1165,21 +1165,21 @@ The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: s
 
 | Function | File | Does |
 |---|---|---|
-| `sortquick p q` | `sort.aw` | sorts the words from the address `p` up to `q`, in place |
-| `sortmerge a n t` | `sort.aw` | sorts the `n` words at `a`, with `n` words at `t` to work in; equal words stay in their order |
-| `sortheap a n` | `sort.aw` | sorts the `n` words at `a` in place, as a heap |
-| `sortins a n` | `sort.aw` | sorts the `n` words at `a` in place, by insertion |
-| `searchlower a n k` | `search.aw` | returns the first index of the `n` rising words at `a` whose word is not smaller than `k`, or `n` |
-| `hashplace t m k` | `hash.aw` | returns the address of the place of the key `k` in the table `t`, or of the free place where it goes; `m` is twice the places, less two |
-| `hashfill t m q n` | `hash.aw` | puts the `n` keys at `q` into the table `t` of `m+1` places, each with its index as value |
-| `hashfind t m q n r` | `hash.aw` | writes to `r` the value of each of the `n` keys at `q`, or -1 |
-| `graphbfs off nbr n seen r` | `graph.aw` | writes to `r` the `n` vertices in the order they are reached breadth first |
-| `graphdfs off nbr n seen st r` | `graph.aw` | the same depth first, with the stack `st` |
+| `sortquick p q` | `sort.aiw` | sorts the words from the address `p` up to `q`, in place |
+| `sortmerge a n t` | `sort.aiw` | sorts the `n` words at `a`, with `n` words at `t` to work in; equal words stay in their order |
+| `sortheap a n` | `sort.aiw` | sorts the `n` words at `a` in place, as a heap |
+| `sortins a n` | `sort.aiw` | sorts the `n` words at `a` in place, by insertion |
+| `searchlower a n k` | `search.aiw` | returns the first index of the `n` rising words at `a` whose word is not smaller than `k`, or `n` |
+| `hashplace t m k` | `hash.aiw` | returns the address of the place of the key `k` in the table `t`, or of the free place where it goes; `m` is twice the places, less two |
+| `hashfill t m q n` | `hash.aiw` | puts the `n` keys at `q` into the table `t` of `m+1` places, each with its index as value |
+| `hashfind t m q n r` | `hash.aiw` | writes to `r` the value of each of the `n` keys at `q`, or -1 |
+| `graphbfs off nbr n seen r` | `graph.aiw` | writes to `r` the `n` vertices in the order they are reached breadth first |
+| `graphdfs off nbr n seen st r` | `graph.aiw` | the same depth first, with the stack `st` |
 
 ```
-use "lib/std/io.aw"
-use "lib/algo/sort.aw"
-use "lib/algo/search.aw"
+use "lib/std/io.aiw"
+use "lib/algo/sort.aiw"
+use "lib/algo/search.aiw"
 buf a 32
 store a 40
 store a+8 7
@@ -1196,11 +1196,11 @@ call putn i
 - **Table**: a place is 16 bytes, a key and its value, in bytes of the caller that are zero at first: a power of two of places, of which `hashfill` and `hashfind` take the number less one. The key 0 is a free place, so 0 is no key. A key goes to the place its hash names or to the next free one, round the end; a key put in again gets the new value. Nothing is taken out and the table does not grow, so it must have more places than keys: with every place taken, a key that is not there is looked for without end. The [map library](#the-map-library) is the table that grows, takes keys out and has 0 as a key, at 24 bytes a place.
 - **Graph**: the neighbours of the vertex `v` are the words of `nbr` from the index in word `v` of `off` up to the index in word `v+1`, so `off` has `n+1` words. `seen` is a byte for each vertex that the caller makes zero; both walks begin again at the lowest vertex not reached, so every vertex is written once and its byte is 1 afterwards. `graphbfs` uses `r` as its queue; the stack of `graphdfs` has room for a word an edge and one more, and the neighbour written last is taken first.
 - **Heaps**: `sortheap` is not the [heap library](#the-heap-library), which is a heap that grows in a vector and gives the smallest first; here the heap is the array to be sorted.
-- **Names**: `sort.aw` owns every name that starts with `sort`, `search.aw` those with `search`, `hash.aw` those with `hash` and `graph.aw` those with `graph`.
+- **Names**: `sort.aiw` owns every name that starts with `sort`, `search.aiw` those with `search`, `hash.aiw` those with `hash` and `graph.aiw` those with `graph`.
 
 ## The nd library
 
-`lib/nd/array.aw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is 8 bytes, a [double](#floating-point) unless the array is said to be of integers, and has one index for each axis, from 0.
+`lib/nd/array.aiw` is arrays of numbers with a shape, on the model of NumPy. An array is 176 bytes that the caller owns, in a `buf` or a `local`: where its elements are and how they lie, not the elements themselves. All zero is no array, so a `buf` is one as it stands. The functions take the address of those 176 bytes. An element is 8 bytes, a [double](#floating-point) unless the array is said to be of integers, and has one index for each axis, from 0.
 
 | At | Holds |
 |---:|---|
@@ -1233,8 +1233,8 @@ call putn i
 | `ndvalid d` | returns 1 if `d` is an array whose elements all lie in its storage, for 176 bytes a program wrote itself |
 
 ```
-use "lib/std/io.aw"
-use "lib/nd/array.aw"
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
 buf a 176
 buf x 16
 call ndmat a 3 4
@@ -1253,7 +1253,7 @@ call putn n
 - **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. A view is good as long as the storage it was made of: the array that owns it is freed last, and `ndfree` of a view frees nothing. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
 - **Names**: the library owns every name that starts with `nd`; a program has no `var` of such a name.
 
-`lib/nd/elem.aw`, used after `lib/nd/array.aw`, is the arithmetic on elements. Every function takes the result first, an array the caller made, and computes as many elements as that has.
+`lib/nd/elem.aiw`, used after `lib/nd/array.aiw`, is the arithmetic on elements. Every function takes the result first, an array the caller made, and computes as many elements as that has.
 
 | Function | Does |
 |---|---|
@@ -1264,9 +1264,9 @@ call putn n
 | `ndtof o a` | makes each element of `o`, an array of doubles, the integer of `a` at its indices as a double; returns 1 |
 
 ```
-use "lib/std/io.aw"
-use "lib/nd/array.aw"
-use "lib/nd/elem.aw"
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+use "lib/nd/elem.aiw"
 buf a 176
 buf k 176
 buf x 16
@@ -1287,7 +1287,7 @@ call putn n
 - **Integers**: an array is one of doubles when it is made, and of integers after `ndkind d 2`, which is for a new array, all zero in both kinds, or for bits the program wrote as integers. The three arrays of an operation are of one kind, or it is refused; `ndtoi` and `ndtof` are the two that go from one kind to the other, as [`ftoi` and `itof`](#floating-point) do for one value, so a double that is no number or too large becomes the lowest integer. Integers wrap at 64 bits in sums, differences and products, as everywhere in the language. Their quotient has a sign and is cut off towards 0 (-7 by 2 is -3, where NumPy's `//` gives -4); a divisor with a 0 among its elements is refused before anything is written, where a program's own `sdiv` would end it with `SIGFPE`, and the lowest integer by -1, which does not fit, stays the lowest integer. A view has the kind of its array when it is made.
 - **Errors**: 0 for lengths that do not go together, storage shared as above, arrays of two kinds, an integer divisor of 0, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
 
-`lib/nd/reduce.aw`, used after the two, makes one number of many.
+`lib/nd/reduce.aiw`, used after the two, makes one number of many.
 
 | Function | Does |
 |---|---|
@@ -1298,14 +1298,14 @@ call putn n
 | `ndmeanax o d a` | makes each element of `o` their mean; returns 1 |
 | `nddot a b` | returns the sum of the products of the elements of `a` and `b`, two arrays of one axis and the same length, and 1, or 0 and 0 |
 | `ndmatmul o a b` | makes `o` the product of the matrices `a` and `b`; returns 1 |
-| `ndmatmulp o a b t` | the same in `t` tasks, of `lib/nd/par.aw`; returns 1 |
+| `ndmatmulp o a b t` | the same in `t` tasks, of `lib/nd/par.aiw`; returns 1 |
 | `ndruns n t` | how `ndmatmulp` cuts `n` rows for `t` tasks: the rows of a run and the number of runs, the row blocks |
 
 ```
-use "lib/std/io.aw"
-use "lib/nd/array.aw"
-use "lib/nd/elem.aw"
-use "lib/nd/reduce.aw"
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+use "lib/nd/elem.aiw"
+use "lib/nd/reduce.aiw"
 buf a 176
 buf c 176
 call ndmat a 3 4
@@ -1325,12 +1325,12 @@ call putn n
 - **Products**: `ndmatmul` takes three arrays of two axes: `n` rows of `m` elements times `m` rows of `l` give a result of `n` rows of `l`, each element the sum over `k` of the element `i`, `k` of `a` times the element `k`, `j` of `b`, added from 0 in the order of `k`, as `nddot` adds in the order of the index. A column or a row is a matrix with one of them (`ndreshape`, or a slice of one index). Any of the three may be a view; the result may not share storage with `a` or `b`, so a matrix is not multiplied in place, and each of its elements must be at an address of its own: strides of 0, strides that are no multiple of 8, by which elements would share some of their bytes, or strides by which some steps along one axis are some along the other (8 and 8, or 24 and 16 for three rows of four), are refused, since the elements are summed where they lie and, in tasks, by several threads. A product without elements writes nothing and is done at once, whatever the number of its rows, and one over no `k` (`m` is 0) is zeros. Other lengths, another number of axes and such a result are refused with 0 and nothing written; `nddot` returns 0 and 0 for lengths that differ and for arrays that have not one axis.
 - **Speed**: `ndsum`, `ndmean` and `nddot` add doubles with [`fsum` and `fdot`](#a-sum-in-its-order), in the order they promise and in the time of a loop in C; `ndsumpw` does so for doubles that do not lie one behind the other, and takes two thirds of the time of `ndsum` for those that do ([measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#the-sum-in-pairs-two-doubles-at-a-time-2026-11-21)). The sums along an axis and the product of matrices compute doubles that lie one behind the other [two at a time](#two-doubles-at-once), since each element of their result is computed alone; the bits are those of one at a time. `ndsum`, `ndmean` and `nddot` add every element to the one sum before it and go one at a time.
 - **Integers**: `ndsum`, `ndsumpw`, `ndsumax`, `nddot` and `ndmatmul` of integers compute in integers, wrapping at 64 bits, and their result is of integers; arrays of two kinds are refused. A mean is always a double: of integers it is the sum of the elements as doubles divided by their number, and the result of `ndmeanax` is an array of doubles whatever `d` is of.
-- **Tasks**: `lib/nd/par.aw`, used after `lib/std/task.aw` and the three files, has `ndmatmulp o a b t`, the product of matrices in `t` [tasks](#tasks): the rows of the result are cut into runs and each task computes its own, which no other touches, so the result is the bits of `ndmatmul` and what is refused is the same. A run is the rows divided by `t`, rounded up, and the last run what is left, so fewer tasks than `t` are made where the rows do not go round: 16 rows for 14 tasks are 8 runs of 2. `ndruns n t` gives the rows of a run and the number of runs, the row blocks, which is what `ndmatmulp` uses; it is the plan and no count of tasks, since one block alone is computed by the caller and so is a block whose `spawn` fails. At most 64 tasks are made and no more than there are rows; with 0 or 1 the rows are computed by the caller. The threads are those of the pool (`call workers n`), and the calling thread computes too while it waits; the three arrays must be there until the function returns, when every task has ended. On 20 processors a product of side 1000 takes 43 ms in 20 tasks against 238 ms in one, and one of side 30 gains nothing from more than four ([measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#numerical-arrays-2026-11-21)). A program that has run tasks ends with `sys exit_group` or at its last line, since `sys exit` ends only its own thread. With the pool started, tasks pay from some ten microseconds of work, a few of them; a first call, which starts the threads, from some hundred; as many tasks as threads is the number to start from ([measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
+- **Tasks**: `lib/nd/par.aiw`, used after `lib/std/task.aiw` and the three files, has `ndmatmulp o a b t`, the product of matrices in `t` [tasks](#tasks): the rows of the result are cut into runs and each task computes its own, which no other touches, so the result is the bits of `ndmatmul` and what is refused is the same. A run is the rows divided by `t`, rounded up, and the last run what is left, so fewer tasks than `t` are made where the rows do not go round: 16 rows for 14 tasks are 8 runs of 2. `ndruns n t` gives the rows of a run and the number of runs, the row blocks, which is what `ndmatmulp` uses; it is the plan and no count of tasks, since one block alone is computed by the caller and so is a block whose `spawn` fails. At most 64 tasks are made and no more than there are rows; with 0 or 1 the rows are computed by the caller. The threads are those of the pool (`call workers n`), and the calling thread computes too while it waits; the three arrays must be there until the function returns, when every task has ended. On 20 processors a product of side 1000 takes 43 ms in 20 tasks against 238 ms in one, and one of side 30 gains nothing from more than four ([measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#numerical-arrays-2026-11-21)). A program that has run tasks ends with `sys exit_group` or at its last line, since `sys exit` ends only its own thread. With the pool started, tasks pay from some ten microseconds of work, a few of them; a first call, which starts the threads, from some hundred; as many tasks as threads is the number to start from ([measurements](https://github.com/CristianosLeite/ail-bench/blob/cb14f3bb8c607af5b59b45877c5e2633d986400c/docs/performance.md#array-kernels-after-the-first-round-2026-11-21)).
 - **Errors**: `ndsumax` and `ndmeanax` return 0 for an axis `d` has not got, a result with other lengths, storage shared with `d`, and what is no array, and write nothing then.
 
 ## The async library
 
-`lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
+`lib/async/task.aiw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aiw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.
 
 | Function | Does |
 |---|---|
@@ -1346,7 +1346,7 @@ call putn n
 | `asyncyield` | makes a task that is done at its first poll, with the result 0; a task that awaits it lets the tasks in the queue run first |
 
 ```
-use "lib/async/task.aw"
+use "lib/async/task.aiw"
 fn poll t
 load t+64 as e          # the first value: an event to wait for
 call await e t as v r
@@ -1381,7 +1381,7 @@ call await h 0 as x     # 42
 
 ### Timers
 
-`lib/async/time.aw`, used after `lib/async/task.aw`, makes events of time.
+`lib/async/time.aiw`, used after `lib/async/task.aiw`, makes events of time.
 
 | Function | Does |
 |---|---|
@@ -1404,7 +1404,7 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 
 ### Files and sockets
 
-`lib/async/io.aw`, used after the other two, makes events of the work of the kernel on a descriptor.
+`lib/async/io.aiw`, used after the other two, makes events of the work of the kernel on a descriptor.
 
 | Function | Does |
 |---|---|
@@ -1418,9 +1418,9 @@ call await g 0 as n     # the bytes read, or -62 after two seconds
 | `asyncclose fd` | closes the descriptor, after ending the events that wait for it with the result -125; returns what `close` returns |
 
 ```
-use "lib/async/task.aw"
-use "lib/async/time.aw"
-use "lib/async/io.aw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
 buf b 512
 call asynclisten 0 8080 as l
 call asyncaccept l as h
@@ -1442,7 +1442,7 @@ call asyncclose c
 
 ### Work that holds a thread
 
-One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.aw` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/std/task.aw` and the three files above before it.
+One thread polls every task, so a task that computes for a second, or makes a system call that waits, keeps all the others waiting for that long. `lib/async/pool.aiw` gives such work to the threads of [`spawn` and `join`](#tasks); a program uses `lib/std/task.aiw` and the three files above before it.
 
 | Function | Does |
 |---|---|
@@ -1468,7 +1468,7 @@ end
 
 ### Channels and the first of several
 
-`lib/async/chan.aw`, used after `lib/async/task.aw`, carries values between tasks and waits for several things at once.
+`lib/async/chan.aiw`, used after `lib/async/task.aiw`, carries values between tasks and waits for several things at once.
 
 | Function | Does |
 |---|---|
@@ -1535,7 +1535,7 @@ The compiler stops at the first fault it finds, prints one line on stderr and ex
 
 ```
 ailc: 12: undefined label done
-ailc: lib/std/io.aw:7: wrong operand count
+ailc: lib/std/io.aiw:7: wrong operand count
 ailc: source too big
 ```
 
@@ -1562,7 +1562,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
-| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/std/task.aw`, with the name `spawn` or `join` |
+| `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/std/task.aiw`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |

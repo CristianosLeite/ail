@@ -1,0 +1,2 @@
+use "tests/lib/bad_access.aiw"
+set 1 as a

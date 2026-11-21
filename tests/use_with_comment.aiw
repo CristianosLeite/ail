@@ -1,0 +1,3 @@
+use "tests/lib/twice.aiw" # the library
+call twice 1 as r
+sys 60 r

@@ -1,0 +1,208 @@
+# lib/async/pool.aiw -- work that holds a thread, for the tasks of
+# lib/async/task.aiw: a function is run by the pool of lib/std/task.aiw, and
+# the task that asked awaits an event that is done when the function has
+# returned. A program uses lib/std/task.aiw and the three other files of
+# lib/async before this one. The file has no line that runs at its use.
+#
+# Every variable, parameter and label of this file has a name that starts
+# with "async", as its functions and its buffer have.
+#
+# A piece of work is a record from asyncget:
+#    0  the function, 8 and 16 its first two values
+#   24  the class of its size, which is asyncget's
+#   40  its result
+#   48  the next record of those that are done
+#   56  the task of the pool that runs it, 0 if it ran without one
+#   64  the event that awaits it, 0 once that was cancelled
+#   72  0 until a worker begins it, then 1; 2 if it was cancelled before
+#       and is not to run. Set with cas, by the worker and by cancel.
+#   80  and 88 its last two values
+#   96  1 if the event was cancelled while the work ran: its result is
+#       -125 then
+# Only the thread that polls makes and frees records. A worker reads the
+# record it was given and writes 40 and 48.
+#
+# asyncpl: 0 the records that are done, a list that workers put theirs
+# at the head of with cas and the polling thread takes whole; 8 not zero
+# while the polling thread sleeps or is about to; 16 the eventfd, plus
+# 1, that a worker writes to then, which ends the sleep.
+buf asyncpl 24
+data asyncone 1 0 0 0 0 0 0 0
+const asynceventfd 290
+
+# what a worker runs: the function, then the record to the list, and a
+# word to the polling thread if it sleeps
+fn asyncjob asyncj
+	cas asyncj+72 0 1 as asyncx
+	asyncv=-125
+	if asyncx
+		load asyncj as asyncf
+		load asyncj+8 as asynca
+		load asyncj+16 as asyncb
+		load asyncj+80 as asyncc
+		load asyncj+88 as asyncd
+		callp asyncf asynca asyncb asyncc asyncd as asyncv
+	end
+	store asyncj+40 asyncv
+	label asyncpush
+	load asyncpl as asynch
+	store asyncj+48 asynch
+	cas asyncpl asynch asyncj as asyncx
+	jz asyncx asyncpush
+	load asyncpl+8 as asyncx
+	if asyncx
+		load asyncpl+16 as asyncfd
+		sys write asyncfd-1 asyncone 8
+	end
+end
+
+# end the events whose work is done: how many records there were
+fn asyncdrain
+	load asyncpl as asyncj
+	ifz asyncj
+		ret 0
+	end
+	label asynctake
+	load asyncpl as asyncj
+	cas asyncpl asyncj 0 as asyncx
+	jz asyncx asynctake
+	asyncn=0
+	while asyncj
+		load asyncj+48 as asyncnext
+		load asyncj+56 as asynct
+		call join asynct
+		load asyncj+64 as asynch
+		if asynch
+			load asyncj+40 as asyncv
+			load asyncj+96 as asyncx
+			if asyncx
+				asyncv=-125
+			end
+			call asyncdisarm asynch
+			load asyncq+112 as asyncx
+			store asyncq+112 asyncx-1
+			call asyncfinish asynch asyncv
+		end
+		call asyncfree asyncj
+		asyncj=asyncnext
+		asyncn+=1
+	end
+	ret asyncn
+end
+
+# what asynctick calls to sleep once work was given out: asyncpoll, but
+# not asleep while a record is done, and woken by one that gets done
+fn asyncpsleep asyncms
+	call asyncdrain as asyncn
+	if asyncn
+		asyncms=0
+	end
+	if asyncms
+		xadd asyncpl+8 1 as asyncx
+		load asyncpl as asyncj
+		if asyncj
+			asyncms=0
+		end
+	end
+	call asyncpoll asyncms as asyncr
+	store asyncpl+8 0
+	call asyncdrain
+	ret asyncr
+end
+
+# what asynccancel calls for the event of work. Work that no worker has
+# begun is not run, and the event ends now: 0. Work that a worker is
+# doing cannot be stopped, and may be using memory of whoever waits for
+# it: the event stays, and ends with -125 when the work has returned: 1.
+fn asyncjoboff asynch
+	load asynch+64 as asyncj
+	cas asyncj+72 0 2 as asyncx
+	if asyncx
+		store asyncj+64 0
+		load asyncq+112 as asyncx
+		store asyncq+112 asyncx-1
+		ret 0
+	end
+	store asyncj+96 1
+	ret 1
+end
+
+# what asyncstop calls: give back the eventfd, then what the file of the
+# descriptors holds. Work that still runs ends in the list, which the
+# next asyncblock looks at.
+fn asyncplend
+	load asyncpl+16 as asyncfd
+	sys close asyncfd-1
+	store asyncpl+16 0
+	tail asyncioend
+end
+
+# "call asyncblock p a b c d as h": an event that is done when a worker
+# of the pool has called the function at the address p with the four
+# values, with the first result of the function as its result. For work
+# that computes for long or waits in the kernel, which would keep every
+# task waiting if a task did it. 0 if there is no memory; an error of
+# the kernel, negated, as the result if the pool cannot be reached.
+fn asyncblock asyncp asynca asyncb asyncc asyncd
+	call async 128 0 as asynch
+	ifz asynch
+		ret 0
+	end
+	load asyncpl+16 as asyncfd
+	ifz asyncfd
+		call asyncepoll as asyncep
+		if asyncep>-4096
+			call asyncfinish asynch asyncep
+			ret asynch
+		end
+		sys asynceventfd 0 0x80800 as asyncfd
+		if asyncfd>-4096
+			call asyncfinish asynch asyncfd
+			ret asynch
+		end
+		local asynce 16
+		store4 asynce 0x80000001
+		store asynce+4 asyncfd
+		sys asyncepollctl asyncep-1 1 asyncfd asynce
+		store asyncpl+16 asyncfd+1
+		ref asyncpsleep as asyncf
+		store asyncq+104 asyncf
+		ref asyncplend as asyncf
+		store asyncq+144 asyncf
+	end
+	call asyncget 128 as asyncj
+	ifz asyncj
+		call asyncfinish asynch -12
+		ret asynch
+	end
+	store asyncj asyncp
+	store asyncj+8 asynca
+	store asyncj+16 asyncb
+	store asyncj+80 asyncc
+	store asyncj+88 asyncd
+	store asyncj+64 asynch
+	store asyncj+72 0
+	store asyncj+96 0
+	ref asyncjob as asyncf
+	call spawn asyncf asyncj 0 0 0 0 as asynct
+	ifz asynct
+		call asyncfree asyncj
+		call asyncfinish asynch -12
+		ret asynch
+	end
+	# With no worker at all, because the limit is 0 or the kernel refused
+	# the thread, nothing would ever run the work: join runs it here, on
+	# the polling thread, which is slow but ends.
+	load taskq+48 as asyncx
+	ifz asyncx
+		call join asynct
+		asynct=0
+	end
+	store asyncj+56 asynct
+	store asynch+64 asyncj
+	ref asyncjoboff as asyncf
+	call asyncarm asynch asyncf
+	load asyncq+112 as asyncx
+	store asyncq+112 asyncx+1
+	ret asynch
+end

@@ -1,7 +1,7 @@
 ---
 title: Source style and the formatter
 last-verified: 2026-11-21
-sources: [conversation 2026-11-20, docs/language.md, tools/indent.aw, tests/indent.sh, editors/vscode/, docs/tokens.md]
+sources: [conversation 2026-11-20, docs/language.md, tools/indent.aiw, tests/indent.sh, editors/vscode/, docs/tokens.md]
 status: current
 ---
 # Source style and the formatter
@@ -11,12 +11,12 @@ status: current
 > `make check` there.
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** Sources are indented with one tab for each block, set and checked by
 `build/tools/indent`; the VS Code extension in `editors/vscode/` formats through the same tool.
@@ -36,14 +36,14 @@ Indentation costs 2% in tokens and nothing in the compiled program.
 - The tool does not validate: an `end` too many closes nothing and the rest is indented as far
   as it goes. A formatter that refused a wrong program would be of no use in an editor.
 - A comment-only line gets the depth of its block (the user's choice). The 23 comments of
-  `compiler/ailc.aw` that were aligned with spaces under the comment of a `buf` line went to
+  `compiler/ailc.aiw` that were aligned with spaces under the comment of a `buf` line went to
   column one.
 - Scope chosen by the user: every source, tests included. Not indented: the tests of the
   separators (`tests/indent/skip`) and the fixtures under `tests/infix/`, `tests/fuse/`,
   `tests/randvars/`, `tests/tokens/` and `tests/indent/`, which tools must reproduce byte for
   byte. `tests/indent.sh` runs `--check` on the rest in `make test`.
 - `fuse` and `infix` write their results indented since 2026-11-21: the walk of `indent` is
-  `dtindent` in `tools/lib/dent.aw`, and both pass their output through it. Copying the
+  `dtindent` in `tools/lib/dent.aiw`, and both pass their output through it. Copying the
   blanks of the source would not do, since a jump that becomes a block puts untouched lines a
   level deeper. `fuse` matched nothing in an indented function before (its patterns began at
   column one) and now reads a line without its blanks. The expected files are the old ones
@@ -58,7 +58,7 @@ Indentation costs 2% in tokens and nothing in the compiled program.
 - The grammar is checked since 2026-11-21 by `editors/vscode/check.sh` (`test/check.js`), run
   by hand: VS Code's own runtime (`ELECTRON_RUN_AS_NODE=1 /usr/share/code/code`; the machine
   has no `node`) with its bundled `vscode-textmate` and `vscode-oniguruma` colours all 1232
-  sources, and every statement of `compiler/tables.aw` must be a keyword, an assigned name a
+  sources, and every statement of `compiler/tables.aiw` must be a keyword, an assigned name a
   variable, comments and strings what they are, the folds the blocks of the formatter. The
   first run found 579 lines wrong: `sys` before a number (572) and `call`, `tail`, `jmp`
   without a name were not coloured, the string of a `use` without its quote ran over the next
@@ -66,5 +66,5 @@ Indentation costs 2% in tokens and nothing in the compiled program.
 - The copy installed in `~/.vscode/extensions/ail.ail-0.1.0` on 2026-11-20 was from a vsix
   older than the grammar; it is now a symlink to `editors/vscode`, as the README says. The
   user looked at it in the editor on 2026-11-21 and found it working: colours, folding and
-  formatting of `.aw` files (the extension the sources have had since they stopped being
-  `.ai`; no file of `editors/vscode/` names `.ai`).
+  formatting of `.aw` files (the extension the sources had from 2026-11-20, when they stopped
+  being `.ai`, until they became `.aiw` on 2026-11-21; no file of `editors/vscode/` names `.ai`).
