@@ -89,8 +89,13 @@ several places.
 
 - Since 2026-11-21 a function that calls, or names a `buf`, `data` or `var`, is fit for a
   call in place: `finl` (48 bytes) notes what its body adds to `calls`, `refs` and `chks`,
-  and `inlchk` refuses when a table would pass its capacity (`tests/inline_fills_tables`:
-  600000 calls of such a body, the compiler goes over to calls at about 524000). The
+  and `inlchk` takes them from room the tables have for bodies behind the room of the
+  source's lines (`ilroom`, 1048576 entries of `calls`; `tests/bytes.sh` computes the file
+  of 600000 calls of a body with four calls: 262144 in place). The first form compared with
+  the capacity of the whole table, so lines read after a body could pass its end: found by
+  the review of PR #10, as was a body's label taking the padding of a later label of the
+  function (`lback`), and a `use` path ending in a backslash, which `fuse` and the check
+  of the grammar took for an open string. The
   compiler compiles itself 6% faster (the same source built by the compiler before and
   after), `heapsort` 2% and `ndmatmul` 1%; the other programs do not move. It is 63207
   bytes for 51175, and reads more bodies, so the gain is in the code, not in bytes.

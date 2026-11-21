@@ -67,6 +67,14 @@ var xsc
 # ones go on with is in ilstk; ilfn = the function whose body is read;
 # ilcnt = the calls compiled in place in the open function so far
 var ilon ilpos vlo vhi ildep ilret ilres fnsrc ildp ilfn ilcnt
+# ilfull = 1 once a call of the open function was not compiled in place
+# for want of room in a table; ilc, ilr and ilk = the entries of calls,
+# refs and chks that bodies compiled in place have taken of the room
+# those tables have for them, with their values at the start of the
+# function for its second pass
+var ilfull ilc ilr ilk sic sir sik
+# that room, in entries of calls
+const ilroom 1048576
 # fnwr = the variables that the open function assigns after its entry;
 # ilpl = which values of the statement at hand are variables by themselves
 # (which ones, in ilarg); ilop = where its code starts
@@ -162,7 +170,8 @@ buf opd 96          # what is known of the first two values of the statement, 32
 # each: kind (1 number, 2 name plus number, 3 string), then the
 # number, or name, length and number; a third entry is scratch
 buf vk 2048         # the same per variable of the current scope
-buf chks 33554464     # 1048577 loads and stores through a known name, 32 bytes: name,
+buf chks 50331680     # 1048577 loads and stores through a known name, and 524288 more
+# for bodies compiled in place, 32 bytes: name,
 # length, offset, width + 256 for a store
 buf runend 7456544    # per run of data statements: the address after its last byte
 buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
@@ -199,7 +208,8 @@ buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the functi
 # stands in and the next tail to the same function, as index + 1
 buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
 # passed on
-buf calls 67108928    # 2097154 calls of 32 bytes: name, length, rel32 address, then two
+buf calls 100663360    # 2097154 calls of 32 bytes, and 1048576 more for bodies compiled in
+# place: name, length, rel32 address, then two
 # 4-byte counts: values (all ones for ref) and names after "as",
 # or for a tail its function with the bit 31 set;
 # the shortest line is "await a", 8 bytes for two entries
@@ -209,7 +219,8 @@ buf exs 8388609      # and as many operators or open parentheses, a byte each
 buf xrows 128        # the rows of the statements of the sixteen operators
 buf exnm 8           # the name of a statement that compares and jumps
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
-buf refs 134217760    # 4194305 uses of a name not declared yet, 32 bytes: name, length,
+buf refs 201326624    # 4194305 uses of a name not declared yet, and 2097152 more for
+# bodies compiled in place, 32 bytes: name, length,
 # imm32 address, 0 for its address or 1 for its length
 
 # ---- the functions are files of their own, compiled here in this order:
@@ -1090,6 +1101,9 @@ snb=nbufs
 snv=ngv
 sbs=bsssz
 snc=ncalls
+sic=ilc
+sir=ilr
+sik=ilk
 snf=nfuncs
 snr=nrefs
 sde=dataend
@@ -1107,6 +1121,7 @@ naw=0
 label f0
 ildp=0
 ilcnt=0
+ilfull=0
 fnwr=0
 vhi=0
 loccur=0
@@ -1264,6 +1279,9 @@ nbufs=snb
 ngv=snv
 bsssz=sbs
 ncalls=snc
+ilc=sic
+ilr=sir
+ilk=sik
 nfuncs=snf
 nrefs=snr
 dataend=sde
@@ -1278,7 +1296,8 @@ label e1
 # The calls of a function are compiled in place if it is short and its
 # body declares no global name. What it adds to the tables that the
 # source limit sizes, by its calls and by the global names it uses, is
-# noted, and inlchk refuses where that would not fit. A call in its
+# noted, and inlchk refuses where that would not fit; a function with
+# a call that was refused so is not fit itself. A call in its
 # body that was compiled in place may be a call where the body is read
 # again, which is an entry of calls each: ilcnt. Its variables are those
 # it had at once with such bodies, vhi.
@@ -1287,7 +1306,7 @@ label e1
 # takes registers from its caller and was slower in place than called.
 p=(nfuncs-1)*48+finl
 store p 0
-if (fnasy|fntail|fnlocal|fnslots)==0
+if (fnasy|fntail|fnlocal|fnslots|ilfull)==0
 	if (nruns==snu)&(nbufs==snb)
 		load (nfuncs-1)*40+funs+16 as q
 		if (op-q-fnpad<=inlsz)&(fnnpar<=6)

@@ -999,20 +999,6 @@ fn inlchk
 	ifz b
 		ret -1
 	end
-	# what the body adds to the tables of calls, of names to fill in and of
-	# accesses to check must fit: they are sized for a source read once
-	load p+24 as n
-	if ncalls+n>2097154
-		ret -1
-	end
-	load p+32 as n
-	if nrefs+n>4194305
-		ret -1
-	end
-	load p+40 as n
-	if nchks+n>1048577
-		ret -1
-	end
 	load p+8 as n
 	if nv+n>64
 		ret -1
@@ -1025,6 +1011,26 @@ fn inlchk
 	load4 q+32 as n
 	if ncap>n
 		ret -1
+	end
+	# What the body adds to the tables of calls, of names to fill in and
+	# of accesses to check goes into room of their own behind the room
+	# that the source limit sizes for a source read once: ilroom entries
+	# of calls, twice as many of refs, half as many of chks, of which
+	# ilc, ilr and ilk are taken. A call that is refused for want of it
+	# makes its function unfit (ilfull), so that in a body every call is
+	# decided as it was when the body's function was compiled, within
+	# what was taken for the outermost body: no check there
+	ifz ildp
+		load p+24 as n
+		c=ilc+n>ilroom
+		load p+32 as n
+		c|=ilr+n>ilroom*2
+		load p+40 as n
+		c|=ilk+n>ilroom/2
+		if c
+			ilfull=1
+			ret -1
+		end
 	end
 	ret i
 end
@@ -1099,6 +1105,14 @@ fn inlopen i e
 		e=ilpos
 	else
 		ildep=0
+		# the room of the tables that this body and those in it may take
+		p=i*48+finl
+		load p+24 as n
+		ilc+=n
+		load p+32 as n
+		ilr+=n
+		load p+40 as n
+		ilk+=n
 	end
 	ildp+=1
 	ilcnt+=1
