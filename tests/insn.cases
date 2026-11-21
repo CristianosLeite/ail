@@ -129,7 +129,7 @@ a=3 ; b=5 ; ifz a<b ; end | bb03000000bd050000004839eb0f8200000000 | mov ebx, 3 
 a=3 ; jnz a!=7 l ; label l | bb030000004883fb070f8500000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} jne 1f ; 1:
 a=3 ; jz a<=7 l ; label l | bb030000004883fb070f8700000000 | mov ebx, 3 ; cmp rbx, 7 ; {disp32} ja 1f ; 1:
 a=3 ; if a>a+1 ; end | bb030000004889d84883c0014839c30f8600000000 | mov ebx, 3 ; mov rax, rbx ; add rax, 1 ; cmp rbx, rax ; {disp32} jbe 1f ; 1:
-a=3 ; if a&1 ; end | bb030000004889d84883e0010f8400000000 | mov ebx, 3 ; mov rax, rbx ; and rax, 1 ; {disp32} jz 1f ; 1:
+a=3 ; if a&1 ; end | bb03000000f6c3010f8400000000 | mov ebx,0x3 ; test bl,0x1 ; {disp32} je 1f ; 1:
 # while: the test at the head jumps past the loop, and the test at its end
 # jumps back to its first line. A test of a value is left out behind the
 # instruction that computed it, whose zero flag says the same.
@@ -162,8 +162,8 @@ x=5 ; x+=1 | bb050000004883c301 | mov ebx, 5 ; add rbx, 1
 x=5 ; x=x | bb050000004889db | mov ebx, 5 ; mov rbx, rbx
 x=5 ; y=x | bb050000004889dd | mov ebx, 5 ; mov rbp, rbx
 x=5 ; x<<=x | bb050000004889d948d3e3 | mov ebx, 5 ; mov rcx, rbx ; shl rbx, cl
-x=5 ; x=x*3 | bb05000000486bdb03 | mov ebx, 5 ; imul rbx, rbx, 3
-x=5 ; x=3*x | bb05000000486bdb03 | mov ebx, 5 ; imul rbx, rbx, 3
+x=5 ; x=x*3 | bb05000000488d1c5b | mov ebx,0x5 ; lea rbx,[rbx+rbx*2]
+x=5 ; x=3*x | bb05000000488d1c5b | mov ebx,0x5 ; lea rbx,[rbx+rbx*2]
 x=5 ; x/=2 | bb0500000048d1eb | mov ebx, 5 ; shr rbx, 1
 x=5 ; x%=3 | bb050000004889d8bf0300000031d248f7f74889d04889c3 | mov ebx, 5 ; mov rax, rbx ; mov edi, 3 ; xor edx, edx ; div rdi ; mov rax, rdx ; mov rbx, rax
 var v ; v=5 ; v+=v*2 | b805000000488905440f0000488b053d0f0000486bc002480305320f00004889052b0f0000 | mov eax, 5 ; mov [rip + 3908], rax ; mov rax, [rip + 3901] ; imul rax, rax, 2 ; add rax, [rip + 3890] ; mov [rip + 3883], rax
@@ -251,7 +251,7 @@ args as p ; i=1 ; loadb p+(i<<1) as x | 4889e04889c3bd01000000440fb6246b | mov r
 args as p ; i=1 ; load2 p+i*2 as x | 4889e04889c3bd01000000440fb7246b | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; movzx r12d, word ptr [rbx + rbp*2]
 args as p ; i=1 ; store4 p+i*4+4 7 | 4889e04889c3bd01000000c744ab0407000000 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov dword ptr [rbx + rbp*4 + 4], 7
 args as p ; i=1 ; load p+(i<<3)+512 as x | 4889e04889c3bd010000004c8ba4eb00020000 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12, [rbx + rbp*8 + 512]
-args as p ; i=1 ; load p+i*3 as x | 4889e04889c3bd01000000486bc5034801d84c8b20 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; imul rax, rbp, 3 ; add rax, rbx ; mov r12, [rax]
+args as p ; i=1 ; load p+i*3 as x | 4889e04889c3bd01000000488d446d004801d84c8b20 | mov rax,rsp ; mov rbx,rax ; mov ebp,0x1 ; lea rax,[rbp+rbp*2] ; add rax,rbx ; mov r12,QWORD PTR [rax]
 args as p ; i=1 ; load p+i*16 as x | 4889e04889c3bd01000000486bc5104801d84c8b20 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; imul rax, rbp, 16 ; add rax, rbx ; mov r12, [rax]
 args as p ; a=1 ; i=1 ; q=p ; load q+i*8 as x | 4889e04889c3bd0100000041bc010000004989dd4f8b74e500 | mov rax, rsp ; mov rbx, rax ; mov ebp, 1 ; mov r12d, 1 ; mov r13, rbx ; mov r14, [r13 + r12*8]
 a=1 ; b=1 ; args as c ; args as d ; load c as a ; load d as b ; load c+8 as a ; load d+8 as b ; storeb c+a 1 ; store d+c b | bb01000000bd010000004889e04989c44889e04989c5498b1c24498b6d00498b5c2408498b6d0841c6041c014b896c2500 | mov ebx, 1 ; mov ebp, 1 ; mov rax, rsp ; mov r12, rax ; mov rax, rsp ; mov r13, rax ; mov rbx, [r12] ; mov rbp, [r13] ; mov rbx, [r12 + 8] ; mov rbp, [r13 + 8] ; mov byte ptr [r12 + rbx], 1 ; mov [r13 + r12], rbp
@@ -299,3 +299,22 @@ fn f ; local a 120 ; local b 8 ; local c 8 ; storeb b 1 ; storeb c 2 ; end | e92
 # A slot that was just stored is not loaded again: h is in rax behind its
 # store, where the next line reads it.
 fn f a b c d e g ; a+=1 ; b+=a ; c+=b ; d+=c ; e+=d ; g+=e ; load a as h ; load h as i ; load h+8 as j ; ret a+b+c+d+e+g+i+j ; end | e989000000535541544155415641574883ec104889c34889fd4989f44989d54d89d64d89c74883c3014801dd4901ec4d01e54d01ee4d01f7488b0348890424488b004889442408488b0424488b4008488904244889d84801e84c01e04c01e84c01f04c01f84803442408480304244883c410415f415e415d415c5d5bc331c04883c410415f415e415d415c5d5bc3 | {disp32} jmp 1f ; push rbx ; push rbp ; push r12 ; push r13 ; push r14 ; push r15 ; sub rsp,0x10 ; mov rbx,rax ; mov rbp,rdi ; mov r12,rsi ; mov r13,rdx ; mov r14,r10 ; mov r15,r8 ; add rbx,0x1 ; add rbp,rbx ; add r12,rbp ; add r13,r12 ; add r14,r13 ; add r15,r14 ; mov rax,QWORD PTR [rbx] ; mov QWORD PTR [rsp],rax ; mov rax,QWORD PTR [rax] ; mov QWORD PTR [rsp+0x8],rax ; mov rax,QWORD PTR [rsp] ; mov rax,QWORD PTR [rax+0x8] ; mov QWORD PTR [rsp],rax ; mov rax,rbx ; add rax,rbp ; add rax,r12 ; add rax,r13 ; add rax,r14 ; add rax,r15 ; add rax,QWORD PTR [rsp+0x8] ; add rax,QWORD PTR [rsp] ; add rsp,0x10 ; pop r15 ; pop r14 ; pop r13 ; pop r12 ; pop rbp ; pop rbx ; ret ; xor eax,eax ; add rsp,0x10 ; pop r15 ; pop r14 ; pop r13 ; pop r12 ; pop rbp ; pop rbx ; ret ; 1:
+# A variable with a register times 3, 5 or 9 is one lea, the variable
+# plus 2, 4 or 8 times itself, and a number that the next operator adds
+# to the product or takes from it is the displacement of that lea; rbp
+# as the base needs one in any case. A number that does not fit 32 bits
+# with a sign is added on its own.
+x=5 ; y=x*5-7 | bb05000000488d6c9bf9 | mov ebx,0x5 ; lea rbp,[rbx+rbx*4-0x7]
+x=5 ; y=x ; z=y*9+1 | bb050000004889dd4c8d64ed01 | mov ebx,0x5 ; mov rbp,rbx ; lea r12,[rbp+rbp*8+0x1]
+x=5 ; x=x*3+0x80000000 | bb05000000488d045bbf000000804801f84889c3 | mov ebx,0x5 ; lea rax,[rbx+rbx*2] ; mov edi,0x80000000 ; add rax,rdi ; mov rbx,rax
+# A condition that is a value and a mask, or a value modulo a power of
+# two, tests the value where it is: the low byte for a mask below 256
+# (with a REX prefix for bpl and r12b, and the short form for al), 32
+# bits for a larger one, and through and for one that needs more.
+x=5 ; if x%256 ; end | bb05000000f6c3ff0f8400000000 | mov ebx,0x5 ; test bl,0xff ; {disp32} je 1f ; 1:
+x=5 ; while x&0x10000 ; x+=1 ; end | bb05000000f7c3000001000f84100000004883c301f7c3000001000f85f0ffffff | mov ebx,0x5 ; test ebx,0x10000 ; {disp32} je 1f ; 2: add rbx,0x1 ; test ebx,0x10000 ; {disp32} jne 2b ; 1:
+a=1 ; b=5 ; if b&2 ; end | bb01000000bd0500000040f6c5020f8400000000 | mov ebx,0x1 ; mov ebp,0x5 ; test bpl,0x2 ; {disp32} je 1f ; 1:
+a=1 ; b=1 ; c=5 ; if c%2 ; end | bb01000000bd0100000041bc0500000041f6c4010f8400000000 | mov ebx,0x1 ; mov ebp,0x1 ; mov r12d,0x5 ; test r12b,0x1 ; {disp32} je 1f ; 1:
+a=1 ; b=1 ; c=1 ; d=1 ; e=1 ; f=1 ; g=1 ; if g&1 ; end | bb01000000bd0100000041bc0100000041bd0100000041be0100000041bf01000000b801000000488905220f0000488b051b0f0000a8010f8400000000 | mov ebx,0x1 ; mov ebp,0x1 ; mov r12d,0x1 ; mov r13d,0x1 ; mov r14d,0x1 ; mov r15d,0x1 ; mov eax,0x1 ; mov QWORD PTR [rip+0xf22],rax ; mov rax,QWORD PTR [rip+0xf1b] ; test al,0x1 ; {disp32} je 1f ; 1:
+a=1 ; b=1 ; c=1 ; d=1 ; e=1 ; f=1 ; g=1 ; if g&256 ; end | bb01000000bd0100000041bc0100000041bd0100000041be0100000041bf01000000b801000000488905220f0000488b051b0f0000a9000100000f8400000000 | mov ebx,0x1 ; mov ebp,0x1 ; mov r12d,0x1 ; mov r13d,0x1 ; mov r14d,0x1 ; mov r15d,0x1 ; mov eax,0x1 ; mov QWORD PTR [rip+0xf22],rax ; mov rax,QWORD PTR [rip+0xf1b] ; test eax,0x100 ; {disp32} je 1f ; 1:
+x=5 ; if x&0x100000000 ; end | bb050000004889d848bf00000000010000004821f80f8400000000 | mov ebx,0x5 ; mov rax,rbx ; movabs rdi,0x100000000 ; and rax,rdi ; {disp32} je 1f ; 1:

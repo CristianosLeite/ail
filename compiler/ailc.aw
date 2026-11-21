@@ -101,6 +101,9 @@ var xflg xflgpos
 # of the slot at that position needs no memory. 0 where control may come
 # from elsewhere, as for xflg
 var slotp slotr slotpos
+# the node that xgen is at and the end of its expression, and how many
+# nodes behind it the operator took along
+var xgi xgh xgskip
 # the memory of a load or store: base, index (16 for none) and number
 var xmb xmx xmd xms
 # epos = where an error is: 0 for the input cursor, -1 for nowhere, else an

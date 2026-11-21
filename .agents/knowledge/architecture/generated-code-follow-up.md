@@ -68,6 +68,14 @@ several places.
   (`searchlower` in place) has no slot and is the same instructions, moved across the end
   of a 64-byte line (0x16ee to 0x171b), which is the open item on placement.
 
+- `collatz` (2026-11-21): `if x%2` is `test r12b, 1` (a mask or a remainder by a power of two
+  as a condition is tested, not computed, in `xjcond`) and `x=x*3+1` one `lea` (`xmuli`:
+  times 3, 5, 9, with the number of the next `+` or `-` as displacement, `xgskip`). Over
+  eight placements AIL / C is 1.055 to 1.209, median 1.106, where it was 1.075 to 1.219,
+  median 1.121: the change is 2%, the place of the code 14%. Folding the `if`/`else` into
+  one round as gcc does needs a view across statements and was decided against (user,
+  2026-11-21: bounded parts, then measure); the item is closed at that.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are

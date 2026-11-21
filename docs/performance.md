@@ -1046,3 +1046,18 @@ The compiler is 48210 bytes where it was 49042, and the six algorithm programs e
 | isort (elapsed) | 0.994 | 0.990 |
 
 `heapsort` and `mergesort`, whose kernels have variables in slots, gain 6 and 4%. The loop of `bsearch` that takes its time, the body of `searchlower` in place, has every variable in a register and is the same instructions at another address, now across the end of a line of 64 bytes (0x16ee to 0x171b): it is the program whose time [moves most with the place of its code](#the-algorithm-kernels-in-a-library-2026-11-21), and one build each is no comparison for it.
+
+## collatz within its statements, 2026-11-21
+
+`collatz` was [12.6% behind C](#against-the-criteria-of-the-redesign-2026-11-20), and three things were named that would close it, all across statements. Two parts of the gap are inside one statement and were taken first. `if x%2` computed the remainder, a copy and an `and`, to test it; it is now `test r12b, 1`. `x=x*3+1` was `imul`, `add` and a copy back; it is `lea r12, [r12+r12*2+1]`, and so is any variable in a register times 3, 5 or 9 with a number added or taken away. The inner loop went from ten instructions to eight.
+
+The time moves more with the place of the code than with the change, so both compilers built the program with 1, 5, 9, ... 29 bytes of data before it, and `perf` timed each, AIL over C:
+
+| bytes before | 1 | 5 | 9 | 13 | 17 | 21 | 25 | 29 | median |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| before | 1.086 | 1.139 | 1.218 | 1.219 | 1.153 | 1.103 | 1.075 | 1.079 | 1.121 |
+| after | 1.055 | 1.057 | 1.126 | 1.086 | 1.209 | 1.196 | 1.153 | 1.062 | 1.106 |
+
+The best place is 5.5% behind C where it was 7.5%, the median 10.6% where it was 12.1%, and the same code is anywhere from 5.5 to 21% behind by where it stands, which the two instructions saved do not touch.
+
+What is left is not done: C adds one to the count twice and halves at once after an odd step, since 3x+1 is even, which folds the two branches of the `if` into one round. That needs the `if`, its `else` and what they assign seen together, and the compiler writes the code of a line when it has read it. A loop-invariant address in a register, the third thing named, does not occur in this loop. The item is closed at this figure.

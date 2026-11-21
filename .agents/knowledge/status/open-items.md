@@ -12,7 +12,7 @@
 - [x] 2026-11-19 — Automate the Makefile failed-build check, which the test runner cannot express (compiler I/O errors are in `tests/io.sh` since 2026-11-19) ([page](../testing/stage0-test-suite.md))
 - [x] 2026-11-19 — Check emitted bytes in tests (every displacement of a full fixup table), which the runner cannot do today ([page](../testing/stage0-test-suite.md))
 - [x] 2026-11-20 — The redesign of `docs/REDESIGN.md`: seed bootstrap and removal of stage0, infix expressions and `while`, instruction selection, corpus and compiler rewritten; report in `docs/performance.md` ([seed](../architecture/seed-bootstrap.md), [syntax](../architecture/expression-syntax.md))
-- [ ] 2026-11-20 — `collatz` is 12.6% behind C; closing it needs analysis across statements (a loop-invariant address in a register, a scaled index, folding one branch into another)
+- [x] 2026-11-20 — `collatz` was 12.6% behind C: `test` with a mask and one `lea` for `x*3+1` bring the median of eight placements from 1.121 to 1.106 (2026-11-21); folding one branch into another needs analysis across statements and is not done, by decision ([page](../architecture/generated-code-follow-up.md))
 - [x] 2026-11-19 — The tiktoken counts compared with Claude's tokenizers on 2026-11-21 (`tools/claudetokens.sh`): C is 1.27 times AIL with Fable 5 and 1.28 with Sonnet 4.6 where `o200k_base` says 1.19, Rust 1.43 and 1.37 for 1.27 ([page](../architecture/token-cost-measurement.md))
 - [x] 2026-11-20 — Port the Python tools to AIL ([page](../architecture/tools-in-ail.md))
 - [x] 2026-11-20 — Native asynchronous execution: runtime, `async fn` and `await`, pool, channels, measurements ([page](../architecture/async-runtime.md))
