@@ -4,19 +4,23 @@
 # its hash names or to the next that is free, round the end.
 use "bench/algo/harness.aw"
 
-# where the key k is in the table t, or the free place where it goes
+# where the key k is in the table t, or the free place where it goes.
+# h counts words, two a place, so that the address is t+h*8, which is one
+# operand of the load; m is here twice the mask of the places, and the
+# shift by 31 leaves the hash of the place doubled.
 fn place t m k
-	h=k*0x9e3779b97f4a7c15>>32&m
-	load t+h*16 as x
+	h=k*0x9e3779b97f4a7c15>>31&m
+	load t+h*8 as x
 	while (x!=0)&(x!=k)
-		h=h+1&m
-		load t+h*16 as x
+		h=h+2&m
+		load t+h*8 as x
 	end
-	ret t+h*16
+	ret t+h*8
 end
 
 # give each of the n keys at q its index as value
 fn insert t m q n
+	m+=m
 	i=0
 	while i<n
 		load q+i*8 as k
@@ -29,6 +33,7 @@ end
 
 # write to r the value of each of the n keys at q, or -1
 fn lookup t m q n r
+	m+=m
 	i=0
 	while i<n
 		load q+i*8 as k

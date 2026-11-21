@@ -90,10 +90,38 @@ searched() {
     done
 }
 
-# hashed program: the last index of each key, then -1 for the others
+# wraps count: whether a probe passes from the last place of the table
+# to its first when the first count keys of $tmp/in are put into the
+# table of the programs, in their order, and the count keys after them
+# are looked up: the table has a power of two of places, at least 16 and
+# at least twice the keys, and a key is looked for from the place that
+# bits 32 and up of its product with 0x9e3779b97f4a7c15 name, up to
+# itself or a free place
+wraps() {
+    c=16
+    while [ $c -lt $(($1 * 2)) ]; do c=$((c * 2)); done
+    w=1
+    i=0
+    for k in $(head -n $(($1 * 2)) "$tmp/in"); do
+        k=$((0x${k%????????} << 32 | 0x${k#????????}))
+        h=$((k * -7046029254386353131 >> 32 & (c - 1)))
+        while eval "o=\${slot$h:-0}"; [ "$o" != 0 ] && [ "$o" != "$k" ]; do
+            h=$(((h + 1) & (c - 1)))
+            [ $h -ne 0 ] || w=0
+        done
+        [ $i -ge "$1" ] || eval "slot$h=$k"
+        i=$((i + 1))
+    done
+    for h in $(seq 0 $((c - 1))); do unset "slot$h"; done
+    return $w
+}
+
+# hashed program: the last index of each key, then -1 for the others. At
+# 8 keys of few values and at 261 keys a lookup goes round the end of the
+# table, which wraps checks
 hashed() {
     for s in 0 3; do
-        for n in 0 1 2 3 1000; do
+        for n in 0 1 2 3 8 261 1000; do
             run "$1" $n $s 1 > "$tmp/in"
             run "$1" $n $s 2 > "$tmp/res"
             [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
@@ -101,6 +129,7 @@ hashed() {
                 END { for (i = 0; i < n; i++) printf "%016x\n", last[k[i]]
                     for (i = 0; i < n; i++) print "ffffffffffffffff" }' \
                 "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            case $n$s in 83|2610) wraps $n || return 1;; esac
             summed "$1" $n $s 3 || return 1
         done
     done

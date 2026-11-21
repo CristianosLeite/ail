@@ -285,10 +285,10 @@ The source of each program, in tokens (`tools/tokens.sh`, the kernel and the two
 | mergesort | 309 | 298 | 340 |
 | heapsort | 211 | 237 | 271 |
 | bsearch | 129 | 156 | 163 |
-| hashtab | 230 | 280 | 280 |
+| hashtab | 238 | 280 | 280 |
 | graph | 373 | 345 | 405 |
-| total | 1516 | 1613 | 1783 |
-| relative to AIL | 1.00 | 1.06 | 1.18 |
+| total | 1524 | 1613 | 1783 |
+| relative to AIL | 1.00 | 1.06 | 1.17 |
 
 ## Scaled indexes, 2026-11-20
 
@@ -422,6 +422,36 @@ The full run, at one place each, AIL against C in the geometric mean of the kern
 | all 48 kernel times | 1.257 | 1.201 |
 
 Of these only the row of `hashtab` is the change. `heapsort` and `bsearch` are the same kernels at another place, one slower by it and one faster, which is the reason for the eight places above. The five CPU-bound programs are at top level and unchanged (1.036).
+
+## The probe of hashtab in words, 2026-11-20
+
+A place of the table is two words, and the probe of `place` counted places: its address was `t+h*16`, a multiplication and an addition before each load, since an x86-64 operand scales by 8 at most. The index now counts words: it stays even, goes on by two and is cut with twice the mask of the places, which `insert` and `lookup` make once (`m+=m`), and the hash is shifted by 31 where it was by 32, which is the same place doubled. The address is `t+h*8`, part of the load. The hash, the order of the probe, the size of the table and what a key given twice does are as they were, and the programs in C and Rust are unchanged; the output is compared with theirs as before, and `tests/algo.sh` has two inputs whose lookups go round the end of the table, which it proves with a table of its own. The source costs 238 tokens where it cost 230.
+
+Measured [over eight places](#calls-compiled-in-place-2026-11-20) like the step before, with the compiler that compiles calls in place. Medians in milliseconds, and against the old probe; the second column is the old probe with its step spelled `h+=1` and `h&=m`, the same instructions less two moves, as a measure of what a row does by itself:
+
+| kernel, input | places | places, respelled | | words | |
+|---|---:|---:|---:|---:|---:|
+| insert, random, 1000 x 5000 | 6.53 | 6.76 | +4% | 6.43 | -2% |
+| hit, random, 1000 x 5000 | 7.79 | 7.61 | -2% | 7.51 | -4% |
+| miss, random, 1000 x 5000 | 10.00 | 12.18 | +22% | 12.08 | +21% |
+| insert, few, 1000 x 5000 | 5.57 | 5.41 | -3% | 5.40 | -3% |
+| hit, few, 1000 x 5000 | 6.16 | 6.42 | +4% | 6.30 | +2% |
+| miss, few, 1000 x 5000 | 7.73 | 7.83 | +1% | 7.34 | -5% |
+| insert, random, 1000000 x 2 | 23.39 | 22.92 | -2% | 20.57 | -12% |
+| hit, random, 1000000 x 2 | 28.70 | 28.46 | -1% | 26.43 | -8% |
+| miss, random, 1000000 x 2 | 45.62 | 46.35 | +2% | 43.14 | -5% |
+| insert, few, 1000000 x 4 | 5.21 | 5.21 | 0% | 4.33 | -17% |
+| hit, few, 1000000 x 4 | 7.79 | 7.74 | -1% | 6.92 | -11% |
+| miss, few, 1000000 x 4 | 36.58 | 36.34 | -1% | 32.34 | -12% |
+
+- On a million random keys the three kernels take 5 to 12% less time, here and in a second such run (6 to 9% there). There a probe waits for memory, and the address is ready three cycles sooner.
+- The two short rows of a million keys of few values came out between -17% and +20% in three runs, for this change and for one that does not touch `insert`; they say nothing. The misses of that input took 5 and 12% less.
+- The misses on a thousand random keys take 21% more time, in every run. So they do with the old probe respelled, which is the old loop with two instructions fewer: that row is fast for the one loop the programs had, by where its branches lie, and tells nothing of the index. In the run of `perf` below it is the fastest it has been.
+- Without calls in place the same change gains 3 to 7% on random keys of both sizes.
+
+**The key that `place` has read**, as a second result, so that `lookup` does not load it again, was measured apart, as the backlog asked. With the call it costs up to 7% at a thousand keys and nothing at a million, as the second result goes through a register and a stack slot. With the body in place it gains between nothing and 5% in the ten rows that can be told, and both changes together are within 6% of the index in words alone, sometimes ahead and sometimes behind. It is not in the program: what it saves is a load that follows a store of the same address, which is for the compiler to see.
+
+`perf` on the new program, at its one place, against C: 1.236 in the geometric mean of the twelve kernel times, where it was 1.306 with calls in place and 1.614 before; level with C on the inserts and the misses of a million random keys (1.00 and 1.04) and behind by a factor of 1.8 and 2.1 on the lookups of a thousand keys of few values.
 
 ## Tasks, 2026-11-20
 

@@ -424,7 +424,7 @@ order. See [benchmark method](performance.md#method).
    ([results](performance.md#calls-compiled-in-place-2026-11-20)). The
    same kernel moved by a few bytes varies by a fifth at a thousand
    elements, which the results take into account.
-6. [ ] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
+6. [x] **Probe `hashtab` with indexes in 64-bit words.** Each slot occupies
    two words. Keep the probe index even, advance it by two and use twice the
    slot mask to wrap. This lets `load t+h*8` use the x86-64 scaled operand in
    the probe loop, whose current address is `t+h*16`. Keep the hash, probe
@@ -437,6 +437,12 @@ order. See [benchmark method](performance.md#method).
    already read by `place` saved 12.4% on small random misses but cost
    6.6% to 7.8% on duplicate-heavy hits. Measure that change separately
    before combining it with the new probe index.
+   Done on 2026-11-20: the probe counts words. Over eight places of the
+   code it takes 5 to 12% less time on a million random keys and is within
+   5% elsewhere, but for the random misses at 1,000 keys, 21% slower, as
+   they also are with the old probe merely respelled. The key as a second
+   result gains at most 5% with the body in place and is left out
+   ([results](performance.md#the-probe-of-hashtab-in-words-2026-11-20)).
 
 ## Redesign
 

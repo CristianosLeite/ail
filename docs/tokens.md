@@ -36,12 +36,12 @@ Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/token
 |---|---:|---:|---:|
 | bsearch | 129 | 156 | 163 |
 | graph | 373 | 345 | 405 |
-| hashtab | 230 | 280 | 280 |
+| hashtab | 238 | 280 | 280 |
 | heapsort | 211 | 237 | 271 |
 | mergesort | 309 | 298 | 340 |
 | quicksort | 264 | 297 | 324 |
-| total | 1516 | 1613 | 1783 |
-| relative to AIL | 1.00 | 1.06 | 1.18 |
+| total | 1524 | 1613 | 1783 |
+| relative to AIL | 1.00 | 1.06 | 1.17 |
 
 AIL is 6% cheaper than C and 15% cheaper than Rust on them, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
 
