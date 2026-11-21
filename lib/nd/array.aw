@@ -559,3 +559,56 @@ fn ndcopy ndd nds
 	end
 	ret 1
 end
+
+# the lowest address of an element of ndd and the address behind its
+# highest element; the same address twice if it has none
+fn ndspan ndd
+	load ndd as ndlo
+	ndhi=ndlo
+	call ndsize ndd as ndn
+	ifz ndn
+		ret ndlo ndhi
+	end
+	load ndd+16 as ndr
+	ndi=0
+	while ndi<ndr
+		load ndd+48+ndi*8 as ndn
+		load ndd+112+ndi*8 as nds
+		ndx=(ndn-1)*nds
+		slt ndx 0 as ndneg
+		if ndneg
+			ndlo+=ndx
+		else
+			ndhi+=ndx
+		end
+		ndi+=1
+	end
+	ret ndlo ndhi+8
+end
+
+# 1 if ndd is an array whose elements all lie in its storage, for 176
+# bytes that no function of the library wrote
+fn ndvalid ndd
+	load ndd+8 as ndt
+	ifz ndt
+		ret 0
+	end
+	load ndd+16 as ndr
+	if ndr>8
+		ret 0
+	end
+	call ndcount ndr ndd+48 as ndn ndok
+	ifz ndok
+		ret 0
+	end
+	call ndspan ndd as ndlo ndhi
+	load ndd+24 as ndp
+	load ndd+32 as ndb
+	if ndlo<ndp
+		ret 0
+	end
+	if ndhi-ndp>ndb
+		ret 0
+	end
+	ret 1
+end

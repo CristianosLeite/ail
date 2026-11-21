@@ -1,0 +1,41 @@
+# lengths that do not go together are refused and nothing is written:
+# another length that is not 1, more axes than the result has, a result
+# shorter than what it is made of, and what is no array
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+use "tests/lib/ndshow.aw"
+buf a 176
+buf b 176
+buf c 176
+buf v 176
+buf z 176
+call ndmat a 2 3 as r
+call ndvec b 2 as r
+call ndmat c 2 3 as r
+call ramp a 4 4
+call ramp b 4 4
+call ndfill c 0x401c000000000000
+# 2 against 3 on the last axis
+call ndadd c a b as s
+# a result with one axis made of two
+call ndadd b a b as t
+# a result of one row made of two
+call ndslice v c 0 0 1 1 as u
+call ndadd v a a as w
+# one element made of three
+call ndslice v c 1 0 1 1 as u
+call ndmul v a a as x
+call ndput b a as y
+call ndadd c a z as d
+call ndadd c z a as e
+call ndadd z a a as f
+call show c
+call show b
+# the column of 2 goes with the 2 rows once it has an axis of length 1
+call ndtrans v c as u
+call ndadd v v b as g
+call show c
+call putn s+t+w+x+y+d+e+f
+call print "\n"
+sys exit r+u+g

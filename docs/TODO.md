@@ -293,7 +293,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    alive by the caller until all views are finished. Free owned storage
    and reset its descriptor. Return errors explicitly and preserve the
    descriptor on failure.
-2. [ ] **Add views and elementwise kernels.** Support basic slicing,
+2. [x] **Add views and elementwise kernels.** Support basic slicing,
    transpose and reshape of contiguous arrays as metadata operations, and
    provide an explicit copy for materializing a view. Use one strided
    traversal for same-shape and broadcast operations, with a flat loop for

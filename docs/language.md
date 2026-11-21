@@ -1147,6 +1147,7 @@ call putn a+b
 | `ndcontig d` | returns 1 if the elements lie one behind the other, the last index fastest |
 | `ndcopy d s` | makes `d` an array with storage of its own and the elements of `s`, one behind the other; returns 1 |
 | `ndfill d v` | makes every element of `d` the value `v` |
+| `ndvalid d` | returns 1 if `d` is an array whose elements all lie in its storage, for 176 bytes a program wrote itself |
 
 ```
 use "lib/io.aw"
@@ -1168,6 +1169,37 @@ call putn n
 - **Errors**: `ndnew` and `ndwrap` return 0 for more than 8 axes, for an axis or a number of elements of 2^60 or more, `ndnew` when the kernel has no memory and `ndwrap` when the bytes are too few for the elements; the 176 bytes are then as they were, an array that was there with every element. `ndat`, `ndget` and `ndset` test each index against the length of its axis, and the second result says whether there was an element, since an element may be 0. The functions that make a view return 0 for an axis the array has not got, for `lo` above `hi` or `hi` above the length, a step of 0, lengths that give another number of elements, and for what is no array, `ndcopy` without memory; `d` is then as it was. Bytes that are no array and not all zero are a fault of the program.
 - **Ownership**: the caller owns the 176 bytes and ends the array with `ndfree`; an array in a `local` is zeroed before its first use and freed before its function returns. `ndnew` asks nothing of what the 176 bytes held, so an array with storage of its own is freed before another is made in its place. A view is good as long as the storage it was made of: the array that owns it is freed last, and `ndfree` of a view frees nothing. The storage of `ndnew` is one `alloc`, freed by `ndfree`; the bytes given to `ndwrap` are never freed by the library and must be there as long as the array is used.
 - **Names**: the library owns every name that starts with `nd`; a program has no `var` of such a name.
+
+`lib/nd/elem.aw`, used after `lib/nd/array.aw`, is the arithmetic on elements. Every function takes the result first, an array the caller made, and computes as many elements as that has.
+
+| Function | Does |
+|---|---|
+| `ndadd o a b`, `ndsub o a b`, `ndmul o a b`, `nddiv o a b` | makes each element of `o` the sum, difference, product, quotient of the elements of `a` and `b` at its indices; returns 1 |
+| `ndput o a` | makes each element of `o` the element of `a` at its indices; returns 1 |
+| `ndscalar d x` | makes `d` an array without axes whose one element is `x`, kept in the 176 bytes |
+
+```
+use "lib/io.aw"
+use "lib/nd/array.aw"
+use "lib/nd/elem.aw"
+buf a 176
+buf k 176
+buf x 16
+call ndmat a 2 3
+itof 3 as v
+call ndfill a v
+itof 2 as v
+call ndscalar k v
+call ndmul a a k
+call ndget a x as w ok
+ftoi w as n
+call putn n
+```
+
+- **Lengths**: `a` and `b` need not have the lengths of `o`. The axes of an array with fewer are matched with the last axes of `o`, and an axis of length 1 gives its one element to every index of that axis of `o`: three elements go with every row of a table of rows of three, a column of length 1 with every column, an array without axes with everything. This is the broadcasting of NumPy, but that the result is given and never made: an axis of `a` or `b` that is neither 1 nor the length in `o`, or more axes than `o` has, is refused.
+- **Storage**: nothing is allocated, so one array serves as the result of one operation after another. `o` may be `a` or `b` or both, or a view of the same elements under the same indices (`ndadd a a b` adds `b` to `a`). Any other storage that `o` shares with `a` or `b` is refused: the lowest and highest address of each are compared, so this also refuses two views whose elements alternate. A result with a stride of 0 on an axis longer than 1 is refused, its elements being one.
+- **Speed**: arrays whose elements lie one behind the other, each with as many as `o` or with one, are one loop over the words; everything else is a loop along the last axis for each combination of the other indices, at the cost of a call for each.
+- **Errors**: 0 for lengths that do not go together, storage shared as above, and what is no array; no element was written then. An array without elements as the result is no error and writes nothing. The elements are doubles and a division by zero is an infinity, or no number for 0 by 0, as [`fdiv`](#floating-point) gives.
 
 ## The async library
 
