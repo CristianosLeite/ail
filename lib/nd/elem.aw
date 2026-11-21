@@ -21,6 +21,12 @@
 # refused too. All return 1, or 0 for what is refused, and then no
 # element was written. Nothing is allocated.
 #
+# Doubles that lie one behind the other are computed two at a time
+# (padd, psub, pmul, pdiv), a number that goes with all of them from 16
+# bytes that hold it twice, and the last of an odd count alone; the
+# bits are those of one at a time, which is how elements that lie
+# apart and integers are computed.
+#
 # The three arrays are of one kind. Doubles are computed as fadd, fsub,
 # fmul and fdiv do: a division by zero gives an infinity or what is no
 # number. Integers wrap at 64 bits, as everywhere in the language; their
@@ -140,14 +146,20 @@ end
 # integers, 4 copies, 5 makes an integer of a double and 6 a double of
 # an integer
 fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
+	local ndkk 16
 	if ndso==8
 		# the result one behind the other: an end, and for each of the
 		# two others a distance, or its one element
 		nde=ndp+ndn*8
+		ndf=nde-8
 		ndu=ndq-ndp
 		ndv=ndr-ndp
 		if (ndsa==8)&(ndsb==8)
 			if ndk==0
+				while ndp<ndf
+					padd ndp ndp+ndu ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					load ndp+ndv as ndy
@@ -158,6 +170,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==1
+				while ndp<ndf
+					psub ndp ndp+ndu ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					load ndp+ndv as ndy
@@ -168,6 +184,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==2
+				while ndp<ndf
+					pmul ndp ndp+ndu ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					load ndp+ndv as ndy
@@ -178,6 +198,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==3
+				while ndp<ndf
+					pdiv ndp ndp+ndu ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					load ndp+ndv as ndy
@@ -228,7 +252,13 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 		end
 		if (ndsa==8)&(ndsb==0)
 			load ndr as ndy
+			store ndkk ndy
+			store ndkk+8 ndy
 			if ndk==0
+				while ndp<ndf
+					padd ndp ndp+ndu ndkk
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					fadd ndx ndy as ndx
@@ -238,6 +268,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==1
+				while ndp<ndf
+					psub ndp ndp+ndu ndkk
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					fsub ndx ndy as ndx
@@ -247,6 +281,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==2
+				while ndp<ndf
+					pmul ndp ndp+ndu ndkk
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					fmul ndx ndy as ndx
@@ -256,6 +294,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==3
+				while ndp<ndf
+					pdiv ndp ndp+ndu ndkk
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndu as ndx
 					fdiv ndx ndy as ndx
@@ -294,7 +336,13 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 		end
 		if (ndsa==0)&(ndsb==8)
 			load ndq as ndz
+			store ndkk ndz
+			store ndkk+8 ndz
 			if ndk==0
+				while ndp<ndf
+					padd ndp ndkk ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndv as ndy
 					fadd ndz ndy as ndx
@@ -304,6 +352,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==1
+				while ndp<ndf
+					psub ndp ndkk ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndv as ndy
 					fsub ndz ndy as ndx
@@ -313,6 +365,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==2
+				while ndp<ndf
+					pmul ndp ndkk ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndv as ndy
 					fmul ndz ndy as ndx
@@ -322,6 +378,10 @@ fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
 				ret 0
 			end
 			if ndk==3
+				while ndp<ndf
+					pdiv ndp ndkk ndp+ndv
+					ndp+=16
+				end
 				while ndp<nde
 					load ndp+ndv as ndy
 					fdiv ndz ndy as ndx

@@ -20,6 +20,12 @@
 # sum, an infinity stays one, and two infinities of both signs give no
 # number, as fadd has it.
 #
+# Where doubles lie one behind the other and each is computed alone,
+# in the sums of columns and in the product of matrices, two are
+# computed at once (padd, pmadd), which gives the same bits. A sum of
+# all elements and a dot product add each element to the one before
+# and stay one at a time.
+#
 # nddot takes two arrays of one axis and the same length and returns the
 # sum of the products of their elements and 1, or 0 and 0. ndmatmul takes
 # a result and two arrays, all of two axes: n rows of m elements times m
@@ -208,22 +214,40 @@ fn ndaxis ndo ndd ndax ndf
 		load ndw+144 as ndp
 		load ndw+224 as ndq
 		if ndt
-			ndi=ndn
-			while ndi
-				load ndp as ndx
-				load ndq as ndy
-				if ndm==1
-					ndy+=ndx
-				else
-					if ndm
-						itof ndx as ndx
-					end
-					fadd ndy ndx as ndy
+			if (ndm==0)&(nds==8)&(ndt==8)
+				# doubles one behind the other on both sides, two at a
+				# time
+				nde=ndq+ndn*8
+				ndf=nde-8
+				ndu=ndp-ndq
+				while ndq<ndf
+					padd ndq ndq ndq+ndu
+					ndq+=16
 				end
-				store ndq ndy
-				ndp+=nds
-				ndq+=ndt
-				ndi-=1
+				if ndq<nde
+					load ndq+ndu as ndx
+					load ndq as ndy
+					fadd ndy ndx as ndy
+					store ndq ndy
+				end
+			else
+				ndi=ndn
+				while ndi
+					load ndp as ndx
+					load ndq as ndy
+					if ndm==1
+						ndy+=ndx
+					else
+						if ndm
+							itof ndx as ndx
+						end
+						fadd ndy ndx as ndy
+					end
+					store ndq ndy
+					ndp+=nds
+					ndq+=ndt
+					ndi-=1
+				end
 			end
 		else
 			load ndq as ndy
@@ -314,8 +338,10 @@ fn nddot nda ndb
 end
 
 # add ndx times each of the ndn elements from ndq on, with the stride
-# ndt, to the elements from ndp on, with the stride nds; integers if ndm
+# ndt, to the elements from ndp on, with the stride nds; integers if ndm.
+# Doubles one behind the other go two at a time, with ndx twice in ndkk
 fn ndaxpy ndp ndn nds ndx ndq ndt ndm
+	local ndkk 16
 	if (nds==8)&(ndt==8)
 		nde=ndp+ndn*8
 		ndu=ndq-ndp
@@ -327,6 +353,13 @@ fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 				ndp+=8
 			end
 			ret 0
+		end
+		store ndkk ndx
+		store ndkk+8 ndx
+		ndf=nde-8
+		while ndp<ndf
+			pmadd ndp ndp+ndu ndkk
+			ndp+=16
 		end
 		while ndp<nde
 			load ndp+ndu as ndy
