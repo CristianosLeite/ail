@@ -1,6 +1,6 @@
 ---
 title: Seed bootstrap
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, docs/REDESIGN.md, seed/MANIFEST, docs/compiler.md]
 status: current
 ---
@@ -22,6 +22,14 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   bytes, SHA-256 `346a9f77...`, the fixed point of the build from seed 2, released as `seed-3`
   (asset `ailc-3`) when the user asked for a new seed. It adds `spawn`, `join`, async functions
   and `await` to what a seed understands, and is the first built from `compiler/` and `.aw`.
+- Seed 4 is `build/ailc` of commit 8314e2d (2026-11-21), the merge that moved the benchmarks
+  and the editor extensions to repositories of their own: 67495 bytes, SHA-256 `0361ccfb...`,
+  the fixed point of the build from seed 3, released as `seed-4` (asset `ailc-4`) when the user
+  asked for a new seed. It adds `padd`, `psub`, `pmul`, `pdiv`, `pmadd`, `fsum` and `fdot` to
+  what a seed understands and writes the code of the current compiler (seed 3 built an
+  `ailc1` of other bytes than `ailc`). It was built in a clean worktree of that commit, where
+  `make test` passed (2614 checks) and `ailc`, `ailc2` and `ailc` compiled by itself once
+  more were one file.
 - The manifest keeps one line per seed, the last one pinned; a local copy is `seed/ailc-<n>`,
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
