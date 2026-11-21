@@ -280,7 +280,7 @@ as the starting point. Pass contiguous arrays as an address and an element
 count, use `load` and `store` for 64-bit values, and size runtime buffers with
 `alloc`. The algorithms can use the current language and calling convention.
 
-- [ ] Add quicksort in `examples/quicksort.aw` and `bench/quicksort.c`.
+- [x] Add quicksort in `examples/quicksort.aw` and `bench/quicksort.c`.
   Sort unsigned 64-bit values in place with the same pivot rule and three-way
   partition in both implementations. Use half-open ranges and recurse on the
   smaller partition while iterating over the larger one to bound stack depth.

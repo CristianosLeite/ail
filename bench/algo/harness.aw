@@ -1,0 +1,328 @@
+# bench/algo/harness.aw -- what the algorithm programs of examples/ share:
+# the input, the arrays, the clock and the output. bench/algo/harness.h
+# and harness.rs are the same in C and in Rust.
+#
+# A program reads five words of 8 bytes: a seed, a count n, a shape (0
+# random, 1 rising, 2 falling, 3 few distinct values), how often to run,
+# and a mode. Anything shorter, or a count of 2^28 or more, ends it with
+# the status 1. It makes its input from the seed with splitmix64, runs its
+# kernels that often, each time on the input as it was made, and takes
+# the time of the monotonic clock around each kernel and around nothing
+# else. In mode 0 it writes a checksum of the last result, 8 bytes, and
+# then the nanoseconds of each kernel, summed over the runs, 8 bytes
+# each; in mode 1 it writes the words of its input and in mode 2 those of
+# its result.
+#
+# A program names its kernels with ref and calls one of algosort,
+# algosearch, algohash and algograph, which do not return an error: they
+# end the program. Every name of this file starts with "algo".
+buf algoin 40
+buf algoout 32
+buf algots 16
+buf algorng 8
+
+# the monotonic clock in nanoseconds
+fn algonow
+	sys clock_gettime 1 algots
+	load algots as algos
+	load algots+8 as algon
+	ret algos*1000000000+algon
+end
+
+# the next number of splitmix64
+fn algornd
+	load algorng as algoz
+	algoz+=0x9e3779b97f4a7c15
+	store algorng algoz
+	algoz=(algoz^algoz>>30)*0xbf58476d1ce4e5b9
+	algoz=(algoz^algoz>>27)*0x94d049bb133111eb
+	ret algoz^algoz>>31
+end
+
+# read the five words; the count, the shape, the runs and the mode
+fn algoread
+	algon=0
+	while algon<40
+		sys read 0 algoin+algon 40-algon as algor
+		ifslt algor 1
+			sys exit 1
+		end
+		algon+=algor
+	end
+	load algoin as algos
+	store algorng algos
+	load algoin+8 as algon
+	if algon>>28
+		sys exit 1
+	end
+	load algoin+16 as algos
+	load algoin+24 as algor
+	load algoin+32 as algom
+	ret algon algos algor algom
+end
+
+# algon words of zeros
+fn algomem algon
+	alloc algon*8 as algop
+	ifz algop
+		sys exit 1
+	end
+	ret algop
+end
+
+# write algon bytes at algop
+fn algowrite algop algon
+	while algon
+		sys write 1 algop algon as algor
+		ifslt algor 1
+			sys exit 1
+		end
+		algop+=algor
+		algon-=algor
+	end
+end
+
+# copy algon words from algos to algod
+fn algocopy algod algos algon
+	algoi=0
+	while algoi<algon
+		load algos+algoi*8 as algov
+		store algod+algoi*8 algov
+		algoi+=1
+	end
+end
+
+# the checksum of algon words at algoa
+fn algosum algoa algon
+	algoh=0
+	algoi=0
+	while algoi<algon
+		load algoa+algoi*8 as algov
+		algoh=algoh*31+algov
+		algoi+=1
+	end
+	ret algoh
+end
+
+# write what the mode algom asks for: the algon words of the input at
+# algoa, the algol words of the result at algor, or the checksum of the
+# result and the algok times that are in algoout
+fn algoend algom algoa algon algor algol algok
+	if algom==1
+		call algowrite algoa algon*8
+		ret 0
+	end
+	if algom==2
+		call algowrite algor algol*8
+		ret 0
+	end
+	call algosum algor algol as algoh
+	store algoout algoh
+	call algowrite algoout algok*8+8
+end
+
+# fill algon words at algoa by the shape algos
+fn algofill algoa algon algos
+	algox=0
+	algoi=0
+	while algoi<algon
+		call algornd as algov
+		if algos==1
+			algox+=algov&0xffff
+			algov=algox
+		end
+		if algos==2
+			algox-=algov&0xffff
+			algov=algox
+		end
+		if algos==3
+			algov&=15
+		end
+		store algoa+algoi*8 algov
+		algoi+=1
+	end
+end
+
+# a sort: the kernel algok gets the array, the count and a scratch array
+# of the same size. The input is the array, the result the array sorted.
+fn algosort algok
+	call algoread as algon algos algor algom
+	call algomem algon*3 as algoa
+	algow=algoa+algon*8
+	algot=algow+algon*8
+	call algofill algoa algon algos
+	call algocopy algow algoa algon
+	algons=0
+	while algor
+		call algocopy algow algoa algon
+		call algonow as algob
+		callp algok algow algon algot as algox
+		call algonow as algoe
+		algons+=algoe-algob
+		algor-=1
+	end
+	store algoout+8 algons
+	tail algoend algom algoa algon algow algon 1
+end
+
+# a search: the kernel algok gets a sorted array, the count, as many keys
+# and the place for the result of each. The input is the array and then
+# the keys; the steps of the array are below 65536, for the shape 3
+# below 2.
+fn algosearch algok
+	call algoread as algon algos algor algom
+	call algomem algon*3 as algoa
+	algoq=algoa+algon*8
+	algow=algoq+algon*8
+	algomask=0xffff
+	if algos==3
+		algomask=1
+	end
+	algox=0
+	algoi=0
+	while algoi<algon
+		call algornd as algov
+		algox+=algov&algomask
+		store algoa+algoi*8 algox
+		algoi+=1
+	end
+	algoi=0
+	while algoi<algon
+		call algornd as algov
+		store algoq+algoi*8 algov%(algox+2)
+		algoi+=1
+	end
+	algons=0
+	while algor
+		call algonow as algob
+		callp algok algoa algon algoq algow as algoy
+		call algonow as algoe
+		algons+=algoe-algob
+		algor-=1
+	end
+	store algoout+8 algons
+	tail algoend algom algoa algon*2 algow algon 1
+end
+
+# a hash table: algoki puts algon keys into a table of 16 bytes a place
+# (key and value, the key 0 an empty place) given with its mask, algokh
+# and algokm look keys up and write the value of each, or -1. The table
+# has at least twice the places of the keys. The input is the keys, odd
+# numbers (for the shape 3 below 256), and then as many even numbers that
+# are in no table; the result is what the two lookups wrote.
+fn algohash algoki algokh algokm
+	call algoread as algon algos algor algom
+	algoc=16
+	while algoc<algon*2
+		algoc*=2
+	end
+	call algomem algon*4+algoc*2 as algoa
+	algoq=algoa+algon*8
+	algow=algoq+algon*8
+	algot=algow+algon*16
+	algoi=0
+	while algoi<algon
+		call algornd as algov
+		if algos==3
+			algov&=255
+		end
+		store algoa+algoi*8 algov|1
+		algoi+=1
+	end
+	algoi=0
+	while algoi<algon
+		call algornd as algov
+		store algoq+algoi*8 (algov|1)<<1
+		algoi+=1
+	end
+	algox=0
+	algoy=0
+	algoz=0
+	while algor
+		algoi=0
+		while algoi<algoc*2
+			store algot+algoi*8 0
+			algoi+=1
+		end
+		call algonow as algob
+		callp algoki algot algoc-1 algoa algon as algov
+		call algonow as algoe
+		algox+=algoe-algob
+		call algonow as algob
+		callp algokh algot algoc-1 algoa algon algow as algov
+		call algonow as algoe
+		algoy+=algoe-algob
+		call algonow as algob
+		callp algokm algot algoc-1 algoq algon algow+algon*8 as algov
+		call algonow as algoe
+		algoz+=algoe-algob
+		algor-=1
+	end
+	store algoout+8 algox
+	store algoout+16 algoy
+	store algoout+24 algoz
+	tail algoend algom algoa algon*2 algow algon*2 3
+end
+
+# a graph of algon vertices: the neighbours of the vertex v are the words
+# of the second array from the index in word v of the first array up to
+# the index in word v+1. A vertex has up to 15 neighbours, for the shape
+# 3 at most one. algokb and algokd get the two arrays, the count, a byte
+# a vertex that is zero, an array to work in with a word for each edge
+# and one more, and the place for the vertices in the order they are
+# reached; algokb does not get the work array. The input is the two
+# arrays, the result the two orders.
+fn algograph algokb algokd
+	call algoread as algon algos algor algom
+	algomask=15
+	if algos==3
+		algomask=1
+	end
+	# the first array, the neighbours, two orders, the work array, the bytes
+	call algomem algon*35+4 as algoa
+	algoq=algoa+algon*8+8
+	algox=0
+	algoi=0
+	while algoi<algon
+		store algoa+algoi*8 algox
+		call algornd as algov
+		algov&=algomask
+		while algov
+			call algornd as algoy
+			store algoq+algox*8 algoy%algon
+			algox+=1
+			algov-=1
+		end
+		algoi+=1
+	end
+	store algoa+algon*8 algox
+	algow=algoq+algox*8
+	algot=algow+algon*16
+	algoz=algot+algox*8+8
+	algoy=0
+	algoh=0
+	while algor
+		algoi=0
+		while algoi<algon
+			storeb algoz+algoi 0
+			algoi+=1
+		end
+		call algonow as algob
+		callp algokb algoa algoq algon algoz algow as algov
+		call algonow as algoe
+		algoy+=algoe-algob
+		algoi=0
+		while algoi<algon
+			storeb algoz+algoi 0
+			algoi+=1
+		end
+		call algonow as algob
+		callp algokd algoa algoq algon algoz algot algow+algon*8 as algov
+		call algonow as algoe
+		algoh+=algoe-algob
+		algor-=1
+	end
+	store algoout+8 algoy
+	store algoout+16 algoh
+	tail algoend algom algoa algon+1+algox algow algon*2 2
+end
