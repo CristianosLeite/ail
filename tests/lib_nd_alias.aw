@@ -10,6 +10,8 @@ buf b 176
 buf v 176
 buf w 176
 buf k 176
+buf o 176
+buf p 176
 call ndvec a 6 as r
 call ndvec b 6 as r
 call ramp a 4 4
@@ -43,11 +45,17 @@ call ndslice v a 0 0 3 1 as x
 call ndslice w a 0 3 6 1 as x
 call ndadd v w b as h
 call show a
-# a result with a stride of 0: six times the one element
-store w+112 0
-store w+48 6
-store w+24 w
-call ndput w b as l
+# a result with a stride of 0: six times the one element. The result
+# and what is put into it have storage of their own and six elements
+# each, so nothing but the stride refuses it; its first element stays 0
+call ndvec o 6 as x
+call ndvec p 6 as x
+call ramp p 1 1
+store o+112 0
+call ndput o p as l
+load o as q
+load q as q
+l+=q!=0
 # and the number itself as the result is one element
 itof 3 as z
 call ndscalar k z
@@ -57,4 +65,6 @@ call putn c+d+e+f+g+l
 call print "\n"
 call ndfree a
 call ndfree b
+call ndfree o
+call ndfree p
 sys exit r+s+t+u+x+y+h+m
