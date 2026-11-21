@@ -10,7 +10,8 @@ status: current
 a descriptor of 176 bytes owned by the caller, views that move no element, elementwise
 kernels with broadcasting into a result the caller made, sums, means, dot and matrix
 products. It is checked against results of NumPy 2.3.5 that are committed as data, and
-timed against C: 3.65 times the time of plain C loops in the geometric mean of 14 kernels.
+timed against C: 3.65 times the time of plain C loops in the geometric mean of 14 kernels
+when first measured, 2.18 times since the loops take two doubles at once.
 
 ## Facts
 - The descriptor: address of the element at index 0, kind (1 doubles, 2 integers, 0 no
@@ -43,6 +44,21 @@ timed against C: 3.65 times the time of plain C loops in the geometric mean of 1
   loop with strides), 3.5 times for sums and dot, 5 times for the product of matrices.
   The likely cause for most of it is that each double passes through a general register.
 
+- After the measurements (2026-11-21): the gap to C was mostly the way of each double
+  through a general register, not the missing vector instructions (AIL was 2.3 to 3.5 times
+  behind C built with `-fno-tree-vectorize`). `padd`, `psub`, `pmul`, `pdiv`, `pmadd` are
+  rows of `optab` that work from memory to memory on two doubles with the bits of one at a
+  time; the library uses them where each element of the result is computed alone.
+- `ndsum`, `ndmean` and `nddot` stay at 3.5 times C by decision: packing them would change
+  the order of adding. `ndsumpw` promises no order and could use the statements.
+- Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,
+  it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
+  5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30
+  with 64 tasks.
+- A program that ran tasks must end with `sys exit_group` or at its last line; a test that
+  ended with `sys exit` hung with its workers alive.
+- Left out until a program needs them: elements of 32 bits, indexing by arrays, `.npy`,
+  linear algebra, FFTs, array syntax (a call is 5 to 7 tokens; the descriptors are the cost).
+
 ## Open
-- The fifth item of the backlog: blocking and tasks for the product, a loop over words for
-  a number as an operand, and whether packed instructions are worth adding.
+- `ndsumpw` with the statements on two doubles, if a program wants a faster sum.

@@ -329,7 +329,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    mean of 14 times, 1.24 times where memory is the limit and up to 10
    times at a thousand numbers; a caller is 608 tokens against 636 in C
    ([results](performance.md#numerical-arrays-2026-11-21)).
-5. [ ] **Optimize based on measurements.** Compare cache blocking for matrix
+5. [x] **Optimize based on measurements.** Compare cache blocking for matrix
    multiplication and coarse tasks with disjoint outputs using `spawn` and
    `join`. Use the scalar baseline to evaluate selective SIMD support and
    keep a scalar fallback if new instructions are added. Check numerical
@@ -337,6 +337,16 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    Use concrete workloads to decide when to add more dtypes, advanced
    indexing, `.npy` I/O, linear algebra or FFTs, and use caller token counts
    to decide whether array syntax is worth adding.
+   Done on 2026-11-21: a number as an operand has a loop over words; the
+   statements `padd`, `psub`, `pmul`, `pdiv` and `pmadd` compute two
+   doubles at once from memory to memory with the bits of one at a time,
+   and the kernels use them, which brings the geometric mean of AIL/C
+   over the 14 kernels from 3.650 to 2.175; `ndmatmulp` multiplies in
+   tasks, 5.5 times faster at a side of 1000 on 20 processors. Blocks in
+   the product gained 4% and were left out, and `sum` and `dot` stay at
+   3.5 times C, since their order of adding is kept. No further dtypes,
+   indexing, file formats or array syntax until a program needs them
+   ([results](performance.md#after-the-measurements)).
 
 ## Algorithm benchmarks and collection APIs
 
