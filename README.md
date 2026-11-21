@@ -52,6 +52,7 @@ Or put it in `examples/foo.aw` and run `make build/foo`.
 | `set a as x`, `add a b as x`, `lt a b as x` | The same as statements: `x=a`, `x=a+b`, `x=a<b`; also `sub mul div mod and or xor shl shr` and `eq ne le gt ge` |
 | `sdiv smod sar`, `slt sle sgt sge` | Division, remainder, right shift and ordering of signed values |
 | `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq` | Arithmetic, conversion and comparison of doubles, kept as their 64 bits |
+| `padd psub pmul pdiv pmadd` as `op p q r` | The same arithmetic on two doubles at once, from the addresses `q` and `r` to `p`; `pmadd` adds the products to what is there |
 | `xadd p v as x`, `cas p old new as x` | Atomic add and compare-and-swap on the 64 bits at `p` |
 | `buf b 4096` | Reserve 4096 zero-filled writable bytes; `b` is their address |
 | `local b 64` | 64 bytes in the frame of the current function; `b` is their address until it returns |

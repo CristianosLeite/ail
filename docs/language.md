@@ -224,6 +224,28 @@ fmul r k as r
 ftoi r as n             # n = 1414
 ```
 
+### Two doubles at once
+
+```
+padd p q r
+psub p q r
+pmul p q r
+pdiv p q r
+pmadd p q r
+```
+
+`p`, `q` and `r` are addresses, and at each lie two doubles, 16 bytes. `padd` makes the two at `p` the sums of those at `q` and at `r`, the first with the first and the second with the second; `psub`, `pmul` and `pdiv` make them the differences, the products and the quotients, `q` first. `pmadd` adds the two products to what is at `p`. Each double is computed as `fadd`, `fsub`, `fmul` and `fdiv` compute one, and `pmadd` as an `fmul` and then an `fadd`, so a loop that takes its doubles two at a time gives the bits that one at a time gives:
+
+```
+i=0
+while i+1<n
+	padd o+i*8 a+i*8 b+i*8  # o[i] = a[i] + b[i], and the same for i+1
+	i+=2
+end
+```
+
+What such a loop gains is the way of a double: `fadd` takes each from a general register to a floating-point one and back, these read and write memory. The statements keep no value, so they have no `as`. Both values are read before anything is written: `p` may be `q` or `r`, or lie across them. The addresses need no alignment and are not checked, at compile time or after. A number that is to go with every pair is written twice into 16 bytes, a [`local`](#local) or a `buf`, whose address is then `q` or `r`. The instructions are those of SSE2, which every x86-64 processor has.
+
 ### Atomic operations
 
 ```

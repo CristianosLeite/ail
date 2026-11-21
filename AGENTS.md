@@ -100,6 +100,7 @@ A tool written in AIL is `tools/<name>.aw`, compiled by `build/ailc` after the b
 - `set a as x`, and `add sub mul div mod and or xor shl shr` as `op a b as x`: 64-bit, wrapping, unsigned division and shift.
 - `eq ne lt le gt ge` as `op a b as x`: 64-bit comparison, unsigned order, result `1` or `0`.
 - `fadd fsub fmul fdiv fsqrt`, `itof ftoi`, `flt fle feq`: the same values read as IEEE doubles; no float literals.
+- `padd psub pmul pdiv` as `op p q r`: the two doubles at the address `p` become the sums, differences, products, quotients of the two at `q` and the two at `r`; `pmadd p q r` adds the two products to those at `p`. No `as`; unaligned, unchecked, both read before the write, the same bits as the statements on one double. They are plain rows of `optab` with three operands and the flag `AS_NONE`, SSE2 between memory and `xmm0`/`xmm1`.
 - `xadd p v as x`, `cas p old new as x`: atomic add (old value) and compare-and-swap (1 if stored) on the 64 bits at `p`.
 - `sdiv smod sar` and `slt sle sgt sge`: the signed forms of `div mod shr` and of the four orderings. Nothing is checked: overflow wraps, a zero divisor is `SIGFPE`.
 - `buf name size`: reserves zero-filled writable bytes (rounded up to 8); the name is a constant address. The size is a number or a `const` and may be 0.
