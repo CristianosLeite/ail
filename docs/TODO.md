@@ -426,6 +426,23 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     calls and the last one after them, both outside the clocks; a wrong
     double stored after either makes the benchmark print 1 and
     `mmtasks.sh` end with `differ` and the status 1.
+13. [ ] **Validate the call that sets the warm minimum.** The last call
+    can overwrite an incorrect earlier result whose time is still the
+    minimum. In `bench/nd/mmtasks.aw`, capture the status of each timed
+    call and check it after stopping the clock. When a call would lower
+    the minimum, compare its output bit for bit with the serial result
+    before accepting its time and before reusing the output buffer.
+    Keep the first- and last-call checks. Verify that an incorrect
+    intermediate call that would set the minimum makes the script fail
+    even when the last call gives the correct result.
+14. [ ] **Label the reported count as planned row blocks.** Rename
+    `tasks made` to `row blocks` in `bench/nd/mmtasks.sh` and use the
+    same term in `bench/nd/mmtasks.aw` and `performance.md`. Keep the
+    requested task count beside it and show the count returned by
+    `ndruns`. Explain that the serial path runs one block on the
+    caller and a failed `spawn` also leaves its block to the caller.
+    Check that the report shows one row block for a serial call and
+    eight for 16 rows with 14 tasks requested.
 
 Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
