@@ -407,6 +407,62 @@ Rerun the array benchmarks and `tests/lib_nd_*` for these changes. Include
 integers, transposes and mixed strides when checking for regressions beyond
 the contiguous and reversed double workloads measured so far.
 
+## Harness clock and an algorithm library
+
+The AIL harness reads the clock with `sys clock_gettime`, a system call,
+while the C and Rust harnesses read it through the vDSO. On the i7-12700H a
+kernel that does nothing takes 91 ns per run in AIL and 12 ns in C. Kernel
+times summed over many short runs therefore overstate AIL/C: each `ndelem`
+kernel at 1,000 elements and 20,000 runs carries 1.8 ms of clock in AIL
+against 0.24 ms in C. See
+[the call cost measurements](performance.md#array-kernels-after-the-first-round-2026-11-21).
+The fix touches every algorithm program, so move their kernels into a
+library in the same pass and leave the examples as callers.
+
+1. [ ] **Make the clock cost the same in the three harnesses.** Compare
+   three ways: time a run around nothing in each harness and write the
+   total as an extra word that `perf` subtracts and reports; call
+   `__vdso_clock_gettime` from AIL, found through `AT_SYSINFO_EHDR` in the
+   auxiliary vector behind `args` and called with `callp`; or read the
+   clock with the raw system call in C and Rust as well. For the vDSO call,
+   check the argument registers, the stack alignment and which registers
+   survive. Keep `harness.aw`, `harness.h` and `harness.rs` the same in
+   what they time, and update `tests/algo.sh` and `perf` if the output
+   gains a word. Accept the change when an empty kernel costs the same
+   within a few nanoseconds in the three languages.
+2. [ ] **Rerun the kernel tables the clock skewed.** The bias of a row is
+   its runs times the difference per run, so it matters for the rows with
+   thousands of short runs in the algorithm and array tables and not for
+   those at a million elements. Rerun `build/tools/perf` with the corrected
+   harness, report the old and new ratios side by side, and note in the
+   earlier sections of [performance.md](performance.md) which figures
+   included the clock. Leave the historical tables as measured.
+3. [ ] **Move the algorithm kernels into a library.** Put the sorts
+   (`quicksort`, `mergesort`, `heapsort` and `isort`), the lower-bound
+   search, the open-addressing table of `hashtab` and the two traversals
+   of `graph` under `lib/algo/`. Follow the library rules: a prefix on
+   every function, parameter and variable, no top-level code, no `var`,
+   caller-provided scratch storage and explicit results. Reduce each
+   program in `examples/` to its `use` lines, the adapter the harness
+   calls and the `call algo...` line, as the array programs already are.
+   Keep each algorithm, its memory layout and its output: `tests/algo.sh`
+   must pass unchanged and the results must stay byte-identical to the C
+   and Rust programs. Decide how the fixed table of `hashtab` and the
+   in-place heap of `heapsort` relate to `lib/map.aw` and `lib/heap.aw`,
+   and keep them separate where the benchmark layout differs. Add the new
+   files to the Makefile prerequisites and to `tests/indent.sh`, test the
+   functions on their own in `tests/lib_algo_*` (empty, single, duplicate
+   and already sorted input), and document them in
+   [language.md](language.md).
+4. [ ] **Measure what the move changes.** Check that `place` and `lower`
+   are still compiled in place at their calls, which needs the callee
+   before the caller and no global name in its body. Compare kernel times
+   before and after over several placements of the code, since a kernel
+   moved by a few bytes varied by a fifth at 1,000 elements. Report the
+   token counts of a caller and of the library separately against the C
+   and Rust programs, which keep their kernels inline, and update
+   [tokens.md](tokens.md).
+
 ## Algorithm benchmarks and collection APIs
 
 Use [`isort`](../examples/isort.aw) and its [C counterpart](../bench/isort.c)
