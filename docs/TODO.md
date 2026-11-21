@@ -381,11 +381,15 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    takes 19 ns instead of 64 at 16 elements and 15% less at 1,000; setup
    inside the clock adds 25 ns, 8% at 1,000
    ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
-9. [ ] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
+9. [x] **Unroll the packed loop in matrix multiplication.** In `ndaxpy`, try
    four `pmadd` operations per iteration, followed by packed and scalar
    tails. A prototype cut single-core kernel time by 19% at side 100 and 7%
    at side 1,000. Preserve the order of `k` and compare bits for odd widths,
    views and the parallel path.
+   Done on 2026-11-21: four `pmadd` a round, then pairs, then one. The
+   kernel takes 19% less time at side 100, 22% at 300 and 12% at 1,000, and
+   the same at 30; `tests/lib_nd_matmul_wide` compares the bits
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 10. [ ] **Measure task granularity for matrix multiplication.** Compare
     `ndmatmul` and `ndmatmulp` over worker and task counts. On the
     i7-12700H, side 1,000 took 252 ms serially and 39 ms with 20 tasks,

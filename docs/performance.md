@@ -861,3 +861,17 @@ The rows of `perf` for a thousand numbers carry the 91 ns of the clock 20000 tim
 | ndelem scale, random, 1000000 x 20 | 12.13 (11.75, 12.59) | 12.10 (11.52, 12.51) | 11.65 (11.31, 12.15) | 1.002 |
 
 Geometric mean of AIL / C over 6 kernel times: 1.685, from 1.840 over the same six rows of the first round. Kept.
+
+**Eight doubles a round in the product.** The loop of `ndaxpy`, which adds a number times a row to a row of the result, took one `pmadd` and one test a round. It now takes four `pmadd`, eight doubles, while a row has eight left, then pairs, then the last of an odd count. Each element of the result still gets its products in the order of `k`, so the bits are the same. The kernel of `ndmatmul` in milliseconds, the median of nine processes:
+
+| side x runs | before | after | less |
+|---|---:|---:|---:|
+| 8 x 1000 | 0.90 | 0.84 | 7% |
+| 16 x 1000 | 3.26 | 3.05 | 6% |
+| 30 x 1000 | 12.98 | 12.96 | 0% |
+| 64 x 1000 | 99.21 | 83.67 | 16% |
+| 100 x 20 | 6.74 | 5.47 | 19% |
+| 300 x 3 | 24.72 | 19.27 | 22% |
+| 1000 x 1 | 269.37 | 238.11 | 12% |
+
+A fifth less where the matrices fit the cache and the loop is what costs, less at a side of 1000, where memory has its part, and nothing at 30, whose rows are three rounds and three pairs. `build/tools/perf ndmatmul` then gives 1.769 times C at a side of 100 and 1.323 at 1000, from 1.862 and 1.535. Kept.

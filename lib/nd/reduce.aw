@@ -342,7 +342,8 @@ end
 
 # add ndx times each of the ndn elements from ndq on, with the stride
 # ndt, to the elements from ndp on, with the stride nds; integers if ndm.
-# Doubles one behind the other go two at a time, with ndx twice in ndkk
+# Doubles one behind the other go two at a time, four such pairs a
+# round, with ndx twice in ndkk
 fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 	local ndkk 16
 	# no element: the end less 8 would lie before the start, and at an
@@ -364,6 +365,17 @@ fn ndaxpy ndp ndn nds ndx ndq ndt ndm
 		end
 		store ndkk ndx
 		store ndkk+8 ndx
+		# eight doubles a round while there are eight, then two, then one
+		if ndn>=8
+			ndf=nde-56
+			while ndp<ndf
+				pmadd ndp ndp+ndu ndkk
+				pmadd ndp+16 ndp+ndu+16 ndkk
+				pmadd ndp+32 ndp+ndu+32 ndkk
+				pmadd ndp+48 ndp+ndu+48 ndkk
+				ndp+=64
+			end
+		end
 		ndf=nde-8
 		while ndp<ndf
 			pmadd ndp ndp+ndu ndkk
