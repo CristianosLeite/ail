@@ -1,7 +1,7 @@
 ---
 title: Generated code after the algorithm measurements
 last-verified: 2026-11-21
-sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/TODO.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
+sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/BACKLOG.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
 status: current
 ---
 # Generated code after the algorithm measurements
