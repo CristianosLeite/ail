@@ -306,6 +306,45 @@ The first step of the follow-up in the backlog. A load or store whose address en
 
 `heapsort` and `bsearch` index an array in their inner loops and gain most: the kernel of `heapsort` takes 14 to 31% less time, and `bsearch` on a thousand elements 30% less, which puts it ahead of C there (0.74 and 0.76), while on a million, where the memory decides, it gains 6%. `hashtab` gains 4 to 9% and `mergesort` up to 17% on input in order. `quicksort` walks pointers and has one such address outside its loops, so its times moved by less than 2% either way; its ratio differs by what the C times of the two runs differ. `graph` gained up to 7% at a thousand vertices and lost 7% in one row at a million (`bfs`, few neighbours), within what that row varies between runs of the earlier table. The five CPU-bound programs stay at 1.04 (1.038 and 1.039).
 
+## Registers by weight, 2026-11-20
+
+The second step. A function has six registers for its variables, and they went to the first six that were defined, which are the parameters: in `lookup` of `hashtab` the table, the mask and the three arrays had registers, each read once a round, and the key, its place, the value and the word just loaded lived on the stack. The registers now go to the variables that are mentioned most, a mention in a loop counting 8 times for each loop around it ([how](compiler.md)). In the executable of `hashtab` the instructions that name `rsp` went from 228 to 143, and its code from 4613 to 3941 bytes. AIL against C in the geometric mean of the kernel times of each program, before the follow-up, with scaled indexes, and with both:
+
+| program | before | scaled indexes | and registers by weight |
+|---|---:|---:|---:|
+| quicksort | 1.818 | 1.856 | 1.214 |
+| mergesort | 2.175 | 2.068 | 1.200 |
+| heapsort | 1.462 | 1.227 | 1.127 |
+| bsearch | 1.085 | 0.882 | 0.977 |
+| hashtab | 1.993 | 1.883 | 1.835 |
+| graph | 1.709 | 1.695 | 1.341 |
+| all 48 kernel times | 1.753 | 1.639 | 1.325 |
+
+- `quicksort` and `mergesort`, each one function with ten or more variables, take 13 to 56% less time: on input in order about half, and `quicksort` on a million such words is level with C (1.01 and 1.02).
+- `graph` takes up to 53% less (`dfs` at a thousand vertices) and `heapsort` up to 27% less at a thousand elements; at a million `heapsort` is as it was, within 2%.
+- `bsearch` at a thousand elements takes 22 and 24% more time than with scaled indexes alone, and is still ahead of C (0.92). Its functions have six and seven variables, so at most one of them changed its place; why that costs so much in a loop of a load, a comparison and a branch was not looked into. At a million it is unchanged.
+- `hashtab` gains 3 to 12% at a thousand keys and loses 4 to 5% in the three kernels on a million random keys, where the time is the memory. It stays the furthest from C, since its loops are calls of `place`.
+- The five CPU-bound programs are at top level, where nothing changed: 1.037.
+
+**Inlining, evaluated.** `hashtab` was written a second time with `place` in the two loops by hand and timed the same way, 15 rounds, against the form with the call (kernel times in milliseconds, both built by the compiler with registers by weight):
+
+| kernel, input | with the call | written in line | |
+|---|---:|---:|---:|
+| insert, random, 1000 x 5000 | 10.34 | 8.57 | -17% |
+| hit, random, 1000 x 5000 | 10.98 | 8.48 | -23% |
+| miss, random, 1000 x 5000 | 13.36 | 11.01 | -18% |
+| insert, few, 1000 x 5000 | 8.84 | 6.49 | -27% |
+| hit, few, 1000 x 5000 | 9.31 | 6.52 | -30% |
+| miss, few, 1000 x 5000 | 12.03 | 6.42 | -47% |
+| insert, random, 1000000 x 2 | 28.91 | 29.82 | +3% |
+| hit, random, 1000000 x 2 | 33.57 | 31.98 | -5% |
+| miss, random, 1000000 x 2 | 60.37 | 57.10 | -5% |
+| insert, few, 1000000 x 4 | 6.88 | 5.16 | -25% |
+| hit, few, 1000000 x 4 | 8.89 | 7.15 | -20% |
+| miss, few, 1000000 x 4 | 47.15 | 38.60 | -18% |
+
+The code is 102 bytes longer (4035 against 3933) and names `rsp` 151 times against 143. With the registers in order of definition the same rewriting had made the lookups that miss 30% slower, because the loop then had more variables on the stack than the call had cost; with the registers by weight it is faster in 11 of the 12 times and 3% slower in one, within what that row varies. Against C the inlined form is at 1.46 in the geometric mean of the twelve, the form with the call at 1.84. So inlining is worth having in the compiler now and was not before; it is a backlog item of its own, since a function is compiled from its source in two passes with no tree to copy.
+
 ## Tasks, 2026-11-20
 
 `tools/par.aw`, built as `build/tools/par` (until 2026-11-20 the Python script `tools/par.py`, which the figures below were taken with), times the programs of `bench/par/`, each written twice: `<name>_seq.aw` does the work in one call, `<name>_par.aw` cuts it into tasks with `spawn` and `join` (`lib/task.aw`). It is the measurement of the backlog item on parallel execution: what the pool gains at 1, 2, 4, 8, 14 and 20 threads, and how small a task may be before its scheduling costs more than it saves.

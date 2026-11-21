@@ -275,7 +275,17 @@ fn defv
 	store i*8+vfirst ip
 	label x
 	store i*8+vlast ip
+	call vment i
 	ret i
+end
+# note a mention of variable i of the function at the input cursor, in
+# the first pass, for the weights of alloc. The value of a while is read
+# again at the end of its loop and its variables are noted twice.
+fn vment i
+	if (pass==1)&(infn!=0)
+		store nvm*8+vms ip<<8|i
+		nvm+=1
+	end
 end
 # where variable i of the current scope lives, as two results: 0 and its
 # x86 register, 1 and the address of its cell, 2 and its distance from rsp,

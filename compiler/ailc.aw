@@ -22,7 +22,7 @@ var awf
 var nfuncs ncalls ngv dataend datarel nrefs
 # pass is 1 while a function is compiled to measure its variables and 2 when
 # it is compiled again for good; the s* vars are the state to return to
-var pass fnslots nloops sip sop snb snv sbs snc snf snr sde sdr
+var pass fnslots nloops nvm sip sop snb snv sbs snc snf snr sde sdr
 # pushed = bytes of call values pushed so far in this statement; fnnpar =
 # parameters of the function; immpos = where mov wrote its last imm32
 var pushed fnnpar immpos
@@ -96,7 +96,12 @@ buf vlast 512       # and mentions it last
 buf fnloc 64        # its place: a register 0-5, or 6 + a stack slot
 buf vlocal 512      # per variable of the function that is a local: 1 + its offset
 buf vlocsz 512      # per local: its size as declared
-buf locfree 560     # per place: the last mention of its variable
+buf vwt 512         # per variable: its weight, the mentions with one in a loop counted
+# 8 times for each loop around it
+buf vdone 64        # per variable: 1 once alloc has looked at it, 2 if it has a place
+buf vms 67108864    # 8388608 mentions of variables in the function, a name of one
+# byte with a blank after it, each read at most twice: where, times 256, plus
+# the variable
 buf loops 22369632    # 1398102 backward jumps of the function: where the source has
 # the label, and the jump
 buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
@@ -598,6 +603,7 @@ end
 call lvar as r
 jeq r -1 i2
 store r*8+vlast ip
+call vment r
 ifz asg>>r&1
 	call eunasg
 end
@@ -626,6 +632,7 @@ if r!=-1
 	load r*8+vlocal as d
 	call ok d
 	store r*8+vlast ip
+	call vment r
 	call vmov r 0 139
 	ai=1
 	load r*8+vlocsz as d
@@ -993,6 +1000,7 @@ fnslots=0
 fnregs=6
 fnlocal=0
 nloops=0
+nvm=0
 label f0
 loccur=0
 fnres=0

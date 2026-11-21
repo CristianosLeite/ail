@@ -365,7 +365,7 @@ with shuffled run order. See [benchmark method](performance.md#method).
    scaled loads and stores, including displacements, and measure kernel times
    on `graph`, `bsearch` and the full suite. The instruction reduction is
    verified and the runtime gain is still unmeasured.
-2. [ ] **Reduce stack accesses in hot loops and evaluate selective inlining.**
+2. [x] **Reduce stack accesses in hot loops and evaluate selective inlining.**
    Inspect [`alloc`](../compiler/emit.aw) and the generated code for
    [`hashtab`](../examples/hashtab.aw) before expanding inlining. At 1,000
    keys, manually inlining `place` lowered insertion and successful lookup
@@ -373,6 +373,9 @@ with shuffled run order. See [benchmark method](performance.md#method).
    and the loop gained stack accesses. Measure all three operations at 1,000
    and 1,000,000 keys with random and duplicate-heavy inputs. Compare the
    generated stack accesses and code size as well as elapsed time.
+   Done on 2026-11-20: registers go to the variables that the loops mention
+   most, and inlining `place` by hand is then faster in 11 of the 12 kernel
+   times ([results](performance.md#registers-by-weight-2026-11-20)).
 3. [ ] **Find a profitable lowering for compound loop conditions.** Use
    [`mergesort`](../examples/mergesort.aw) as a test case. A prototype split
    its two bounds comparisons into separate branches, cutting kernel time
@@ -389,6 +392,14 @@ with shuffled run order. See [benchmark method](performance.md#method).
    million tasks. Sweep batch sizes across worker counts and use the results
    to document useful starting sizes for CPU-bound and memory-bound work.
    [Task benchmark method](performance.md#tasks-2026-11-20)
+
+5. [ ] **Inline small functions at their calls.** With registers given by
+   weight, `hashtab` with `place` written into its two loops by hand took 17
+   to 47% less time at 1,000 keys and up to 25% less at 1,000,000, for 102
+   bytes more code. Decide which functions qualify (no `local`, no `ret`
+   inside a loop, a size limit), how the variables of the callee are named in
+   the caller's 64, and how the two passes over a function see the body.
+   Measure `hashtab`, `heapsort` (`sift`) and `bsearch` (`lower`).
 
 ## Redesign
 

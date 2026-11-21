@@ -541,40 +541,97 @@ fn alloc
 		n-=1
 	end
 	jnz g a
-	i=0
-	label z
-	store i*8+locfree 0
-	i+=1
-	jlt i 70 z
-	fnslots=0
-	fnregs=0
+	# the weight of each variable: a mention counts 1, and 8 times that for
+	# each loop it stands in, up to 8 loops. Not for a function so large that
+	# looking at every loop for every mention would take long.
 	i=0
 	while i<nv
-		k=i*8
-		load k+vlocal as t
-		jnz t c
-		load k+vfirst as lo
-		load k+vlast as hi
-		j=fnasy*6
-		label q
-		t=j*8+locfree
-		load t as u
-		ifz u<lo
-			j+=1
-			jmp q
-		end
-		store t hi
-		storeb i+fnloc j
-		if j<6
-			jlt j fnregs c
-			fnregs=j+1
-			jmp c
-		end
-		j-=5
-		jle j fnslots c
-		fnslots=j
-		label c
+		store i*8+vwt 0
+		storeb i+vdone 0
 		i+=1
+	end
+	w=nvm*nloops<50000000
+	m=0
+	while m<nvm
+		load m*8+vms as t
+		p=t>>8
+		d=0
+		if w
+			n=nloops
+			b=loops
+			while n
+				load b as lo
+				load b+8 as hi
+				d+=(p>=lo)&(p<hi)
+				b+=16
+				n-=1
+			end
+			if d>8
+				d=8
+			end
+		end
+		k=(t&255)*8+vwt
+		load k as u
+		store k u+(1<<d*3)
+		m+=1
+	end
+	# the variables by weight, the heaviest first and of equal ones the
+	# first: each gets the first place, a register and then a stack slot, in
+	# which no variable placed before is in use while it is
+	fnslots=0
+	fnregs=0
+	c=0
+	while c<nv
+		x=64
+		w=0
+		i=0
+		while i<nv
+			loadb i+vdone as t
+			ifz t
+				load i*8+vwt as u
+				if (x==64)|(u>w)
+					x=i
+					w=u
+				end
+			end
+			i+=1
+		end
+		storeb x+vdone 1
+		load x*8+vlocal as t
+		ifz t
+			load x*8+vfirst as lo
+			load x*8+vlast as hi
+			j=fnasy*6
+			label q
+			i=0
+			while i<nv
+				loadb i+vdone as t
+				if t==2
+					loadb i+fnloc as u
+					if u==j
+						load i*8+vfirst as b
+						load i*8+vlast as n
+						ifz (n<lo)|(hi<b)
+							j+=1
+							jmp q
+						end
+					end
+				end
+				i+=1
+			end
+			storeb x+fnloc j
+			storeb x+vdone 2
+			if j<6
+				if j>=fnregs
+					fnregs=j+1
+				end
+			else
+				if j-5>fnslots
+					fnslots=j-5
+				end
+			end
+		end
+		c+=1
 	end
 end
 # the code of the statement, after checking its operand count; a call

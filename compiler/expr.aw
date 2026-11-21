@@ -58,6 +58,7 @@ fn exname
 		if ip>c
 			store d ip
 		end
+		call vment r
 		ifz asg>>r&1
 			call eunasg
 		end
