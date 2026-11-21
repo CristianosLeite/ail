@@ -1,14 +1,14 @@
 # AIL redesign
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
-AIL should take fewer source tokens than Rust for equivalent programs, let authors express arithmetic and control flow directly, and approach optimized C on CPU-bound workloads. The compiler written in AIL, currently `stage1/ailc.aw`, will become the sole maintained compiler. A released copy of that compiler will bootstrap a clean checkout.
+AIL should take fewer source tokens than Rust for equivalent programs, let authors express arithmetic and control flow directly, and approach optimized C on CPU-bound workloads. The compiler written in AIL, currently `stage1/ailc.aiw`, will become the sole maintained compiler. A released copy of that compiler will bootstrap a clean checkout.
 
 ## Baseline
 
@@ -58,7 +58,7 @@ Parse expressions into a compact intermediate representation and lower them toge
 
 1. Build the current stage1 with stage0 one last time to establish the first seed. Rebuild stage1 with that seed and check byte-for-byte equality before publishing the seed as a Linux x86-64 release artifact. Record its source revision and SHA-256 in a versioned manifest.
 2. Make the normal build use the pinned seed or a local copy with the manifest's checksum. Build the current sources into `build/ailc`, then use that compiler to rebuild the same sources and check that the two outputs match. Verify this flow in a fresh checkout with an empty build directory. Keep writing compiler outputs via temporary files so a failed build leaves the previous executable intact.
-3. Make `stage1/tables.aw` the source of truth for stage1's tables. Move validation to tests of the table contents and emitted instructions. Remove `tools/tables.sh` and the assembly-dependent generation once the new checks cover their role.
+3. Make `stage1/tables.aiw` the source of truth for stage1's tables. Move validation to tests of the table contents and emitted instructions. Remove `tools/tables.sh` and the assembly-dependent generation once the new checks cover their role.
 4. Run the language, I/O and build tests with the current compiler. Retain the independent byte tests and the self-compilation check. Replace stage0 differential fuzzing with comparisons that have a valid shared language or an independent expected result. For instance, compare old and new syntax on generated programs with known results. Update the Makefile, documentation and agent instructions before removing `stage0/ailc.s` from the active tree.
 5. Introduce new syntax in compiler sources only after a released seed can parse it. First add the compiler support using syntax the current seed understands, release and pin that compiler, then migrate the compiler source. Keep earlier seed artifacts linked to their source revisions so historical releases can still be rebuilt.
 

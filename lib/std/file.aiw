@@ -1,0 +1,182 @@
+# lib/std/file.aiw -- whole files, read into a buffer of lib/std/bytes.aiw and
+# written from memory. A program that uses it uses lib/std/bytes.aiw first.
+#
+# A path is an address and a length, as a string literal and the two
+# results of argv are; it has no NUL byte in it and fewer than 4096 bytes.
+# Every function returns a number that is negative after an error, the
+# error number of the kernel negated (-2 no such file, -13 not allowed,
+# -12 no memory, -36 path too long), and closes what it opened.
+#
+# Every variable and parameter of this file has a name that starts with
+# "file"; a program has no var of such a name (see lib/std/io.aiw).
+
+# the path as the kernel takes it, with a NUL byte at its end, into the
+# 4096 bytes at filez: 0, or -36 if it does not fit
+fn filepath filep filen filez
+	if filen>4095
+		ret -36
+	end
+	filei=0
+	while filei<filen
+		loadb filep+filei as filec
+		storeb filez+filei filec
+		filei+=1
+	end
+	storeb filez+filen 0
+end
+
+# a syscall without a name in the compiler
+const filegetdents 217
+
+# open the path with the flags and the mode of the open syscall, plus
+# close-on-exec: the descriptor, which the caller closes, or the error
+fn fileopen filep filen fileflags filemode
+	local filez 4096
+	call filepath filep filen filez as filefd
+	jnz filefd bad
+	label again
+	sys open filez fileflags|0x80000 filemode as filefd
+	jeq filefd -4 again
+	label bad
+	ret filefd
+end
+
+# add everything that can be read from the descriptor to the buffer
+# fileb, up to the end of the file: the number of bytes added, or the
+# error, after which the buffer holds what was read until then
+fn filereadfd filefd fileb
+	filesum=0
+	label more
+	call byneed fileb 65536 as fileok
+	ifz fileok
+		ret -12
+	end
+	load fileb as filep
+	load fileb+8 as filelen
+	load fileb+16 as filecap
+	sys read filefd filep+filelen filecap-filelen as filer
+	jeq filer -4 more
+	ifslt filer 0
+		ret filer
+	end
+	ifz filer
+		ret filesum
+	end
+	store fileb+8 filelen+filer
+	filesum+=filer
+	jmp more
+end
+
+# add the bytes of the file at the path to the buffer fileb: their
+# number, or the error
+fn fileread filep filen fileb
+	call fileopen filep filen 0 0 as filefd
+	ifslt filefd 0
+		ret filefd
+	end
+	call filereadfd filefd fileb as filer
+	sys close filefd
+	ret filer
+end
+
+# make the file at the path hold the filedn bytes at filed and nothing
+# else, creating it if there is none (mode 0666 less the umask): 0, or
+# the error
+fn filewrite filep filen filed filedn
+	call fileopen filep filen 0x241 438 as filefd
+	ifslt filefd 0
+		ret filefd
+	end
+	while filedn
+		sys write filefd filed filedn as filer
+		ifz filer
+			filer=-5
+		end
+		ifslt filer 0
+			ifne filer -4
+				sys close filefd
+				ret filer
+			end
+			filer=0
+		end
+		filed+=filer
+		filedn-=filer
+	end
+	sys close filefd as filer
+	ret filer
+end
+
+# make the directory at the path with the mode filemode less the umask,
+# remove the file at the path, remove the empty directory at the path:
+# 0, or the error (-17 the directory is there already, -39 not empty)
+fn filemkdir filep filen filemode
+	local filez 4096
+	call filepath filep filen filez as filer
+	ifz filer
+		sys mkdir filez filemode as filer
+	end
+	ret filer
+end
+fn fileunlink filep filen
+	local filez 4096
+	call filepath filep filen filez as filer
+	ifz filer
+		sys unlink filez as filer
+	end
+	ret filer
+end
+fn filermdir filep filen
+	local filez 4096
+	call filepath filep filen filez as filer
+	ifz filer
+		sys rmdir filez as filer
+	end
+	ret filer
+end
+
+# add the names in the directory at the path to the buffer fileb, each
+# with a NUL byte after it, in the order the kernel gives them and
+# without "." and "..": their number, or the error
+fn filenames filep filen fileb
+	local filed 4096
+	call fileopen filep filen 0x10000 0 as filefd
+	ifslt filefd 0
+		ret filefd
+	end
+	filec=0
+	label more
+	sys filegetdents filefd filed 4096 as filer
+	jeq filer -4 more
+	ifsle filer 0
+		sys close filefd
+		ifslt filer 0
+			ret filer
+		end
+		ret filec
+	end
+	filei=0
+	while filei<filer
+		# an entry: 16 bytes, its length in 2, its kind in 1, the name
+		load2 filed+filei+16 as filel
+		filez=filed+filei+19
+		filei+=filel
+		filel=0
+		label len
+		loadb filez+filel as filek
+		if filek
+			filel+=1
+			jmp len
+		end
+		load2 filez as filek
+		if ((filel==1)&(filek==46))|((filel==2)&(filek==0x2e2e))
+		else
+			call byadd fileb filez filel+1 as filek
+			ifz filek
+				sys close filefd
+				ret -12
+			end
+			filec+=1
+		end
+	end
+	jmp more
+end

@@ -1,0 +1,2 @@
+use "lib/std/task.aiw"
+join 1 2 as x

@@ -1,0 +1,5 @@
+# names tests/infix/part.aiw and declares the var it writes
+var total
+use "tests/infix/part.aiw"
+call bump 6
+sys exit total

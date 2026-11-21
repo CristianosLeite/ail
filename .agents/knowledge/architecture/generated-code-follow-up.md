@@ -1,18 +1,18 @@
 ---
 title: Generated code after the algorithm measurements
 last-verified: 2026-11-21
-sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/BACKLOG.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
+sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/BACKLOG.md "Performance follow-up", docs/performance.md, compiler/expr.aiw, compiler/emit.aiw, tools/par.aiw]
 status: current
 ---
 # Generated code after the algorithm measurements
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** Three changes to the compiler brought the kernels of the six algorithm programs
 from 1.753 to 1.257 times the time of C (geometric mean of 48 kernel times): a scaled index
@@ -27,11 +27,11 @@ several places.
   1.257 (two jumps). By program at the end: `bsearch` 0.97, `mergesort` 1.06, `heapsort` 1.14,
   `quicksort` 1.21, `graph` 1.34, `hashtab` 1.61. The five CPU-bound programs stay at 1.04:
   they are top-level code, which none of the three touches.
-- **Scaled index** (`xaddr`, `xms`, `emodm` in `compiler/expr.aw`): a number added or
+- **Scaled index** (`xaddr`, `xms`, `emodm` in `compiler/expr.aiw`): a number added or
   subtracted last and then an index added last are both taken into the operand; the index is a
   variable with a register, alone or times 2, 4, 8 or shifted left by 1 to 3. `i*3`, `i*16`
   and a variable that lives in memory are computed as before.
-- **Registers by weight** (`vment` in `compiler/names.aw`, `alloc` in `compiler/emit.aw`,
+- **Registers by weight** (`vment` in `compiler/names.aiw`, `alloc` in `compiler/emit.aiw`,
   buffers `vms`, `vwt`, `vdone`): pass 1 notes every mention; a mention weighs 8 to the
   number of loops around it, at most 8 loops; variables are placed heaviest first, each in
   the first register or slot where no placed variable overlaps its range. Above fifty
@@ -46,7 +46,7 @@ several places.
   quarter at 14 and 20 threads; 3 microseconds a task loses most of the gain at 20 threads;
   work bound by memory gains 2.3 to 2.5 times at 4 threads and 3 at 20. The pool was left.
 
-- **Calls in place** (`inlchk`, `inlopen`, `inlclose` in `compiler/emit.aw`; `finl`, `vlo`,
+- **Calls in place** (`inlchk`, `inlopen`, `inlclose` in `compiler/emit.aiw`; `finl`, `vlo`,
   `vhi`, `vinl`, `valias`, `ilpos`): a `call` in a function, of a function before it with at
   most `inlsz` (160) bytes of code, at most six parameters, no `local`, `tail` or task, no
   call but `callp` and no global name but a `const`, is its body read again from the source.
@@ -85,7 +85,7 @@ several places.
   2026-11-21: bounded parts, then measure); the item is closed at that.
 
 - Since 2026-11-21 the first line of a loop starts at a multiple of 64 in the file (`pad`,
-  `lalign`; `nops` in `compiler/tables.aw`): behind the head of a `while`, and in pass 2
+  `lalign`; `nops` in `compiler/tables.aiw`): behind the head of a `while`, and in pass 2
   before a label a jump of pass 1 went back to (`lback`). Over eight placements the most is
   0.3 to 2.6% above the least where it was 3.7 to 37.9% (`bsearch` 0.802 to 1.106 became
   0.881 to 0.888, `heapsort` median 1.129 became 1.044). 16 and 32 were not enough for
@@ -112,7 +112,7 @@ several places.
   `ilpop`). The rules that keep every reading of a body deciding alike or more carefully:
   in a body only functions before the body's own (`ilfn`); `finl` holds `vhi`; one `calls`
   entry more per call in place (`ilcnt`). No benchmark program changed a byte; the tools
-  did: `tokens` 18.8 to 18.2 ms, `infix` on `compiler/expr.aw` 5.6 to 5.4, `randvars dump`
+  did: `tokens` 18.8 to 18.2 ms, `infix` on `compiler/expr.aiw` 5.6 to 5.4, `randvars dump`
   of 300 programs 27.0 to 24.9, and `perf` 50086 bytes for 37862. The compiler compiles
   itself in the same time and is 66343 bytes for 63207.
 - Calls in place that are left out, by decision (user, 2026-11-21: bounded parts): calls
@@ -133,7 +133,7 @@ several places.
   parameters, which a loop reads once a round, while what it reads and writes most is defined
   inside it. This one change was worth more than the other two together.
 - **No mention may be dropped:** a statement and the expression that says the same must give
-  the same bytes (`tools/randvars.aw` compares them). A first version dropped mentions that
+  the same bytes (`tools/randvars.aiw` compares them). A first version dropped mentions that
   were out of source order, which made the two spellings weigh differently.
 - **Only `&` of two comparisons, only in `while`:** `&` is bitwise, so two jumps are the same
   as the value only when both sides are 1 or 0; a comparison neither traps nor assigns, so

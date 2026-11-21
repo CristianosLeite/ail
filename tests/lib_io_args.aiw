@@ -1,0 +1,11 @@
+use "lib/std/io.aiw"
+call argc as n
+call argv 0 as p l
+call argv 1 as q m
+gt l 0 as l
+ne p 0 as p
+add n l as n
+add n p as n
+add n q as n
+add n m as n
+sys exit n

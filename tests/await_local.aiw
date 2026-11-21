@@ -1,0 +1,18 @@
+# a local of an async function is in the record of the task: its address
+# and its bytes are the same after a wait, and each task has its own
+use "lib/async/task.aiw"
+async fn f v
+	local b 32
+	p=b
+	store b+24 v
+	await asyncyield
+	load b+24 as x
+	at b 24 8 as q
+	load q as y
+	ret (p==b)+x+y
+end
+call f 10 as a
+call f 20 as c
+await a as x
+await c as y
+sys exit_group x+y

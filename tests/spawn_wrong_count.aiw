@@ -1,0 +1,4 @@
+use "lib/std/task.aiw"
+fn w a
+end
+spawn w 1 2 as h

@@ -1,0 +1,96 @@
+# a result of a product whose elements are not all at their own address
+# is refused, on one thread and in tasks, which would write it at once:
+# strides of 8 and 8 put the element 0, 1 where 1, 0 is, as do -8 and 8,
+# and with 24 and 16 two steps down are three across. Strides of 12 and
+# 8, of 16 and 4, and of 4 for two rows of one element put elements at
+# addresses of their own that share some of their bytes, and are
+# refused too. A result taken the other way round, 8 and 16, has every
+# element apart and is computed
+use "lib/std/io.aiw"
+use "lib/std/task.aiw"
+use "lib/nd/array.aiw"
+use "lib/nd/elem.aiw"
+use "lib/nd/reduce.aiw"
+use "lib/nd/par.aiw"
+use "tests/lib/ndcheck.aiw"
+buf a 176
+buf b 176
+buf c 176
+buf d 176
+buf f 176
+buf o 176
+buf q 176
+fn fill x s
+	call ndsize x as n
+	load x as p
+	i=0
+	while i<n
+		itof i*3+s as u
+		store p+i*8 u
+		i+=1
+	end
+end
+# the lengths n and l and the strides s and r for o, from its element k
+fn shape n l s r k
+	load o+24 as p
+	store o p+k*8
+	store o+48 n
+	store o+56 l
+	store o+112 s
+	store o+120 r
+end
+# both products into o: 0 if both are refused and nothing is written
+fn both x y
+	call ndmatmul o x y as u
+	call ndmatmulp o x y 2 as v
+	load o+24 as p
+	w=0
+	i=0
+	while i<16
+		load p+i*8 as e
+		w+=e!=0
+		i+=1
+	end
+	call putn u+v+w
+end
+call ndmat a 2 2 as r
+call ndmat b 2 2 as r
+call ndmat c 3 2 as r
+call ndmat d 2 4 as r
+call ndmat f 2 1 as r
+call ndmat o 4 4 as r
+call ndmat q 2 2 as r
+call fill a 1
+call fill b 5
+call fill c 2
+call fill d 7
+call fill f 4
+call workers 2
+call shape 2 2 8 8 0
+call both a b
+call shape 2 2 -8 8 1
+call both a b
+call shape 3 4 24 16 0
+call both c d
+call print " "
+call shape 2 2 12 8 0
+call both a b
+call shape 2 2 16 4 0
+call both a b
+call shape 2 1 4 8 0
+call both a f
+call print " "
+# the other way round: the product, element for element
+call ndmatmul q a b as r
+call shape 2 2 8 16 0
+call ndmatmul o a b as u
+call differ o q 0 as e
+call putn u
+call putn e
+call ndfill o 0
+call ndmatmulp o a b 2 as u
+call differ o q 0 as e
+call putn u
+call putn e
+call print "\n"
+sys exit_group 0

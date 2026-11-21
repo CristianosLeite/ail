@@ -1,1 +1,1 @@
-ailc: 1: cannot read file tests/lib/no_such_file.aw
+ailc: 1: cannot read file tests/lib/no_such_file.aiw

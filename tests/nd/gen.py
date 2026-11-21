@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write tests/lib/ndfix.aw, the reference results for lib/nd.
+"""Write tests/lib/ndfix.aiw, the reference results for lib/nd.
 
 The inputs and what NumPy computes of them are written as data lines,
 8 bytes a number, least significant byte first, 8 numbers a line. The
@@ -18,7 +18,7 @@ import sys
 import numpy as np
 
 PINNED = "2.3.5"
-OUT = "tests/lib/ndfix.aw"
+OUT = "tests/lib/ndfix.aiw"
 
 
 def rows(name, array):
@@ -136,7 +136,7 @@ def main():
         put("fximean", ia[:, 1].mean())
 
     out = [
-        "# tests/lib/ndfix.aw -- inputs and the results NumPy " + PINNED,
+        "# tests/lib/ndfix.aiw -- inputs and the results NumPy " + PINNED,
         "# computed of them, for the tests lib_nd_ref_*. Written by",
         "# tests/nd/gen.py, which says what each name is; not edited by hand.",
     ]

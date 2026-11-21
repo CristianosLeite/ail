@@ -1,6 +1,0 @@
-# functions and data may be used before the use that brings them
-call twice 5 as r
-loadb word as c
-add r c as r
-sys 60 r
-use "tests/lib/twice.aw"

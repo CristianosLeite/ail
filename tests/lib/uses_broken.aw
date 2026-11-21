@@ -1,2 +1,0 @@
-const fine 1
-use "tests/lib/broken.aw"

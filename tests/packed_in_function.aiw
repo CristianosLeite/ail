@@ -1,0 +1,61 @@
+# in a function with more variables than registers, the addresses given
+# as expressions: an array of 7 doubles two at a time and the last one
+# alone gives what one at a time gives
+use "lib/std/io.aiw"
+buf a 56
+buf b 56
+buf c 56
+buf d 56
+fn both o p q n v1 v2 v3 v4 v5 v6
+	local k 16
+	store k v1+v2+v3
+	store k+8 v4+v5+v6
+	i=0
+	while i+1<n
+		pmul o+i*8 p+i*8 q+i*8
+		padd o+i*8 o+i*8 p+i*8
+		pmadd o+i*8 q+i*8 q+i*8
+		i+=2
+	end
+	if i<n
+		load p+i*8 as x
+		load q+i*8 as y
+		fmul x y as z
+		fadd z x as z
+		fmul y y as y
+		fadd z y as z
+		store o+i*8 z
+	end
+	load k as x
+	load k+8 as y
+	ret v1+v2+v3+v4+v5+v6+x+y
+end
+i=0
+while i<7
+	itof i*3+1 as x
+	itof 20-i*7 as y
+	store a+i*8 x
+	store b+i*8 y
+	fmul x y as z
+	fadd z x as z
+	fmul y y as y
+	fadd z y as z
+	store d+i*8 z
+	i+=1
+end
+call both c a b 7 1 2 3 4 5 6 as s
+r=0
+i=0
+while i<7
+	load c+i*8 as x
+	load d+i*8 as y
+	r+=x==y
+	i+=1
+end
+load c+48 as x
+ftoi x as x
+call putn 0-x
+call print " "
+call putn s
+call print "\n"
+sys exit r

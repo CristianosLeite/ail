@@ -1,5 +1,5 @@
 #!/bin/sh
-# Check the form of compiler/tables.aw, the tables of the compiler. Their
+# Check the form of compiler/tables.aiw, the tables of the compiler. Their
 # bytes are checked by tests/insn.sh against an assembler's; this script
 # checks what a slip of the hand breaks without changing an instruction:
 # a length that is not that of its name or code, a statement or syscall
@@ -89,7 +89,7 @@ END {
     if (nsysrows != nsys) bad("sysnames has " nsysrows + 0 " names, not " nsys)
     if (nrows < 80) bad("optab has only " nrows " rows")
     exit nbad != 0
-}' compiler/tables.aw)
+}' compiler/tables.aiw)
 if [ $? -eq 0 ] && [ -z "$out" ]
 then echo "ok   tables_form"
 else echo "FAIL tables_form"; [ -n "$out" ] && echo "$out" | sed 's/^/     /'; exit 1

@@ -2,7 +2,7 @@
 # usage: tests/self.sh [name...]     (no names = every test and example)
 #
 # The compiler checked against itself. build/ailc1 and build/ailc are the
-# same source, compiler/ailc.aw, compiled by two compilers: the seed, and the
+# same source, compiler/ailc.aiw, compiled by two compilers: the seed, and the
 # compiler that the seed built. They are one program in two translations,
 # so for the source of each test, and with no names also for each example,
 # they must give the same stdout byte for byte, the same stderr and the
@@ -31,15 +31,15 @@ check() {
     fixed_point) cmp -s build/ailc build/ailc2; return;;
     examples/*) same $1; return;;
     esac
-    if [ -f tests/$1.aw.sh ]
-    then sh tests/$1.aw.sh > $tmp/src || return 1
-    else cp tests/$1.aw $tmp/src || return 1
+    if [ -f tests/$1.aiw.sh ]
+    then sh tests/$1.aiw.sh > $tmp/src || return 1
+    else cp tests/$1.aiw $tmp/src || return 1
     fi
     same $tmp/src
 }
 
-[ $# -eq 0 ] && set -- $(ls tests | sed -n 's/\.aw\(\.sh\)\{0,1\}$//p' | sort -u) \
-    examples/*.aw fixed_point
+[ $# -eq 0 ] && set -- $(ls tests | sed -n 's/\.aiw\(\.sh\)\{0,1\}$//p' | sort -u) \
+    examples/*.aiw fixed_point
 fail=0
 for t; do
     if check $t

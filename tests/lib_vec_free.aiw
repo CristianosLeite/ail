@@ -1,0 +1,24 @@
+# a freed vector is all zero and is a vector again: freed twice, and
+# filled after it
+use "lib/std/io.aiw"
+use "lib/std/vec.aiw"
+buf v 24
+call vecfree v
+call vecpush v 1
+call vecpush v 2
+call vecfree v
+load v as p
+load v+8 as n
+load v+16 as c
+call vecpop v as x a
+call vecfree v
+call vecpush v 3 as b
+call vecpush v 4 as d
+call vecpop v as x e
+call putn x
+call vecpop v as x f
+call putn x
+call vecpop v as x g
+call print "\n"
+call vecfree v
+sys exit a+g+p+n+c+b+d+e+f

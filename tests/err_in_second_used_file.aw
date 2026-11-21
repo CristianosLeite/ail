@@ -1,4 +1,0 @@
-# two used files: a fault found at the end of the source is placed in the
-# file that holds it, here the second
-use "tests/lib/twice.aw"
-use "tests/lib/bad_call.aw"

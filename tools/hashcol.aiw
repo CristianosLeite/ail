@@ -1,0 +1,59 @@
+# tools/hashcol.aiw -- find names that collide in the compiler's hash of names.
+#
+# Prints the pair used by the test hash_collision_prefix: a global name and
+# a longer one that starts with it, in one bucket, so that a lookup which
+# did not compare the lengths would take the short name for the long one.
+# Run it again and update the test if the hash function ever changes
+# (hhash in compiler/names.aiw, which bucket below repeats).
+#
+# Two keys with the same name and a different kind or scope never share a
+# bucket: the kind and scope are mixed in by exclusive or, the final fold is
+# linear over exclusive or, and so the buckets differ by a constant that is
+# not zero for any pair of kinds or of the scope numbers in use.
+#
+# No arguments. One line on stdout, the two names; status 0.
+use "lib/std/io.aiw"
+
+# the name tried: q, then the letters after it
+buf name 64
+
+# the bucket of the n bytes at p as a name of kind k in the scope sc
+fn bucket p n k sc
+	h=2166136261
+	while n
+		loadb p as c
+		h=(h^c)*16777619&0xffffffff
+		p+=1
+		n-=1
+	end
+	h^=sc*0x9e3779b1+k&0xffffffff
+	ret (h^h>>15)&1048575
+end
+
+# a global name has the kind 1 and the scope 0
+storeb name 113
+call bucket name 1 1 0 as b
+# n letters after the q, every string of a to z in the order of the
+# alphabet, the shorter ones first
+n=1
+storeb name+1 97
+label try
+call bucket name n+1 1 0 as c
+jeq c b found
+i=n
+label carry
+loadb name+i as c
+if c<122
+	storeb name+i c+1
+	jmp try
+end
+storeb name+i 97
+i-=1
+jnz i carry
+n+=1
+storeb name+n 97
+jmp try
+label found
+call print "q "
+call print name n+1
+call print "\n"

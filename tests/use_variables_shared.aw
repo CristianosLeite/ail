@@ -1,5 +1,0 @@
-# the unit is part of the top level: it sees and counts its variables
-set 3 as a
-use "tests/lib/hello.aw"
-add a count as a
-sys 60 a

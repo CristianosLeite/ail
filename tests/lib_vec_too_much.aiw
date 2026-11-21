@@ -1,0 +1,22 @@
+# room whose bytes would not fit in 64 bits is refused, as is room the
+# kernel has no memory for, and the vector stays as it was
+use "lib/std/io.aiw"
+use "lib/std/vec.aiw"
+buf v 24
+call vecpush v 42 as a
+load v as p
+load v+16 as c
+call vecreserve v 0x2000000000000000 as r
+call vecreserve v 18446744073709551615 as s
+call vecreserve v 0x0fffffffffffe000 as t
+load v as q
+load v+8 as n
+load v+16 as d
+call vecpush v 43 as u
+call vecget v 0 as x f
+call vecget v 1 as y g
+call putn x
+call print " "
+call putn y
+call print "\n"
+sys exit a+u+r+s+t+(p==q)+(c==d)+(n==1)+f+g

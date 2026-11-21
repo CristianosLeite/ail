@@ -1,12 +1,12 @@
 # Roadmap
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 The goal of the proof of concept is a language that is cheap in tokens for an AI to write, compiled by a compiler written in that same language.
 
@@ -20,7 +20,7 @@ The goal of the proof of concept is a language that is cheap in tokens for an AI
 - Memory access: `buf` reserves writable memory in a second ELF segment; `load`, `loadb`, `store` and `storeb` read and write 64-bit values and bytes.
 - Control flow: `label`, `jmp`, `jz` and `jnz`, with forward jumps patched from a fixup list at the end of the single pass.
 - Functions: `fn` ... `end`, `call` and `ret`, with up to 64 parameters, variables and labels local to each function, recursion and forward calls.
-- Stage1: the compiler written in AIL (`compiler/ailc.aw`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
+- Stage1: the compiler written in AIL (`compiler/ailc.aiw`) with the same behaviour as stage0. Stage0 built it, it builds itself, and the two outputs are byte-identical.
 - One compiler (2026-11-20): the build starts from a released copy of the compiler, a seed pinned by checksum in `seed/MANIFEST`, the tables of the compiler are their own source, the tests stand without a second compiler, and stage0 is removed.
 - Hello world, and a test runner whose tests can expect output, an exit status or a compile error.
 
@@ -41,7 +41,7 @@ The language is developed in the compiler written in AIL, the only one since 202
 2. **Instruction selection**: immediate operands, variables used where they are, an assignment computed in the register of its target, the test of a loop at its end. The measurements in [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md) say where the time goes today.
 3. **The corpus, the library and the compiler rewritten** in the new forms, the compiler after a second seed that understands them.
 
-All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was indented; 941 since 2026-11-21, when `isort` became a caller of `lib/algo/`) against 1118 for C and 1191 for Rust, the CPU-bound programs take 1.04 times as long as C in the geometric mean, and the compiler is written with expressions and built from seed 2.
+All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was indented; 941 since 2026-11-21, when `isort` became a caller of `lib/algo/`, and 942 with the sources named `.aiw`, whose `use` line costs a token more) against 1118 for C and 1191 for Rust, the CPU-bound programs take 1.04 times as long as C in the geometric mean, and the compiler is written with expressions and built from seed 2.
 
 ## Supporting work
 

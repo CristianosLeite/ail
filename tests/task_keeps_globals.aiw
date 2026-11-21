@@ -1,0 +1,29 @@
+# a var of the program declared before the use keeps its value: no
+# variable of the library has a name that a program may have, since "as"
+# on the name of a var writes the cell in any function
+var a b c d e i k m n p r s t w x
+use "lib/std/task.aiw"
+fn work v
+	ret v+1
+end
+a=1
+b=1
+c=1
+d=1
+e=1
+i=1
+k=1
+m=1
+n=1
+p=1
+r=1
+s=1
+t=1
+w=1
+x=1
+call workers 1
+spawn work 1 as h
+spawn work 2 as g
+join g as y
+join h as z
+sys exit_group a+b+c+d+e+i+k+m+n+p+r+s+t+w+x+y+z

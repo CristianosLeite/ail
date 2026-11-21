@@ -1,0 +1,27 @@
+use "lib/std/io.aiw"
+use "lib/std/task.aiw"
+buf hs 8000
+fn work a n
+	s=0
+	i=0
+	while i<n
+		s+=i^a
+		i+=1
+	end
+	ret s
+end
+i=0
+while i<1000
+	spawn work i 20000 as h
+	store hs+i*8 h
+	i+=1
+end
+s=0
+i=0
+while i<1000
+	load hs+i*8 as h
+	join h as x
+	s+=x
+	i+=1
+end
+call putn s

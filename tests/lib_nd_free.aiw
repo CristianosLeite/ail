@@ -1,0 +1,35 @@
+# after ndfree the 176 bytes are zero and make a new array like any
+# other; freeing what is no array does nothing
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+buf a 176
+buf ix 8
+fn zero a
+	s=0
+	i=0
+	while i<22
+		load a+i*8 as x
+		s|=x
+		i+=1
+	end
+	ret s==0
+end
+call ndfree a
+call zero a as r
+call ndvec a 100000 as s
+store ix 99999
+call ndset a ix 5 as t
+call ndfree a
+call zero a as u
+call ndfree a
+call ndvec a 3 as v
+store ix 2
+call ndget a ix as x w
+store ix 3
+call ndget a ix as y z
+call ndfree a
+call zero a as q
+call putn x
+call putn y
+call print "\n"
+sys exit r+s+t+u+v+w+z+q

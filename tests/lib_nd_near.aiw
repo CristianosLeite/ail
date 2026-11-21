@@ -1,0 +1,31 @@
+# near of tests/lib/ndcheck.aiw, which the comparisons with NumPy rest
+# on: the same bits and numbers within 2^-40 of their sizes are near,
+# also the largest doubles; an infinity and a number are not, nor the
+# two infinities, nor two numbers whose difference is too large for a
+# double, nor numbers 2^-30 apart, nor a number and what is none
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+use "tests/lib/ndcheck.aiw"
+const one 0x3ff0000000000000
+const big 0x7fefffffffffffff
+const inf 0x7ff0000000000000
+fn n x y
+	call near x y as r
+	call near y x as s
+	call putn r
+	call putn s
+end
+call n one one
+call n one one+1
+call n big big-1
+call n 0 0x8000000000000000
+call n inf inf
+call print " "
+call n inf one
+call n inf big
+call n inf 0xfff0000000000000
+call n 0x7fe1ccf385ebc8a0 0xffe1ccf385ebc8a0
+call n big 0xffefffffffffffff
+call n one 0x3ff0000000400000
+call n 0x7ff8000000000000 one
+call print "\n"

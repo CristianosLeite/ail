@@ -1,9 +1,0 @@
-use "lib/std/io.aw"
-call putn 0
-call print "\n"
-call putn 7
-call print "\n"
-call putn 1234567890
-call print "\n"
-call putn -1
-call print "\n"

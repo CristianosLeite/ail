@@ -1,23 +1,23 @@
 ---
 title: Token cost measurement
 last-verified: 2026-11-21
-sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.aw, tools/lib/o200k.aw, docs/tokens.md, docs/performance.md]
+sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.aiw, tools/lib/o200k.aiw, docs/tokens.md, docs/performance.md]
 status: current
 ---
 # Token cost measurement
 
 > Since 2026-11-21 the benchmarks are in the repository ail-bench
-> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
-> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
-> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aiw`,
+> `tools/par.aiw`, `tools/tokens.aiw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aiw`, `tools/lib/fmt.aiw`, `tests/algo.sh`, `tests/par.sh`,
 > `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
-> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
-> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+> algorithm, array and collection programs are `bench/<name>.aiw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aiw` there.
 
 **Summary.** `tools/tokens.sh` counts tokens of the encoding `o200k_base` (since 2026-11-20 with `build/tools/tokens`, the tokenizer in AIL, checked against `tiktoken` fixtures; before that with `tiktoken` itself) for the ten examples
 and their C, Rust and assembly equivalents in `bench/`. Since the examples use expressions AIL is
 11% cheaper than C and 17% cheaper than Rust, indented (13% and 19% without indentation; it was 17% and 10% dearer written as statements). Lines and numbers are what cost; keywords do not. Six algorithm programs added on 2026-11-20 are counted apart from that corpus: AIL 1524, C 1613, Rust 1783 (6% and 15% cheaper; `hashtab` went from 230 to 238 when its probe began to count words), with AIL dearer than C in `mergesort` and `graph`, where a `load` and a `store` each take a line that C writes as `*k++ = *j++`.
-`tools/perf.aw` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
+`tools/perf.aiw` (until 2026-11-20 the Python script `tools/perf.py`) times the same programs.
 
 ## Facts
 - With the examples rewritten in expressions and `while` (2026-11-20, later the same day): AIL
@@ -32,8 +32,8 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   `echo`.
 - `compute` (2026-11-20) is the arithmetic benchmark: a hundred million steps of a 64-bit
   recurrence on a value read from stdin. It and its timing script were first written in a
-  temporary directory outside the repository and nearly lost; they are now `examples/compute.aw`,
-  `bench/compute.*` and `tools/perf.py` (now `tools/perf.aw`).
+  temporary directory outside the repository and nearly lost; they are now `examples/compute.aiw`,
+  `bench/compute.*` and `tools/perf.py` (now `tools/perf.aiw`).
 - Timing on an i7-12700H: an AIL program starts in about 75 microseconds, C in 230, Rust in 320.
   `compute` takes 134.5 ms in AIL against 132.1 in C at `-O3`, although its loop is 22
   instructions against 7: the steps are one dependency chain, so the extra moves cost little.
@@ -44,7 +44,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   before concluding anything about generated code.
 - The CPU-bound examples are written at top level with at most six variables, because the
   seventh top-level variable lives in a memory cell.
-- `compiler/ailc.aw` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
+- `compiler/ailc.aiw` is 6181 tokens in 1107 code lines; 1096 tokens are line ends, 422 are `as`.
 - A number after a space is two tokens or more, a name one. `4294967295` is four tokens,
   `0xffffffff` two. `jz` and `jnz` are two tokens each; `load4` and `loadb` are two, `load` one.
 - A comparison plus its conditional jump is twelve tokens; one compare-and-branch line would be
@@ -77,7 +77,7 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   Python and network access once, the behaviour check `gcc` and `rustc`.
 
 ## How to apply
-- Before choosing between two spellings, tokenize both (`build/tools/tokens --ids file`, or `-c '#' file` for a count; since 2026-11-20 the tokenizer is `tools/lib/o200k.aw`, which gives the numbers of `tiktoken`; `.venv` with `tiktoken` is no longer needed by any tool).
+- Before choosing between two spellings, tokenize both (`build/tools/tokens --ids file`, or `-c '#' file` for a count; since 2026-11-20 the tokenizer is `tools/lib/o200k.aiw`, which gives the numbers of `tiktoken`; `.venv` with `tiktoken` is no longer needed by any tool).
 - Prefer a statement that removes a line over one that shortens a word.
 - Replace numbers by names where the language can: constants, named data, global scalars.
 - After changing an example, change its three equivalents in `bench/`, run `tools/bench.sh` and

@@ -7,7 +7,7 @@ status: current
 
 > **2026-11-20:** the decision recorded below against infix expressions was reversed the same day: see [Expression syntax](expression-syntax.md). The statement forms stay beside the expressions.
 >
-> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aw` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
+> **2026-11-20:** stage0 (`stage0/ailc.s`) was removed; the compiler is `compiler/ailc.aiw` alone, built from a seed ([Seed bootstrap](seed-bootstrap.md)). This page is kept for the reasons it records; routine names in it are those of stage0, and `docs/compiler.md` gives today's.
 # Stage0 design decisions
 
 **Summary.** Why the bootstrap compiler (`stage0/ailc.s`) and the first syntax look the way they do,

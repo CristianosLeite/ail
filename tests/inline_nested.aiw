@@ -1,0 +1,69 @@
+# a call in a body that is compiled in place is compiled in place too,
+# up to four bodies in one another; the fifth is a call. A parameter
+# that is handed on untouched is the variable of the outermost caller
+# all the way down, a ret in an inner body ends that body only, and the
+# names after "as" of each call get their values
+use "lib/std/io.aiw"
+var seen
+fn one a
+	seen+=1
+	ret a+1
+end
+fn two a
+	call one a as b
+	if b>100
+		ret 0
+	end
+	call one b as c
+	ret c
+end
+fn three a b
+	call two a as c
+	call two b as d
+	ret c+d a
+end
+fn four a
+	call three a a+10 as b c
+	ret b+c
+end
+fn five a
+	call four a as b
+	ret b
+end
+fn six a
+	call five a as b
+	call five b as c
+	ret c
+end
+# a loop in an inner body, and a variable of the caller that every body
+# reads through its own parameter
+fn count n
+	c=0
+	while n
+		c+=n
+		n-=1
+	end
+	ret c
+end
+fn sum n
+	call count n as a
+	call count n+1 as b
+	ret a+b
+end
+fn top n
+	x=n
+	call sum x as a
+	call sum a as b
+	call six n as c
+	ret a+b+c x
+end
+call top 3 as r x
+call putn r
+call print " "
+call putn x
+call print " "
+call putn seen
+call print "\n"
+call two 200 as r
+call putn r
+call print "\n"

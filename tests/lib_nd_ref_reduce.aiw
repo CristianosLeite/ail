@@ -1,0 +1,86 @@
+# sums and means against NumPy: of 20 numbers and along the axes of two
+# and three axes within 2^-40 of the sizes, and of 10000 numbers from
+# 1e-8 to 1e8, where adding one after the other and adding in pairs
+# differ in the last digits
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+use "lib/nd/elem.aiw"
+use "lib/nd/reduce.aiw"
+use "tests/lib/ndcheck.aiw"
+use "tests/lib/ndfix.aiw"
+buf a 176
+buf t 176
+buf v 176
+buf o 176
+buf w 176
+buf sh 16
+# print how many of the n numbers of o are not near those at p
+fn alike o p n
+	local w 176
+	call fix w p 1 n 0 0
+	call differ o w 1 as n
+	call putn n
+	call print " "
+end
+call fix a fxea 2 4 5 0 as r
+call ndsum a as x s
+load fxrsum as y
+call near x y as n
+call putn n
+call ndsumpw a as x s
+call near x y as n
+call putn n
+call ndmean a as x s
+load fxrmean as y
+call near x y as n
+call putn n
+call print " "
+call ndvec o 5 as r
+call ndsumax o a 0 as c
+call alike o fxrs0 5
+call ndmeanax o a 0 as d
+call alike o fxrm0 5
+call ndfree o
+call ndvec o 4 as r
+call ndsumax o a 1 as e
+call alike o fxrs1 4
+call ndmeanax o a 1 as f
+call alike o fxrm1 4
+# three axes: sums along the middle one, means along the last
+call ndfree o
+call fix t fxet 3 2 3 4 as r
+call ndmat o 2 4 as r
+call ndsumax o t 1 as g
+call fix w fxrts1 2 2 4 0 as r
+call differ o w 1 as n
+call putn n
+call ndfree o
+call ndmat o 2 3 as r
+call ndmeanax o t 2 as h
+call fix w fxrtm2 2 2 3 0 as r
+call differ o w 1 as n
+call putn n
+call print " "
+# a[::-1, 1:5:2] along its rows
+call ndfree o
+call ndvec o 2 as r
+call ndslice v a 0 0 4 -1 as k
+call ndslice v v 1 1 5 2 as k
+call ndsumax o v 0 as l
+call alike o fxrvs 2
+# 10000 numbers of every size
+call fix a fxrbig 1 10000 0 0 as r
+load fxrbigsum as y
+call ndsum a as x s
+call near x y as n
+call putn n
+call ndsumpw a as z s
+call near z y as n
+call putn n
+call ndmean a as x s
+load fxrbigmean as y
+call near x y as n
+call putn n
+call print "\n"
+call ndfree o
+sys exit r+s+c+d+e+f+g+h+k+l

@@ -1,0 +1,72 @@
+# the arithmetic element by element gives the bits NumPy gives: on whole
+# arrays, with a row, a column and a number broadcast, on three axes
+# and on views with negative steps
+use "lib/std/io.aiw"
+use "lib/nd/array.aiw"
+use "lib/nd/elem.aiw"
+use "tests/lib/ndcheck.aiw"
+use "tests/lib/ndfix.aiw"
+buf a 176
+buf b 176
+buf o 176
+buf w 176
+buf x 176
+buf y 176
+buf k 176
+# count how the array o differs from the 4 rows of 5 numbers at p
+fn same o p
+	local w 176
+	call fix w p 2 4 5 0
+	call differ o w 0 as n
+	call putn n
+	call print " "
+end
+call fix a fxea 2 4 5 0 as r
+call fix b fxeb 2 4 5 0 as r
+call ndmat o 4 5 as r
+call ndadd o a b as s
+call same o fxeadd
+call ndsub o a b as t
+call same o fxesub
+call ndmul o a b as u
+call same o fxemul
+call nddiv o a b as v
+call same o fxediv
+call fix x fxerow 1 5 0 0 as r
+call ndadd o a x as c
+call same o fxerowadd
+call fix x fxecol 2 4 1 0 as r
+call ndmul o a x as d
+call same o fxecolmul
+itof 5 as z
+itof 2 as q
+fdiv z q as z
+call ndscalar k z
+call ndsub o k a as e
+call same o fxescal
+# 2 by 3 by 4 divided by 3 by 1
+call ndfree o
+call fix x fxet 3 2 3 4 as r
+call fix y fxeu 2 3 1 0 as r
+call fix w fxetu 3 2 3 4 as r
+store k 2
+store k+8 3
+store k+16 4
+call ndnew o 3 k as r
+call nddiv o x y as f
+call differ o w 0 as n
+call putn n
+call print " "
+# a[::-1, 1:5:2] * b[:, 3:1:-1]
+call ndfree o
+call ndmat o 4 2 as r
+call ndslice x a 0 0 4 -1 as g
+call ndslice x x 1 1 5 2 as g
+call ndslice y b 1 2 4 -1 as h
+call ndmul o x y as l
+call fix w fxeview 2 4 2 0 as r
+call differ o w 0 as n
+call putn n
+call print "\n"
+call ndfree o
+sys exit r+s+t+u+v+c+d+e+f+g+h+l

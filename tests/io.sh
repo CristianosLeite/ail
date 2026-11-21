@@ -10,7 +10,7 @@ mkdir -p build/tests
 tmp=$(mktemp -d build/tests/io.XXXXXX) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
-src=tests/hello.aw
+src=tests/hello.aiw
 
 # expect <name> <message>: the status is in $rc, stderr in $tmp/err
 expect() {
@@ -46,7 +46,7 @@ expect io_closed_stdin "ailc: read error"
 # its stdout sets both properties; they belong to the open pipe, so they
 # outlast it. The compiler must write the first 4096 bytes of an executable
 # larger than that, then fail on the rest.
-src=compiler/ailc.aw
+src=compiler/ailc.aiw
 mkfifo $tmp/short
 exec 4<> $tmp/short
 $ailc > $tmp/setup << 'EOF2'
