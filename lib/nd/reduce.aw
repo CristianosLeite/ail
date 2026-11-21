@@ -439,6 +439,26 @@ fn ndmmok ndo nda ndb
 	if (ndn>1)&(ndso==0)|((ndl>1)&(ndsp==0))
 		ret 0
 	end
+	# and where some steps along one axis are some along the other: the
+	# fewest are each stride divided by what divides both
+	if (ndn>1)&(ndl>1)
+		ifslt ndso 0
+			ndso=0-ndso
+		end
+		ifslt ndsp 0
+			ndsp=0-ndsp
+		end
+		ndu=ndso
+		ndv=ndsp
+		while ndv
+			ndg=ndu%ndv
+			ndu=ndv
+			ndv=ndg
+		end
+		if (ndsp/ndu<ndn)&(ndso/ndu<ndl)
+			ret 0
+		end
+	end
 	call ndspan ndo as ndlo ndhi
 	call ndspan nda as ndp ndq
 	if (ndp<ndhi)&(ndlo<ndq)
