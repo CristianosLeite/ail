@@ -60,10 +60,13 @@ var xsc
 # first variable that the body sees, and vhi = how many variables the open
 # function has had at once; ildep = whiles open in the body; ilret = the
 # jump of its last ret, as the distance of its rel32 from out, each
-# holding that of the one before; ilres = its results; ilany = 1 once the
-# open function has such a call; fnsrc = where the parameters of the open
-# function are in the source; the other il* are what the call goes on with
-var ilon ilpos vlo vhi ildep ilret ilres ilany fnsrc
+# holding that of the one before; ilres = its results; fnsrc = where the
+# parameters of the open function are in the source; the other il* are
+# what the call goes on with. A body may have such a call itself: ildp =
+# how many bodies are open, one in the other, at most 4; what the outer
+# ones go on with is in ilstk; ilfn = the function whose body is read;
+# ilcnt = the calls compiled in place in the open function so far
+var ilon ilpos vlo vhi ildep ilret ilres fnsrc ildp ilfn ilcnt
 # fnwr = the variables that the open function assigns after its entry;
 # ilpl = which values of the statement at hand are variables by themselves
 # (which ones, in ilarg); ilop = where its code starts
@@ -139,6 +142,7 @@ buf valias 64       # per variable: 1 + the variable of the caller that a parame
 buf ilarg 8         # per value of a call that is a variable by itself: the variable
 buf ilcaps 96       # the names after "as" of a call compiled in place
 buf ilvk 2048       # and what was known of the variables before it
+buf ilstk 6912      # the same of the bodies around the one being read, 2304 bytes each
 buf vdone 64        # per variable: 1 once alloc has looked at it, 2 if it has a place
 buf vms 67108864    # 8388608 mentions of variables in the function, a name of one
 # byte with a blank after it, each read at most twice: where, times 256, plus
@@ -1091,7 +1095,8 @@ fnlocal=0
 nloops=0
 nvm=0
 label f0
-ilany=0
+ildp=0
+ilcnt=0
 fnwr=0
 vhi=0
 loccur=0
@@ -1263,20 +1268,23 @@ label e1
 # The calls of a function are compiled in place if it is short and its
 # body declares no global name. What it adds to the tables that the
 # source limit sizes, by its calls and by the global names it uses, is
-# noted, and inlchk refuses where that would not fit.
+# noted, and inlchk refuses where that would not fit. A call in its
+# body that was compiled in place may be a call where the body is read
+# again, which is an entry of calls each: ilcnt. Its variables are those
+# it had at once with such bodies, vhi.
 # Nor if it has a local, a tail, more than six parameters, or is
 # a task, or has more variables at once than registers: such a body
 # takes registers from its caller and was slower in place than called.
 p=(nfuncs-1)*48+finl
 store p 0
-if (fnasy|fntail|fnlocal|ilany|fnslots)==0
+if (fnasy|fntail|fnlocal|fnslots)==0
 	if (nruns==snu)&(nbufs==snb)
 		load (nfuncs-1)*40+funs+16 as q
 		if (op-q-fnpad<=inlsz)&(fnnpar<=6)
 			store p fnsrc
-			store p+8 nv
+			store p+8 vhi
 			store p+16 fnwr
-			store p+24 ncalls-snc
+			store p+24 ncalls-snc+ilcnt
 			store p+32 nrefs-snr
 			store p+40 nchks-snk
 		end

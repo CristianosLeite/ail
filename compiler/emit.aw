@@ -911,7 +911,7 @@ end
 # at least as many results as there are names, while the variables of both
 # are 64 at most. A body is not compiled inside another.
 fn inlchk
-	if (infn==0)|(fnasy|ilon)
+	if (infn==0)|fnasy|(ildp>=4)
 		ret -1
 	end
 	loadb cur+1 as f
@@ -924,6 +924,14 @@ fn inlchk
 	call lfn as i
 	if i==-1
 		ret -1
+	end
+	# in a body only a function that stands before the one of the body:
+	# it was there, fit or not, when that one was compiled, so the body
+	# is read here as it was read there
+	if ildp
+		if i>=ilfn
+			ret -1
+		end
 	end
 	p=i*48+finl
 	load p as b
@@ -959,14 +967,82 @@ fn inlchk
 	end
 	ret i
 end
+# What the call of the body being read goes on with, into the place of
+# ilstk for its depth, when a call in that body is compiled in place too,
+# and back when the inner body has ended
+fn ilpush
+	p=(ildp-1)*2304+ilstk
+	store p ilcur
+	store p+8 ilip
+	store p+16 ilie
+	store p+24 ilcap
+	store p+32 ilasg
+	store p+40 ildead
+	store p+48 iljm
+	store p+56 ilbb
+	store p+64 illab
+	store p+72 ilfix
+	store p+80 ilsc
+	store p+88 ilnh
+	store p+96 ilbase
+	store p+104 ilret
+	store p+112 ilres
+	store p+120 ilfn
+	store p+128 vlo
+	call cp4 ilcaps p+136
+	call cp4 ilcaps+32 p+168
+	call cp4 ilcaps+64 p+200
+	k=0
+	while k<64
+		call cp4 k*32+ilvk k*32+p+232
+		k+=1
+	end
+end
+fn ilpop
+	p=(ildp-1)*2304+ilstk
+	load p as ilcur
+	load p+8 as ilip
+	load p+16 as ilie
+	load p+24 as ilcap
+	load p+32 as ilasg
+	load p+40 as ildead
+	load p+48 as iljm
+	load p+56 as ilbb
+	load p+64 as illab
+	load p+72 as ilfix
+	load p+80 as ilsc
+	load p+88 as ilnh
+	load p+96 as ilbase
+	load p+104 as ilret
+	load p+112 as ilres
+	load p+120 as ilfn
+	load p+128 as vlo
+	call cp4 p+136 ilcaps
+	call cp4 p+168 ilcaps+32
+	call cp4 p+200 ilcaps+64
+	k=0
+	while k<64
+		call cp4 k*32+p+232 k*32+ilvk
+		k+=1
+	end
+end
 # Compile the body of function i in place of the call at hand, whose
 # values are in the registers of a call: keep what the statement goes on
 # with, open a scope for the labels and a range of variables of its own,
 # define the parameters from those registers and read on at the first
 # line of the body. e is where its mentions count as made.
 fn inlopen i e
+	if ildp
+		call ilpush
+		# mentions count at the call of the outermost body
+		e=ilpos
+	else
+		ildep=0
+	end
+	ildp+=1
+	ilcnt+=1
+	ilfn=i
 	ilon=1
-	ilany=1
 	ilcur=cur
 	ilip=ip
 	ilie=ie
@@ -992,7 +1068,6 @@ fn inlopen i e
 	ilbase=nv
 	vlo=nv
 	ilret=0
-	ildep=0
 	xflg=16
 	slotpos=0
 	k=0
@@ -1106,7 +1181,12 @@ fn inlclose
 	cur=ilcur
 	store opd 0
 	store opd+32 0
-	ilon=0
+	ildp-=1
+	if ildp
+		call ilpop
+	else
+		ilon=0
+	end
 end
 # fill in the jumps of the current scope, now that its labels are known
 fn resolve

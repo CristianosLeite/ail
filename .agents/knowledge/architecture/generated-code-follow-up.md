@@ -95,6 +95,20 @@ several places.
   after), `heapsort` 2% and `ndmatmul` 1%; the other programs do not move. It is 63207
   bytes for 51175, and reads more bodies, so the gain is in the code, not in bytes.
 
+- Since 2026-11-21 bodies are compiled in bodies, four deep (`ildp`, `ilstk`, `ilpush`,
+  `ilpop`). The rules that keep every reading of a body deciding alike or more carefully:
+  in a body only functions before the body's own (`ilfn`); `finl` holds `vhi`; one `calls`
+  entry more per call in place (`ilcnt`). No benchmark program changed a byte; the tools
+  did: `tokens` 18.8 to 18.2 ms, `infix` on `compiler/expr.aw` 5.6 to 5.4, `randvars dump`
+  of 300 programs 27.0 to 24.9, and `perf` 50086 bytes for 37862. The compiler compiles
+  itself in the same time and is 66343 bytes for 63207.
+- Calls in place that are left out, by decision (user, 2026-11-21: bounded parts): calls
+  at the top level, which has one pass, no weights and no place that is used again, so a
+  body's variables would take registers from the program's or live in cells; functions
+  with more variables at once than registers (`fnslots`), which would need live ranges
+  split; functions that declare a `buf` or `data`, with a `local`, a `tail`, more than six
+  parameters, or tasks.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are
@@ -135,8 +149,6 @@ several places.
   other, since the C times move by a few percent between runs.
 
 ## Open items
-- 2026-11-20: inline small functions at their calls (item 5 of the follow-up in
-  `docs/TODO.md`).
 - 2026-11-20: `bsearch` at a thousand elements is 22 to 24% slower with registers by weight
   than with scaled indexes alone (0.92 of C); cause unknown.
 
