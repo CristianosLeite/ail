@@ -1054,6 +1054,36 @@ call putn a-b
 - **Ownership**: the caller owns the 32 bytes and ends the queue with `queuefree`; the number of values is read at 24 of them.
 - **Names**: the library owns every name that starts with `queue`; a program has no `var` of such a name.
 
+## The heap library
+
+`lib/heap.aw` gives the smallest of the 64-bit values put into it, in the unsigned order. A heap is a vector of the vector library, and a program that uses it has `use "lib/vec.aw"` before it: 24 bytes that the caller owns, all zero for an empty heap.
+
+| Function | Does |
+|---|---|
+| `heappush h x` | adds the value `x`; returns 1 |
+| `heappeek h` | returns the smallest value and 1, or 0 and 0 if there is none |
+| `heappop h` | takes the smallest value out; returns it and 1, or 0 and 0 if there is none |
+| `heapfree h` | gives the values back to the kernel; the heap is empty and may be used again |
+
+```
+use "lib/io.aw"
+use "lib/vec.aw"
+use "lib/heap.aw"
+buf h 24
+call heappush h 30
+call heappush h 12
+call heappush h 50
+call heappop h as a ok
+call heappeek h as b ok
+call putn a+b
+```
+
+- **Order**: the value at the index `i` of the vector is not larger than those at `2i+1` and `2i+2`, so the first is the smallest; a new value moves up from the end and, when the first is taken, the last moves down from the top, a number of steps that is the logarithm of the number of values. Of equal values any may come first.
+- **Growth**: `heappush` grows the vector as `vecpush` does, so an address of a value is not good after it. The functions of the vector library may read a heap (`vecget`, the number of values at 8) but a value written with `vecset` or `vecpush` breaks the order.
+- **Errors**: `heappush` returns 0 when there is no memory, and the heap is then as it was. The second result of `heappeek` and `heappop` says whether there was a value, since a value may be 0.
+- **Ownership**: the caller owns the 24 bytes and ends the heap with `heapfree`.
+- **Names**: the library owns every name that starts with `heap`; a program has no `var` of such a name.
+
 ## The async library
 
 `lib/async/task.aw` runs tasks that give the thread back when they have to wait: one thread polls them, one at a time, and a task that waits costs its record and nothing else. It is the runtime of [async functions](#async-functions), which the compiler turns into the poll functions that this section writes by hand; a program gets it with `use "lib/async/task.aw"`. It has no line that runs at its use, so a program that never makes a task runs no code of it.

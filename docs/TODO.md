@@ -325,7 +325,7 @@ separate success or found result wherever zero is a valid value.
   values with a head and count. Return failure on full and empty operations.
   Use [`lib/async/chan.aw`](../lib/async/chan.aw) as a layout reference and keep
   the queue usable in synchronous programs through its own functions.
-- [ ] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
+- [x] **Min-heap**, `lib/heap.aw`. Provide `heappush h x`, `heappeek h`,
   `heappop h` and `heapfree h`. Store values in a growable array, using the
   vector storage if it fits the callers. Sift up on insertion and down on
   removal. Use the [timer heap](../lib/async/time.aw) as a reference. Keep
