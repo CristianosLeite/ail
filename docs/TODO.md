@@ -443,7 +443,7 @@ against 0.24 ms in C. See
 The fix touches every algorithm program, so move their kernels into a
 library in the same pass and leave the examples as callers.
 
-1. [ ] **Make the clock cost the same in the three harnesses.** Compare
+1. [x] **Make the clock cost the same in the three harnesses.** Compare
    three ways: time a run around nothing in each harness and write the
    total as an extra word that `perf` subtracts and reports; call
    `__vdso_clock_gettime` from AIL, found through `AT_SYSINFO_EHDR` in the
@@ -454,6 +454,12 @@ library in the same pass and leave the examples as callers.
    what they time, and update `tests/algo.sh` and `perf` if the output
    gains a word. Accept the change when an empty kernel costs the same
    within a few nanoseconds in the three languages.
+   Done on 2026-11-21: the harness in AIL finds `__vdso_clock_gettime`
+   through `/proc/self/auxv` and calls it with `callp`. An empty kernel
+   costs 13 ns a run in AIL, 12 in C and 12 in Rust, where it was 91, 12
+   and 12; the system call in all three gave 91, 91 and 89, and the
+   subtraction would have left the system call in every run
+   ([results](performance.md#the-clock-of-the-harness-2026-11-21)).
 2. [ ] **Rerun the kernel tables the clock skewed.** The bias of a row is
    its runs times the difference per run, so it matters for the rows with
    thousands of short runs in the algorithm and array tables and not for

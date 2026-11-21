@@ -1,5 +1,7 @@
 /* What the algorithm programs of bench/ share; bench/algo/harness.aw
-   says what it does, and this is the same statement for statement. */
+   says what it does, and this is the same statement for statement. The
+   clock is clock_gettime of the C library, which calls the function of
+   the vDSO that the harness in AIL finds and calls itself. */
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

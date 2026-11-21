@@ -288,4 +288,18 @@ if [ $r -eq 0 ]
 then echo "ok   algo refuses"
 else echo "FAIL algo refuses"; fail=1
 fi
+
+# the time of every kernel is there: more than nothing, since the clock
+# counts nanoseconds and a kernel is many, and less than the ten seconds
+# a run may take, which a clock that went wrong would not give
+r=0
+for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul; do
+    words 7 100 0 3 0 | "build/$p" | od -An -v -tu8 -w8 | awk '
+        NR > 1 && ($1 == 0 || $1 >= 10000000000) { bad = 1 }
+        END { exit bad || NR < 2 }' || r=1
+done
+if [ $r -eq 0 ]
+then echo "ok   algo clock"
+else echo "FAIL algo clock"; fail=1
+fi
 exit $fail

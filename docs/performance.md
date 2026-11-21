@@ -927,3 +927,33 @@ With 2, 4 and 8 tasks every one asked for is made. The split was measured agains
 The balanced split is faster where each of its tasks is ten microseconds of work or more and there is a thread for it: 16 rows of 250 on 14 threads take 58 microseconds in 14 tasks against 71 in 8. It is slower where a task is a microsecond, the product of side 30, since there the tasks it adds are what costs, and with 64 tasks on 20 threads at a side of 100. The geometric mean of the eleven ratios is 1.00, and in the 31 cells where both make the same tasks the two differ by what the runs differ. So the split stays: a caller who wants a task for every thread asks for a number the rows go round with, and `ndruns` says what a number gives.
 
 `ndmatmulp` is left as it is: the caller gives the number of tasks, and these figures say which.
+
+## The clock of the harness, 2026-11-21
+
+The harness of the algorithm programs reads the monotonic clock before and after every kernel run. In AIL that was `sys clock_gettime`, a system call; `clock_gettime` of the C library and `Instant::now` of Rust call `__vdso_clock_gettime`, a function the kernel maps into every process that reads the clock without entering the kernel. A kernel that does nothing, run a million times, shows what a run pays for its two readings, in ns a run (the median of nine processes on one CPU, three kernels a process):
+
+| the clock | AIL | C | Rust |
+|---|---:|---:|---:|
+| as it was | 91.1 | 12.1 | 12.0 |
+| the vDSO called from AIL | 12.9 to 13.5 | 12.1 | 12.0 |
+| the system call in all three | 91.0 | 91.0 | 88.9 |
+
+Three ways to make the three equal were compared:
+
+- **Take the clock off afterwards**: time a run around nothing as often as the kernels run and let `perf` subtract it. Two empty kernels of one process differ by 0.1 ns at most, so the subtraction would be exact for a kernel that does nothing; but the entry into the kernel stays in every run of AIL, with what it does to the caches and the predictor of a kernel of a microsecond, and the output of every program, `tests/algo.sh` and `perf` gain a word.
+- **The system call in all three** is two lines in C and a declaration in Rust, and equal to within 2 ns; every language then pays 90 ns a run and times short kernels through a system call.
+- **The vDSO from AIL** leaves C and Rust as they are and the output as it is. That is what the harness now does.
+
+`algoclk` of `bench/algo/harness.aw` finds the function once, when the five words are read: the address of the vDSO is the value 33 (`AT_SYSINFO_EHDR`) of the auxiliary vector, read from `/proc/self/auxv` since a library has no `args`; the file there is ELF, whose program headers give the distance of the file from its addresses and the dynamic table, which names the symbols, their names and the hash table that has their count; the symbol `__vdso_clock_gettime` is the function. `algonow` calls it with `callp f 0 1 algots`: the values of `callp` after the address go to `rax`, `rdi` and `rsi`, and the last two are where a C function takes its first two. If anything is missing the clock is the system call, called the same way through a function of the harness.
+
+Two things had to hold for the call. The function keeps `rbx`, `rbp` and `r12` to `r15`, as the C convention has it, which are the registers of AIL variables; the others AIL assumes lost over any call. And AIL does not keep the stack at a multiple of 16 bytes at a call, which C code may rely on: the vDSO of Linux 7.0 on x86-64 has no aligned store to the stack (its `movaps` and `movdqa` are in `__vdso_getrandom`, between registers and from its own constants), and `tests/algo_clock` reads the clock from a function with a `local` of 8 bytes and from one without, so with the stack both ways.
+
+What it changes for a kernel, in ms for all runs, with the C program beside:
+
+| program, count, runs | first kernel, system call | vDSO | C | AIL/C before | after |
+|---|---:|---:|---:|---:|---:|
+| `ndelem`, 1000, 20000 | 7.12 | 5.39 | 2.77 | 2.57 | 1.95 |
+| `quicksort`, 100, 20000 | 16.77 | 14.89 | 10.97 | 1.53 | 1.36 |
+| `ndelem`, 1000000, 20 | 13.54 | 13.89 | | | |
+
+The 1.7 ms that leave the first row are the 78 ns of difference 20000 times and a little more; at a million elements and 20 runs nothing changes. The tables above this section that have rows of many short runs were measured with the system call.

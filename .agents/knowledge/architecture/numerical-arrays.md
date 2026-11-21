@@ -58,8 +58,9 @@ when first measured, 2.18 times since the loops take two doubles at once.
   views taken backwards use the packed loops: 3.7 to 4.0 times less time at a thousand
   numbers. Mixed strides still go one element at a time.
 - `ndelem` has a short way (`ndlike`) for doubles on one axis apart from the result: 19 ns
-  a call instead of 64 at 16 elements. The harness clock is a system call in AIL, 91 ns a
-  run against 12 ns in C: rows of `perf` with many short runs overstate AIL / C by that.
+  a call instead of 64 at 16 elements. The harness clock was a system call in AIL until 2026-11-21, 91 ns a
+  run against 12 ns in C: rows of `perf` with many short runs measured before overstate
+  AIL / C by that. It is now the vDSO function, 13 ns a run.
 - `ndaxpy` takes four `pmadd` a round: 19 to 22% less time for the product at sides 100 and
   300, 12% at 1000, nothing at 30.
 - Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,

@@ -1,5 +1,7 @@
 // What the algorithm programs of bench/ share; bench/algo/harness.aw
-// says what it does, and this is the same statement for statement.
+// says what it does, and this is the same statement for statement. The
+// clock is Instant::now, which calls the function of the vDSO that the
+// harness in AIL finds and calls itself.
 #![allow(dead_code)]
 use std::convert::TryInto;
 use std::io::{Read, Write};

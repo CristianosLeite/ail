@@ -17,6 +17,11 @@ min-heap and a hash map.
   five words on stdin (seed, count, shape, runs, mode), input from splitmix64, the monotonic
   clock around the kernel only; mode 0 writes a checksum and the nanoseconds of each kernel,
   1 the input, 2 the result. A short input or a count of 2^28 or more is status 1.
+- The clock in AIL is `__vdso_clock_gettime`, found by `algoclk` through `/proc/self/auxv`
+  and the ELF tables of the vDSO and called with `callp f 0 1 algots` (values after the
+  address go to `rax`, `rdi`, `rsi`); the system call is the fallback. An empty kernel
+  costs 13 ns a run, as in C and Rust (12), where the system call cost 91. AIL does not
+  align the stack at a call; the vDSO has no aligned store to it (`tests/algo_clock`).
 - `tests/algo.sh` (in `make test`, which therefore depends on `make all`) checks AIL, and C
   if there is a `gcc`, against `sort(1)` and awk at the counts 0, 1, 2, 3 and 1000. Rust is
   only compared with C, by `perf` and `tools/bench.sh`. `hashtab` is also run at 8 keys of
