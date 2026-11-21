@@ -6,6 +6,14 @@ status: current
 ---
 # Expression syntax
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** Infix expressions are written without spaces (`x=(x^x>>13)*1664525+1013904223`),
 spaces keep separating arguments, and assignment is `x=e` or `x+=e`. Chosen by counting the
 ten-program corpus in eight spellings: 975 tokens against 1313 before, 1118 for C, 1191 for Rust.

@@ -6,6 +6,14 @@ status: current
 ---
 # Source style and the formatter
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** Sources are indented with one tab for each block, set and checked by
 `build/tools/indent`; the VS Code extension in `editors/vscode/` formats through the same tool.
 Indentation costs 2% in tokens and nothing in the compiled program.

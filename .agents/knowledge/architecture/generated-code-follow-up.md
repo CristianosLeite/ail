@@ -6,6 +6,14 @@ status: current
 ---
 # Generated code after the algorithm measurements
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** Three changes to the compiler brought the kernels of the six algorithm programs
 from 1.753 to 1.257 times the time of C (geometric mean of 48 kernel times): a scaled index
 in the memory operand, registers given to the variables that loops mention most, and a

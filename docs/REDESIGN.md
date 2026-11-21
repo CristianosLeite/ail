@@ -1,5 +1,13 @@
 # AIL redesign
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 AIL should take fewer source tokens than Rust for equivalent programs, let authors express arithmetic and control flow directly, and approach optimized C on CPU-bound workloads. The compiler written in AIL, currently `stage1/ailc.aw`, will become the sole maintained compiler. A released copy of that compiler will bootstrap a clean checkout.
 
 ## Baseline

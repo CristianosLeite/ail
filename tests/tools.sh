@@ -12,8 +12,6 @@
 #   what it did; leave that result and tests/fuse/same.aw as they are; and
 #   both programs must compile and exit alike. Without its two files it
 #   must fail with a message, and so for a file it cannot read.
-# - perf needs gcc and rustc to measure, so only its refusals are checked:
-#   a program it does not know and a CPU that is no number.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p build/tests
@@ -113,12 +111,5 @@ build/tools/fuse "$tmp/bad.aw" "$tmp/o.aw" > /dev/null 2> "$tmp/said"
 [ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "fuse: a label or a jump without a name" ] || r=1
 [ ! -e "$tmp/o.aw" ] || r=1
 say tools_fuse_errors $r
-
-r=0
-build/tools/perf no-such-program > /dev/null 2> "$tmp/said"
-[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "perf: unknown program no-such-program" ] || r=1
-build/tools/perf --cpu two > /dev/null 2> "$tmp/said"
-[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "perf: usage: perf [--cpu N] [--quick] [--qsort] [--places] [name ...]" ] || r=1
-say tools_perf_errors $r
 
 exit $fail

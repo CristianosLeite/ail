@@ -6,6 +6,14 @@ status: current
 ---
 # Async runtime
 
+> Since 2026-11-21 the benchmarks are in the repository ail-bench
+> (https://github.com/CristianosLeite/ail-bench). Paths on this page that name `bench/`, `tools/perf.aw`,
+> `tools/par.aw`, `tools/tokens.aw`, `tools/tokens.sh`, `tools/bench.sh`, `tools/claudetokens.sh`,
+> `tools/pin.sh`, `tools/lib/o200k.aw`, `tools/lib/fmt.aw`, `tests/algo.sh`, `tests/par.sh`,
+> `tests/async.sh`, `tests/tokens.sh`, `docs/performance.md` or `docs/tokens.md` are paths there. The
+> algorithm, array and collection programs are `bench/<name>.aw` there, no longer in `examples/`, and
+> `tests/nd/bench.py` is the tool `tools/nptime.aw` there.
+
 **Summary.** `async fn` and `await` compile to tasks that one thread polls; the runtime is the
 library `lib/async/` (task, time, io, pool, chan), written in AIL with no support in the compiler
 beyond the two statements. Futures are eager, cancellation is cooperative, and there is no
