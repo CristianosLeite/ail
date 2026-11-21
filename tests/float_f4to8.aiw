@@ -1,0 +1,53 @@
+# f4to8 reads the low 32 bits of a value as an IEEE binary32 and gives
+# the double of the same number: every binary32 is a double, so nothing
+# is rounded
+fn wide a v1 v2 v3 v4 v5
+	f4to8 a+v1-v1 as x
+	ret x+v2+v3+v4+v5-14
+end
+# 1, -2.5, and 0.1 as a binary32 has it
+f4to8 0x3f800000 as x
+r=x==0x3ff0000000000000
+f4to8 0xc0200000 as x
+r+=x==0xc004000000000000
+f4to8 0x3dcccccd as x
+r+=x==0x3fb99999a0000000
+# both zeros keep their sign
+f4to8 0 as x
+r+=x==0
+f4to8 0x80000000 as x
+r+=x==0x8000000000000000
+# the smallest number, a subnormal that is a normal double, the
+# smallest normal, the largest subnormal with a sign, the largest
+f4to8 1 as x
+r+=x==0x36a0000000000000
+f4to8 0x00800000 as x
+r+=x==0x3810000000000000
+f4to8 0x807fffff as x
+r+=x==0xb80fffffc0000000
+f4to8 0x7f7fffff as x
+r+=x==0x47efffffe0000000
+# the infinities, and what is no number: a signalling one becomes quiet
+# and keeps its other bits
+f4to8 0x7f800000 as x
+r+=x==0x7ff0000000000000
+f4to8 0xff800000 as x
+r+=x==0xfff0000000000000
+f4to8 0x7fc00000 as x
+r+=x==0x7ff8000000000000
+f4to8 0x7f800001 as x
+r+=x==0x7ff8000020000000
+# the high 32 bits of the value are not read
+f4to8 0xdeadbeef3f800000 as x
+r+=x==0x3ff0000000000000
+# what load4 gives of bytes is the value it takes
+buf b 8
+store4 b 0x40490fdb
+load4 b as v
+f4to8 v as x
+r+=x==0x400921fb60000000
+# an operand that is an expression, in a function with more variables
+# than registers
+call wide 0xc0200000 1 2 3 4 5 as x
+r+=x==0xc004000000000000
+sys exit r
