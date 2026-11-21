@@ -140,84 +140,227 @@ end
 # integers, 4 copies, 5 makes an integer of a double and 6 a double of
 # an integer
 fn ndrun ndk ndn ndp ndso ndq ndsa ndr ndsb
-	if (ndso==8)&(ndsa==8)&(ndsb==8)
-		# all three one behind the other: an end and two distances
+	if ndso==8
+		# the result one behind the other: an end, and for each of the
+		# two others a distance, or its one element
 		nde=ndp+ndn*8
 		ndu=ndq-ndp
 		ndv=ndr-ndp
-		if ndk==0
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				fadd ndx ndy as ndx
-				store ndp ndx
-				ndp+=8
+		if (ndsa==8)&(ndsb==8)
+			if ndk==0
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					fadd ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==1
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				fsub ndx ndy as ndx
-				store ndp ndx
-				ndp+=8
+			if ndk==1
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					fsub ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==2
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				fmul ndx ndy as ndx
-				store ndp ndx
-				ndp+=8
+			if ndk==2
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					fmul ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==3
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				fdiv ndx ndy as ndx
-				store ndp ndx
-				ndp+=8
+			if ndk==3
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					fdiv ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==8
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				ndx+=ndy
-				store ndp ndx
-				ndp+=8
+			if ndk==8
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					ndx=ndx+ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==9
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				ndx-=ndy
-				store ndp ndx
-				ndp+=8
+			if ndk==9
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					ndx=ndx-ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
-		end
-		if ndk==10
-			while ndp<nde
-				load ndp+ndu as ndx
-				load ndp+ndv as ndy
-				ndx*=ndy
-				store ndp ndx
-				ndp+=8
+			if ndk==10
+				while ndp<nde
+					load ndp+ndu as ndx
+					load ndp+ndv as ndy
+					ndx=ndx*ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
 			end
-			ret 0
+			if ndk==4
+				while ndp<nde
+					load ndp+ndu as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
 		end
-		if ndk==4
+		if (ndsa==8)&(ndsb==0)
+			load ndr as ndy
+			if ndk==0
+				while ndp<nde
+					load ndp+ndu as ndx
+					fadd ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==1
+				while ndp<nde
+					load ndp+ndu as ndx
+					fsub ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==2
+				while ndp<nde
+					load ndp+ndu as ndx
+					fmul ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==3
+				while ndp<nde
+					load ndp+ndu as ndx
+					fdiv ndx ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==8
+				while ndp<nde
+					load ndp+ndu as ndx
+					ndx=ndx+ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==9
+				while ndp<nde
+					load ndp+ndu as ndx
+					ndx=ndx-ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==10
+				while ndp<nde
+					load ndp+ndu as ndx
+					ndx=ndx*ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+		end
+		if (ndsa==0)&(ndsb==8)
+			load ndq as ndz
+			if ndk==0
+				while ndp<nde
+					load ndp+ndv as ndy
+					fadd ndz ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==1
+				while ndp<nde
+					load ndp+ndv as ndy
+					fsub ndz ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==2
+				while ndp<nde
+					load ndp+ndv as ndy
+					fmul ndz ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==3
+				while ndp<nde
+					load ndp+ndv as ndy
+					fdiv ndz ndy as ndx
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==8
+				while ndp<nde
+					load ndp+ndv as ndy
+					ndx=ndz+ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==9
+				while ndp<nde
+					load ndp+ndv as ndy
+					ndx=ndz-ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+			if ndk==10
+				while ndp<nde
+					load ndp+ndv as ndy
+					ndx=ndz*ndy
+					store ndp ndx
+					ndp+=8
+				end
+				ret 0
+			end
+		end
+		if (ndsa==0)&(ndk==4)
+			load ndq as ndx
 			while ndp<nde
-				load ndp+ndu as ndx
 				store ndp ndx
 				ndp+=8
 			end
