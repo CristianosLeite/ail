@@ -41,7 +41,7 @@ The language is developed in the compiler written in AIL, the only one since 202
 2. **Instruction selection**: immediate operands, variables used where they are, an assignment computed in the register of its target, the test of a loop at its end. The measurements in [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md) say where the time goes today.
 3. **The corpus, the library and the compiler rewritten** in the new forms, the compiler after a second seed that understands them.
 
-All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was indented; 941 since 2026-11-21, when `isort` became a caller of `lib/algo/`) against 1118 for C and 1191 for Rust, the CPU-bound programs take 1.04 times as long as C in the geometric mean, and the compiler is written with expressions and built from seed 2.
+All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was indented; 941 since 2026-11-21, when `isort` became a caller of `lib/algo/`, and 942 with the sources named `.aiw`, whose `use` line costs a token more) against 1118 for C and 1191 for Rust, the CPU-bound programs take 1.04 times as long as C in the geometric mean, and the compiler is written with expressions and built from seed 2.
 
 ## Supporting work
 
