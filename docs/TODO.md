@@ -426,7 +426,7 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     calls and the last one after them, both outside the clocks; a wrong
     double stored after either makes the benchmark print 1 and
     `mmtasks.sh` end with `differ` and the status 1.
-13. [ ] **Validate the call that sets the warm minimum.** The last call
+13. [x] **Validate the call that sets the warm minimum.** The last call
     can overwrite an incorrect earlier result whose time is still the
     minimum. In `bench/nd/mmtasks.aw`, capture the status of each timed
     call and check it after stopping the clock. When a call would lower
@@ -435,6 +435,12 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
     Keep the first- and last-call checks. Verify that an incorrect
     intermediate call that would set the minimum makes the script fail
     even when the last call gives the correct result.
+    Done on 2026-11-21: every timed call's status is counted, and a call
+    faster than all before it is compared with the serial result before
+    its time is taken. A wrong element stored after the first later
+    call, with its time made 0, prints 1 and the time of a right call,
+    and `mmtasks.sh` ends with `differ`; before, it printed a time of 0
+    and no error.
 14. [ ] **Label the reported count as planned row blocks.** Rename
     `tasks made` to `row blocks` in `bench/nd/mmtasks.sh` and use the
     same term in `bench/nd/mmtasks.aw` and `performance.md`. Keep the

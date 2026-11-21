@@ -4,14 +4,21 @@
 # may compute (the calling one among them), the tasks, and how often
 # each product is called. It writes five numbers and a newline: the
 # nanoseconds of the fastest ndmatmul, those of the first ndmatmulp,
-# which also starts the threads, those of the fastest later one, and
-# how many elements of the results differ, which must be 0: those of the
-# first ndmatmulp, counted before a later call writes over them, and
-# those of the last, each against the result of ndmatmul and neither
-# inside a clock; and last the tasks that ndmatmulp made, which may be
-# fewer than asked for (ndruns). The results are written once before any clock, so
-# that no time is that of memory the kernel had not given yet. bench/nd/mmtasks.sh runs it for
-# the table in docs/performance.md.
+# which also starts the threads, those of the fastest later one, a
+# count of what went wrong, which must be 0, and the tasks that
+# ndmatmulp made, which may be fewer than asked for (ndruns).
+#
+# What went wrong is counted outside the clocks, against the result of
+# ndmatmul: the elements of the first ndmatmulp that differ, before a
+# later call writes over them; those of the last; every call that
+# returned 0; and for each later call that was faster than all before
+# it the elements that differ, looked at before its time is taken and
+# before the next call uses the array, so the time reported is that of
+# a call whose result was right. A time with a wrong result is left out.
+#
+# The results are written once before any clock, so that no time is
+# that of memory the kernel had not given yet. bench/nd/mmtasks.sh runs
+# it for the table in docs/performance.md.
 use "lib/io.aw"
 use "lib/task.aw"
 use "lib/nd/array.aw"
@@ -99,13 +106,20 @@ call now as e
 cold=e-s
 call differ o q as d
 warm=0-1
+bad=0
 i=0
 while i<c
 	call now as s
-	call ndmatmulp o a b t
+	call ndmatmulp o a b t as k
 	call now as e
+	bad+=1-k
 	if e-s<warm
-		warm=e-s
+		call differ o q as x
+		if x
+			bad+=x
+		else
+			warm=e-s
+		end
 	end
 	i+=1
 end
@@ -116,7 +130,7 @@ call putn cold
 call print " "
 call putn warm
 call print " "
-call putn d+d2+1-ok
+call putn d+d2+bad+1-ok
 call print " "
 call ndruns n t as rows made
 call putn made
