@@ -347,13 +347,17 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    3.5 times C, since their order of adding is kept. No further dtypes,
    indexing, file formats or array syntax until a program needs them
    ([results](performance.md#after-the-measurements)).
-6. [ ] **Keep ordered floating-point accumulators in XMM registers.** Prototype
+6. [x] **Keep ordered floating-point accumulators in XMM registers.** Prototype
    compiler support for keeping the running value of `ndsum` and `nddot` in
    XMM across iterations. The current `fadd` moves its operands from general
    registers and moves the result back on every addition. Preserve index
    order and round the multiply and add separately in `nddot`. The current
    kernels take 3.35–3.53 times as long as the C loops. Measure the prototype
    against both baselines and check the compiler fixed point.
+   Done on 2026-11-21: `fsum` and `fdot` are the loop as one statement, with
+   the sum in `xmm0` for the whole run and the bits of the loop of `fadd`;
+   `sum` and `dot` take 1.00 to 1.03 times the time of C
+   ([results](performance.md#array-kernels-after-the-first-round-2026-11-21)).
 7. [ ] **Use packed operations on reversed contiguous views.** In `ndrun`,
    start at the lowest address when the result and vector operands all have
    a stride of −8 bytes and any scalar operands have stride zero. Reuse the

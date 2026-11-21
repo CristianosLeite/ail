@@ -805,3 +805,20 @@ From 3.650 to 2.175 over the kernels. The product of matrices takes a third of i
 A side of 1000 takes 5.5 times less in 20 tasks, a side of 300 seven times less, a side of 100 six times less; the row `ndmatmul` is the first call of each side and one call only, and likely also pays for memory not yet touched. At a side of 30, 27000 products in all, four tasks gain a third and 64 take more than twice the one. As many tasks as threads is the size to start from, and more tasks than that only where the rows are long, as [for the task programs](#the-size-of-a-task-at-each-number-of-threads). Kept, as a function beside `ndmatmul`, which stays on one thread.
 
 **What the workloads do not ask for.** The three programs and the tests use doubles and, for counts, integers of 64 bits; nothing in them would be shorter or faster with elements of 32 bits, which the walk and the kernels could take as a third kind when a program has such data. None selects elements by an array of indices or of truth values, reads or writes a file of NumPy, solves a system or transforms a signal: advanced indexing, `.npy`, linear algebra and FFTs wait for a program that needs one of them, and `.npy` is the likely first, since it is how arrays come from elsewhere. Syntax for arrays is not worth adding on these counts: a kernel is a call of 5 to 7 tokens (`call ndadd z x y`), which `z=x+y` would bring to 5 or fewer, while the 12 tokens that each array costs before its first use stay, and a caller of the library is already at the tokens of the loops of C (608 against 636).
+
+## Array kernels after the first round, 2026-11-21
+
+Five questions that the measurements above left, each with the same method: the same inputs, the results checked before the times, a change kept where it gains.
+
+**The sum in a floating-point register.** `ndsum` and `nddot` were loops of `fadd`, which takes the sum from a general register to a floating-point one and back for every element. The statements [`fsum` and `fdot`](language.md#a-sum-in-its-order) are that loop as one statement, with the sum in `xmm0` from the first element to the last, the elements added in the same order and a product rounded before it is added: the bits are those of the loop. `ndacc`, which every sum of doubles goes through, is an `fsum`, and `nddot` of arrays that lie one behind the other an `fdot`. The kernels of `ndreduce` before and after, by `build/tools/perf ndreduce`:
+
+| kernel, side x runs | AIL before | AIL after | C | AIL / C after |
+|---|---:|---:|---:|---:|
+| sum, 100 x 1000 | 15.50 | 4.55 | 4.40 | 1.033 |
+| cols, 100 x 1000 | 3.26 | 2.89 | 1.33 | 2.174 |
+| dot, 100 x 1000 | 15.50 | 4.52 | 4.41 | 1.025 |
+| sum, 1000 x 20 | 31.42 | 8.91 | 8.88 | 1.003 |
+| cols, 1000 x 20 | 5.26 | 4.97 | 3.30 | 1.507 |
+| dot, 1000 x 20 | 32.73 | 9.12 | 9.10 | 1.003 |
+
+`sum` and `dot` take the time of the loops of C, from 3.3 to 3.5 times it, and the geometric mean of the six kernels goes from 2.772 to 1.232. `cols` does not use the statements (its two runs differ within the variation of that kernel between runs). The sum in pairs, `ndsumpw`, adds its runs of 128 elements through `ndacc` and gains with it. Kept.

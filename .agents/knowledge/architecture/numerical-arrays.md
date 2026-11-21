@@ -49,8 +49,11 @@ when first measured, 2.18 times since the loops take two doubles at once.
   behind C built with `-fno-tree-vectorize`). `padd`, `psub`, `pmul`, `pdiv`, `pmadd` are
   rows of `optab` that work from memory to memory on two doubles with the bits of one at a
   time; the library uses them where each element of the result is computed alone.
-- `ndsum`, `ndmean` and `nddot` stay at 3.5 times C by decision: packing them would change
-  the order of adding. `ndsumpw` promises no order and could use the statements.
+- `ndsum`, `ndmean` and `nddot` keep the order of adding, so they cannot be packed. They
+  were 3.5 times C as loops of `fadd`; `fsum a p n s as x` and `fdot a p q n as x`, rows of
+  `optab` whose code is the whole loop with the sum in `xmm0`, bring them to 1.00 to 1.03
+  times C with the same bits (`ndacc` is an `fsum`). A statement that is a loop was chosen
+  over floating-point registers for variables, which would change the allocator.
 - Blocks in `ndmatmul` gained 4% at a side of 1000 and were left out: the loop computes,
   it does not wait for memory. `ndmatmulp` (`lib/nd/par.aw`) runs disjoint rows as tasks,
   5.5 times faster at a side of 1000 on 20 processors, slower than one task at a side of 30

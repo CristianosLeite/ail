@@ -23,8 +23,9 @@
 # Where doubles lie one behind the other and each is computed alone,
 # in the sums of columns and in the product of matrices, two are
 # computed at once (padd, pmadd), which gives the same bits. A sum of
-# all elements and a dot product add each element to the one before
-# and stay one at a time.
+# all elements and a dot product add each element to the one before:
+# they stay one at a time, with the sum in a floating-point register
+# for a whole run (fsum, fdot).
 #
 # nddot takes two arrays of one axis and the same length and returns the
 # sum of the products of their elements and 1, or 0 and 0. ndmatmul takes
@@ -63,12 +64,7 @@ fn ndacc nda ndp ndn nds ndm
 		end
 		ret nda
 	end
-	while ndn
-		load ndp as ndx
-		fadd nda ndx as nda
-		ndp+=nds
-		ndn-=1
-	end
+	fsum nda ndp ndn nds as nda
 	ret nda
 end
 
@@ -325,13 +321,7 @@ fn nddot nda ndb
 			end
 			ret ndz 1
 		end
-		while ndp<nde
-			load ndp as ndx
-			load ndp+ndu as ndy
-			fmul ndx ndy as ndx
-			fadd ndz ndx as ndz
-			ndp+=8
-		end
+		fdot 0 ndp ndq ndn as ndz
 		ret ndz 1
 	end
 	while ndn
