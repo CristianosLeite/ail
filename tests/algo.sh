@@ -39,9 +39,12 @@ words() {
     done
 }
 
-# run program count shape mode: what it writes, a word a line
+# run program count shape mode: what it writes, a word a line. It fails
+# if the program does not end with the status 0 within 10 seconds, so
+# the right bytes from a program that then fails or hangs do not pass
 run() {
-    words 7 "$2" "$3" 2 "$4" | timeout --signal=KILL 10 "$1" | od -An -tx8 -w8 -v | tr -d ' '
+    words 7 "$2" "$3" 2 "$4" | timeout --signal=KILL 10 "$1" > "$tmp/raw" || return 1
+    od -An -tx8 -w8 -v "$tmp/raw" | tr -d ' '
 }
 
 # checksum file: h = h * 31 + word over its lines, as 16 digits
@@ -56,7 +59,7 @@ checksum() {
 # summed program count shape kernels: mode 0 gives the checksum of
 # $tmp/res and that many times
 summed() {
-    run "$1" "$2" "$3" 0 > "$tmp/sum"
+    run "$1" "$2" "$3" 0 > "$tmp/sum" || return 1
     [ "$(sed -n 1p "$tmp/sum")" = "$(checksum "$tmp/res")" ] &&
         [ "$(wc -l < "$tmp/sum")" -eq $(($4 + 1)) ]
 }
@@ -65,8 +68,8 @@ summed() {
 sorted() {
     for s in 0 1 2 3; do
         for n in 0 1 2 3 1000; do
-            run "$1" $n $s 1 > "$tmp/in"
-            run "$1" $n $s 2 > "$tmp/res"
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
             [ "$(wc -l < "$tmp/in")" -eq $n ] || return 1
             LC_ALL=C sort "$tmp/in" | cmp -s - "$tmp/res" || return 1
             summed "$1" $n $s 1 || return 1
@@ -78,8 +81,8 @@ sorted() {
 searched() {
     for s in 0 3; do
         for n in 0 1 2 3 1000; do
-            run "$1" $n $s 1 > "$tmp/in"
-            run "$1" $n $s 2 > "$tmp/res"
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
             [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
             awk -v n=$n 'NR <= n { a[NR - 1] = $0; next }
                 { for (i = 0; i < n && a[i] "" < $0 ""; i++); printf "%016x\n", i }' \
@@ -122,8 +125,8 @@ wraps() {
 hashed() {
     for s in 0 3; do
         for n in 0 1 2 3 8 261 1000; do
-            run "$1" $n $s 1 > "$tmp/in"
-            run "$1" $n $s 2 > "$tmp/res"
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
             [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
             awk -v n=$n 'NR <= n { k[NR - 1] = $0; last[$0] = NR - 1 }
                 END { for (i = 0; i < n; i++) printf "%016x\n", last[k[i]]
@@ -139,8 +142,8 @@ hashed() {
 reached() {
     for s in 0 3; do
         for n in 0 1 2 3 1000; do
-            run "$1" $n $s 1 > "$tmp/in"
-            run "$1" $n $s 2 > "$tmp/res"
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
             awk -v n=$n 'function hex(s,  i, v) {
                     v = 0
                     for (i = 9; i <= 16; i++)
