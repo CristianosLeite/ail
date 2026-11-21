@@ -189,6 +189,19 @@ fn ndaxis ndo ndd ndax ndf
 	end
 	store ndv+48+ndax*8 1
 	store ndv+112+ndax*8 0
+	# every other axis as long as that of the array: the walk would give
+	# the one element of a shorter axis to every index
+	ndi=0
+	while ndi<ndr
+		if ndi!=ndax
+			load ndv+48+ndi*8 as ndx
+			load ndd+48+ndi*8 as ndy
+			if ndx!=ndy
+				ret 0
+			end
+		end
+		ndi+=1
+	end
 	call ndwalk ndw ndd
 	call ndwarg ndw 0 ndd
 	call ndwarg ndw 1 ndv as ndx
