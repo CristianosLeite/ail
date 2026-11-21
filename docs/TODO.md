@@ -284,7 +284,7 @@ count, use `load` and `store` for 64-bit values, and size runtime buffers with
   Sort unsigned 64-bit values in place with the same pivot rule and three-way
   partition in both implementations. Use half-open ranges and recurse on the
   smaller partition while iterating over the larger one to bound stack depth.
-- [ ] Add bottom-up mergesort with one caller-provided scratch array, heapsort
+- [x] Add bottom-up mergesort with one caller-provided scratch array, heapsort
   with an in-place binary heap, and binary search over sorted arrays. Make
   binary search return the first index whose value is at least the key, or the
   element count if there is none. Keep the algorithm and memory layout matched

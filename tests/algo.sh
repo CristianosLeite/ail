@@ -5,6 +5,8 @@
 # result in mode 2 and a checksum of the result with its times in mode 0.
 # For the counts 0, 1, 2, 3 and 1000 in each of the four shapes:
 #   a sort     its result must be what sort(1) makes of its input
+#   bsearch    for each key the index awk finds by looking at every
+#              word from the first: the first that is not smaller
 #   checksum   mode 0 must write the checksum of the result, computed
 #              here, and 8 bytes for each of its kernels
 # Words are compared as 16 hexadecimal digits, which sort as the numbers
@@ -19,7 +21,7 @@ trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
 fail=0
 
-sorts='quicksort'
+sorts='quicksort mergesort heapsort'
 
 # words n ...: each number as 8 bytes, the lowest first
 words() {
@@ -67,6 +69,22 @@ sorted() {
     done
 }
 
+# searched program: for each key the first index of a word not below it
+searched() {
+    for s in 0 3; do
+        for n in 0 1 2 3 1000; do
+            run "$1" $n $s 1 > "$tmp/in"
+            run "$1" $n $s 2 > "$tmp/res"
+            [ "$(wc -l < "$tmp/in")" -eq $((n * 2)) ] || return 1
+            awk -v n=$n 'NR <= n { a[NR - 1] = $0; next }
+                { for (i = 0; i < n && a[i] "" < $0 ""; i++); printf "%016x\n", i }' \
+                "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            head -n $n "$tmp/in" | LC_ALL=C sort -c 2> /dev/null || return 1
+            summed "$1" $n $s 1 || return 1
+        done
+    done
+}
+
 # each kind program ...: check the programs, and their C forms
 each() {
     kind=$1
@@ -87,10 +105,11 @@ each() {
 cc=$(command -v gcc)
 [ -n "$cc" ] || echo "skip algo C programs: no gcc"
 each sorted $sorts
+each searched bsearch
 
 # anything but five whole words is refused
 r=0
-for p in $sorts; do
+for p in $sorts bsearch; do
     printf 12345678 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
     words 7 268435456 0 1 0 | "build/$p" > "$tmp/res"
