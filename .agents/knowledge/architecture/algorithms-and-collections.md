@@ -18,6 +18,9 @@ min-heap and a hash map.
   `use` lines, at most an adapter, and the call of the harness. The six programs compile to
   the bytes they had with the kernels in them, because the library is used where the kernel
   stood, behind the harness. `isort` calls `sortins` and carries the three other sorts too.
+  The six callers are 260 tokens (C 1613, Rust 1783); the library functions 1793, more than
+  the kernels were (about 1300), since every name has a prefix. The fixed corpus of ten is
+  941 tokens with the new `isort`, from 990.
 - A program is its kernel and the call of `bench/algo/harness.aw` (`harness.h`, `harness.rs`):
   five words on stdin (seed, count, shape, runs, mode), input from splitmix64, the monotonic
   clock around the kernel only; mode 0 writes a checksum and the nanoseconds of each kernel,

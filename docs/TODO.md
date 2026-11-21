@@ -494,7 +494,7 @@ library in the same pass and leave the examples as callers.
    harness programs compile to the same bytes as before; the heap and
    the table stay apart from `lib/heap.aw` and `lib/map.aw`, whose
    layouts are others ([reference](language.md#the-algo-library)).
-4. [ ] **Measure what the move changes.** Check that `place` and `lower`
+4. [x] **Measure what the move changes.** Check that `place` and `lower`
    are still compiled in place at their calls, which needs the callee
    before the caller and no global name in its body. Compare kernel times
    before and after over several placements of the code, since a kernel
@@ -502,6 +502,12 @@ library in the same pass and leave the examples as callers.
    token counts of a caller and of the library separately against the C
    and Rust programs, which keep their kernels inline, and update
    [tokens.md](tokens.md).
+   Done on 2026-11-21: the six harness programs are byte for byte the
+   files they were, so the calls in place and the times are the same;
+   `isort` takes 54.3 ms against 54.6 and from 54.1 to 65.1 over four
+   placements. The six callers are 260 tokens against 1613 in C and
+   1783 in Rust, and their library functions 1793
+   ([results](performance.md#the-algorithm-kernels-in-a-library-2026-11-21)).
 
 ## Algorithm benchmarks and collection APIs
 

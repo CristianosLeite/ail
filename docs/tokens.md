@@ -45,7 +45,23 @@ Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/token
 
 Since 2026-11-21 there are also three programs on arrays of doubles, whose kernels in AIL are calls of [`lib/nd/`](language.md#the-nd-library) and in C and Rust plain loops: `ndelem` 215, 197 and 200 tokens, `ndreduce` 252, 276 and 268, `ndmatmul` 141, 163 and 142, together 608, 636 and 610. A call of a kernel is 5 to 7 tokens and each array 12 more before its first use, which comes to what the loops cost ([performance](performance.md#numerical-arrays-2026-11-21)). They are not in the table above, which stays that of the six.
 
-AIL is 6% cheaper than C and 15% cheaper than Rust on the six, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
+Since 2026-11-21 the kernels of the six, and the loop of `isort`, are in [`lib/algo/`](language.md#the-algo-library) and the programs call them, so `tools/tokens.sh` now counts a caller where C and Rust still have the algorithm. The table above stays as the count of the algorithms written in each language. What a caller costs and what the library costs, without comments:
+
+| program | AIL before | caller | its functions in `lib/algo/` | C | Rust |
+|---|---:|---:|---:|---:|---:|
+| bsearch | 129 | 79 | 85 | 156 | 163 |
+| graph | 373 | 37 | 464 | 345 | 405 |
+| hashtab | 238 | 37 | 296 | 280 | 280 |
+| heapsort | 211 | 30 | 252 | 237 | 271 |
+| mergesort | 309 | 30 | 393 | 298 | 340 |
+| quicksort | 264 | 47 | 303 | 297 | 324 |
+| total | 1524 | 260 | 1793 | 1613 | 1783 |
+
+- **A caller is 30 to 47 tokens** where the harness can call the library function as it is or through an adapter of one line, a sixth of the C program; `bsearch` keeps its loop over the keys and is half of it.
+- **The library costs more than the kernel did**, 1793 tokens against about 1300 for the same statements in the programs: every variable has the prefix of its file, and `sortp` is two tokens where `p` is one. That is the price of names that cannot meet a `var` of the program, paid once by who writes the library and not by who calls it.
+- **`isort`**, one of the ten of the fixed corpus, went from 219 to 170 tokens by calling `sortins` (110 in the library); the corpus is 941 tokens with it where it was 990. Its loop was the only kernel among the ten, so the other nine are as they were, and a change of syntax is still judged on the ten.
+
+On the kernels in the programs, as the first table has them, AIL is 6% cheaper than C and 15% cheaper than Rust on the six, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
 
