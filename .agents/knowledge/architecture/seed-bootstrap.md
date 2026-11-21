@@ -18,6 +18,10 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   confirmed the push of `backlog` and the release. It is the first seed that understands
   expressions, `x=e` and `while`; with it pinned, a clean fetch gives three generations that are
   one file.
+- Seed 3 is `build/ailc` of commit 9cc44dd (2026-11-20), the merge of the rename to `.aw`: 42322
+  bytes, SHA-256 `346a9f77...`, the fixed point of the build from seed 2, released as `seed-3`
+  (asset `ailc-3`) when the user asked for a new seed. It adds `spawn`, `join`, async functions
+  and `await` to what a seed understands, and is the first built from `compiler/` and `.aw`.
 - The manifest keeps one line per seed, the last one pinned; a local copy is `seed/ailc-<n>`,
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
