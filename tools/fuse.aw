@@ -12,11 +12,18 @@
 # The source is bytes and lines end with LF. A line with a CR before the
 # LF matches no pattern and stays as it is, CR included; so does a line
 # with a comment or a string where a jump would become a block.
+#
+# A line is read without the spaces and tabs before it, and the result
+# is written indented as build/tools/indent would (tools/lib/dent.aw):
+# a jump that becomes a block puts its lines one level deeper. Nothing
+# else of a line that stays is changed, and a line inside a string that
+# goes on over the end of a line keeps every byte.
 use "lib/io.aw"
 use "lib/bytes.aw"
 use "lib/file.aw"
 use "tools/lib/scan.aw"
 use "tools/lib/flow.aw"
+use "tools/lib/dent.aw"
 
 # the lines (gltab, gnl of them) are 40 bytes each: the address and the
 # length of the text, the index of the first word in gwtab and the number
@@ -32,6 +39,7 @@ var gsc gm gpos gref gflag gnid gstamp
 buf text 24
 buf scr 24
 buf out 24
+buf dent 24
 
 # the words with a meaning, in the order of their numbers
 const klabel 1
@@ -710,6 +718,7 @@ fn main
 	call must gltab
 	call must gwtab
 	l=gltab
+	instr=0
 	while 1
 		q=p
 		while q<e
@@ -718,6 +727,20 @@ fn main
 			q+=1
 		end
 		label eol
+		# a line is read without the blanks before it, unless it starts
+		# inside a string
+		if instr
+			call dtstrend p q 1 as instr
+		else
+			while p<q
+				loadb p as c
+				jz (c==32)|(c==9) first
+				p+=1
+			end
+			label first
+			# as the formatter has it: no string goes on behind a use
+			call dtafter p q as instr
+		end
 		store l p
 		store l+8 q-p
 		store l+32 0
@@ -831,6 +854,12 @@ fn main
 	end
 	load out as p
 	load out+8 as c
+	call dtindent p c dent 0 0 0 as r
+	ifslt r 0
+		call oom
+	end
+	load dent as p
+	load dent+8 as c
 	call filewrite op ol p c as r
 	ifslt r 0
 		call failpath "cannot write " op ol

@@ -165,10 +165,35 @@ fn elea
 	call e4 0
 	call anext
 end
+# instructions that do nothing, up to the next place in the file that is a
+# multiple of a, a power of two: the first line of a loop starts there. In
+# a function their bytes are counted in fnpad, which the limit of a body
+# compiled in place leaves out
+fn pad a
+	n=(out-op)&(a-1)
+	fnpad+=n
+	while n>9
+		call cp nops+36 9
+		n-=9
+	end
+	if n
+		call cp n*(n-1)/2+nops n
+	end
+end
 # a 64-bit mov between the register g and memory: the cell number p (k = 1,
 # rip-relative, filled in by fin) or rsp + p (k = 2); o = 139 to load the
-# register, 137 to store it
+# register, 137 to store it. The distance p takes one byte where it is
+# below 128, and none where it is 0 from rsp. A store notes its slot, its
+# register and the place behind it (slotp, slotr, slotpos), and a load of
+# that slot right there is a mov from the register, or nothing
 fn emem g k p o
+	if (k==2)&(o==139)&(slotpos==op)&(slotp==p)
+		if g!=slotr
+			call mrr g slotr
+		end
+		ret 0
+	end
+	r=g
 	call eb g>>3<<2|72
 	if o==175
 		call eb 15
@@ -187,13 +212,34 @@ fn emem g k p o
 		ret 0
 	end
 	if fnasy
-		call eb g|131
-		call e4 p
-		ret 0
+		if p<128
+			call eb g|67
+			call eb p
+		else
+			call eb g|131
+			call e4 p
+		end
+	else
+		ifz p
+			call eb g|4
+			call eb 36
+		else
+			if p<128
+				call eb g|68
+				call eb 36
+				call eb p
+			else
+				call eb g|132
+				call eb 36
+				call e4 p
+			end
+		end
 	end
-	call eb g|132
-	call eb 36
-	call e4 p
+	if o==137
+		slotp=p
+		slotr=r
+		slotpos=op
+	end
 end
 # the same between the register g and variable i of the current scope; a
 # local is not stored to, and loading it gives its address (lea, 141)
@@ -435,9 +481,15 @@ fn frame o
 		ret 0
 		label s
 		call eb 72
-		call eb 129
-		call eb o
-		call e4 c
+		if c<128
+			call eb 131
+			call eb o
+			call eb c
+		else
+			call eb 129
+			call eb o
+			call e4 c
+		end
 	end
 end
 # The entry of an async function. First the code that a call of it runs,
@@ -500,7 +552,31 @@ fn asyent
 		call eb n*8
 	end
 	call eb 195
-	call cp asypoll 15
+	# the poll function: the registers of its variables and rbx, saved
+	# before it goes on where the task left, so that every place it goes
+	# on at has the same stack, and taken back wherever it returns
+	n=fnregs
+	ifz n
+		n=1
+	end
+	loadb n+pushlen as c
+	call cp fnpush c
+	call cp asypoll+1 14
+end
+# the end of a poll: the result of the task to its record and 1, for a
+# ret and for the end of an async function
+fn asyout
+	call cp asyret 9
+	tail asypops
+end
+# the registers that the poll function saved, and its return
+fn asypops
+	n=fnregs
+	ifz n
+		n=1
+	end
+	loadb n+pushlen as c
+	call cp retc+10-c c+1
 end
 # how many bytes of the six pops to leave out: those of the registers that
 # the function does not use and so did not save
@@ -613,7 +689,25 @@ fn alloc
 		if ((t==0)|(u&1))&(u!=0)
 			load x*8+vfirst as lo
 			load x*8+vlast as hi
-			j=fnasy*6
+			# in an async function rbx is the record of the task, and a
+			# variable is in a register only if the task cannot leave while it
+			# is in use: no parameter, which the code that makes the task stores
+			# to the record, and no variable with an await in its range
+			j=0
+			if fnasy
+				j=1
+				if x<fnnpar
+					j=6
+				end
+				i=0
+				while i<naw
+					load i*8+awts as t
+					if (lo<=t)&(hi>t)
+						j=6
+					end
+					i+=1
+				end
+			end
 			label q
 			i=0
 			while i<vhi
@@ -699,7 +793,7 @@ fn eop
 			call eres
 		end
 		call godead
-		call cp asyret 11
+		call asyout
 		jmp h
 	end
 	if f&16
@@ -778,6 +872,16 @@ fn eop
 			end
 		end
 		if fnasy
+			# where the task may leave: the variables in use across this
+			# place live in its record (alloc)
+			if pass==1
+				c=ip
+				if ncap
+					c=awpos
+				end
+				store naw*8+awts c
+				naw+=1
+			end
 			call cp asyawt 23
 		else
 			call eb 49
@@ -794,7 +898,16 @@ fn eop
 		call z 4
 		ncalls=n+1
 		if fnasy
-			call cp asysus 9
+			# return 0 while the second result is 0: the jump over that
+			# return is as long as the pops are
+			call cp asysus 7
+			n=fnregs
+			ifz n
+				n=1
+			end
+			loadb n+pushlen as c
+			storeb op-3 c+3
+			call asypops
 		end
 		ret 0
 	end
@@ -859,7 +972,7 @@ end
 # at least as many results as there are names, while the variables of both
 # are 64 at most. A body is not compiled inside another.
 fn inlchk
-	if (infn==0)|(fnasy|ilon)
+	if (infn==0)|fnasy|(ildp>=4)
 		ret -1
 	end
 	loadb cur+1 as f
@@ -873,7 +986,15 @@ fn inlchk
 	if i==-1
 		ret -1
 	end
-	p=i*24+finl
+	# in a body only a function that stands before the one of the body:
+	# it was there, fit or not, when that one was compiled, so the body
+	# is read here as it was read there
+	if ildp
+		if i>=ilfn
+			ret -1
+		end
+	end
+	p=i*48+finl
 	load p as b
 	ifz b
 		ret -1
@@ -891,7 +1012,86 @@ fn inlchk
 	if ncap>n
 		ret -1
 	end
+	# What the body adds to the tables of calls, of names to fill in and
+	# of accesses to check goes into room of their own behind the room
+	# that the source limit sizes for a source read once: ilroom entries
+	# of calls, twice as many of refs, half as many of chks, of which
+	# ilc, ilr and ilk are taken. A call that is refused for want of it
+	# makes its function unfit (ilfull), so that in a body every call is
+	# decided as it was when the body's function was compiled, within
+	# what was taken for the outermost body: no check there
+	ifz ildp
+		load p+24 as n
+		c=ilc+n>ilroom
+		load p+32 as n
+		c|=ilr+n>ilroom*2
+		load p+40 as n
+		c|=ilk+n>ilroom/2
+		if c
+			ilfull=1
+			ret -1
+		end
+	end
 	ret i
+end
+# What the call of the body being read goes on with, into the place of
+# ilstk for its depth, when a call in that body is compiled in place too,
+# and back when the inner body has ended
+fn ilpush
+	p=(ildp-1)*2304+ilstk
+	store p ilcur
+	store p+8 ilip
+	store p+16 ilie
+	store p+24 ilcap
+	store p+32 ilasg
+	store p+40 ildead
+	store p+48 iljm
+	store p+56 ilbb
+	store p+64 illab
+	store p+72 ilfix
+	store p+80 ilsc
+	store p+88 ilnh
+	store p+96 ilbase
+	store p+104 ilret
+	store p+112 ilres
+	store p+120 ilfn
+	store p+128 vlo
+	call cp4 ilcaps p+136
+	call cp4 ilcaps+32 p+168
+	call cp4 ilcaps+64 p+200
+	k=0
+	while k<64
+		call cp4 k*32+ilvk k*32+p+232
+		k+=1
+	end
+end
+fn ilpop
+	p=(ildp-1)*2304+ilstk
+	load p as ilcur
+	load p+8 as ilip
+	load p+16 as ilie
+	load p+24 as ilcap
+	load p+32 as ilasg
+	load p+40 as ildead
+	load p+48 as iljm
+	load p+56 as ilbb
+	load p+64 as illab
+	load p+72 as ilfix
+	load p+80 as ilsc
+	load p+88 as ilnh
+	load p+96 as ilbase
+	load p+104 as ilret
+	load p+112 as ilres
+	load p+120 as ilfn
+	load p+128 as vlo
+	call cp4 p+136 ilcaps
+	call cp4 p+168 ilcaps+32
+	call cp4 p+200 ilcaps+64
+	k=0
+	while k<64
+		call cp4 k*32+p+232 k*32+ilvk
+		k+=1
+	end
 end
 # Compile the body of function i in place of the call at hand, whose
 # values are in the registers of a call: keep what the statement goes on
@@ -899,8 +1099,25 @@ end
 # define the parameters from those registers and read on at the first
 # line of the body. e is where its mentions count as made.
 fn inlopen i e
+	if ildp
+		call ilpush
+		# mentions count at the call of the outermost body
+		e=ilpos
+	else
+		ildep=0
+		# the room of the tables that this body and those in it may take
+		p=i*48+finl
+		load p+24 as n
+		ilc+=n
+		load p+32 as n
+		ilr+=n
+		load p+40 as n
+		ilk+=n
+	end
+	ildp+=1
+	ilcnt+=1
+	ilfn=i
 	ilon=1
-	ilany=1
 	ilcur=cur
 	ilip=ip
 	ilie=ie
@@ -926,8 +1143,8 @@ fn inlopen i e
 	ilbase=nv
 	vlo=nv
 	ilret=0
-	ildep=0
 	xflg=16
+	slotpos=0
 	k=0
 	while k<64
 		call cp4 k*32+vk k*32+ilvk
@@ -936,12 +1153,12 @@ fn inlopen i e
 	call clrvk
 	load4 i*40+funs+32 as n
 	ilres=n
-	load i*24+finl as p
+	load i*48+finl as p
 	ip=p
 	# A parameter that the body never assigns, given a variable by itself, is
 	# another name of that variable: m has the bit of each such. If all are,
 	# the code that loaded the values is taken back.
-	load i*24+finl+16 as w
+	load i*48+finl+16 as w
 	m=0
 	k=0
 	while k<ai
@@ -1029,6 +1246,7 @@ fn inlclose
 	nv=ilbase
 	vlo=0
 	xflg=16
+	slotpos=0
 	ip=ilip
 	ie=ilie
 	ncap=ilcap
@@ -1038,7 +1256,12 @@ fn inlclose
 	cur=ilcur
 	store opd 0
 	store opd+32 0
-	ilon=0
+	ildp-=1
+	if ildp
+		call ilpop
+	else
+		ilon=0
+	end
 end
 # fill in the jumps of the current scope, now that its labels are known
 fn resolve

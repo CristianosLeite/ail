@@ -3,23 +3,23 @@
 var g
 buf b 64
 fn f a b
-u=(a+b)*2
-u-=a                # a comment keeps its line
-ret u
+	u=(a+b)*2
+	u-=a                # a comment keeps its line
+	ret u
 end
 i=0
 s=0
 while i<8
-p=b+i*8
-store p i
-load p as v
-s+=v
-if v<3
-s+=1
-else
-s>>=0
-end
-i+=1
+	p=b+i*8
+	store p i
+	load p as v
+	s+=v
+	if v<3
+		s+=1
+	else
+		s>>=0
+	end
+	i+=1
 end
 k=5
 label down

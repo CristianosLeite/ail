@@ -17,12 +17,20 @@
 #              with loops of its own, each result within 1e-9 of the
 #              sizes, for the counts 0, 1, 2, 3 and 1000, or 30 where
 #              the count is the side of a square
+#   collseq    the keys, the last first; the keys in their order; and
+#              the keys as sort(1) orders them: what a vector, a queue
+#              and a heap give back. 3000 keys as well, more than the
+#              queue has room for
+#   collmap    for a map that got each key with its index: how many
+#              keys awk counts, the last index awk has of each key, and
+#              a 1 for each key where awk meets it first
 #   checksum   mode 0 must write the checksum of the result, computed
 #              here, and 8 bytes for each of its kernels
 # Words are compared as 16 hexadecimal digits, which sort as the numbers
 # do. Two runs each, so that a program which does not start again from
 # its input is seen. The same is asked of the C programs of bench/ if
-# there is a gcc; without one that part is skipped.
+# there is a gcc and of the Rust programs if there is a rustc; without
+# the compiler that part is skipped.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p build/tests
@@ -246,7 +254,35 @@ numbered() {
     done
 }
 
-# each kind program ...: check the programs, and their C forms
+# collected program: the collections. tac is not everywhere, so the
+# reverse is made by awk as well
+collected() {
+    name=${1##*/}
+    for s in 0 1 2 3; do
+        for n in 0 1 2 3 1000 3000; do
+            run "$1" $n $s 1 > "$tmp/in" || return 1
+            run "$1" $n $s 2 > "$tmp/res" || return 1
+            [ "$(wc -l < "$tmp/in")" -eq $n ] || return 1
+            if [ "$name" = collseq ]; then
+                {
+                    awk '{ l[NR] = $0 } END { for (i = NR; i; i--) print l[i] }' "$tmp/in"
+                    cat "$tmp/in"
+                    LC_ALL=C sort "$tmp/in"
+                } | cmp -s - "$tmp/res" || return 1
+            else
+                awk '{ k[NR] = $0; if (!($0 in last)) { first[NR] = 1; keys++ } last[$0] = NR - 1 }
+                    END {
+                        for (i = 1; i <= NR; i++) printf "%016x\n", i == 1 ? keys : 0
+                        for (i = 1; i <= NR; i++) printf "%016x\n", last[k[i]]
+                        for (i = 1; i <= NR; i++) printf "%016x\n", first[i] + 0
+                    }' "$tmp/in" | cmp -s - "$tmp/res" || return 1
+            fi
+            summed "$1" $n $s 3 || return 1
+        done
+    done
+}
+
+# each kind program ...: check the programs, and their C and Rust forms
 each() {
     kind=$1
     shift
@@ -255,25 +291,36 @@ each() {
         then echo "ok   algo $p"
         else echo "FAIL algo $p"; fail=1
         fi
-        [ -n "$cc" ] || continue
-        if gcc -O1 -o "$tmp/$p" "bench/$p.c" 2> /dev/null && $kind "$tmp/$p"
-        then echo "ok   algo $p.c"
-        else echo "FAIL algo $p.c"; fail=1
+        if [ -n "$cc" ]; then
+            if gcc -O1 -o "$tmp/$p" "bench/$p.c" 2> /dev/null && $kind "$tmp/$p"
+            then echo "ok   algo $p.c"
+            else echo "FAIL algo $p.c"; fail=1
+            fi
+        fi
+        [ -n "$rc" ] || continue
+        if rustc -O -o "$tmp/rs/$p" "bench/$p.rs" 2> /dev/null && $kind "$tmp/rs/$p"
+        then echo "ok   algo $p.rs"
+        else echo "FAIL algo $p.rs"; fail=1
         fi
     done
 }
 
 cc=$(command -v gcc)
 [ -n "$cc" ] || echo "skip algo C programs: no gcc"
+rc=$(command -v rustc)
+[ -n "$rc" ] || echo "skip algo Rust programs: no rustc"
+# a program is known by the name of its file, so the Rust ones are apart
+mkdir "$tmp/rs" || exit 1
 each sorted $sorts
 each searched bsearch
 each hashed hashtab
 each reached graph
 each numbered ndelem ndreduce ndmatmul
+each collected collseq collmap
 
 # anything but five whole words is refused
 r=0
-for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul; do
+for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul collseq collmap; do
     printf 12345678 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
     words 7 268435456 0 1 0 | "build/$p" > "$tmp/res"
@@ -284,6 +331,14 @@ for p in ndreduce ndmatmul; do
     words 7 16384 0 1 0 | "build/$p" > "$tmp/res"
     [ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
 done
+# a collection that gets no memory ends the program with the status 1
+# and no result: with 40 MB for a million keys the harness has its
+# arrays and the vector cannot grow to the end, with 100 MB the map
+# cannot. A subshell, since the limit cannot be raised again
+(ulimit -v 40000; words 7 1000000 0 1 2 | build/collseq > "$tmp/res")
+[ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
+(ulimit -v 100000; words 7 1000000 0 1 2 | build/collmap > "$tmp/res")
+[ $? -eq 1 ] && [ ! -s "$tmp/res" ] || r=1
 if [ $r -eq 0 ]
 then echo "ok   algo refuses"
 else echo "FAIL algo refuses"; fail=1
@@ -293,7 +348,7 @@ fi
 # counts nanoseconds and a kernel is many, and less than the ten seconds
 # a run may take, which a clock that went wrong would not give
 r=0
-for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul; do
+for p in $sorts bsearch hashtab graph ndelem ndreduce ndmatmul collseq collmap; do
     words 7 100 0 3 0 | "build/$p" | od -An -v -tu8 -w8 | awk '
         NR > 1 && ($1 == 0 || $1 >= 10000000000) { bad = 1 }
         END { exit bad || NR < 2 }' || r=1

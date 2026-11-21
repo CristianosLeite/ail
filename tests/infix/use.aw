@@ -3,7 +3,7 @@
 use "tests/infix/use_lib.aw"
 shared=42
 if shared
-call get as r
-sys exit r
+	call get as r
+	sys exit r
 end
 sys exit 0

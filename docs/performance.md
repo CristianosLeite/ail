@@ -139,7 +139,7 @@ Where the work departed from the document:
 - **The old forms were not kept as copies of the examples.** The statements remain in the language and compile to the same code as the expressions that say the same, which `tools/randvars.aw` checks byte for byte; about 900 tests are still written with them.
 - **The seed is a release of a private repository**, so fetching it needs `gh` and a login, or a local copy; `curl` alone works once the repository is public.
 
-Not done: the comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer, which stays an open item.
+The comparison of these token counts, taken with an OpenAI encoding, with Claude's tokenizer was not done then; it was on 2026-11-21, and the order of the languages holds, with AIL further ahead ([tokens.md](tokens.md#claudes-tokenizers-measured-on-2026-11-21)).
 
 ## The measuring tool in AIL, 2026-11-20
 
@@ -170,7 +170,7 @@ A program reads five words from stdin: a seed, a count, a shape, a number of run
 
 The inputs are rows of a table in `tools/perf.aw`: a thousand elements with enough runs for some tens of milliseconds, and a million with one to four runs, in up to four shapes. `random` is words of 64 bits; `sorted` and `reversed` rise and fall by steps below 65536; `few` is values below 16 for a sort, steps below 2 for `bsearch`, 128 distinct keys for `hashtab` and at most one neighbour a vertex for `graph`, where `random` is up to 15. A small array lies in the first cache and shows the instructions; a large one shows the memory as well.
 
-Before anything is timed the whole result, not its checksum, must be the same bytes as that of C at the counts 0, 1 and 1000 in the shape of the row. That the results are right, and not only alike, is checked by `tests/algo.sh` in `make test`: the sorts against `sort(1)`, the others against awk programs, the empty and the one-element array among the counts.
+Before anything is timed the whole result, not its checksum, must be the same bytes as that of C at the counts 0, 1 and 1000 in the shape of the row. That the results are right, and not only alike, is checked by `tests/algo.sh` in `make test`: the sorts against `sort(1)`, the others against awk programs, the empty and the one-element array among the counts. Since 2026-11-21 it asks that of the programs in C and Rust as well, where there is a `gcc` and a `rustc`.
 
 The time of the kernels (same machine, CPU and compilers as above; the column `C qsort` is `bench/qsort.c`, the sort of the C library with a comparison function, on the same input):
 
@@ -934,6 +934,18 @@ The balanced split is faster where each of its tasks is ten microseconds of work
 
 `ndmatmulp` is left as it is: the caller gives the number of tasks, and these figures say which.
 
+## The sum in pairs, two doubles at a time, 2026-11-21
+
+`ndsumpw` promises no order within a run of 128 elements, so a run of doubles that lie one behind the other need not be one chain of additions. `ndpack` adds it with `padd`, which adds two doubles in memory to two in memory. One `padd` after the other on the same two sums is no gain: each waits for the store of the one before to come back as a load, about as long as two additions. The sums are therefore sixteen, eight `padd` a round on eight pairs of them, and added in halves at the end. An array of the value 0.1, nanoseconds a call, the best of seven rounds on one processor:
+
+| elements | `ndsum` | `ndsumpw` with `fsum` | four sums | sixteen sums |
+|---:|---:|---:|---:|---:|
+| 1000 | 448 | 414 | 367 | 271 |
+| 10000 | 4385 | 3856 | 4401 | 3279 |
+| 1000000 | 439458 | 327931 | 342890 | 265725 |
+
+With sixteen sums a call takes 0.61 to 0.75 of the time of `ndsum` and 0.66 to 0.85 of what it took with `fsum`; with four it was slower than `fsum` from 10000 elements on, which is why that form was not kept. The result is other bits than before: a million times 0.1 was 2.3e-10 below 100000 and is now 100000. Sums whose every step is exact are the same in any order, and `tests/lib_nd_sum` requires that of every count from 1 to 300, with a stride of 16 as well, which goes one at a time. Integers, and doubles with another stride than 8, are added through `ndacc` as before. The program that timed it is not in the repository; it calls each function 200 million elements' worth of times in a loop around `procnow`.
+
 ## The clock of the harness, 2026-11-21
 
 The harness of the algorithm programs reads the monotonic clock before and after every kernel run. In AIL that was `sys clock_gettime`, a system call; `clock_gettime` of the C library and `Instant::now` of Rust call `__vdso_clock_gettime`, a function the kernel maps into every process that reads the clock without entering the kernel. A kernel that does nothing, run a million times, shows what a run pays for its two readings, in ns a run (the median of nine processes on one CPU, three kernels a process):
@@ -1012,3 +1024,152 @@ The kernels of the algorithm programs moved from `examples/` to [`lib/algo/`](la
 - **The place of the code** still counts for more than the move. With 0, 8, 24 and 40 bytes of `data` before the code, `isort` with its loop in the program takes 54.8, 55.6, 54.0 and 54.2 ms, and with the loop in the library 54.1, 54.1, 60.1 and 65.1: a fifth more at one placement and nothing at another, as the kernels on a thousand elements showed before. A comparison of two builds of a short loop has to be made over several placements; the move itself costs nothing that this shows.
 
 The tokens of a caller and of the library are in [tokens.md](tokens.md#result): a caller is 30 to 79 tokens where the C program is 156 to 345, and the library, whose names all carry a prefix, 1793 where the kernels in the programs were about 1300.
+
+## Stack slots, 2026-11-21
+
+A variable without a register lives in a slot of the frame, and every use of one was `[rsp+disp32]`, eight bytes where five do; a value that one line stored to a slot was loaded from it by the next. `hashfind` of `lib/algo/hash.aw` had both: `mov [rsp+0x0],rax` and then `mov rax,[rsp+0x0]`.
+
+- **The distance is as short as it can be**: none for the first slot, one byte below 128, four from there, and the frame is taken and given back with one byte below 128. The first pass of a function writes other lengths than the second, which does not matter, since its code is thrown away and every jump is filled in by the pass that wrote it.
+- **A slot just stored is not loaded again.** The store notes its slot, its register and the place in the output behind it; a load of that slot at that place is a copy of the register, or nothing. The note holds only while no byte is written, and is dropped where control may arrive from elsewhere with none written: a label, the end of a block, the ends of a body compiled in place.
+- **A function that needs a slot is called, not compiled in place.** `sortsift` was [7% slower in place](#calls-compiled-in-place-2026-11-20), for want of registers, and stayed out only because its code was 165 bytes; with short distances it is under the limit of 160. The rule is now what was meant: a body that needs more than six places at once is not put into its caller.
+
+The compiler is 48210 bytes where it was 49042, and the six algorithm programs each lost about a seventh of their bytes, most of it in the harness. Kernel times over those of C, the geometric mean of each program's rows, one build each:
+
+| program | before | after |
+|---|---:|---:|
+| hashtab | 1.171 | 1.160 |
+| heapsort | 1.195 | 1.128 |
+| quicksort | 1.214 | 1.220 |
+| mergesort | 1.040 | 0.995 |
+| graph | 1.320 | 1.324 |
+| bsearch | 0.941 | 1.109 |
+| isort (elapsed) | 0.994 | 0.990 |
+
+`heapsort` and `mergesort`, whose kernels have variables in slots, gain 6 and 4%. The loop of `bsearch` that takes its time, the body of `searchlower` in place, has every variable in a register and is the same instructions at another address, now across the end of a line of 64 bytes (0x16ee to 0x171b): it is the program whose time [moves most with the place of its code](#the-algorithm-kernels-in-a-library-2026-11-21), and one build each is no comparison for it.
+
+## collatz within its statements, 2026-11-21
+
+`collatz` was [12.6% behind C](#against-the-criteria-of-the-redesign-2026-11-20), and three things were named that would close it, all across statements. Two parts of the gap are inside one statement and were taken first. `if x%2` computed the remainder, a copy and an `and`, to test it; it is now `test r12b, 1`. `x=x*3+1` was `imul`, `add` and a copy back; it is `lea r12, [r12+r12*2+1]`, and so is any variable in a register times 3, 5 or 9 with a number added or taken away. The inner loop went from ten instructions to eight.
+
+The time moves more with the place of the code than with the change, so both compilers built the program with 1, 5, 9, ... 29 bytes of data before it, and `perf` timed each, AIL over C:
+
+| bytes before | 1 | 5 | 9 | 13 | 17 | 21 | 25 | 29 | median |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| before | 1.086 | 1.139 | 1.218 | 1.219 | 1.153 | 1.103 | 1.075 | 1.079 | 1.121 |
+| after | 1.055 | 1.057 | 1.126 | 1.086 | 1.209 | 1.196 | 1.153 | 1.062 | 1.106 |
+
+The best place is 5.5% behind C where it was 7.5%, the median 10.6% where it was 12.1%, and the same code is anywhere from 5.5 to 21% behind by where it stands, which the two instructions saved do not touch.
+
+What is left is not done: C adds one to the count twice and halves at once after an odd step, since 3x+1 is even, which folds the two branches of the `if` into one round. That needs the `if`, its `else` and what they assign seen together, and the compiler writes the code of a line when it has read it. A loop-invariant address in a register, the third thing named, does not occur in this loop. The item is closed at this figure.
+
+## The place of a loop, 2026-11-21
+
+The time of a short loop moved with the bytes that happened to stand before it: `heapsort` at a thousand elements by a fifth, `bsearch` by more than a third, and `isort` and `collatz` each had a place where they lost a fifth. `perf` measured the one place `make` gave a program, and the compiler aligned nothing, while `gcc -O3` aligns its loops. So one build each compared two compilers badly, as [the row of `bsearch`](#stack-slots-2026-11-21) above shows.
+
+**`perf --places`** asks the question itself: it compiles a program eight times with `build/ailc`, with 1, 5, 9, ... 29 bytes of `data` before its first line, times each as it times `build/<name>`, and prints AIL / C of each, for an algorithm program the geometric mean over its kernel times, with the least, the median, the most, and how far the most is above the least.
+
+**The first line of a loop now starts at a multiple of 64 in the file**, a line of the cache: the line behind a `while`, and in a function a label that a jump goes back to. The bytes before it are instructions that do nothing, run once when the loop is entered. A label of the top level cannot be padded, since a jump back to it is not known when it is read, and a label in a body compiled in place is not. Multiples of 16 and of 32 were tried first on `bsearch` and `collatz`: 16 left `collatz` with two times a seventh apart, 32 one place in eight that far off, 64 none. Padding the entry of each function as well changed nothing on `heapsort`, `bsearch` and `collatz` and is not done.
+
+AIL / C over the eight places, before (the compiler of the section above, by the same method in a script) and after (`perf --places`):
+
+| program | least | median | most | most above least | least | median | most | most above least |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| | before | | | | after | | | |
+| collatz | 1.053 | 1.104 | 1.210 | 14.9% | 1.123 | 1.124 | 1.126 | 0.3% |
+| sieve | 0.996 | 1.007 | 1.034 | 3.8% | 0.965 | 0.971 | 0.983 | 1.9% |
+| isort | 0.993 | 0.995 | 1.215 | 22.4% | 0.992 | 0.994 | 0.995 | 0.3% |
+| bsearch | 0.802 | 0.913 | 1.106 | 37.9% | 0.881 | 0.886 | 0.888 | 0.8% |
+| heapsort | 1.046 | 1.129 | 1.263 | 20.7% | 1.037 | 1.044 | 1.065 | 2.6% |
+| quicksort | 1.183 | 1.204 | 1.231 | 4.1% | 1.210 | 1.212 | 1.221 | 0.9% |
+| mergesort | 0.940 | 1.010 | 1.055 | 12.2% | 0.964 | 0.967 | 0.969 | 0.5% |
+| hashtab | 1.119 | 1.132 | 1.160 | 3.7% | 1.114 | 1.119 | 1.126 | 1.1% |
+
+- **The place no longer decides.** The most is 0.3 to 2.6% above the least where it was 3.7 to 37.9%, so a figure of one build now says something.
+- **The median is better for six of the eight**, by 8% for `heapsort`, 4% for `mergesort` and `sieve`, 3% for `bsearch`: an unaligned loop was more often badly placed than well.
+- **`collatz` and `quicksort` are steady at a worse median**, 1.124 for 1.104 and 1.212 for 1.204. `collatz` had places where it was 5% behind C; its loop has an `if` and an `else` in it, and where the jumps inside the loop fall counts as well as where the loop starts, which a start at a multiple of 64 fixes at one arrangement and not the best one. `graph`, not measured before, is 1.238 to 1.250.
+- **The cost is bytes**: the compiler is 51175 where it was 48970, `heapsort` 8597 for 6978. The limit of a body compiled in place leaves the padding out, so which functions are compiled in place is as before.
+
+## Bodies that call and name globals, 2026-11-21
+
+A function was compiled in place of its calls only if its body called nothing and named no `buf`, `data` or `var`, because each such line adds an entry to a table that is sized for a source read once. The tables now have room of their own for such bodies, behind the room the source limit gives the lines of the source: a function's entry says how many entries its body adds to each, and a call is compiled in place only while that room holds them. `tests/inline_fills_tables` has 600000 calls of a body with four calls and eight uses of a buffer, and `tests/bytes.sh` computes the whole file of 600000 calls of a body with four calls: the compiler puts 262144 bodies in place, a million entries, and calls the function from there on. (The first form of this checked only that the body at hand fitted, so the lines read after it could pass the end of the table; the review of the pull request found it.)
+
+The compiler is the program with the most such functions. Its source, built by the compiler from before and by itself, compiles the compiler in 7.13 and 6.68 ms (the median of nine times ten runs on one processor), 6% less; the file is 63207 bytes for 51175. The programs of the tables above, one build each now that loops are aligned, AIL / C before and after: `heapsort` 1.058 and 1.037, `ndmatmul` 1.559 and 1.541, `ndelem` 1.478 and 1.474, `ndreduce` 1.213 and 1.210, `hashtab` 1.132 and 1.134, `graph` 1.238 and 1.233, `bsearch` 0.883 and 0.883. Their kernels were in place already or call nothing; what moved is within a run or two.
+
+**Bodies in bodies.** A function that had a call compiled in place was itself always called, so one level was all. Such a function is now fit like any other, and bodies are read in bodies, four deep. No program of the tables changed by a byte: their kernels were one level. The tools are deeper. Built by the compiler before and after, on one processor, the median of seven runs: `build/tools/tokens` over the examples 18.8 and 18.2 ms, `infix` on `compiler/expr.aw` 5.6 and 5.4 ms, `randvars dump` of 300 programs 27.0 and 24.9 ms, 3, 4 and 8% less. The compiler compiles itself in the same time, 7.12 and 7.17 ms. The price is bytes again: `perf` is 50086 for 37862, `par` 36067 for 26244, the compiler 66343 for 63207, and the six async programs are each a little smaller.
+
+What stays a call, and why, is in [compiler.md](compiler.md), under "A call compiled in place": a call at the top level, which is compiled in one pass with a register for each of its first six variables and no place used twice, so a body's variables would take the program's registers; a function with more variables at once than registers; and the fifth body in four.
+
+## Registers in an async function, 2026-11-21
+
+Every variable of an async function lived in the record of its task, since a task that waits goes on in a later poll, where the registers hold something else. That is only needed for a variable in use across an `await`. The compiler now notes the awaits of a function in its first pass and keeps in the record what has one in its range, and the parameters; a variable computed and read between two awaits has a register, one of the five behind `rbx`, which holds the record. The poll function saves those it uses when it is entered and gives them back wherever it returns.
+
+`bench/async/calc` is a task that waits and between two waits runs a loop of arithmetic on three such variables, with its sum across the waits. A hundred tasks, a hundred million rounds in all, on one processor, the compiler before and after, three runs each:
+
+| rounds between two waits | before | after |
+|---:|---:|---:|
+| 1000 | 1.41 ns a round | 1.11 |
+| 10 | 2.70 | 2.33 |
+
+A loop between waits is a fifth faster, and still a seventh with a wait every ten rounds. `switch`, a task that only waits and whose one variable is in use across every wait, takes 199 ms for ten million waits where it took 198: a function without such variables saves `rbx` and nothing else, as before. The other programs of [the async section](#async-2026-11-20) have their variables in loops with awaits and are the same code but for that.
+
+## Collections, 2026-11-21
+
+`lib/vec.aw`, `queue.aw`, `heap.aw` and `map.aw` had tests and no time. Two programs now time them over the harness, with the same in C and in Rust: `collseq` pushes every key to a vector and pops them, sends them through a queue with room for 1024, and pushes them to a heap and takes them out in order; `collmap` puts every key into a map with its index, gets each, and deletes each, three kernels on one map. A kernel makes its collection and gives it back inside the clock. In C the collections are written by hand in the program, arrays from `malloc` and `realloc` and a table with the layout, the hash and the growth of `lib/map.aw`; in Rust they are `Vec`, `VecDeque`, `BinaryHeap` and `HashMap` of the standard library. `tests/algo.sh` requires of the three what awk and `sort(1)` make of the keys. Median time of the kernel in milliseconds (first and third quartile):
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| collseq, random, 1000 x 2000 | 58.64 (58.05, 59.16) | 23.01 (22.64, 23.22) | 39.28 (39.04, 39.51) | 2.548 slow |
+| collseq, few, 1000 x 2000 | 57.58 (57.45, 57.92) | 26.97 (26.60, 27.06) | 39.31 (39.18, 39.40) | 2.135 slow |
+| collseq, random, 1000000 x 2 | 227.93 (227.06, 229.17) | 205.20 (204.24, 206.28) | 173.35 (171.62, 175.40) | 1.111 slow |
+| collmap, random, 1000 x 2000 | 129.30 (128.85, 130.63) | 22.73 (21.97, 23.44) | 75.96 (75.65, 76.11) | 5.689 slow |
+| collmap, few, 1000 x 5000 | 77.52 (77.32, 77.75) | 29.39 (28.84, 30.00) | 98.52 (98.26, 98.82) | 2.638 slow |
+| collmap, random, 1000000 x 2 | 266.49 (265.10, 267.37) | 226.32 (225.70, 226.82) | 263.44 (261.16, 265.83) | 1.178 slow |
+| collmap, few, 1000000 x 4 | 81.85 (81.48, 82.25) | 56.64 (56.26, 57.12) | 86.78 (86.34, 87.68) | 1.445 slow |
+
+Geometric mean of AIL / C over 7 inputs: 2.054
+
+Algorithms, median time of the kernel in milliseconds (first and third quartile)
+
+| program, input, count x runs | AIL | C | Rust | AIL / C |
+|---|---:|---:|---:|---:|
+| collseq vec, random, 1000 x 2000 | 14.27 (14.16, 14.48) | 0.87 (0.87, 0.88) | 1.36 (1.35, 1.37) | 16.358 slow |
+| collseq queue, random, 1000 x 2000 | 9.74 (9.54, 10.02) | 0.96 (0.96, 0.98) | 3.37 (3.35, 3.39) | 10.109 slow |
+| collseq heap, random, 1000 x 2000 | 34.26 (33.92, 34.60) | 20.74 (20.36, 20.98) | 33.98 (33.76, 34.11) | 1.652 slow |
+| collseq vec, few, 1000 x 2000 | 14.30 (14.17, 14.70) | 0.88 (0.87, 0.88) | 1.36 (1.35, 1.37) | 16.309 slow |
+| collseq queue, few, 1000 x 2000 | 9.81 (9.63, 10.03) | 0.97 (0.96, 0.97) | 3.37 (3.35, 3.39) | 10.130 slow |
+| collseq heap, few, 1000 x 2000 | 33.19 (32.97, 33.40) | 24.71 (24.30, 24.77) | 33.99 (33.90, 34.08) | 1.343 slow |
+| collseq vec, random, 1000000 x 2 | 11.97 (11.89, 12.34) | 5.38 (5.32, 5.45) | 5.84 (5.83, 5.93) | 2.227 slow |
+| collseq queue, random, 1000000 x 2 | 5.88 (5.80, 5.95) | 2.93 (2.89, 2.98) | 4.14 (4.09, 4.21) | 2.005 slow |
+| collseq heap, random, 1000000 x 2 | 203.05 (202.05, 203.49) | 190.18 (189.34, 191.28) | 156.37 (154.50, 158.13) | 1.068 |
+| collmap put, random, 1000 x 2000 | 102.91 (102.61, 103.95) | 14.69 (14.11, 15.62) | 45.12 (44.85, 45.27) | 7.007 slow |
+| collmap get, random, 1000 x 2000 | 10.74 (10.66, 10.80) | 3.65 (3.63, 3.68) | 12.25 (12.24, 12.30) | 2.940 slow |
+| collmap del, random, 1000 x 2000 | 15.24 (15.17, 15.36) | 3.79 (3.70, 3.90) | 17.90 (17.86, 18.04) | 4.024 slow |
+| collmap put, few, 1000 x 5000 | 27.98 (27.85, 28.04) | 9.98 (9.90, 10.18) | 34.88 (34.75, 35.03) | 2.802 slow |
+| collmap get, few, 1000 x 5000 | 17.72 (17.65, 17.81) | 8.22 (8.12, 8.34) | 30.21 (30.15, 30.41) | 2.156 slow |
+| collmap del, few, 1000 x 5000 | 31.32 (31.17, 31.56) | 10.60 (10.07, 10.73) | 32.56 (32.44, 32.71) | 2.956 slow |
+| collmap put, random, 1000000 x 2 | 161.87 (161.24, 162.72) | 144.32 (143.94, 144.45) | 93.24 (92.79, 93.75) | 1.122 slow |
+| collmap get, random, 1000000 x 2 | 45.21 (44.76, 45.46) | 34.99 (34.71, 35.39) | 77.94 (76.99, 79.22) | 1.292 slow |
+| collmap del, random, 1000000 x 2 | 50.90 (50.40, 52.20) | 40.09 (39.58, 40.97) | 85.47 (83.24, 87.98) | 1.270 slow |
+| collmap put, few, 1000000 x 4 | 20.97 (20.87, 21.10) | 12.11 (11.98, 12.20) | 26.39 (26.31, 27.08) | 1.731 slow |
+| collmap get, few, 1000000 x 4 | 19.33 (19.22, 19.53) | 13.10 (12.87, 13.18) | 26.55 (26.23, 26.87) | 1.476 slow |
+| collmap del, few, 1000000 x 4 | 34.10 (34.00, 34.33) | 24.83 (24.79, 25.01) | 26.75 (26.63, 27.00) | 1.373 slow |
+
+The geometric mean of AIL / C over the 21 kernel times is 2.816, and it is two different things.
+
+- **At a million keys the collections are 1.07 to 2.2 times C**: the heap 1.07, the map 1.12 to 1.29 on keys that differ and 1.37 to 1.73 on sixteen keys, the vector and the queue 2.0 to 2.2, 6 ns a key against 2.7 for a push and a pop. Against Rust the map is ahead on keys that differ in `get` and `del` (45 and 51 ms for 78 and 85), since `HashMap` computes SipHash, and behind in `put` (162 for 93).
+- **At a thousand keys they are 10 to 16 times C for the vector and the queue, 7 times for `put`.** That is not the code of the collections: it is `alloc`, which is one `mmap` for each call, and `free`, one `munmap`. A run of `collseq` at a thousand keys makes five of each (the vector grows once, the queue has its room, the heap grows once) and a run of `collmap` six, 10000 and 12000 pairs in the 2000 runs, where the C program makes 34 system calls in all, because `malloc` hands out again what was freed (`strace -c`). A vector of a thousand keys costs 7.1 microseconds a run in AIL and 0.44 in C, and nearly all of the difference is those calls and the pages they bring in zeroed. `get` and `del`, which allocate nothing, are 2.9 and 4.0 times C at a thousand keys on keys that differ: a call of `mapget` for each key, where C has the probe in the loop.
+- **What this says for a program**: a collection that lives long costs about what it costs in C; one made and dropped in a loop pays a system call each time it grows, and is better made once and used again. An allocator that keeps freed blocks would change the first table and nothing else; it is not part of the language today, where `alloc` is the system call by design.
+
+## After the open items, 2026-11-21
+
+`build/tools/perf`, whole, with the compiler as it is after the sections from [stack slots](#stack-slots-2026-11-21) to [collections](#collections-2026-11-21): short distances to stack slots, a mask tested where it is, `lea` for a product, loops at multiples of 64 bytes, calls in place of bodies that call and name globals and of bodies in bodies. CPU-bound, median elapsed in milliseconds (first and third quartile):
+
+| program | AIL | C | Rust | asm | AIL / C |
+|---|---:|---:|---:|---:|---:|
+| compute | 134.12 (134.02, 134.78) | 134.69 (134.02, 135.09) | 134.62 (134.37, 135.07) | 134.01 (133.48, 134.57) | 0.996 |
+| sieve | 50.63 (49.94, 51.04) | 52.27 (51.74, 52.51) | 53.32 (52.84, 54.01) |  | 0.969 |
+| collatz | 89.15 (88.96, 89.90) | 79.31 (79.16, 79.94) | 58.81 (58.40, 59.18) |  | 1.124 slow |
+| fnv | 94.31 (94.09, 94.65) | 94.77 (94.26, 95.21) | 94.91 (94.37, 95.21) |  | 0.995 |
+| isort | 50.83 (50.67, 51.12) | 50.98 (50.88, 51.30) | 71.67 (71.49, 72.01) |  | 0.997 |
+
+The geometric mean of AIL / C over the five is 1.015, where the redesign ended at 1.039 and the follow-up at 1.032. `collatz` is the one program behind, 12.4%, as [its section](#collatz-within-its-statements-2026-11-21) explains. Over the 62 kernel times of the six algorithm programs and the three array programs the geometric mean is 1.145, where it was 1.201 with [the clock of the harness](#the-clock-of-the-harness-2026-11-21); by program it is `bsearch` 0.851, `mergesort` 0.969, `heapsort` 1.048, `hashtab` 1.127, `ndreduce` 1.174, `quicksort` 1.197, `graph` 1.250, `ndelem` 1.496 and `ndmatmul` 1.535. With the 21 kernel times of the collections, which are 2.808 in the mean for the reason given above, it is 1.436 over 83.

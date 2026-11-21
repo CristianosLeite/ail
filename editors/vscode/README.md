@@ -25,6 +25,15 @@ workspace folder of the file; the setting `ail.indentPath` names another
 place. Folding and highlighting need no tool.
 
 The rules of a line (which word opens a block, when a line is inside a
-string) are those of `tools/indent.aw`, written again in `extension.js`
+string) are those of `tools/lib/dent.aw`, written again in `extension.js`
 for the folding; a new block statement of the language is added in both,
 in the grammar and in `language-configuration.json`.
+
+`editors/vscode/check.sh` checks the grammar and the folding on every
+source of the repository without the window of the editor, with the
+libraries an installed VS Code colours with (`test/check.js`): the first
+word of a line that is a statement of `compiler/tables.aw` must be
+coloured as one, a name that is assigned as a variable, a comment and a
+string as what they are, and the folds must be the blocks that
+`build/tools/indent` indents. Run it after a change to the grammar, to
+`extension.js` or to the statements of the language.

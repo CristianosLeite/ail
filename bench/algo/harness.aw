@@ -23,7 +23,8 @@
 # mind; it keeps the registers that hold variables.
 #
 # A program names its kernels with ref and calls one of algosort,
-# algosearch, algohash, algograph and algonum, which do not return an
+# algosearch, algohash, algograph, algonum and algocoll, which do not
+# return an
 # error: they end the program. Every name of this file starts with
 # "algo".
 buf algoin 40
@@ -31,6 +32,7 @@ buf algoks 24
 buf algoout 32
 buf algots 16
 buf algorng 8
+buf algost 64
 
 # the function that reads the clock, the path of the values the kernel
 # gave the process, and the name the vDSO has for its function
@@ -504,4 +506,40 @@ fn algonum algoka algokb algokc algosq
 		algor-=1
 	end
 	tail algoend algom algoa algol*2 algow algol*algok algok
+end
+
+# collections: up to three kernels, run one after the other, each given
+# the algon keys, their number, a place for as many words of result, and
+# 64 bytes that are zero before the first of a run and in which one
+# kernel may leave a collection for the next; the last gives it back.
+# The input is the keys, by the shape; the result is what the kernels
+# wrote, one behind the other.
+fn algocoll algoka algokb algokc
+	call algoread as algon algos algor algom
+	store algoks algoka
+	store algoks+8 algokb
+	store algoks+16 algokc
+	algok=(algoka!=0)+(algokb!=0)+(algokc!=0)
+	call algomem algon*(1+algok) as algoa
+	algow=algoa+algon*8
+	call algofill algoa algon algos
+	while algor
+		algoi=0
+		while algoi<8
+			store algost+algoi*8 0
+			algoi+=1
+		end
+		algoi=0
+		while algoi<algok
+			load algoks+algoi*8 as algop
+			call algonow as algob
+			callp algop algoa algon algow+algoi*algon*8 algost as algox
+			call algonow as algoe
+			load algoout+8+algoi*8 as algox
+			store algoout+8+algoi*8 algox+algoe-algob
+			algoi+=1
+		end
+		algor-=1
+	end
+	tail algoend algom algoa algon algow algon*algok algok
 end

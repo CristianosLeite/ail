@@ -844,8 +844,43 @@ fn xmuli
 	jnz v+0x80000000>>32 n
 	call vplace a as kk pp
 	jnz kk n
+	# times 3, 5 or 9 is the variable plus 2, 4 or 8 times itself, one lea;
+	# a number added to that product or taken from it by the next operator
+	# is the displacement of the same lea, and xgen skips the two nodes
+	s=0
+	if v==3
+		s=1
+	end
+	if v==5
+		s=2
+	end
+	if v==9
+		s=3
+	end
+	w=0
+	l=xlast
+	if s
+		if xgi+2<xgh
+			q=xgi*32+ex
+			load q+32 as k
+			load q+40 as n
+			load q+64 as c
+			load q+72 as o
+			load q+80 as b
+			if (k==1)&(c==6)&(b==xgi)&((o==3)|(o==4))
+				if o==4
+					n=0-n
+				end
+				ifz n+0x80000000>>32
+					w=n
+					xgskip=2
+					l=xgi+3==xgh
+				end
+			end
+		end
+	end
 	d=16
-	if xlast
+	if l
 		if xtr<16
 			d=xtr
 			call xtarget
@@ -853,6 +888,15 @@ fn xmuli
 	end
 	if d==16
 		call xalloc as d
+	end
+	if s
+		k=xms
+		xms=s
+		call erexm 1 d pp pp 0
+		call eb 141
+		call emodm d pp pp w
+		xms=k
+		ret d
 	end
 	call rexw d pp
 	ifz v+128>>8
@@ -1134,7 +1178,11 @@ fn xgen i h
 		load p+24 as c
 		if k==6
 			xlast=i+1==h
+			xgi=i
+			xgh=h
 			call xop a
+			i+=xgskip
+			xgskip=0
 		else
 			call xpush k a b c
 		end
@@ -1741,8 +1789,33 @@ fn xjcond
 			end
 		end
 		if o<10
+			# x&m and x%m, m a power of two, as a condition: the value is
+			# tested with the mask where it is and not computed. w is the
+			# mask, 0 for none; one that needs more than 32 bits is none
+			w=0
+			e=nex
+			load p-32 as b
+			load p-24 as c
+			if b==1
+				if o==7
+					w=c
+				end
+				if o==2
+					if c
+						ifz c&(c-1)
+							w=c-1
+						end
+					end
+				end
+				if w>>32
+					w=0
+				end
+			end
+			if w
+				e=h-1
+			end
 			call xinit 0x0fc1 16
-			call xgen 0 nex
+			call xgen 0 e
 			nxs-=1
 			load exv as k
 			load exv+8 as a
@@ -1768,6 +1841,34 @@ fn xjcond
 				if xflgpos==op
 					t=0
 				end
+			end
+			if w
+				# test r8, imm8 below 256 (with a REX from spl on, which
+				# makes the low byte of every register), else test r32, imm32
+				if w<256
+					if r
+						if r>=4
+							call eb r>>3|64
+						end
+						call eb 246
+						call eb r&7|192
+					else
+						call eb 168
+					end
+					call eb w
+				else
+					if r
+						if r>=8
+							call eb 65
+						end
+						call eb 247
+						call eb r&7|192
+					else
+						call eb 169
+					end
+					call e4 w
+				end
+				t=0
 			end
 			if t
 				call orr 133 r r

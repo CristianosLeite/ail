@@ -64,6 +64,10 @@ build/tools/indent - < tests/indent/in.aw > "$tmp/o.aw" 2> "$tmp/err" &&
     cmp -s "$tmp/o.aw" tests/indent/out.aw && [ ! -s "$tmp/err" ] || r=1
 build/tools/indent - < /dev/null > "$tmp/o.aw" 2>&1 && [ ! -s "$tmp/o.aw" ] || r=1
 say indent_stdin $r
+# the path of a use has no escapes: a backslash before its last quote
+# opens no string, and the lines behind it are indented
+[ "$(printf 'use "a\\"\nif 1\nx=1\nend\n' | build/tools/indent -)" = "$(printf 'use "a\\"\nif 1\n\tx=1\nend\n')" ]
+say indent_use_path_ends_with_backslash $?
 r=0
 for a in "" "--check" "- x.aw" "--check -"; do
     build/tools/indent $a > /dev/null 2> "$tmp/said"

@@ -1,6 +1,6 @@
 # the fixture of tests/infix.sh for the lines at the edges of the rules;
 # tests/infix/edge.out.aw is what the Python script made of it, which
-# the tool was ported from. It is compared, not compiled.
+# the tool was ported from, indented. It is compared, not compiled.
 # a line without a string is written anew: one space between its words,
 # no CR at its end, also when nothing else changes
 x=1
@@ -17,7 +17,7 @@ x-=1         # close
 # two labels of one name: the last one counts
 label twice
 while x
-x-=1
+	x-=1
 end
 # a line of 100 bytes is folded into, one of 101 is not
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=1

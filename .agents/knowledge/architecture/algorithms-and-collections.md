@@ -1,6 +1,6 @@
 ---
 title: Algorithm benchmarks and collections
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, commits 2ba9ed2 91d8f7b, docs/TODO.md, docs/performance.md, bench/algo/, tools/perf.aw, tests/algo.sh, lib/vec.aw, lib/queue.aw, lib/heap.aw, lib/map.aw]
 status: current
 ---
@@ -30,9 +30,11 @@ min-heap and a hash map.
   address go to `rax`, `rdi`, `rsi`); the system call is the fallback. An empty kernel
   costs 13 ns a run, as in C and Rust (12), where the system call cost 91. AIL does not
   align the stack at a call; the vDSO has no aligned store to it (`tests/algo_clock`).
-- `tests/algo.sh` (in `make test`, which therefore depends on `make all`) checks AIL, and C
-  if there is a `gcc`, against `sort(1)` and awk at the counts 0, 1, 2, 3 and 1000. Rust is
-  only compared with C, by `perf` and `tools/bench.sh`. `hashtab` is also run at 8 keys of
+- `tests/algo.sh` (in `make test`, which therefore depends on `make all`) checks AIL, C
+  if there is a `gcc` and, since 2026-11-21, Rust if there is a `rustc`, against `sort(1)`
+  and awk at the counts 0, 1, 2, 3 and 1000; the nine Rust programs passed at once. A
+  check knows its program by the name of the file, so the Rust builds are in a directory
+  of their own. `perf` compares Rust with C besides. `hashtab` is also run at 8 keys of
   few values and at 261 keys, where a lookup goes round the end of the table; the function
   `wraps` of the script proves that with a table in shell, so a change to the harness that
   loses the wrap fails the test instead of passing unseen.
@@ -55,6 +57,16 @@ min-heap and a hash map.
 - The compiler changes that followed, and the figure after each (1.753 to 1.201), are on
   [their own page](generated-code-follow-up.md).
 
+- The collections are timed since 2026-11-21 by `examples/collseq.aw` (vec, queue, heap) and
+  `examples/collmap.aw` (put, get, del on one map), with C (by hand, `malloc`) and Rust (`Vec`,
+  `VecDeque`, `BinaryHeap`, `HashMap`) in `bench/`, over `algocoll` of the harness, rows of
+  `perf`, references in `tests/algo.sh`. Chosen by the user: against C and Rust, not AIL alone.
+  At a million keys AIL / C is 1.07 (heap), 1.12 to 1.73 (map), 2.0 to 2.2 (vec, queue). At a
+  thousand keys it is 16 (vec), 10 (queue), 7 (put), because every `alloc` is an `mmap` and
+  every `free` a `munmap`: 10000 pairs in 2000 runs of `collseq`, 34 system calls in all in C
+  (`strace -c`). Geometric mean over 21 kernel times 2.816. A collection made and dropped in
+  a loop is better made once and used again; an allocator that reuses blocks is not in the language.
+
 ## Why
 - **A shared harness instead of programs that stand alone:** the token count of an example is
   then that of the algorithm, and the three languages cannot differ in their input. The
@@ -71,5 +83,4 @@ min-heap and a hash map.
   pop and a push for every change.
 
 ## Open
-- `tests/algo.sh` does not run the Rust programs.
-- No collection has been timed on its own.
+- None.

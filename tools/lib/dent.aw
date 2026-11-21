@@ -1,0 +1,223 @@
+# tools/lib/dent.aw -- the indentation of a source, as docs/language.md
+# has it under "Source style"; needs lib/bytes.aw.
+#
+# dtindent writes a text again with one tab for each block a line
+# stands in: the lines between fn (or async fn), while or an if in any
+# form and their end are one level deeper; else and end stand at the
+# level of the line that opened the block. It changes the spaces and
+# tabs at the start of a line and no other byte. A line that starts
+# inside a string is part of the string and stays as it is, and a line
+# of blanks only loses them. No string goes on behind a use, whose path
+# has no escapes: one that ends with a backslash ends there. It does not check the program: an end too
+# many closes nothing, and a block without an end stays open.
+#
+# dtkind, dtstrend and dtafter are its reading of a line, for a tool
+# that needs the same.
+
+# the words that open a block, each with its length before it
+data dtopen 2 "fn" 5 "async" 5 "while" 2 "if" 3 "ifz"
+data 4 "ifeq" 4 "ifne" 4 "iflt" 4 "ifle" 4 "ifgt" 4 "ifge"
+data 5 "ifslt" 5 "ifsle" 5 "ifsgt" 5 "ifsge" 0
+
+# 1 if the dtn bytes at dtp are the dtm bytes at dtq
+fn dtsame dtp dtn dtq dtm
+	if dtn!=dtm
+		ret 0
+	end
+	while dtn
+		loadb dtp as dtc
+		loadb dtq as dtd
+		if dtc!=dtd
+			ret 0
+		end
+		dtp+=1
+		dtq+=1
+		dtn-=1
+	end
+	ret 1
+end
+
+# whether the line from dtp to dte ends inside a string, dts saying
+# whether it starts in one: a string may go on over the end of a line, a
+# backslash in it takes the next byte along, and a comment has no string
+fn dtstrend dtp dte dts
+	while dtp<dte
+		loadb dtp as dtc
+		if dts
+			if dtc==92
+				dtp+=1
+			end
+			if dtc==34
+				dts=0
+			end
+		else
+			if dtc==35
+				ret 0
+			end
+			if dtc==34
+				dts=1
+			end
+		end
+		dtp+=1
+	end
+	ret dts
+end
+
+# whether the line from dtp to dte, which starts outside a string and
+# with no blank, ends inside one: as dtstrend has it, but for a use,
+# whose path has no escapes and ends on its line
+fn dtafter dtp dte
+	if dte-dtp>=4
+		call dtsame dtp 3 "use" as dtr
+		loadb dtp+3 as dtc
+		if dtr&((dtc==32)|(dtc==9))
+			ret 0
+		end
+	end
+	tail dtstrend dtp dte 0
+end
+
+# what the line from dtp to dte, which starts with no blank, does to the
+# depth: 1 it opens a block, 2 it is else, 3 it is end, 0 anything else.
+# The first word counts only when a blank, a comment or the end of the
+# line follows it, as the compiler has it: if=1 sets a variable
+fn dtkind dtp dte
+	dtq=dtp
+	while dtq<dte
+		loadb dtq as dtc
+		if ((dtc<97)|(dtc>122))&((dtc<48)|(dtc>57))&(dtc!=95)
+			jmp cut
+		end
+		dtq+=1
+	end
+	label cut
+	if dtq<dte
+		loadb dtq as dtc
+		if (dtc!=32)&(dtc!=9)&(dtc!=13)&(dtc!=35)
+			ret 0
+		end
+	end
+	dtn=dtq-dtp
+	call dtsame dtp dtn "else" as dtr
+	if dtr
+		ret 2
+	end
+	call dtsame dtp dtn "end" as dtr
+	if dtr
+		ret 3
+	end
+	dtw=dtopen
+	label next
+	loadb dtw as dtm
+	ifz dtm
+		ret 0
+	end
+	call dtsame dtp dtn dtw+1 dtm as dtr
+	if dtr
+		ret 1
+	end
+	dtw+=dtm+1
+	jmp next
+end
+
+# add the dtn bytes at dtp to the buffer dto, indented: the number of
+# lines that changed, or -1 without memory. If dtf is a function it is
+# called for each of them with dta, dtb and the number of the line
+fn dtindent dtp dtn dto dtf dta dtb
+	dte=dtp+dtn
+	dtdepth=0
+	dtinstr=0
+	dtline=0
+	dtchg=0
+	while dtp<dte
+		dtline+=1
+		# the line is the bytes from dtp to dtle, without its LF
+		dtle=dtp
+		while dtle<dte
+			loadb dtle as dtc
+			if dtc==10
+				jmp found
+			end
+			dtle+=1
+		end
+		label found
+		if dtinstr
+			call byadd dto dtp dtle-dtp as dtr
+			ifz dtr
+				ret -1
+			end
+			call dtstrend dtp dtle 1 as dtinstr
+		else
+			dts=dtp
+			while dts<dtle
+				loadb dts as dtc
+				if (dtc!=32)&(dtc!=9)
+					jmp word
+				end
+				dts+=1
+			end
+			label word
+			call dtkind dts dtle as dtk
+			if dtk==3
+				if dtdepth
+					dtdepth-=1
+				end
+			end
+			dtd=dtdepth
+			if dtk==2
+				if dtd
+					dtd-=1
+				end
+			end
+			if dtk==1
+				dtdepth+=1
+			end
+			# a line without a statement or a comment has no indentation
+			if dts==dtle
+				dtd=0
+			else
+				loadb dts as dtc
+				if (dtc==13)&(dts+1==dtle)
+					dtd=0
+				end
+			end
+			# is it right as it stands, dtd tabs and nothing else
+			dtbad=dts-dtp!=dtd
+			dtq=dtp
+			while dtq<dts
+				loadb dtq as dtc
+				if dtc!=9
+					dtbad=1
+				end
+				dtq+=1
+			end
+			if dtbad
+				dtchg+=1
+				if dtf
+					callp dtf dta dtb dtline
+				end
+			end
+			while dtd
+				call byaddb dto 9 as dtr
+				ifz dtr
+					ret -1
+				end
+				dtd-=1
+			end
+			call byadd dto dts dtle-dts as dtr
+			ifz dtr
+				ret -1
+			end
+			call dtafter dts dtle as dtinstr
+		end
+		dtp=dtle
+		if dtp<dte
+			call byaddb dto 10 as dtr
+			ifz dtr
+				ret -1
+			end
+			dtp+=1
+		end
+	end
+	ret dtchg
+end

@@ -1,6 +1,6 @@
 ---
 title: Token cost measurement
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-19, conversation 2026-11-20, tools/tokens.sh, tools/perf.aw, tools/lib/o200k.aw, docs/tokens.md, docs/performance.md]
 status: current
 ---
@@ -45,6 +45,20 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   status against the examples for empty input, for `hi` and for eight bytes; all 78 comparisons
   pass. A program may lack the assembly equivalent.
 
+- Compared with Claude's tokenizers on 2026-11-21 (`tools/claudetokens.sh`, run by hand): no
+  offline tokenizer of the current models exists, so the script sends the code of each program
+  (`build/tools/tokens --code <mark> file`) to claudetokenizer.com, a third party that forwards
+  to Anthropic's `count_tokens` (and to Google's count), chosen by the user knowing that the
+  sources leave the machine. Corpus of ten, AIL/C/Rust/asm: `o200k_base` 941/1118/1191/925,
+  Sonnet 4.6 1058/1355/1452/1070, Fable 5 1183/1506/1686/1251; C is 1.19, 1.28 and 1.27 times
+  AIL, Rust 1.27, 1.37 and 1.43. The order holds and AIL gains. The three array programs are
+  the exception with Fable 5 (817 against 800 and 792): prefixed library names cost more there.
+- The endpoint is `POST /api` with `{"text","model","comparisonModel"}`; an empty text is
+  refused; a message without text costs 5 tokens (Fable 5) and 6 (Sonnet 4.6), measured as
+  twice the count of a line less that of the line twice, not the 7 the page subtracts; the
+  last line end is not counted. Its `gpt4oTokens` equalled `build/tools/tokens` for all 63
+  files. Answers are cached in `build/claudetokens/` by the SHA-256 of the text.
+
 ## Why
 - **tiktoken in a virtual environment (chosen by the user):** no tokenizer was installed, and this
   one runs offline once installed, so no source leaves the machine. The alternative was the
@@ -62,8 +76,6 @@ and their C, Rust and assembly equivalents in `bench/`. Since the examples use e
   update the table in `docs/tokens.md`.
 
 ## Open items
-- 2026-11-19: the counts are from an OpenAI encoding, used as a proxy; they have not been compared
-  with Claude's tokenizer.
 - 2026-11-19: `count.s` uses a loop where the other three versions are unrolled.
 
 ## Related

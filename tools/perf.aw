@@ -1,7 +1,7 @@
 # tools/perf.aw -- time each example against its C, Rust and assembly
 # equivalent.
 #
-#   build/tools/perf [--cpu N] [--quick] [--qsort] [name ...]
+#   build/tools/perf [--cpu N] [--quick] [--qsort] [--places] [name ...]
 #                                             (default: every program)
 #
 # Run from the top of the repository after make. Needs gcc and rustc.
@@ -30,6 +30,15 @@
 # have a column more, for bench/qsort.c, the qsort of the C library on
 # the same input.
 #
+# With --places the question is another: how far the time of a program
+# moves with where its code stands. Each CPU-bound or algorithm program
+# asked for is compiled eight times by build/ailc, with 1, 5, 9, ... 29
+# bytes of data before its first line, and each of those is timed as
+# build/<name> is otherwise. The one table has AIL / C of each (for an
+# algorithm program the geometric mean over its kernel times), the
+# least, the median and the most of the eight, and how far the most is
+# above the least. Two compilers are compared by that table of each.
+#
 # Status 0, or 1 with a line "perf: ..." on stderr.
 use "lib/io.aw"
 use "lib/bytes.aw"
@@ -45,30 +54,32 @@ use "tools/lib/fmt.aw"
 data progs 5 "hello" 4 "echo" 5 "count" 4 "fact" 4 "loop"
 data 7 "compute" 5 "sieve" 7 "collatz" 3 "fnv" 5 "isort"
 data 9 "quicksort" 9 "mergesort" 8 "heapsort" 7 "bsearch" 7 "hashtab" 5 "graph"
-data 6 "ndelem" 8 "ndreduce" 8 "ndmatmul"
-data pkind 0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2
+data 6 "ndelem" 8 "ndreduce" 8 "ndmatmul" 7 "collseq" 7 "collmap"
+data pkind 0 0 0 0 0 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 2
 # 0 nothing, 1 the bytes 0 to 255 sixteen times, 2 the number
 # 0x123456789abcdef0 as 8 bytes, 3 16000000 so, 4 500000 so, 5 the bytes 0
 # to 255 4096 times
-data pinput 0 1 1 0 0 2 3 4 5 2 0 0 0 0 0 0 0 0 0
+data pinput 0 1 1 0 0 2 3 4 5 2 0 0 0 0 0 0 0 0 0 0 0
 # 0 nothing, 1 the greeting, 2 its input, 3 the count, 4 the digits,
 # 9 whatever the C program writes
-data pwant 1 2 3 0 4 9 9 9 9 9 9 9 9 9 9 9 9 9 9
-data pstat 0 0 0 120 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-const nprogs 19
+data pwant 1 2 3 0 4 9 9 9 9 9 9 9 9 9 9 9 9 9 9 9 9
+data pstat 0 0 0 120 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+const nprogs 21
 # the algorithm programs, kind 2, from the first on: how many kernels
 # each has, and their names in that order; the first three are sorts
 const firstalgo 10
 const nsorts 3
-data pkern 1 1 1 1 3 2 3 3 1
+data pkern 1 1 1 1 3 2 3 3 1 3 3
 data knames 0 "" 0 "" 0 "" 0 "" 6 "insert" 3 "hit" 4 "miss" 3 "bfs" 3 "dfs"
 data 3 "add" 3 "mul" 5 "scale" 3 "sum" 4 "cols" 3 "dot" 0 ""
+data 3 "vec" 5 "queue" 4 "heap" 3 "put" 3 "get" 3 "del"
 data shapes 6 "random" 6 "sorted" 8 "reversed" 3 "few"
 # their inputs, a row each: the program, the count as a power of ten, the
 # shape, and the runs in one process as a number times a power of ten.
 # The shape 3 is few distinct values for a sort, small steps for bsearch,
 # few distinct keys for hashtab and at most one neighbour for graph. The
-# count of ndreduce and ndmatmul is the side of a square of numbers.
+# count of ndreduce and ndmatmul is the side of a square of numbers. The
+# shape 3 is sixteen distinct keys for the collections.
 data work 10 3 0 1 3
 data 10 3 1 1 3
 data 10 3 2 1 3
@@ -111,9 +122,17 @@ data 17 2 0 1 3
 data 17 3 0 2 1
 data 18 2 0 2 1
 data 18 3 0 1 0
-const nwork 42
+data 19 3 0 2 3
+data 19 3 3 2 3
+data 19 6 0 2 0
+data 20 3 0 2 3
+data 20 3 3 5 3
+data 20 6 0 2 0
+data 20 6 3 4 0
+const nwork 49
 data langs 3 "AIL" 1 "C" 4 "Rust" 3 "asm"
 data sgcc "gcc" 0
+data cmdailc "build/ailc" 0
 data so3 "-O3" 0
 data srustc "rustc" 0
 data so "-O" 0
@@ -136,7 +155,7 @@ buf bgot 24
 # sources of C, Rust and assembly, the object file, the input, the output,
 # the executable of bench/qsort.c
 buf strs 24
-buf pa 88
+buf pa 104
 # the arguments of a child
 buf av 64
 # the times of the rounds, 500 for each language, and the order of a round
@@ -147,15 +166,18 @@ buf ord 32
 buf ksamp 6144
 # the results: for each program and language 32 bytes, 1 if there is a
 # figure, the median as a double, the two quartiles as numbers
-buf res 2432
+buf res 2688
 # those of the algorithm programs: for each row of work the same 128
 # bytes four times, for the process and for each of three kernels
-buf ares 21504
+buf ares 25088
 # the programs asked for, in their order, and their number
-buf sel 152
+buf sel 168
 var gnsel
 # 1 with --qsort
 var gqsort
+# 1 with --places, and the source of a program with bytes before it
+var gplaces
+buf psrc 24
 
 fn fail m mn
 	call eprint "perf: "
@@ -285,9 +307,13 @@ fn paths pi
 	store pa+72 o
 	call path "build/perf/qsort.c.bin" "" "" as o
 	store pa+80 o
+	call path "examples/" p n ".aw" as o
+	store pa+88 o
+	call path "build/perf/" p n ".place" as o
+	store pa+96 o
 	load strs as b
 	i=0
-	while i<88
+	while i<104
 		load pa+i as o
 		store pa+i b+o
 		i+=8
@@ -760,6 +786,152 @@ fn workload pi mask quick w
 	call measure pi mask quick nk ares+w*512
 end
 
+# ---- the place of the code
+
+# compile the program whose paths are in pa with n bytes of data before
+# its first line, and make that the AIL program that is timed
+fn placed n
+	call bycut psrc 0
+	call add psrc "data pad"
+	while n
+		call add psrc " 0"
+		n-=1
+	end
+	call add psrc "\n"
+	load pa+88 as p
+	call strlen p as m
+	call fileread p m psrc as r
+	ifslt r 0
+		call eprint "perf: "
+		call fail3 "cannot read " p m ""
+	end
+	load psrc as s
+	load psrc+8 as sn
+	call filewrite "build/perf/place.aw" s sn as r
+	ifslt r 0
+		call fail "cannot write build/perf/place.aw"
+	end
+	call fileopen "build/perf/place.aw" 0 0 as i
+	load pa+96 as p
+	call strlen p as m
+	call fileopen p m 577 493 as o
+	if (i>>63)|(o>>63)
+		call fail "cannot open the files of a placed program"
+	end
+	store av cmdailc
+	store av+8 0
+	call run i o as st
+	sys close i
+	sys close o
+	if st
+		call fail "build/ailc failed on a placed program"
+	end
+	store pa p
+end
+
+# AIL / C of the program pi as it was just timed: of its elapsed time,
+# or for an algorithm program the geometric mean over its kernel times
+fn figure pi
+	loadb pkind+pi as c
+	if c==1
+		r=res+pi*128
+		load r+8 as m
+		load r+40 as d
+		fdiv m d as q
+		ret q
+	end
+	itof 1 as g
+	nr=0
+	loadb pkern+pi-firstalgo as nk
+	w=0
+	while w<nwork
+		loadb work+w*5 as d
+		if d==pi
+			j=1
+			while j<=nk
+				r=ares+w*512+j*128
+				load r+32 as c
+				if c
+					load r+8 as m
+					load r+40 as d
+					fdiv m d as q
+					fmul g q as g
+					nr+=1
+				end
+				j+=1
+			end
+		end
+		w+=1
+	end
+	ifz nr
+		ret g
+	end
+	tail froot g nr
+end
+
+# time the program pi, whose paths are in pa and whose other languages
+# are built (mask)
+fn timed pi mask quick
+	loadb pkind+pi as c
+	if c==2
+		w=0
+		while w<nwork
+			loadb work+w*5 as c
+			if c==pi
+				call workload pi mask quick w
+			end
+			w+=1
+		end
+		ret 0
+	end
+	call prepare pi as free
+	call check pi mask free 0
+	call measure pi mask quick 0 res+pi*128
+end
+
+# the row of --places for the program pi
+fn places pi mask quick
+	local f 64
+	call item progs pi as p n
+	call add ob "| "
+	call add ob p n
+	t=0
+	while t<8
+		call placed t*4+1
+		call timed pi mask quick
+		call figure pi as q
+		store f+t*8 q
+		call add ob " | "
+		call fmtfix ob q 3 as r
+		call must r
+		t+=1
+	end
+	# doubles above 0 are in the order of their bits
+	call sort f 8
+	load f as lo
+	load f+24 as m
+	load f+32 as q
+	load f+56 as hi
+	fadd m q as m
+	itof 2 as q
+	fdiv m q as m
+	call add ob " | "
+	call fmtfix ob lo 3 as r
+	call add ob " | "
+	call fmtfix ob m 3 as r
+	call add ob " | "
+	call fmtfix ob hi 3 as r
+	call add ob " | "
+	fsub hi lo as q
+	fdiv q lo as q
+	itof 100 as m
+	fmul q m as q
+	call fmtfix ob q 1 as r
+	call must r
+	call add ob "% |\n"
+	call say
+end
+
 # ---- the report
 
 # the first line of what the program p with the argument --version
@@ -1122,9 +1294,11 @@ fn main
 		i+=1
 		call same p m "--quick" as r
 		call same p m "--qsort" as k
-		if r|k
+		call same p m "--places" as c
+		if r|k|c
 			quick|=r
 			gqsort|=k
+			gplaces|=c
 		else
 			call same p m "--cpu" as r
 			if r
@@ -1132,7 +1306,7 @@ fn main
 				i+=1
 				call num p m as cpu r
 				ifz r
-					call fail "usage: perf [--cpu N] [--quick] [--qsort] [name ...]"
+					call fail "usage: perf [--cpu N] [--quick] [--qsort] [--places] [name ...]"
 				end
 			else
 				# the program of that name, once
@@ -1181,6 +1355,24 @@ fn main
 	call add ob "\nasm: GNU as and ld; AIL: build/ailc\n"
 	call say
 	call rngseed rs 77
+	if gplaces
+		call add ob "\nAIL / C with the program compiled behind 1, 5, ... 29 bytes of data\n\n"
+		call add ob "| program | 1 | 5 | 9 | 13 | 17 | 21 | 25 | 29 | least | median | most | most above least |\n"
+		call add ob "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+		call say
+		k=0
+		while k<gnsel
+			load sel+k*8 as pi
+			loadb pkind+pi as c
+			if c
+				call paths pi
+				call build 0 as mask
+				call places pi mask quick
+			end
+			k+=1
+		end
+		ret 0
+	end
 	k=0
 	while k<gnsel
 		load sel+k*8 as pi
@@ -1188,20 +1380,10 @@ fn main
 		loadb pkind+pi as c
 		if c==2
 			call build gqsort&(pi-firstalgo<nsorts) as mask
-			w=0
-			while w<nwork
-				loadb work+w*5 as c
-				if c==pi
-					call workload pi mask quick w
-				end
-				w+=1
-			end
 		else
 			call build 0 as mask
-			call prepare pi as free
-			call check pi mask free 0
-			call measure pi mask quick 0 res+pi*128
 		end
+		call timed pi mask quick
 		k+=1
 	end
 	call table 0 "in microseconds" 1000

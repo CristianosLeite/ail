@@ -80,6 +80,14 @@ when first measured, 2.18 times since the loops take two doubles at once.
   ended with `sys exit` hung with its workers alive.
 - Left out until a program needs them: elements of 32 bits, indexing by arrays, `.npy`,
   linear algebra, FFTs, array syntax (a call is 5 to 7 tokens; the descriptors are the cost).
+- `ndsumpw` adds a run of up to 128 doubles that lie one behind the other two at a time
+  (`ndpack`, 2026-11-21): sixteen sums in a `local`, eight `padd` a round. With four sums it
+  was slower than `fsum` at 10000 and a million elements (4401 and 342890 ns a call against
+  3856 and 327931), since a `padd` on memory waits for the store of the one before on the
+  same sums; with sixteen it is 271, 3279 and 265725 ns at a thousand, 10000 and a million
+  against 414, 3856 and 327931, and `ndsum` 448, 4385 and 439458. A million times 0.1 is
+  then exactly 100000; `tests/lib_nd_sum` requires every count from 1 to 300 to give the
+  exact sum. Integers and other strides keep `ndacc`.
 
 ## Open
-- `ndsumpw` with the statements on two doubles, if a program wants a faster sum.
+- None.

@@ -1,6 +1,6 @@
 ---
 title: Generated code after the algorithm measurements
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, commits 14c5275 9f3c3c6 25a5d37 f534077 2ba9ed2 91d8f7b, docs/TODO.md "Performance follow-up", docs/performance.md, compiler/expr.aw, compiler/emit.aw, tools/par.aw]
 status: current
 ---
@@ -56,6 +56,64 @@ several places.
   31): 5 to 12% less on a million random keys, 8 tokens more. The random misses at 1000 keys
   are 21% slower with any change to that loop, the old one respelled included.
 
+- Since 2026-11-21 a stack slot has the shortest displacement (none for `[rsp]`, one byte
+  below 128; `frame` an `imm8`), and a slot just stored is not loaded again at the same
+  output position (`slotp`, `slotr`, `slotpos` in `emem`, forgotten where `xflg` is). A
+  function that needs a slot itself is no longer fit for a call in place (`fnslots` at `e1`),
+  which keeps `sortsift` out whatever its size: with the short displacements it would have
+  come under `inlsz`. The compiler went from 49042 to 48210 bytes, the algorithm programs
+  lost a seventh of theirs. Kernel times over C, before and after, one build each:
+  `heapsort` 1.195 and 1.128, `mergesort` 1.040 and 0.995, `hashtab` 1.171 and 1.160,
+  `quicksort`, `graph` and `isort` unchanged, `bsearch` 0.941 and 1.109: its inner loop
+  (`searchlower` in place) has no slot and is the same instructions, moved across the end
+  of a 64-byte line (0x16ee to 0x171b), which is the open item on placement.
+
+- `collatz` (2026-11-21): `if x%2` is `test r12b, 1` (a mask or a remainder by a power of two
+  as a condition is tested, not computed, in `xjcond`) and `x=x*3+1` one `lea` (`xmuli`:
+  times 3, 5, 9, with the number of the next `+` or `-` as displacement, `xgskip`). Over
+  eight placements AIL / C is 1.055 to 1.209, median 1.106, where it was 1.075 to 1.219,
+  median 1.121: the change is 2%, the place of the code 14%. Folding the `if`/`else` into
+  one round as gcc does needs a view across statements and was decided against (user,
+  2026-11-21: bounded parts, then measure); the item is closed at that.
+
+- Since 2026-11-21 the first line of a loop starts at a multiple of 64 in the file (`pad`,
+  `lalign`; `nops` in `compiler/tables.aw`): behind the head of a `while`, and in pass 2
+  before a label a jump of pass 1 went back to (`lback`). Over eight placements the most is
+  0.3 to 2.6% above the least where it was 3.7 to 37.9% (`bsearch` 0.802 to 1.106 became
+  0.881 to 0.888, `heapsort` median 1.129 became 1.044). 16 and 32 were not enough for
+  `collatz`; padding function entries too changed nothing and was left out. `collatz` and
+  `quicksort` are steady at a slightly worse median (1.124 for 1.104). `fnpad` keeps the
+  padding out of `inlsz`. Not padded: labels at top level and in bodies compiled in place.
+- `build/tools/perf --places <name>` makes that table: eight builds by `build/ailc` with 1
+  to 29 bytes of `data` in front. It replaces the script by hand.
+
+- Since 2026-11-21 a function that calls, or names a `buf`, `data` or `var`, is fit for a
+  call in place: `finl` (48 bytes) notes what its body adds to `calls`, `refs` and `chks`,
+  and `inlchk` takes them from room the tables have for bodies behind the room of the
+  source's lines (`ilroom`, 1048576 entries of `calls`; `tests/bytes.sh` computes the file
+  of 600000 calls of a body with four calls: 262144 in place). The first form compared with
+  the capacity of the whole table, so lines read after a body could pass its end: found by
+  the review of PR #10, as was a body's label taking the padding of a later label of the
+  function (`lback`), and a `use` path ending in a backslash, which `fuse` and the check
+  of the grammar took for an open string. The
+  compiler compiles itself 6% faster (the same source built by the compiler before and
+  after), `heapsort` 2% and `ndmatmul` 1%; the other programs do not move. It is 63207
+  bytes for 51175, and reads more bodies, so the gain is in the code, not in bytes.
+
+- Since 2026-11-21 bodies are compiled in bodies, four deep (`ildp`, `ilstk`, `ilpush`,
+  `ilpop`). The rules that keep every reading of a body deciding alike or more carefully:
+  in a body only functions before the body's own (`ilfn`); `finl` holds `vhi`; one `calls`
+  entry more per call in place (`ilcnt`). No benchmark program changed a byte; the tools
+  did: `tokens` 18.8 to 18.2 ms, `infix` on `compiler/expr.aw` 5.6 to 5.4, `randvars dump`
+  of 300 programs 27.0 to 24.9, and `perf` 50086 bytes for 37862. The compiler compiles
+  itself in the same time and is 66343 bytes for 63207.
+- Calls in place that are left out, by decision (user, 2026-11-21: bounded parts): calls
+  at the top level, which has one pass, no weights and no place that is used again, so a
+  body's variables would take registers from the program's or live in cells; functions
+  with more variables at once than registers (`fnslots`), which would need live ranges
+  split; functions that declare a `buf` or `data`, with a `local`, a `tail`, more than six
+  parameters, or tasks.
+
 ## Why
 - **Only bodies without calls and global names in place:** `calls`, `refs` and `chks` are
   sized from the source limit for a body read once; `labs`, `fixs`, `blks` and the hash are
@@ -78,9 +136,9 @@ several places.
   measured; the losses come from tasks too small or too few.
 
 ## How to apply
-- To compare two compilers or two forms of a kernel, build each with 1, 5, 9, ... 29 bytes of
-  `data` before the first function, run all in turn pinned to one CPU, and compare the
-  medians over the eight; one build each is not a comparison at a thousand elements.
+- To compare two compilers or two forms of a kernel, run `build/tools/perf --places <name>`
+  with each (eight builds behind 1, 5, ... 29 bytes of `data`) and compare the medians; since
+  loops are aligned one build each is within a few percent, before that it was not.
 - After touching the code for calls in place, compare the output of random programs with
   calls against a compiler from before the change, besides `make test` and `randvars`; no
   tool in the repository generates calls.
@@ -96,12 +154,9 @@ several places.
   other, since the C times move by a few percent between runs.
 
 ## Open items
-- 2026-11-20: inline small functions at their calls (item 5 of the follow-up in
-  `docs/TODO.md`).
-- 2026-11-20: `bsearch` at a thousand elements is 22 to 24% slower with registers by weight
-  than with scaled indexes alone (0.92 of C); cause unknown.
-- 2026-11-20: a stack slot is addressed with a 4-byte displacement, and a value just stored
-  to a slot is loaded again by the next line.
+- None. The loss of `bsearch` at a thousand elements noted here on 2026-11-20 (22 to 24%
+  with registers by weight) was the place of its loop: with loops aligned it is 0.881 to
+  0.888 of C at eight places.
 
 ## Related
 - [Algorithm benchmarks and collections](algorithms-and-collections.md)

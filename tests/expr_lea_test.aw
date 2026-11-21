@@ -1,0 +1,62 @@
+# a variable times 3, 5 and 9 with a number added or taken away, and a
+# condition on a mask or on a remainder by a power of two, against the
+# same computed in steps; in a function, where the variables have other
+# registers and one has none, and in a loop
+use "lib/io.aw"
+fn f a b c d e g
+	h=g*3+1
+	i=h*5-7
+	j=i*9
+	k=0
+	if j&1
+		k+=1
+	end
+	if j%4
+		k+=2
+	end
+	if j&0x300
+		k+=4
+	end
+	ifz h%2
+		k+=8
+	end
+	ret a+b+c+d+e+g+h+i+j+k
+end
+n=0
+x=1
+while x<200
+	y=x*3+1
+	z=x*3
+	z+=1
+	n+=y!=z
+	y=x*5-7
+	z=x*5
+	z-=7
+	n+=y!=z
+	y=9*x+0x7fffffff
+	z=x*9
+	z+=0x7fffffff
+	n+=y!=z
+	a=0
+	if x&1
+		a=1
+	end
+	n+=a!=x-x/2*2
+	a=0
+	if x%8
+		a=1
+	end
+	b=x-x/8*8
+	n+=a!=(b!=0)
+	a=0
+	while x&0x100
+		a=1
+		x+=0x100
+	end
+	x+=7
+end
+call putn n
+call print " "
+call f 1 2 3 4 5 6 as r
+call putn r
+call print "\n"

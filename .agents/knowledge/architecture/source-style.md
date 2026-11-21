@@ -1,6 +1,6 @@
 ---
 title: Source style and the formatter
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [conversation 2026-11-20, docs/language.md, tools/indent.aw, tests/indent.sh, editors/vscode/, docs/tokens.md]
 status: current
 ---
@@ -30,11 +30,29 @@ Indentation costs 2% in tokens and nothing in the compiled program.
   separators (`tests/indent/skip`) and the fixtures under `tests/infix/`, `tests/fuse/`,
   `tests/randvars/`, `tests/tokens/` and `tests/indent/`, which tools must reproduce byte for
   byte. `tests/indent.sh` runs `--check` on the rest in `make test`.
-- `fuse` and `infix` still write their lines at column one, since their expected files are what
-  the Python scripts wrote; `indent` runs after them. Preserving indentation in them is open.
+- `fuse` and `infix` write their results indented since 2026-11-21: the walk of `indent` is
+  `dtindent` in `tools/lib/dent.aw`, and both pass their output through it. Copying the
+  blanks of the source would not do, since a jump that becomes a block puts untouched lines a
+  level deeper. `fuse` matched nothing in an indented function before (its patterns began at
+  column one) and now reads a line without its blanks. The expected files are the old ones
+  run through `indent` (whitespace only), so the Python oracle still holds.
+- A `use` path has no escapes: `indent` took `use "a\\"` for an open string and left the rest
+  of the file alone. `dtindent` and `extension.js` now end the string at a `use` line.
 - The published token figures are those of the indented sources: corpus 990 (was 970), 11%
   below C and 17% below Rust, `collatz` two tokens above its C program; echo server 259.
 - The extension is plain JavaScript without a build step or dependency (the user's choice). It
   repeats the line rules of the tool in `extension.js` for folding; they were compared with the
-  tool on every source of the repository with node, which `make test` does not need. It was not
-  loaded into VS Code when written, so the grammar is unverified in the editor.
+  tool on every source of the repository with node, which `make test` does not need.
+- The grammar is checked since 2026-11-21 by `editors/vscode/check.sh` (`test/check.js`), run
+  by hand: VS Code's own runtime (`ELECTRON_RUN_AS_NODE=1 /usr/share/code/code`; the machine
+  has no `node`) with its bundled `vscode-textmate` and `vscode-oniguruma` colours all 1232
+  sources, and every statement of `compiler/tables.aw` must be a keyword, an assigned name a
+  variable, comments and strings what they are, the folds the blocks of the formatter. The
+  first run found 579 lines wrong: `sys` before a number (572) and `call`, `tail`, `jmp`
+  without a name were not coloured, the string of a `use` without its quote ran over the next
+  lines, and an `else` of no block folded. All fixed; it reports 0.
+- The copy installed in `~/.vscode/extensions/ail.ail-0.1.0` on 2026-11-20 was from a vsix
+  older than the grammar; it is now a symlink to `editors/vscode`, as the README says. The
+  user looked at it in the editor on 2026-11-21 and found it working: colours, folding and
+  formatting of `.aw` files (the extension the sources have had since they stopped being
+  `.ai`; no file of `editors/vscode/` names `.ai`).

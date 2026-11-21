@@ -1,6 +1,6 @@
 ---
 title: Async runtime
-last-verified: 2026-11-20
+last-verified: 2026-11-21
 sources: [PR #4, PR #5, conversation 2026-11-20, lib/async/, docs/language.md, docs/performance.md, docs/tokens.md]
 status: current
 ---
@@ -51,9 +51,15 @@ scheduler on several threads.
   (124 tokens for the echo program against 144 with a separate `call`).
 - **Eager futures:** `async` queues the task at once, so two calls followed by two awaits run
   both meanwhile, with no `join` combinator to learn.
-- **All variables of an async function in memory:** a task may move between polls only if
-  nothing of it is in a register; keeping in registers the variables that cross no `await` is a
-  later optimisation that the measurements did not ask for.
+- **Variables across an `await` in the record, the others in registers** (2026-11-21; all
+  were in memory before): a task goes on in another poll with other registers, so what is in
+  use across an `await` must be in its record. `eop` notes the awaits of pass 1 in `awts`,
+  between the values and the names after `as` (`awpos`), and `alloc` gives a slot to a
+  variable with one in its range and to every parameter, and one of `rbp`, `r12` to `r15` to
+  the rest. The poll function pushes what it uses before it jumps to the resume address and
+  pops at every return. `bench/async/calc` (a loop between waits): 1.11 ns a round for
+  1.41 with 1000 rounds between two waits, 2.33 for 2.70 with 10; `switch`, whose one
+  variable crosses, is unchanged (199 and 198 ms for ten million waits).
 - **A cancelled task waits for what it awaits:** memory it gave to pool work or to another
   task must outlive that work; ending it at once freed records still in use.
 - **One thread:** nine tenths of the server's time are the kernel's, and the queue, free
@@ -64,7 +70,9 @@ scheduler on several threads.
 - New waiting primitive: an event (a task without a poll function) armed with `asyncarm`, a
   hook at 56 that takes it out of its list, ended with `asyncfinish`.
 - After touching variable placement in async functions run
-  `build/tools/randvars build/ailc 2000 3 async`.
+  `build/tools/randvars build/ailc 2000 3 async` and `... 2000 4 asyncs`: the second waits
+  before every twelfth statement, so that variables are in registers. With the rule of the
+  awaits taken out, 61 of 200 such programs fail.
 - An operation asks the kernel first and waits only after `EAGAIN`; keep that order, it is why
   a busy server hardly ever sleeps.
 - Library names all start with `async`; a library returns an error and never ends the program.

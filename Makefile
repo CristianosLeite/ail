@@ -28,13 +28,17 @@ $(B)/%: examples/%.aw $(B)/ailc
 
 # The algorithm programs name their harness with use, so they are built
 # again when it changes.
-$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul): bench/algo/harness.aw
+$(patsubst %,$(B)/%,quicksort mergesort heapsort bsearch hashtab graph ndelem ndreduce ndmatmul collseq collmap): bench/algo/harness.aw
 
 # Their kernels are files of lib/algo/.
 $(patsubst %,$(B)/%,quicksort mergesort heapsort isort): lib/algo/sort.aw
 $(B)/bsearch: lib/algo/search.aw
 $(B)/hashtab: lib/algo/hash.aw
 $(B)/graph: lib/algo/graph.aw
+
+# The collection programs name the collections.
+$(B)/collseq: lib/vec.aw lib/queue.aw lib/heap.aw
+$(B)/collmap: lib/map.aw
 
 # The array programs also name the library of arrays.
 $(patsubst %,$(B)/%,ndelem ndreduce ndmatmul): lib/nd/array.aw lib/nd/elem.aw
@@ -58,8 +62,8 @@ $(B)/tools/%: tools/%.aw $(B)/ailc
 TL := lib/io.aw lib/bytes.aw lib/file.aw
 
 $(B)/tools/hashcol: lib/io.aw
-$(B)/tools/indent: $(TL)
-$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw
+$(B)/tools/indent: $(TL) tools/lib/dent.aw
+$(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aw tools/lib/flow.aw tools/lib/dent.aw
 $(B)/tools/randvars: $(TL) lib/proc.aw tools/lib/rng.aw
 $(B)/tools/perf: $(TL) lib/proc.aw tools/lib/rng.aw tools/lib/fmt.aw
 $(B)/tools/tokens: $(TL) tools/lib/fmt.aw tools/lib/o200k.aw
@@ -95,7 +99,8 @@ ifeq ($(T),)
 	tests/par.sh || f=1; AILC=$(B)/ailc tests/async.sh || f=1; tests/algo.sh || f=1; tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; tests/tokens.sh || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 1 || f=1; \
 	$(B)/tools/randvars $(B)/ailc 200 2 top || f=1; \
-	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; exit $$f
+	$(B)/tools/randvars $(B)/ailc 200 3 async || f=1; \
+	$(B)/tools/randvars $(B)/ailc 200 4 asyncs || f=1; exit $$f
 else
 	@f=0; AILC=$(B)/ailc tests/run.sh $(T) || f=1; tests/self.sh $(T) || f=1; exit $$f
 endif

@@ -91,4 +91,27 @@ check bytes_var_cells '
         printf "%c%c%c", 72, 139, 5; r4(rw - (176 + 14 * i + 7))
         printf "%c%c%c", 72, 137, 5; r4(rw - (176 + 14 * i + 14)) } }'
 
+# Calls compiled in place: f has four calls of h, which stands behind
+# them, and g calls f K times. The body of f goes in place of a call
+# while the calls it brings fit the 1048576 entries that the table of
+# calls has for such bodies, 262144 times, and from there on f is
+# called: the entries of the lines of the source, one a line, are in
+# the room the source limit gives, which the bodies leave alone. A body
+# is its four calls and xor eax, eax for the result nobody takes.
+check bytes_calls_in_place '
+    function init() { K = 600000; A = 262144; MEM = 0
+        G = 209; H = G + 22 * A + 5 * (K - A) + 3 + 5 }
+    function source(   i) { print "fn f"; for (i = 0; i < 4; i++) print "call h"; print "end"
+        print "fn g"; for (i = 0; i < K; i++) print "call f"; print "end"
+        print "fn h"; print "end"; print "call g" }
+    function call(to) { printf "%c", 232; r4(to - (at + 5)); at += 5 }
+    function code(   i, j) { b("233 23 0 0 0"); at = 181
+        for (j = 0; j < 4; j++) call(H)
+        b("49 192 195")
+        printf "%c", 233; r4(22 * A + 5 * (K - A) + 3); at = G
+        for (i = 0; i < A; i++) { for (j = 0; j < 4; j++) call(H); b("49 192"); at += 2 }
+        for (i = A; i < K; i++) call(181)
+        b("49 192 195 233 3 0 0 0 49 192 195"); at = H + 3
+        call(G) }'
+
 exit $fail

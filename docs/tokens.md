@@ -43,6 +43,8 @@ Since 2026-11-20 `examples/` also has six algorithm programs, which `tools/token
 | total | 1524 | 1613 | 1783 |
 | relative to AIL | 1.00 | 1.06 | 1.17 |
 
+Since 2026-11-21 there are also two programs that time the collections of `lib/` ([performance.md](performance.md#collections-2026-11-21)): `collseq`, 381 tokens in AIL, 710 in C and 299 in Rust, and `collmap`, 224, 1009 and 261. The AIL and Rust programs call collections that their libraries have, and C writes its own, which is its count; they are not part of the corpus either.
+
 Since 2026-11-21 there are also three programs on arrays of doubles, whose kernels in AIL are calls of [`lib/nd/`](language.md#the-nd-library) and in C and Rust plain loops: `ndelem` 215, 197 and 200 tokens, `ndreduce` 252, 276 and 268, `ndmatmul` 141, 163 and 142, together 608, 636 and 610. A call of a kernel is 5 to 7 tokens and each array 12 more before its first use, which comes to what the loops cost ([performance](performance.md#numerical-arrays-2026-11-21)). They are not in the table above, which stays that of the six.
 
 Since 2026-11-21 the kernels of the six, and the loop of `isort`, are in [`lib/algo/`](language.md#the-algo-library) and the programs call them, so `tools/tokens.sh` now counts a caller where C and Rust still have the algorithm. The table above stays as the count of the algorithms written in each language. What a caller costs and what the library costs, without comments:
@@ -64,6 +66,42 @@ Since 2026-11-21 the kernels of the six, and the loop of `isort`, are in [`lib/a
 On the kernels in the programs, as the first table has them, AIL is 6% cheaper than C and 15% cheaper than Rust on the six, less than on the ten: these are loops over arrays, where C writes `a[i]` and `*k++ = *j++` and AIL a `load` and a `store` on lines of their own. It is dearer than C in `mergesort` and `graph`, the two with the most such lines. With all sixteen the totals are 2506, 2731 and 2974.
 
 The first measurement, on 2026-11-19 before any of the backlog, gave 411 for AIL (C 0.83, Rust 0.84, assembly 1.69). The difference is the compare-and-jump statements, which the measurement below asked for, and the syscall names in `hello`.
+
+## Claude's tokenizers, measured on 2026-11-21
+
+Every count above is of `o200k_base`, an encoding of OpenAI, taken as a stand-in: the language is meant to be cheap for a model that writes it, and the models of Anthropic cut a text otherwise. There is no file of their tokens to count with on a machine, so `tools/claudetokens.sh` asks: it sends the code of each program, the text `build/tools/tokens --code` prints, to claudetokenizer.com, a site of a third party that passes it to Anthropic's token counting, and takes the counts of two models, `claude-fable-5`, which has the newer tokenizer, and `claude-sonnet-4-6`, which has the one before. It is run by hand, since it sends the sources out, which nothing else here does. The answer also has the count of `o200k_base`, and for all 63 files it was the count of `build/tools/tokens`, so the text arrived as it was counted here. What a message costs without its text, 5 and 6 tokens, is taken off; the service does not count the last line end of a text, so a count may be one token short, in every language alike.
+
+The ten programs of the corpus:
+
+| program | AIL | C | Rust | asm | AIL | C | Rust | asm |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| | Fable 5 | | | | Sonnet 4.6 | | | |
+| collatz | 152 | 162 | 232 |  | 138 | 144 | 204 |  |
+| compute | 115 | 150 | 182 | 302 | 102 | 130 | 148 | 264 |
+| count | 144 | 167 | 147 | 310 | 129 | 165 | 124 | 265 |
+| echo | 70 | 75 | 123 | 208 | 61 | 74 | 102 | 180 |
+| fact | 57 | 66 | 75 | 134 | 49 | 57 | 68 | 111 |
+| fnv | 179 | 230 | 179 |  | 160 | 200 | 152 |  |
+| hello | 24 | 41 | 64 | 112 | 20 | 40 | 54 | 93 |
+| isort | 214 | 320 | 348 |  | 195 | 283 | 304 |  |
+| loop | 53 | 88 | 75 | 185 | 48 | 86 | 66 | 157 |
+| sieve | 175 | 207 | 261 |  | 156 | 176 | 230 |  |
+| total | 1183 | 1506 | 1686 | 1251 | 1058 | 1355 | 1452 | 1070 |
+| relative to AIL | 1.00 | 1.27 | 1.43 | 2.70 | 1.00 | 1.28 | 1.37 | 2.62 |
+
+| relative to AIL | C | Rust | asm |
+|---|---:|---:|---:|
+| `o200k_base` | 1.19 | 1.27 | 2.51 |
+| Claude Sonnet 4.6 | 1.28 | 1.37 | 2.62 |
+| Claude Fable 5 | 1.27 | 1.43 | 2.70 |
+
+- **The order of the languages holds, and AIL is further ahead.** With Claude's tokenizers it costs 21 to 22% fewer tokens than C where `o200k_base` says 16%, and 27 to 30% fewer than Rust where it says 21%. The stand-in understated the gain.
+- **Every text costs more.** The corpus in AIL is 941 tokens of `o200k_base`, 1058 of Sonnet 4.6 and 1183 of Fable 5, 12% and 26% more; over all 63 files the newer tokenizer gives 1.33 times the count of `o200k_base` and 1.10 times that of the older one, about alike in the four languages (1.33 to 1.37).
+- **The programs that were dearer in AIL are not any more.** `collatz` was two tokens above its C program and is 10 below with Fable 5 and 6 below with Sonnet 4.6. Rust was cheaper for `count` and `fnv`: with Fable 5 `count` is 3 tokens cheaper in AIL and `fnv` the same, with Sonnet 4.6 Rust keeps both, by 5 and 8.
+- **The array programs are the exception.** `ndelem`, `ndreduce` and `ndmatmul` together are 608, 636 and 610 tokens of `o200k_base` in AIL, C and Rust; with Sonnet 4.6 they are 709, 774 and 750, and with Fable 5 817, 800 and 792: there AIL costs 2 to 3% more than the loops of C and Rust. Their lines are calls with the prefixed names of `lib/nd/` (`ndwrap`, `ndmatmul`), and the newer tokenizer cuts such names into more pieces.
+- **The callers of `lib/algo/`** are 260 tokens against 1613 and 1783 in `o200k_base` and 376 against 2123 and 2391 with Fable 5; that compares a call with an algorithm, as said above, and changes with no tokenizer.
+
+What this does not say: the rules [above](#what-this-decides), fewer lines before shorter words and a name before a number, were found by looking at the tokens of `o200k_base` one by one, and the service gives a count and no tokens. They were not looked at again. The comparison between the languages, which is what the counts are for, holds with the three tokenizers.
 
 ## Where the tokens go
 

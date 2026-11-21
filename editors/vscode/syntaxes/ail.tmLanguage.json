@@ -4,6 +4,7 @@
   "patterns": [
     { "include": "#comment" },
     { "include": "#assignment" },
+    { "include": "#use" },
     { "include": "#function" },
     { "include": "#callee" },
     { "include": "#label" },
@@ -30,6 +31,16 @@
         "2": { "name": "keyword.operator.assignment.ail" }
       }
     },
+    "use": {
+      "comment": "the path of a use has no escapes and ends on its line, with or without its quote",
+      "begin": "^[ \\t]*(use)(?=[ \\t\\r#]|$)",
+      "end": "$",
+      "beginCaptures": { "1": { "name": "storage.type.ail" } },
+      "patterns": [
+        { "match": "\"[^\"]*(\"|$)", "name": "string.quoted.double.ail" },
+        { "include": "#comment" }
+      ]
+    },
     "function": {
       "match": "^[ \\t]*(?:(async)[ \\t]+)?(fn)[ \\t]+([a-z][a-z0-9_]*)",
       "captures": {
@@ -39,7 +50,7 @@
       }
     },
     "callee": {
-      "match": "^[ \\t]*(call|tail|ref|spawn)[ \\t]+([a-z][a-z0-9_]*)",
+      "match": "^[ \\t]*(call|tail|ref|spawn)(?=[ \\t\\r#]|$)(?:[ \\t]+([a-z][a-z0-9_]*))?",
       "captures": {
         "1": { "name": "keyword.other.ail" },
         "2": { "name": "entity.name.function.ail" }
@@ -54,7 +65,7 @@
     },
     "jump": {
       "comment": "the last word of a jump is its label",
-      "begin": "^[ \\t]*(jmp|jz|jnz|jeq|jne|jlt|jle|jgt|jge|jslt|jsle|jsgt|jsge)(?=[ \\t])",
+      "begin": "^[ \\t]*(jmp|jz|jnz|jeq|jne|jlt|jle|jgt|jge|jslt|jsle|jsgt|jsge)(?=[ \\t\\r#]|$)",
       "end": "(?=#)|$",
       "beginCaptures": { "1": { "name": "keyword.control.ail" } },
       "patterns": [
@@ -65,7 +76,7 @@
       ]
     },
     "sys": {
-      "match": "^[ \\t]*(sys)[ \\t]+([a-z][a-z0-9_]*)",
+      "match": "^[ \\t]*(sys)(?=[ \\t\\r#]|$)(?:[ \\t]+([a-z][a-z0-9_]*))?",
       "captures": {
         "1": { "name": "keyword.other.ail" },
         "2": { "name": "support.function.ail" }
@@ -76,7 +87,7 @@
       "captures": { "1": { "name": "keyword.control.ail" } }
     },
     "declaration": {
-      "match": "^[ \\t]*(use|var|const|buf|data|local|args)(?=[ \\t\\r#]|$)",
+      "match": "^[ \\t]*(var|const|buf|data|local|args)(?=[ \\t\\r#]|$)",
       "captures": { "1": { "name": "storage.type.ail" } }
     },
     "statement": {
