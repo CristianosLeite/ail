@@ -26,6 +26,7 @@ buf tlvtext 24      # its manifest, and where its version is in it
 var tlvp tlvn
 buf tlcwd 24        # the directory the command was started in
 buf tlroot 24       # the directory of the package, once tlenter found it
+var tllocked        # 1 once this process has the lock of the package
 
 # Have the descriptors 0, 1 and 2 open: one that is closed is given
 # /dev/null. A file that this process opens then never gets one of the
@@ -270,6 +271,26 @@ fn tlenter
 		end
 	end
 	ret 0
+end
+
+# Take the lock of the package, in whose directory this process is, and
+# keep it to the end of the process: an exclusive lock on the directory
+# itself, which a second command in the same package waits for. So one
+# command at a time reads and writes its manifest, its lock, deps/ and
+# build/. No program that is started has the descriptor, and a command
+# that is killed leaves no lock. 1; or 0 if the directory cannot be
+# opened to be read, and there is then no lock.
+fn tllock
+	if tllocked
+		ret 1
+	end
+	call fileopen "." 0x10000 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	sys tlflock tlfd 2
+	tllocked=1
+	ret 1
 end
 
 # Start the program whose arguments are the strings in the buffer tls,

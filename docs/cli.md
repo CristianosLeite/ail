@@ -42,6 +42,13 @@ in: the nearest directory, this one or one above it, that has an
 `ail.pkg`. Sources are compiled from that directory, so a `use` names a
 file of the package from its top, wherever the command was started.
 
+One command at a time works on a package: a second one, started while
+the first runs, waits for it, since both would write the manifest, the
+lock, `deps/` and `build/`. The lock is on the directory of the package
+and is held by the command, not by the program that `ail run` starts;
+a command that is killed leaves none. A test of a package therefore
+does not start `ail` on that same package.
+
 ### `new` and `init`
 
 `ail new NAME` makes the directory `NAME`, which must not be there, and in
@@ -173,10 +180,6 @@ A test that still runs after 10 seconds is killed and has failed, and
 so has one whose compiling takes that long. The processes a test
 started end with it: when it has ended or was killed, what is left of
 its group of processes is killed.
-
-Two runs of `ail test` in one package do not run at the same time: the
-second waits for the first before it fetches or builds anything, since
-both write the files of `deps/` and `build/`.
 
 For each test a line `ok   <name>` or `FAIL <name>` is written to
 stdout, then the number of tests and of those that failed; a line on

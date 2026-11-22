@@ -105,7 +105,8 @@ fn usage
 	sys exit_group stusage
 end
 
-# Enter the directory of the package and read its manifest into gman;
+# Enter the directory of the package, take its lock, which a second
+# command there waits for, and read its manifest into gman;
 # the process ends if there is none, if it is wrong, or if it asks for
 # an AIL that this one is not.
 fn project
@@ -113,6 +114,8 @@ fn project
 	ifz r
 		call fail stmanifest "no ail.pkg in this directory or in one above it" ""
 	end
+	# one command at a time in a package
+	call tllock
 	call bycut gtext 0
 	call fileread "ail.pkg" gtext as r
 	ifslt r 0
@@ -793,15 +796,8 @@ fn cmdtest
 	call project
 	call dir "build"
 	call dir "build/tests"
-	# one run of the tests of a package at a time: a second one waits
-	# here, before it looks for the packages and builds, since both
-	# would fetch into deps/ and write the same files of build/. The
-	# lock is gone with this process, and no test has its descriptor.
-	call fileopen "build/tests/.lock" 0x42 420 as fd
-	ifslt fd 0
-		call fail stio "cannot write build/tests/.lock" ""
-	end
-	sys tlflock fd 2
+	# project took the lock of the package: a second run of its tests
+	# waits there, and does not write the files of build/tests/ too
 	call deps
 	call build mfbin|mftestbin 0 0
 	call argc as c

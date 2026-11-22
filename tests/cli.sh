@@ -178,6 +178,19 @@ ok   status
 2 tests, 0 failed" "" $ail test status refused
 is cli_test_named_missing 1 "FAIL nope
 1 test, 1 failed" "ail: there is no test tests/nope.aiw" $ail test nope
+# one command at a time in a package: while something holds its lock a
+# build waits, and goes on when the lock is free
+if flock --version > /dev/null 2>&1; then
+    flock . sh -c 'sleep 2; echo free > held' &
+    holder=$!
+    sleep 0.5
+    is cli_lock_waits 0 "" "" $ail build
+    yes cli_lock_waited [ "$(cat held 2> /dev/null)" = free ]
+    wait $holder
+    rm -f held
+else
+    echo "skip cli_lock_waits (no flock)"
+fi
 # two tests of which one is called like a file of the other
 printf 'use "lib/std/io.aiw"\ncall print "first\\n"\n' > tests/a.aiw && echo first > tests/a.out
 printf 'use "lib/std/io.aiw"\ncall print "second\\n"\n' > tests/a.out.aiw && echo second > tests/a.out.out
