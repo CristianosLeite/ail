@@ -220,7 +220,9 @@ end
 # entered again.
 fn tlreal tlb tlp tln
 	local tlz 4096
-	call fileopen "." 0x10000 0 as tlfd
+	# a place to come back to, which a directory that may be entered and
+	# not listed is as well: it is not opened to be read
+	call fileopen "." 0x210000 0 as tlfd
 	ifslt tlfd 0
 		ret 0
 	end

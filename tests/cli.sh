@@ -577,6 +577,10 @@ shared" "" $ail run
 mkdir "$r/elsewhere" && cp -r "$r/shared" "$r/elsewhere/shared"
 sed -i 's|^dep shared .*|dep shared ../elsewhere/shared|' ail.pkg
 is cli_path_other_directory 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
+# the same in a package whose directory may be entered and not listed
+chmod 333 .
+is cli_path_other_directory_unlisted 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
+chmod 755 .
 sed -i '/^dep /d' ail.pkg
 
 # a build that has to write the lock and cannot leaves the lock whole:
