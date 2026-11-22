@@ -38,6 +38,29 @@ call print "hello\n"
 
 All files of a program together are subject to the [size limit](#errors) of the source.
 
+### Packages
+
+```
+build/ailc ail=/opt/ail aildb=deps/aildb < prog.aiw > prog
+```
+
+```
+use "lib/std/io.aiw"            # the library of AIL
+use "src/util.aiw"              # a file of this program
+use "aildb:src/lib/snap.aiw"    # a file of the package aildb
+```
+
+A package is a directory of sources with a name, which a program reads files from without having them in its own directory. The compiler is told of each with an argument `name=directory`; it takes no other argument, and without one every path is read as [`use`](#use) says.
+
+- `use "name:path"` compiles the file `path` under the directory of the package `name`. The name is what stands before a colon in the first part of the path, the part before any `/`.
+- A path without a name, in a file of a package, starts from the directory of that package: a package names its own files as it does when it is compiled by itself, and a program that uses it changes nothing in it. In the source given to the compiler and in the files it names without a package, such a path starts from the directory the compiler runs in.
+- A path that starts with `lib/` is in the package `ail`, the library of AIL, whichever file has the `use`, if the arguments name that package: `use "lib/std/io.aiw"` and `use "ail:lib/std/io.aiw"` are the same file, and a program has the library once, the one of its compiler. A package therefore has no directory `lib` of its own at its top. If the arguments name no package `ail`, the path is read like any other.
+- A path that starts with `/` is in no package, and so are the paths without a name in that file.
+- A file is compiled once for its package and its path, so `src/util.aiw` of two packages are two files, and one file named from two packages is compiled where the first `use` stands.
+- An error in a file of a package has the directory of the package before the path, as the file was opened: `ailc: deps/aildb/src/lib/snap.aiw:12: ...`.
+- The names of all packages of a program are one name space, as with any `use`: two packages that define the same function are a `duplicate name`. The [rule of the libraries](#the-io-library), a prefix for each file, keeps them apart.
+- There are at most 256 packages. A name is not empty and has no `/`, `:` or `=`; a directory is not empty, and slashes at its end are not counted. An argument that is not of this form, or a name given twice, is the error `usage: ailc [name=directory]... < source > executable`, with status 2.
+
 ## Separators
 
 The same rule holds everywhere outside string literals:
@@ -136,29 +159,6 @@ The kernel returns one value: the result, or a negative error number from -1 to 
 sys open path 0 0 as fd
 jslt fd 0 fail
 ```
-
-### Packages
-
-```
-build/ailc ail=/opt/ail aildb=deps/aildb < prog.aiw > prog
-```
-
-```
-use "lib/std/io.aiw"            # the library of AIL
-use "src/util.aiw"              # a file of this program
-use "aildb:src/lib/snap.aiw"    # a file of the package aildb
-```
-
-A package is a directory of sources with a name, which a program reads files from without having them in its own directory. The compiler is told of each with an argument `name=directory`; it takes no other argument, and without one every path is read as [`use`](#use) says.
-
-- `use "name:path"` compiles the file `path` under the directory of the package `name`. The name is what stands before a colon in the first part of the path, the part before any `/`.
-- A path without a name, in a file of a package, starts from the directory of that package: a package names its own files as it does when it is compiled by itself, and a program that uses it changes nothing in it. In the source given to the compiler and in the files it names without a package, such a path starts from the directory the compiler runs in.
-- A path that starts with `lib/` is in the package `ail`, the library of AIL, whichever file has the `use`, if the arguments name that package: `use "lib/std/io.aiw"` and `use "ail:lib/std/io.aiw"` are the same file, and a program has the library once, the one of its compiler. A package therefore has no directory `lib` of its own at its top. If the arguments name no package `ail`, the path is read like any other.
-- A path that starts with `/` is in no package, and so are the paths without a name in that file.
-- A file is compiled once for its package and its path, so `src/util.aiw` of two packages are two files, and one file named from two packages is compiled where the first `use` stands.
-- An error in a file of a package has the directory of the package before the path, as the file was opened: `ailc: deps/aildb/src/lib/snap.aiw:12: ...`.
-- The names of all packages of a program are one name space, as with any `use`: two packages that define the same function are a `duplicate name`. The [rule of the libraries](#the-io-library), a prefix for each file, keeps them apart.
-- There are at most 256 packages. A name is not empty and has no `/`, `:` or `=`; a directory is not empty, and slashes at its end are not counted. An argument that is not of this form, or a name given twice, is the error `usage: ailc [name=directory]... < source > executable`, with status 2.
 
 ### `args`
 
