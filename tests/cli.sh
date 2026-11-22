@@ -283,6 +283,16 @@ is cli_init_named 0 "created the package odd in this directory" "" $ail init odd
 yes cli_init_keeps_a_source [ "$(cat src/main.aiw)" = "# mine" ]
 yes cli_init_keeps_gitignore [ "$(cat .gitignore)" = "mine" ]
 yes cli_init_named_manifest grep -q "^name odd$" ail.pkg
+# a file that is there and cannot be read is there
+cd "$tmp" && mkdir locked && cd locked || exit 1
+mkdir src && echo "# mine" > src/main.aiw && chmod 200 src/main.aiw
+is cli_init_unreadable_source 0 "created the package locked in this directory" "" $ail init
+chmod 600 src/main.aiw
+yes cli_init_kept_unreadable_source [ "$(cat src/main.aiw)" = "# mine" ]
+echo "name mine" > ail.pkg && chmod 200 ail.pkg
+is cli_init_unreadable_manifest 4 "" "ail: this directory has an ail.pkg already" $ail init
+chmod 600 ail.pkg
+yes cli_init_kept_unreadable_manifest [ "$(cat ail.pkg)" = "name mine" ]
 
 # ---- where AIL is
 cd "$tmp/fresh" || exit 1

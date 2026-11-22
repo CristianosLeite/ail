@@ -378,8 +378,10 @@ fn cmdclean
 	end
 end
 
-# write the file of the n bytes at p under the directory in gout, unless
-# keep is 1 and there is one: the text is in gmsg
+# Write the file of the n bytes at p under the directory in gout, with
+# the text that is in gmsg. The file is made anew: one that is there,
+# whatever may be done with it, is left as it is if keep is 1, and ends
+# the command if keep is 0.
 fn put p n keep
 	local b 24
 	store b 0
@@ -392,15 +394,17 @@ fn put p n keep
 	call byadd b p n
 	load b as q
 	load b+8 as m
-	r=0
-	if keep
-		call tlisfile q m as r
-	end
-	ifz r
+	call fileopen q m 0xc1 420 as fd
+	ifslt fd 0
+		if (fd!=-17)|(keep==0)
+			call fail stio "cannot write " q m
+		end
+	else
 		load gmsg as s
 		load gmsg+8 as l
-		call filewrite q m s l as r
-		if r
+		call fdwrite fd s l as r
+		sys close fd
+		ifz r
 			call fail stio "cannot write " q m
 		end
 	end
@@ -504,8 +508,9 @@ fn cmdinit
 	if c>3
 		call usage
 	end
-	call tlisfile "ail.pkg" as r
-	if r
+	# there is none: one that cannot be read is one all the same
+	call fileopen "ail.pkg" 0 0 as r
+	if r!=-2
 		call fail stio "this directory has an ail.pkg already" ""
 	end
 	call argv 2 as p n
