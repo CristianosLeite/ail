@@ -492,7 +492,8 @@ end
 # it started. The group is killed as well if this process ends before
 # that, by a signal too: a watcher in the group sees to it. Without a
 # limit the program stays in the group of this process, and a signal
-# for that group reaches it.
+# for that group reaches it. A program that cannot have its watcher is
+# not started.
 fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	local tlv 24
 	local tle 24
@@ -543,25 +544,15 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 		end
 		tlq+=8
 	end
-	tlpid=-1
-	# a pipe that only this process writes to, closed in a program that
-	# is started: its end is how the watcher below knows of ours
-	tlwatch=tlms>0
-	if tlwatch
-		sys tlpipe2 tlpipe 0x80000 as tlr
-		if tlr
-			tlok=0
-		end
+	ifz tlok
+		call byfree tlv
+		call byfree tle
+		ret -2000
 	end
-	if tlok
+	ifz tlms>0
 		sys fork as tlpid
 		ifz tlpid
-			# the child: nothing here returns. With a limit of time it
-			# leads a group of its own, which the processes it starts
-			# are in.
-			if tlwatch
-				sys tlsetpgid 0 0
-			end
+			# the child: nothing here returns
 			call procopen tlin
 			call procopen tlout
 			call procopen tlerr
@@ -572,50 +563,111 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 			sys execve tlp tlq tln
 			sys exit 127
 		end
-	end
-	call byfree tlv
-	call byfree tle
-	ifz tlwatch
+		call byfree tlv
+		call byfree tle
 		ifslt tlpid 0
 			ret -2000
 		end
 		call procwait tlpid tlms as tlr
 		ret tlr
 	end
-	load4 tlpipe as tlrd
-	load4 tlpipe+4 as tlwr
-	ifslt tlpid 0
-		sys close tlrd
-		sys close tlwr
+	# Two pipes, both closed in a program that is started. Only this
+	# process writes to the first: its end is how the watcher below
+	# knows of ours. The second holds the child back until the watcher
+	# is there, so that the program never runs without one.
+	sys tlpipe2 tlpipe 0x80000 as tlr
+	if tlr
+		call byfree tlv
+		call byfree tle
 		ret -2000
 	end
-	# the same from here, in case the child has not come to it yet
-	sys tlsetpgid tlpid tlpid
-	# The watcher: a process in the group of the child, where a signal
-	# for the group of this process does not reach it. It waits for the
-	# end of the pipe, which comes when this process closes it or is
-	# gone, however it went, and then kills the group, itself with it.
-	sys fork as tlwd
-	ifz tlwd
-		sys tlsetpgid 0 tlpid
+	load4 tlpipe as tlrd
+	load4 tlpipe+4 as tlwr
+	sys tlpipe2 tlpipe 0x80000 as tlr
+	if tlr
+		sys close tlrd
 		sys close tlwr
-		label wait
-		sys read tlrd tlpipe 1 as tlr
+		call byfree tlv
+		call byfree tle
+		ret -2000
+	end
+	load4 tlpipe as tlgrd
+	load4 tlpipe+4 as tlgwr
+	sys fork as tlpid
+	ifz tlpid
+		# the child: nothing here returns. It leads a group of its own,
+		# which the processes it starts are in, and waits for the byte
+		# that says the watcher is there; if this process is gone
+		# before that, the pipe ends without one and so does the child.
+		sys tlsetpgid 0 0
+		sys close tlwr
+		sys close tlgwr
+		label go
+		sys read tlgrd tlpipe 1 as tlr
 		ifz tlr+4
-			jmp wait
+			jmp go
 		end
-		sys tlkill 0-tlpid 9
-		sys exit 0
+		if tlr!=1
+			sys exit 127
+		end
+		call procopen tlin
+		call procopen tlout
+		call procopen tlerr
+		call procmap tlin tlout tlerr
+		load tlv as tlq
+		load tlq as tlp
+		load tle as tln
+		sys execve tlp tlq tln
+		sys exit 127
+	end
+	call byfree tlv
+	call byfree tle
+	tlwd=-1
+	ifsge tlpid 0
+		# the same from here, in case the child has not come to it yet
+		sys tlsetpgid tlpid tlpid
+		# The watcher: a process in the group of the child, where a
+		# signal for the group of this process does not reach it. It
+		# waits for the end of the first pipe, which comes when this
+		# process closes it or is gone, however it went, and then
+		# kills the group, itself with it.
+		sys fork as tlwd
+		ifz tlwd
+			sys tlsetpgid 0 tlpid
+			sys close tlwr
+			sys close tlgwr
+			sys close tlgrd
+			label wait
+			sys read tlrd tlpipe 1 as tlr
+			ifz tlr+4
+				jmp wait
+			end
+			sys tlkill 0-tlpid 9
+			sys exit 0
+		end
 	end
 	sys close tlrd
+	sys close tlgrd
+	ifslt tlwd 0
+		# no child, or no watcher for it: the child, which still waits
+		# for its byte, ends when the pipe does
+		sys close tlgwr
+		sys close tlwr
+		ifsge tlpid 0
+			sys tlkill 0-tlpid 9
+			call procwait tlpid 0
+		end
+		ret -2000
+	end
+	store tlpipe 0
+	sys write tlgwr tlpipe 1
+	sys close tlgwr
 	call procwait tlpid tlms as tlr
 	# whatever it started and left behind ends with it, the watcher too
 	sys tlkill 0-tlpid 9
 	sys close tlwr
-	ifsgt tlwd 0
-		sys tlkill tlwd 9
-		call procwait tlwd 0
-	end
+	sys tlkill tlwd 9
+	call procwait tlwd 0
 	ret tlr
 end
 

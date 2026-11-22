@@ -200,6 +200,18 @@ if [ "$(id -u)" != 0 ]; then
 else
     echo "skip cli_package_unreadable (root)"
 fi
+# with few descriptors to open, where a pipe of a timed program cannot
+# be made, a command passes or says what failed: it closes no descriptor
+# that is not its own, its stderr least of all
+for n in 5 6 7 8 9 10 11 12; do
+    (ulimit -n $n; exec $ail test status) > "$tmp/out" 2> "$tmp/err"
+    rc=$?
+    if { [ $rc -eq 0 ] && [ "$(tail -n 1 "$tmp/out")" = "1 test, 0 failed" ]; } ||
+        { [ $rc -eq 4 ] && grep -q "^ail: " "$tmp/err"; }
+    then echo "ok   cli_few_descriptors_$n"
+    else echo "FAIL cli_few_descriptors_$n"; fail=1
+    fi
+done
 # two tests of which one is called like a file of the other
 printf 'use "lib/std/io.aiw"\ncall print "first\\n"\n' > tests/a.aiw && echo first > tests/a.out
 printf 'use "lib/std/io.aiw"\ncall print "second\\n"\n' > tests/a.out.aiw && echo second > tests/a.out.out
