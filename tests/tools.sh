@@ -12,6 +12,12 @@
 #   what it did; leave that result and tests/fuse/same.aiw as they are; and
 #   both programs must compile and exit alike. Without its two files it
 #   must fail with a message, and so for a file it cannot read.
+# - ndgen must write tests/lib/ndfix.aiw, byte for byte, which but for the
+#   name of the tool in its third line is what the Python script it was
+#   ported from wrote with NumPy 2.3.5: the reference results of lib/nd
+#   are then those of NumPy still, and of a second computation that shares
+#   nothing with the library. With an argument it must fail and write
+#   nothing.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p build/tests
@@ -111,5 +117,14 @@ build/tools/fuse "$tmp/bad.aiw" "$tmp/o.aiw" > /dev/null 2> "$tmp/said"
 [ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "fuse: a label or a jump without a name" ] || r=1
 [ ! -e "$tmp/o.aiw" ] || r=1
 say tools_fuse_errors $r
+
+timeout --signal=KILL 10 build/tools/ndgen > "$tmp/ndfix.aiw" 2> "$tmp/said" &&
+    cmp -s "$tmp/ndfix.aiw" tests/lib/ndfix.aiw && [ ! -s "$tmp/said" ]
+say tools_ndgen_writes_fixtures $?
+r=0
+build/tools/ndgen x > "$tmp/o" 2> "$tmp/said"
+[ $? -eq 1 ] && [ "$(cat "$tmp/said")" = "usage: ndgen > tests/lib/ndfix.aiw" ] || r=1
+[ ! -s "$tmp/o" ] || r=1
+say tools_ndgen_usage $r
 
 exit $fail

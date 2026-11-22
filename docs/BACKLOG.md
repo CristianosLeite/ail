@@ -333,7 +333,8 @@ and [ufuncs](https://numpy.org/doc/stable/reference/ufuncs.html).
    [performance.md](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md).
    Done on 2026-11-21: the tests `lib_nd_ref_*` compare the library with
    NumPy 2.3.5 through `tests/lib/ndfix.aiw`, which `tests/nd/gen.py`
-   writes; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
+   wrote and, since 2026-11-22, `tools/ndgen.aiw` writes, the same bytes
+   without NumPy; `ndelem`, `ndreduce` and `ndmatmul` are timed by `perf`. The
    kernels take 3.65 times as long as the loops of C in the geometric
    mean of 14 times, 1.24 times where memory is the limit and up to 10
    times at a thousand numbers; a caller is 608 tokens against 636 in C
@@ -851,3 +852,6 @@ program that first needs them).
   and calls the handler of the program, an async function, with a
   request of 136 bytes to which it adds the body of the response;
   400, 431 and 413 are the server's own. `tests/lib_httpd_*`.
+- [x] The version 0.1.1 of AIL (user, 2026-11-22), the first with the
+  four libraries: `Ailfile` says it and the tag `v0.1.1` names the merge
+  of it, so that a package asks for them with `ail 0.1.1`.

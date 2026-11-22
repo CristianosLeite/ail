@@ -1,6 +1,6 @@
 # tests/lib/ndfix.aiw -- inputs and the results NumPy 2.3.5
 # computed of them, for the tests lib_nd_ref_*. Written by
-# tests/nd/gen.py, which says what each name is; not edited by hand.
+# tools/ndgen.aiw, which says what each name is; not edited by hand.
 # fxea: 4 5
 data fxea 0 155 218 158 83 238 5 64 42 123 16 195 136 162 34 64 34 201 94 39 176 52 22 64 10 47 44 249 178 122 34 64 144 80 68 52 80 65 235 63 248 99 247 94 56 120 33 192 64 108 183 89 90 228 226 63 176 138 41 63 55 204 249 63
 data 207 109 21 244 136 201 17 192 0 179 249 74 218 86 200 63 0 172 113 252 128 29 150 63 42 253 74 206 232 65 31 192 136 237 82 65 218 189 24 64 120 191 175 34 8 31 243 191 124 232 35 199 215 211 27 192 159 237 184 121 106 247 31 192
