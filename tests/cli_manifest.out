@@ -48,6 +48,7 @@ error 13 at line 3: an address or a directory that starts with -
 # a lock that is refused
 error 2 at line 1: a line with too few or too many values
 error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
 error 5 at line 1: a version that is not three numbers with dots between, as 1.2.3
 error 12 at line 1: a revision that is not forty digits of base sixteen
 error 12 at line 1: a revision that is not forty digits of base sixteen

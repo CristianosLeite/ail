@@ -413,7 +413,8 @@ fn mflockone mfd mfw mfk
 	load mfw as mfp
 	load mfw+8 as mfn
 	call mfname mfp mfn as mfr
-	ifz mfr
+	call mfeq mfp mfn "ail" as mfv
+	if (mfr==0)|mfv
 		ret 4
 	end
 	call mffind mfd mflocked mfp mfn as mfr

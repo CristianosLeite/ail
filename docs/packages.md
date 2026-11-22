@@ -82,7 +82,7 @@ same sources reads the same revisions; a tag that later names another
 revision does not change what is built. A line counts for a dependency
 while the manifest asks for that version from that address; when it
 asks for another, the tag is read again. A dependency that is a directory
-has no line. Comments and empty lines are as in the manifest.
+has no line, and none is called `ail`, as in the manifest. Comments and empty lines are as in the manifest.
 
 ## Versions of AIL
 

@@ -130,6 +130,7 @@ call show "" 1
 call print "# a lock that is refused\n"
 call show "other 1.2.0 0123456789abcdef0123456789abcdef01234567\n" 1
 call show "Other 1.2.0 0123456789abcdef0123456789abcdef01234567 url\n" 1
+call show "ail 1.2.0 0123456789abcdef0123456789abcdef01234567 url\n" 1
 call show "other 1.2 0123456789abcdef0123456789abcdef01234567 url\n" 1
 call show "other 1.2.0 0123456789abcdef url\n" 1
 call show "other 1.2.0 0123456789ABCDEF0123456789abcdef01234567 url\n" 1
