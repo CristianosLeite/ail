@@ -446,8 +446,8 @@ fn put p n keep
 		load gmsg as s
 		load gmsg+8 as l
 		call fdwrite fd s l as r
-		sys close fd
-		ifz r
+		sys close fd as c
+		if (r==0)|(c!=0)
 			call fail stio "cannot write " q m
 		end
 	end
