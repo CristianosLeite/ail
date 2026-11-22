@@ -175,12 +175,21 @@ checked against the code and fixed in a commit of its own on the branch
 - **A name from the command line is not a path**: a test name has no `/`, an address or
   a directory is one value of a manifest line.
 - **`ail fmt` follows no link**, and stops at a directory it cannot read.
-- **One run of `ail test` at a time in a package**, by a lock on `build/tests/.lock`;
-  the executable of a test is `<name>.exe`, and the compiler of a test has its deadline.
+- **One command at a time in a package**, by an exclusive lock on its directory, taken
+  when the package is found and held to the end of the command (first a lock of
+  `ail test` alone, on `build/tests/.lock`; the second review found that two builds
+  share the file a lock is written to). Rejected: a name of its own for each writer's
+  file, which keeps two writers apart and not a reader from a half-made `deps/`.
+  The executable of a test is `<name>.exe`, and the compiler of a test has its deadline.
 - **Two paths of one directory are one package**, compared by what the kernel names the
   directory.
 - **A package called `ail`** is built with the library as `ail` and without itself
   under that name.
+- **The group of a test also ends when the command is killed**: a watcher process in
+  the group reads a pipe that only the command writes to and kills the group at its
+  end. AIL has no way to handle a signal in a program, so the command cannot clean up
+  on its own way out. Only a program with a limit of time gets a group; the compiler of
+  a build stays in the group of the command.
 - **A test leads a group of processes, and the group ends with it**, as
   `tests/run.sh` has it for a test that is killed; here also for one that ends by itself
   and leaves a child, whose directory is about to be removed. Asked for by the review of
