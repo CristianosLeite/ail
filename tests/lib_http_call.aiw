@@ -29,6 +29,18 @@ async fn canned l p n ms
 	ret 0
 end
 
+# the same server, which writes the first k of the bytes, waits 50 ms
+# and writes the rest
+async fn halves l p n k
+	await asyncaccept l as c
+	await asyncread c rb 4096 as r
+	await asyncwriteall c p k as r
+	await asyncsleep 50
+	await asyncwriteall c p+k n-k as r
+	call asyncclose c
+	ret 0
+end
+
 # send the request of q and print the status, and the head and the body
 # apart
 fn texteq p n q m
@@ -147,6 +159,33 @@ call against "a response above the 64 bytes it may have" "HTTP/1.1 200 OK\x0d\nC
 store q+96 100
 call against "a response after 400 ms, for a limit of 100" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 400
 # a port where nobody listens: one that was just closed
+call against "two lengths that are the same" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\ncontent-length: 2\x0d\n\x0d\nok" 0
+call against "two lengths that differ" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+call against "a second length that is no number" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\nContent-Length: x\x0d\n\x0d\nok" 0
+call against "a transfer coding that is not chunked alone" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
+store q+16 "head"
+store q+24 4
+call against "a method head, which is not HEAD: its body is read" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+# the forty chunks again, cut before the last chunk and before the
+# empty line that ends them: the limit is of the body, wherever a read
+# ends
+load many as x
+load many+8 as y
+load b+8 as i
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call halves l x y y-5 as t
+store q+104 111
+call ask "the forty chunks, cut before the last chunk"
+await t as r
+call asyncclose l
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call halves l x y y-2 as t
+store q+104 111
+call ask "the forty chunks, cut before the empty line"
+await t as r
+call asyncclose l
 call asynclisten 0x7f000001 0 as l
 call asyncport l as port
 call asyncclose l

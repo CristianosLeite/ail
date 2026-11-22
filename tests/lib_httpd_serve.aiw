@@ -187,6 +187,12 @@ call raw "a version that is no digit" "GET / HTTP/1.x\x0d\n\x0d\n"
 call raw "something after the version" "GET / HTTP/1.1 x\x0d\n\x0d\n"
 call raw "a 204 of the handler, which had added bytes" "GET /nothing HTTP/1.1\x0d\n\x0d\n"
 call raw "a 304 of the handler" "GET /same HTTP/1.1\x0d\n\x0d\n"
+call raw "two lengths that differ" "POST / HTTP/1.1\x0d\nContent-Length: 0\x0d\nContent-Length: 5\x0d\n\x0d\nhello"
+call raw "two lengths that are the same" "POST / HTTP/1.1\x0d\nContent-Length: 5\x0d\nContent-Length: 5\x0d\n\x0d\nhello"
+call raw "a transfer coding that is not chunked alone" "POST / HTTP/1.1\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n0\x0d\n\x0d\n"
+call raw "Expect: 100-continue, answered before the body is read" "POST /e HTTP/1.1\x0d\nExpect: 100-continue\x0d\nContent-Length: 2\x0d\n\x0d\nhi"
+call raw "another expectation" "POST /e HTTP/1.1\x0d\nExpect: something\x0d\nContent-Length: 2\x0d\n\x0d\nhi"
+call raw "a method head, which is not HEAD: it gets the body" "head /h HTTP/1.1\x0d\n\x0d\n"
 call raw "a connection that ends in the head: nothing" "GET / HT"
 call asyncclose l
 await sv as r

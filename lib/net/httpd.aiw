@@ -36,7 +36,10 @@
 # and one to a HEAD, is sent without the body, whatever the handler
 # added. The server answers itself,
 # and calls no handler, for a request it cannot read: 400 for one that
-# is no HTTP, 431 for a head above 64 KiB, 413 for a body above 16 MiB,
+# is no HTTP or has a transfer coding other than "chunked" or two
+# lengths, 431 for a head above 64 KiB, 413 for a body above 16 MiB, 417
+# for an expectation other than "100-continue", which it answers with
+# "100 Continue" before it reads the body,
 # and nothing for a connection that ends or sends nothing for 30
 # seconds. It writes Content-Length and "Connection: close" and closes
 # the connection after each response: one request a connection, no TLS.
@@ -78,6 +81,9 @@ fn httpdline httpdb httpdv
 	if httpdv==413
 		tail byadd httpdb " Content Too Large\x0d\n"
 	end
+	if httpdv==417
+		tail byadd httpdb " Expectation Failed\x0d\n"
+	end
 	if httpdv==431
 		tail byadd httpdb " Request Header Fields Too Large\x0d\n"
 	end
@@ -116,7 +122,11 @@ async fn httpdconn httpdc httpdf httpdx
 			httpdv=431
 			jmp answer
 		end
-		await httpmore httpdc httpdb httpdwait as httpdr
+		call httpmore httpdc httpdb httpdwait as httpdt
+		httpdr=0-12
+		if httpdt
+			await httpdt as httpdr
+		end
 		ifsgt httpdr 0
 			jmp head
 		end
@@ -166,7 +176,31 @@ async fn httpdconn httpdc httpdf httpdx
 		httpdv=400
 		jmp answer
 	end
-	await httpbody httpdc httpdb httpdwait httpdmost+httpdh 0 as httpdr
+	# A client that says "Expect: 100-continue" waits to be told before
+	# it sends the body; any other expectation is one this server has
+	# not.
+	call httpfield httpdp httpdh "expect" as httpdg httpdk
+	if httpdg
+		call httpsame httpdg httpdk "100-continue" as httpdr
+		ifz httpdr
+			httpdv=417
+			jmp answer
+		end
+		call asyncwriteall httpdc "HTTP/1.1 100 Continue\x0d\n\x0d\n" as httpdt
+		call httplimit httpdt httpdwait as httpdt
+		httpdr=0-12
+		if httpdt
+			await httpdt as httpdr
+		end
+		ifslt httpdr 0
+			jmp close
+		end
+	end
+	call httpbody httpdc httpdb httpdwait httpdmost+httpdh 0 as httpdt
+	httpdr=0-12
+	if httpdt
+		await httpdt as httpdr
+	end
 	ifslt httpdr 0
 		if httpdr==0-90
 			httpdv=413
@@ -227,7 +261,7 @@ async fn httpdconn httpdc httpdf httpdx
 	# HEAD; a 204 and a 1xx have no length either.
 	load httpdq as httpde
 	load httpdq+8 as httpdk
-	call httpsame httpde httpdk "HEAD" as httpde
+	call httpis httpde httpdk "HEAD" as httpde
 	httpdk=(httpdv==204)|(httpdv<200)
 	httpde|=httpdk|(httpdv==304)
 	load httpdq+88 as httpdp
@@ -242,8 +276,14 @@ async fn httpdconn httpdc httpdf httpdx
 	end
 	load httpdw as httpdp
 	load httpdw+8 as httpdn
+	# the bytes of the response are given back, below, only when the
+	# write is done or was never made
 	call asyncwriteall httpdc httpdp httpdn as httpdt
-	await httpwait httpdt httpdwait as httpdr
+	call httplimit httpdt httpdwait as httpdt
+	httpdr=0-12
+	if httpdt
+		await httpdt as httpdr
+	end
 	ifslt httpdr 0
 		httpdv=0
 	end

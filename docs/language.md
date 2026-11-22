@@ -1668,6 +1668,8 @@ await s
 | `httpurl p n` | reads `http://` an IPv4 address or `localhost`, a port or not, a path or not: the address as a number, the port (80), the address and length of the path, and 1; or zeros and 0 |
 | `httpip p n` | reads an IPv4 address written with dots, or `localhost`: the number and 1, or 0 and 0 |
 | `httpbody fd b ms max eof`, `httpmore fd b ms` | async functions that read the body after a head, and more bytes, into a bytes buffer; the server uses them too |
+| `httplimit h ms` | the handle to await in the place of `h` for it to take `ms` milliseconds at most; 0 if `h` is 0, which a caller looks at before it awaits |
+| `httpfieldn p n q m k` | `httpfield` for the line after `k` lines of the name |
 
 The request is 128 bytes that the caller owns, all zero to start with:
 
@@ -1705,8 +1707,8 @@ load q+112 as h
 call print x+h len-h                # the body
 ```
 
-- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
-- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB, a response above the limit or a chunk whose size no body may have, -12 without memory, also for a limit of time that cannot be made, after the step it was for was cancelled.
+- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. Two lines `Content-Length` that do not say the same number, and a `Transfer-Encoding` other than `chunked` alone, are -71: no other rule is taken in their place. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
+- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB, a response above the limit or a chunk whose size no body may have, -12 without memory. A limit of time that cannot be made cancels the step it was for, whose error is then -125.
 - **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
 - **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
 - **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
@@ -1753,7 +1755,7 @@ await httpdserve l f 0          # until l is closed
 ```
 
 - **One task a connection**, so a handler that waits, for a file, a timer or a request of its own, keeps no other connection waiting. What it returns is not looked at, but for -125, the result of a task that was cancelled while it waited: the connection is then closed without a response.
-- **The server answers itself**, and calls no handler: 400 for what is no request of HTTP/1, 431 for a head above 64 KiB, 413 for a body above 16 MiB. A connection that ends, or sends nothing for 30 seconds, gets no answer.
+- **The server answers itself**, and calls no handler: 400 for what is no request of HTTP/1, has two lengths that differ or a transfer coding other than `chunked`, 417 for an expectation other than `100-continue` (which it answers with `100 Continue` before it reads the body), 431 for a head above 64 KiB, 413 for a body above 16 MiB. A connection that ends, or sends nothing for 30 seconds, gets no answer.
 - **The response** has the status line, `Content-Type`, `Content-Length` and `Connection: close`, and the connection is closed after it: one request a connection. The answer to a `HEAD` has the length and not the body; a response of the status 204 or 304 is sent without the body, whatever the handler added, and a 204 without a length.
 - **Without memory**: `httpdserve` ends with -12 when an accept or the task of a connection cannot be made, having closed the connection it had accepted; a handler whose task cannot be made is answered with 500. A response is written whole or not at all.
 - **Stopping**: `asyncclose l` ends `httpdserve` with -125. Connections that are open then are served to their end by their own tasks; `asyncrun` waits for them.

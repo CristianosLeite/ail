@@ -107,6 +107,50 @@ Content-Length: 49
 Connection: close
 
 
+# two lengths that differ
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# two lengths that are the same
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 51
+Connection: close
+
+POST / host is 127.0.0.1 and the port:0 body:hello7
+# a transfer coding that is not chunked alone
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# Expect: 100-continue, answered before the body is read
+HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 49
+Connection: close
+
+POST /e host is 127.0.0.1 and the port:0 body:hi7
+# another expectation
+HTTP/1.1 417 Expectation Failed
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a method head, which is not HEAD: it gets the body
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 47
+Connection: close
+
+head /h host is 127.0.0.1 and the port:0 body:7
 # a connection that ends in the head: nothing
 
 the server ended with -125

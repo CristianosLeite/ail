@@ -89,12 +89,36 @@ fn httpsame httpp httpn httpq httpm
 	ret 1
 end
 
+# 1 if the httpn bytes at httpp are the httpm bytes at httpq, as they
+# stand: the name of a method, which "head" is not for HEAD
+fn httpis httpp httpn httpq httpm
+	if httpn!=httpm
+		ret 0
+	end
+	httpi=0
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		loadb httpq+httpi as httpd
+		if httpc!=httpd
+			ret 0
+		end
+		httpi+=1
+	end
+	ret 1
+end
+
 # The value of the header line of the name httpq httpm in the head of
 # the httpn bytes at httpp: its address and its length, without the
 # blanks around it, or 0 and 0 if the head has no such line. The first
 # line of a head is no header line. Of two lines of the name it is the
 # first.
 fn httpfield httpp httpn httpq httpm
+	tail httpfieldn httpp httpn httpq httpm 0
+end
+
+# the same for the line after httpo lines of the name: the second of two
+# with httpo 1
+fn httpfieldn httpp httpn httpq httpm httpo
 	httpe=httpp+httpn
 	# after the first line
 	label first
@@ -131,6 +155,11 @@ fn httpfield httpp httpn httpq httpm
 			jmp colon
 		end
 		call httpsame httpp httpk-httpp httpq httpm as httpr
+		if httpr&(httpo!=0)
+			# one of the name that is not the one asked for
+			httpo-=1
+			httpr=0
+		end
 		if httpr
 			httpk+=1
 			label lead
@@ -306,30 +335,23 @@ fn httpurl httpp httpn
 	ret httpa httpport httpp+httpi httpn-httpi 1
 end
 
-# The result of the event or task httph, awaited for httpms milliseconds
-# at most (0: without a limit): its result, -62 after the time, or -12
-# if httph is 0, an operation that could not be made, or the limit could
-# not be made, in which case the operation is cancelled first and, had
-# it ended already, its result is the one returned.
-async fn httpwait httph httpms
-	ifz httph
-		ret 0-12
-	end
-	ifz httpms
-		await httph as httpr
-		ret httpr
+# The handle to await in the place of httph, an event or a task, for it
+# to take httpms milliseconds at most (0: without a limit), after which
+# its result is -62. It is 0 if httph is 0, an operation that could not
+# be made; a caller looks at it before it awaits, since the await of 0
+# gives 0 as if that were a result. If the limit cannot be made, the
+# operation is cancelled and its own handle returned: its result is then
+# -125, or what it had if it was done.
+fn httplimit httph httpms
+	if (httph==0)|(httpms==0)
+		ret httph
 	end
 	call asynctimeout httph httpms as httpg
 	ifz httpg
-		call asynccancel httph as httpc
-		await httph as httpr
-		ifz httpc
-			ret httpr
-		end
-		ret 0-12
+		call asynccancel httph
+		ret httph
 	end
-	await httpg as httpr
-	ret httpr
+	ret httpg
 end
 
 # Read from the descriptor httpfd and add what comes to the bytes buffer
@@ -344,7 +366,11 @@ async fn httpmore httpfd httpb httpms
 	load httpb as httpp
 	load httpb+8 as httpn
 	call asyncread httpfd httpp+httpn 16384 as httph
-	await httpwait httph httpms as httpr
+	call httplimit httph httpms as httph
+	ifz httph
+		ret 0-12
+	end
+	await httph as httpr
 	ifsgt httpr 0
 		store httpb+8 httpn+httpr
 	end
@@ -356,6 +382,9 @@ end
 # what was read of a body in chunks and is not yet taken, put after the
 # body so far, so that the lines between the chunks take no room.
 fn httppack httpb httpw httpq
+	if httpw==httpq
+		ret 0
+	end
 	load httpb as httpp
 	load httpb+8 as httpn
 	httpi=httpq
@@ -365,6 +394,7 @@ fn httppack httpb httpw httpq
 		httpi+=1
 	end
 	store httpb+8 httpw+httpn-httpq
+	ret 0
 end
 
 # Read the body of the message whose head stands at the start of the
@@ -381,6 +411,11 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 	call httphead httpp httpn as httph
 	call httpfield httpp httph "transfer-encoding" as httpa httpl
 	call httpsame httpa httpl "chunked" as httpr
+	if (httpa!=0)&(httpr==0)
+		# a coding this library has not: no other rule is taken in
+		# its place
+		ret 0-71
+	end
 	if httpr
 		# httpw is where the body ends so far and httpq where what is
 		# not yet taken starts; both are offsets, since the bytes may
@@ -430,12 +465,20 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 				jmp size
 			end
 		else
-			if httpn>httpmax
-				ret 0-90
-			end
+			# what is not taken is moved down first, so that what is
+			# held is the body and a line that is not whole; such a
+			# line may be as long as a head
 			call httppack httpb httpw httpq
 			httpq=httpw
-			await httpmore httpfd httpb httpms as httpr
+			load httpb+8 as httpn
+			if httpn-httpw>httpheadmax
+				ret 0-90
+			end
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
 			ifsle httpr 0
 				ifz httpr
 					ret 0-71
@@ -468,12 +511,20 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 				store httpb+8 httpw
 				ret 0
 			end
-			if httpn>httpmax
-				ret 0-90
-			end
+			# what is not taken is moved down first, so that what is
+			# held is the body and a line that is not whole; such a
+			# line may be as long as a head
 			call httppack httpb httpw httpq
 			httpq=httpw
-			await httpmore httpfd httpb httpms as httpr
+			load httpb+8 as httpn
+			if httpn-httpw>httpheadmax
+				ret 0-90
+			end
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
 			ifsle httpr 0
 				ifz httpr
 					ret 0-71
@@ -491,7 +542,11 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 		if httpn<httpq+httpv+2
 			call httppack httpb httpw httpq
 			httpq=httpw
-			await httpmore httpfd httpb httpms as httpr
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
 			ifsle httpr 0
 				ifz httpr
 					ret 0-71
@@ -524,13 +579,29 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 		ifz httpr
 			ret 0-71
 		end
+		# further lines of the name are to say the same number
+		httpk=1
+		label again
+		call httpfieldn httpp httph "content-length" httpk as httpa httpl
+		if httpa
+			call httpnum httpa httpl as httpd httpr
+			if (httpr==0)|(httpd!=httpv)
+				ret 0-71
+			end
+			httpk+=1
+			jmp again
+		end
 		if httph+httpv>httpmax
 			ret 0-90
 		end
 		label rest
 		load httpb+8 as httpn
 		if httpn<httph+httpv
-			await httpmore httpfd httpb httpms as httpr
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
 			ifsle httpr 0
 				ifz httpr
 					ret 0-71
@@ -551,7 +622,11 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 	if httpn>httpmax
 		ret 0-90
 	end
-	await httpmore httpfd httpb httpms as httpr
+	call httpmore httpfd httpb httpms as httpt
+	httpr=0-12
+	if httpt
+		await httpt as httpr
+	end
 	ifsgt httpr 0
 		jmp all
 	end
@@ -596,7 +671,7 @@ async fn httpcall httpq httpb
 	else
 		call byadd httpw httpp httpn
 	end
-	call httpsame httpp httpn "HEAD" as httpnobody
+	call httpis httpp httpn "HEAD" as httpnobody
 	call byaddb httpw 32
 	load httpq+32 as httpp
 	load httpq+40 as httpn
@@ -635,7 +710,7 @@ async fn httpcall httpq httpb
 	# to have one though it is of no bytes
 	load httpq+16 as httpp
 	load httpq+24 as httpl
-	call httpsame httpp httpl "GET" as httpr
+	call httpis httpp httpl "GET" as httpr
 	httpl=(httpl!=0)&(httpr==0)&(httpnobody==0)
 	load httpq+48 as httpp
 	load httpq+56 as httpn
@@ -649,15 +724,25 @@ async fn httpcall httpq httpb
 	load httpq as httpa
 	load httpq+8 as httpl
 	call asyncconnect httpa httpl as httph
-	await httpwait httph httpms as httpfd
+	call httplimit httph httpms as httph
+	httpfd=0-12
+	if httph
+		await httph as httpfd
+	end
 	ifslt httpfd 0
 		call byfree httpw
 		ret httpfd
 	end
 	load httpw as httpp
 	load httpw+8 as httpn
+	# the bytes of the request are given back only when the write is
+	# done or was never made
 	call asyncwriteall httpfd httpp httpn as httph
-	await httpwait httph httpms as httpr
+	call httplimit httph httpms as httph
+	httpr=0-12
+	if httph
+		await httph as httpr
+	end
 	call byfree httpw
 	ifslt httpr 0
 		call asyncclose httpfd
@@ -673,7 +758,11 @@ async fn httpcall httpq httpb
 			call asyncclose httpfd
 			ret 0-90
 		end
-		await httpmore httpfd httpb httpms as httpr
+		call httpmore httpfd httpb httpms as httpt
+		httpr=0-12
+		if httpt
+			await httpt as httpr
+		end
 		ifsle httpr 0
 			call asyncclose httpfd
 			ifz httpr
@@ -710,7 +799,11 @@ async fn httpcall httpq httpb
 		call asyncclose httpfd
 		ret httpv
 	end
-	await httpbody httpfd httpb httpms httpmax 1 as httpr
+	call httpbody httpfd httpb httpms httpmax 1 as httpt
+	httpr=0-12
+	if httpt
+		await httpt as httpr
+	end
 	call asyncclose httpfd
 	ifslt httpr 0
 		ret httpr

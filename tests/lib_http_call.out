@@ -47,6 +47,20 @@ error -90
 error -90
 # a response after 400 ms, for a limit of 100
 error -62
+# two lengths that are the same
+status 200, a head of 57 bytes, body [ok]
+# two lengths that differ
+error -71
+# a second length that is no number
+error -71
+# a transfer coding that is not chunked alone
+error -71
+# a method head, which is not HEAD: its body is read
+status 200, a head of 38 bytes, body [ok]
+# the forty chunks, cut before the last chunk
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
+# the forty chunks, cut before the empty line
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
 # nobody listens
 error -111
 tasks that are not done: 0

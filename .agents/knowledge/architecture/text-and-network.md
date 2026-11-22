@@ -92,3 +92,21 @@ Eighteen findings, all taken; each is a case of the tests unless said otherwise.
   a response when the handler was cancelled (-125), which has no test either.
 - A test compared 33 bytes with 32 and so always printed 0, which its expected output
   had.
+
+## The second review of the pull request 28 (Copilot, 2026-11-22)
+Eight findings, all taken, each a case of the tests but those of memory.
+- Two lines `Content-Length` that differ, and a `Transfer-Encoding` that is not
+  `chunked` alone, are no message (-71, 400 from the server): a second parser in front
+  of this one could read the body otherwise.
+- `httpwait`, the async function of the first review, was itself a task that may not be
+  made, and the await of 0 is 0. It is `httplimit` now, a plain function that returns
+  the handle to await, and every await of a task or an event of these files is of a
+  handle that was looked at: 0 is -12. A limit that cannot be made cancels its
+  operation, and the bytes of a write are given back after its await.
+- The lines of the chunks are moved out before the limit is compared, at a size line
+  and at a trailer too, so the limit is of the body wherever a read ends; a line that
+  is not whole may be as long as a head. `httppack` with nothing to move returns at
+  once, where it copied every byte onto itself for each read of a long chunk.
+- A method is compared as it stands: `head` is not `HEAD`.
+- The server answers `Expect: 100-continue` with `100 Continue` before it reads the
+  body, and another expectation with 417.
