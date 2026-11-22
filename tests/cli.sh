@@ -296,6 +296,12 @@ call byaddn b pid
 load b as p
 load b+8 as n
 call filewrite "build/kid" p n
+call bycut b 0
+sys getpid as pid
+call byaddn b pid
+load b as p
+load b+8 as n
+call filewrite "build/kidself" p n
 END
 is cli_test_child_left 0 "ok   kid
 1 test, 0 failed" "" $ail test kid
@@ -304,6 +310,15 @@ printf 'label spin\njmp spin\n' >> tests/kid.aiw
 is cli_test_child_of_killed 1 "FAIL kid
 1 test, 1 failed" "ail: it still ran after 10 seconds and was killed" $ail test kid
 yes cli_test_child_of_killed_is_gone sh -c '! kill -0 "$(cat build/kid)" 2> /dev/null'
+# the command killed in the middle of a test: the test and its child
+# end as well
+rm -f build/kid
+rm -f build/kidself
+timeout --signal=KILL 3 "$top/build/ail" test kid > /dev/null 2>&1
+yes cli_test_command_killed [ $? -ne 0 ] && yes cli_test_command_killed_had_started [ -s build/kidself ]
+sleep 1
+yes cli_test_command_killed_child_is_gone sh -c '! kill -0 "$(cat build/kid)" 2> /dev/null'
+yes cli_test_command_killed_test_is_gone sh -c '! kill -0 "$(cat build/kidself)" 2> /dev/null'
 rm tests/kid.aiw
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"

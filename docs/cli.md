@@ -179,7 +179,9 @@ it ([Where AIL is](#where-ail-is)), for a test that reads a file of AIL.
 A test that still runs after 10 seconds is killed and has failed, and
 so has one whose compiling takes that long. The processes a test
 started end with it: when it has ended or was killed, what is left of
-its group of processes is killed.
+its group of processes is killed, and so it is when the command itself
+is interrupted or killed while a test runs. The compiler of a build
+is in the group of the command and is interrupted with it.
 
 For each test a line `ok   <name>` or `FAIL <name>` is written to
 stdout, then the number of tests and of those that failed; a line on
