@@ -239,6 +239,15 @@ is cli_run_error 1 "" "ailc: 18: unknown statement" $ail run
 rm src/main.aiw
 is cli_build_no_source 4 "" "ail: cannot read src/main.aiw" $ail build
 
+# a manifest that cannot be read is not passed over for one above it
+mkdir -p inner && echo "name inner" > inner/ail.pkg && chmod 000 inner/ail.pkg
+cd inner || exit 1
+is cli_manifest_unreadable 4 "" "ail: cannot read ail.pkg" $ail build
+is cli_manifest_unreadable_clean 4 "" "ail: cannot read ail.pkg" $ail clean
+cd .. || exit 1
+yes cli_manifest_unreadable_left_build [ -d build ]
+chmod 600 inner/ail.pkg && rm -r inner
+
 # several executables, and one built for the tests only
 printf 'use "lib/std/io.aiw"\ncall print "one\\n"\n' > src/one.aiw
 printf 'use "lib/std/io.aiw"\ncall print "two\\n"\n' > src/two.aiw
