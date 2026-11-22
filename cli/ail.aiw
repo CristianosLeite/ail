@@ -968,6 +968,31 @@ buf xt 24           # the manifest of a dependency
 buf xd 72           # and what it holds
 buf xdir 24         # its directory
 
+# End the command unless the n bytes at p can be one value of a line of
+# a manifest, as docs/packages.md has them: not empty, with no space and
+# no byte below 32 or the byte 127, and not starting with "#", which
+# starts a comment, or with "-", which git reads as an option.
+fn onevalue p n
+	ok=n>0
+	i=0
+	while i<n
+		loadb p+i as x
+		if (x<=32)|(x==127)
+			ok=0
+		end
+		i+=1
+	end
+	if ok
+		loadb p as x
+		if (x==35)|(x==45)
+			ok=0
+		end
+	end
+	ifz ok
+		call fail stusage "an address or a directory in a manifest has no space and does not start with # or -: not " p n
+	end
+end
+
 # "ail add URL [VERSION]" and "ail add --path DIRECTORY": the package is
 # read first, for its name, and then written into the manifest
 fn cmdadd
@@ -978,12 +1003,11 @@ fn cmdadd
 	if (c<3)|(c>4)|(path&(c!=4))
 		call usage
 	end
-	loadb up as x
-	if (path==0)&(x==45)
-		call usage
-	end
 	call project
 	call bycut xdir 0
+	ifz path
+		call onevalue up un
+	end
 	if path
 		# a directory is read from where the command was started
 		loadb vp as x
@@ -997,6 +1021,9 @@ fn cmdadd
 			call byaddb xdir 47
 		end
 		call byadd xdir vp vn
+		load xdir as p
+		load xdir+8 as n
+		call onevalue p n
 	else
 		if vn
 			call mfver vp vn as x r

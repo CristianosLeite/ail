@@ -75,7 +75,9 @@ A source of the package then names a file of it as
 `ail add --path DIRECTORY` uses the package as it lies in a directory,
 for two packages that are worked on together: nothing is fetched and the
 lock has no line for it. A package that is a dependency already is
-replaced by what is added.
+replaced by what is added. An address or a directory is one value of a
+line of the manifest: one with a space, or that starts with `#` or `-`,
+is refused before anything is written.
 
 `ail remove NAME` takes the line out of the manifest, the lines that are
 no longer needed out of the lock, and the clone out of `deps/`.

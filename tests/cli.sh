@@ -541,7 +541,11 @@ rmdir ail.lock.new && $ail remove base > /dev/null
 # what is refused
 cp ail.pkg "$tmp/pkg"
 is cli_add_usage 2 "" "usage: ail COMMAND" $ail add
-is cli_add_option 2 "" "usage: ail COMMAND" $ail add --frob x
+is cli_add_option 2 "" "ail: an address or a directory in a manifest has no space and does not start with # or -: not --frob" $ail add --frob x
+mkdir "$r/two words" && cp "$r/mid/ail.pkg" "$r/two words/"
+is cli_add_path_with_space 2 "" "ail: an address or a directory in a manifest has no space and does not start with # or -: not ../two words" $ail add --path "../two words"
+is cli_add_address_comment 2 "" "ail: an address or a directory in a manifest has no space and does not start with # or -: not #base" $ail add "#base"
+is cli_add_address_empty 2 "" "ail: an address or a directory in a manifest has no space and does not start with # or -: not " $ail add ""
 is cli_add_bad_version 2 "" "ail: a version is three numbers with dots between, as 1.2.3: not 1.0" $ail add "$r/base" 1.0
 is cli_add_no_such_tag 4 "" "ail: $r/base has no tag v9.9.9" $ail add "$r/base" 9.9.9
 lastis cli_add_no_repository 4 "ail: cannot read the tags of $r/nothing" $ail add "$r/nothing"
