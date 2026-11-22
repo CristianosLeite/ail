@@ -488,8 +488,10 @@ is cli_update_conflict 3 "" "ail: the package base is asked for twice, and not a
 yes cli_update_conflict_manifest grep -q "^dep base 1.0.0 " ail.pkg
 is cli_remove 0 "removed base" "" $ail remove base
 yes cli_remove_manifest [ "$(grep -c '^dep ' ail.pkg)" = 1 ]
+# mid still uses base: its clone stays, and nothing is fetched again
+yes cli_remove_keeps_a_clone_in_use [ -f deps/base/ail.pkg ]
 is cli_remove_still_runs 0 "mid
-base 1.0.0" "" $ail run
+base 1.0.0" "" timeout --signal=KILL 60 env PATH=/nonexistent "$top/build/ail" run
 is cli_remove_unknown 3 "" "ail: ail.pkg has no dependency base" $ail remove base
 is cli_remove_last 0 "removed mid" "" $ail remove mid
 yes cli_remove_no_lock [ ! -e ail.lock ] && yes cli_remove_clone [ ! -e deps/mid ]

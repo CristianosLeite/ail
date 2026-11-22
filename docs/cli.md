@@ -80,7 +80,9 @@ line of the manifest: one with a space, or that starts with `#` or `-`,
 is refused before anything is written.
 
 `ail remove NAME` takes the line out of the manifest, the lines that are
-no longer needed out of the lock, and the clone out of `deps/`.
+no longer needed out of the lock, and the clone out of `deps/`, unless
+another package of the build still uses that package: then its clone
+and its line of the lock stay.
 
 `ail update` looks for a later version of every dependency that comes
 from a repository, `ail update NAME` of that one, and writes it into the

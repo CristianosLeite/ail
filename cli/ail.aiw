@@ -1175,12 +1175,21 @@ fn cmdremove
 	call save "ail.pkg" xa
 	call project
 	call deps
-	call bycut gout 0
-	call byadd gout "deps/"
-	call byadd gout p n
-	load gout as q
-	load gout+8 as m
-	call tlremove q m
+	# its clone goes, unless another package of the build still uses it
+	call dpfind p n as i
+	if i==-1
+		call bycut gout 0
+		call byadd gout "deps/"
+		call byadd gout p n
+		load gout as q
+		load gout+8 as m
+		call tlremove q m as r
+		if r
+			call eprint "ail: could not remove "
+			call eprint q m
+			call eprint "\n"
+		end
+	end
 	call print "removed "
 	call print p n
 	call print "\n"
