@@ -1,0 +1,691 @@
+# tools/ndgen.aiw -- write tests/lib/ndfix.aiw, the reference results for
+# lib/nd.
+#
+# The inputs and the results are written as data lines, 8 bytes a number,
+# least significant byte first, 8 numbers a line. The tests
+# tests/lib_nd_ref_* name the file with use and compare what the library
+# computes with it.
+#
+# The file was first written by a Python script with NumPy 2.3.5, and this
+# tool writes the same bytes: the inputs are the numbers of NumPy's
+# generator (default_rng(20261121): SeedSequence, PCG64, uniform and
+# integers), and each result is computed in the order NumPy adds, with the
+# name NumPy has for it in the comment of its case. tests/tools.sh
+# requires the output to be the file. A case added here is no longer what
+# NumPy computed but what this tool computes in that order.
+#
+# The tool shares no code with lib/nd: its kernels take plain addresses of
+# numbers that lie one behind the other, and a view or a broadcast is
+# copied out first (take).
+#
+# No arguments; the file on stdout. From the top of the repository:
+#   build/tools/ndgen > tests/lib/ndfix.aiw
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+
+# the generator: 128 bits of state and of increment, and the upper half
+# of a number of which next32 gave the lower; ghc is the constant of the
+# hash of SeedSequence, which changes with every use
+var gsh gsl gih gil ghas gu ghc
+# the multiplier of PCG64, upper and lower half
+const gmh 0x2360ed051fc65da4
+const gml 0x4385df649fccf645
+const gm32 0xffffffff
+# doubles: -10, 20, -1, 2, 1, 2.5
+const gfm10 0xc024000000000000
+const gf20 0x4034000000000000
+const gfm1 0xbff0000000000000
+const gf2 0x4000000000000000
+const gf1 0x3ff0000000000000
+const gf25 0x4004000000000000
+
+# the text of the file
+buf gout 24
+# results, two copies of views, one number, the powers of ten from -8 to 7
+buf gw 80000
+buf gv 800
+buf gv2 800
+buf gc 8
+buf gp 128
+
+# the inputs
+buf aa 160
+buf bb 160
+buf row 40
+buf col 32
+buf tt 192
+buf uu 24
+buf big 80000
+buf pa 336
+buf pb 280
+buf px 800
+buf py 800
+buf sa 64
+buf sb 64
+buf ia 96
+buf ib 96
+buf fa 48
+
+# the upper 64 bits of a times b
+fn mulhi a b
+	x=(a&gm32)*(b&gm32)
+	y=(a&gm32)*(b>>32)
+	z=(a>>32)*(b&gm32)
+	ret (a>>32)*(b>>32)+(y>>32)+(z>>32)+(((x>>32)+(y&gm32)+(z&gm32))>>32)
+end
+
+# the next 64 bits: the state times the multiplier plus the increment,
+# then the halves of it folded and rotated by its top six bits
+fn next64
+	h=gsh
+	l=gsl
+	call mulhi l gml as c
+	h=c+l*gmh+h*gml
+	l=l*gml+gil
+	h+=gih+(l<gil)
+	gsh=h
+	gsl=l
+	x=h^l
+	r=h>>58
+	ret x>>r|x<<((64-r)&63)
+end
+
+# the next 32 bits: the lower half of a number, then its upper half
+fn next32
+	if ghas
+		ghas=0
+		ret gu
+	end
+	call next64 as x
+	ghas=1
+	gu=x>>32
+	ret x&gm32
+end
+
+# the hash of SeedSequence of the 32 bits v
+fn hmix v
+	v^=ghc
+	ghc=ghc*0x931e8875&gm32
+	v=v*ghc&gm32
+	ret v^v>>16
+end
+
+# seed the generator as default_rng(e) does, e below 2^32: a pool of
+# four words mixed from e, eight words hashed from the pool, which are
+# the state and the stream of PCG64
+fn seed e
+	local p 32
+	local s 64
+	ghc=0x43b0d7e5
+	x=e
+	i=0
+	while i<4
+		call hmix x as x
+		store p+i*8 x
+		x=0
+		i+=1
+	end
+	i=0
+	while i<4
+		j=0
+		while j<4
+			if i!=j
+				load p+i*8 as x
+				call hmix x as x
+				load p+j*8 as y
+				y=0xca01f9dd*y-0x4973f715*x&gm32
+				store p+j*8 y^y>>16
+			end
+			j+=1
+		end
+		i+=1
+	end
+	ghc=0x8b51f9dd
+	i=0
+	while i<8
+		load p+(i&3)*8 as x
+		x^=ghc
+		ghc=ghc*0x58f38ded&gm32
+		x=x*ghc&gm32
+		store s+i*8 x^x>>16
+		i+=1
+	end
+	i=0
+	while i<4
+		load s+i*16 as x
+		load s+i*16+8 as y
+		store p+i*8 x|y<<32
+		i+=1
+	end
+	load p as h
+	load p+8 as l
+	load p+16 as x
+	load p+24 as y
+	gsh=0
+	gsl=0
+	gih=x<<1|y>>63
+	gil=y<<1|1
+	call next64
+	l+=gsl
+	gsh=gsh+h+(l<gsl)
+	gsl=l
+	call next64
+	ghas=0
+end
+
+# n doubles at p as uniform(lo, lo+rg, n) gives them: 53 bits by 2^-53,
+# times rg, plus lo
+fn unif p n lo rg
+	e=p+n*8
+	while p<e
+		call next64 as x
+		itof x>>11 as x
+		fmul x 0x3ca0000000000000 as x
+		fmul rg x as x
+		fadd lo x as x
+		store p x
+		p+=8
+	end
+end
+
+# n integers at p as integers(lo, lo+rg, n) gives them, rg below 2^32:
+# the upper half of 32 bits times rg, taken again while the lower half
+# is one of the 2^32 mod rg smallest
+fn ints p n lo rg
+	th=(0x100000000-rg)%rg
+	e=p+n*8
+	while p<e
+		call next32 as x
+		m=x*rg
+		while (m&gm32)<th
+			call next32 as x
+			m=x*rg
+		end
+		store p lo+(m>>32)
+		p+=8
+	end
+end
+
+# copy to d the numbers of a view of s: n0 by n1 by n2 of them, the
+# first at the index o, s0, s1 and s2 numbers apart along each axis; a
+# distance of 0 repeats, a negative one goes back
+fn take d s o n0 s0 n1 s1 n2 s2
+	i=0
+	while i<n0
+		j=0
+		while j<n1
+			k=0
+			while k<n2
+				load s+(o+i*s0+j*s1+k*s2)*8 as x
+				store d x
+				d+=8
+				k+=1
+			end
+			j+=1
+		end
+		i+=1
+	end
+end
+
+# the n numbers at d of those at x and at y, by the operation k: 0 to 3
+# the sum, difference, product and quotient of doubles, 4 to 6 the sum,
+# difference and product of integers, 7 the double at x toward zero as
+# an integer, 8 the integer at x as a double
+fn ew k d x y n
+	i=0
+	while i<n
+		load x+i*8 as a
+		load y+i*8 as b
+		c=a+b
+		if k==0
+			fadd a b as c
+		end
+		if k==1
+			fsub a b as c
+		end
+		if k==2
+			fmul a b as c
+		end
+		if k==3
+			fdiv a b as c
+		end
+		if k==5
+			c=a-b
+		end
+		if k==6
+			c=a*b
+		end
+		if k==7
+			ftoi a as c
+		end
+		if k==8
+			itof a as c
+		end
+		store d+i*8 c
+		i+=1
+	end
+end
+
+# the sum of the two doubles at p
+fn pair p
+	load p as x
+	load p+8 as y
+	fadd x y as x
+	ret x
+end
+
+# the sum of the n doubles at p, n above 0, as NumPy adds numbers that
+# lie one behind the other: fewer than 8 in their order; up to 128 into
+# 8 sums, each of every eighth, which are added in pairs, then the rest
+# in its order; more than that in two halves, the first a multiple of 8
+fn pw p n
+	local r 64
+	if n<8
+		load p as s
+		i=1
+		while i<n
+			load p+i*8 as x
+			fadd s x as s
+			i+=1
+		end
+		ret s
+	end
+	if n>128
+		h=n/2
+		h-=h%8
+		call pw p h as s
+		call pw p+h*8 n-h as x
+		fadd s x as s
+		ret s
+	end
+	i=0
+	while i<8
+		load p+i*8 as x
+		store r+i*8 x
+		i+=1
+	end
+	e=n-n%8
+	while i<e
+		j=0
+		while j<8
+			load r+j*8 as s
+			load p+(i+j)*8 as x
+			fadd s x as s
+			store r+j*8 s
+			j+=1
+		end
+		i+=8
+	end
+	call pair r as s
+	call pair r+16 as x
+	fadd s x as s
+	call pair r+32 as x
+	call pair r+48 as y
+	fadd x y as x
+	fadd s x as s
+	while i<n
+		load p+i*8 as x
+		fadd s x as s
+		i+=1
+	end
+	ret s
+end
+
+# the sums over the middle axis of the na by nb by nc numbers at s, na
+# by nc numbers at d: integers if f, else doubles. Over the last axis
+# (nc is 1) doubles are added by pw, everything else in the order of
+# the index
+fn axsum d s na nb nc f
+	a=0
+	while a<na
+		q=s+a*nb*nc*8
+		c=0
+		while c<nc
+			load q+c*8 as x
+			if (nc==1)&(f==0)
+				call pw q nb as x
+			else
+				b=1
+				while b<nb
+					load q+(b*nc+c)*8 as y
+					if f
+						x+=y
+					else
+						fadd x y as x
+					end
+					b+=1
+				end
+			end
+			store d+(a*nc+c)*8 x
+			c+=1
+		end
+		a+=1
+	end
+end
+
+# divide the n doubles at p by the integer k
+fn scale p n k
+	itof k as y
+	e=p+n*8
+	while p<e
+		load p as x
+		fdiv x y as x
+		store p x
+		p+=8
+	end
+end
+
+# the product at d, n by p, of the matrices at x, n by m, and at y, m
+# by p: each element from 0, a product added after the other in the
+# order of the middle index; integers if f, else doubles
+fn mm d x y n m p f
+	i=0
+	while i<n
+		j=0
+		while j<p
+			s=0
+			k=0
+			while k<m
+				load x+(i*m+k)*8 as a
+				load y+(k*p+j)*8 as b
+				if f
+					s+=a*b
+				else
+					fmul a b as a
+					fadd s a as s
+				end
+				k+=1
+			end
+			store d+(i*p+j)*8 s
+			j+=1
+		end
+		i+=1
+	end
+end
+
+# add n bytes at p, or a number in decimal, to the text
+fn out p n
+	call byadd gout p n as r
+	ifz r
+		call die "ndgen: no memory\n"
+	end
+end
+fn outn v
+	call byaddn gout v as r
+	ifz r
+		call die "ndgen: no memory\n"
+	end
+end
+
+# the lines of a case: the comment with the name and the lengths of the
+# r axes, a, b and c, then the numbers at p, 64 bytes a line, the name
+# on the first
+fn put np nl p r a b c
+	local s 24
+	store s a
+	store s+8 b
+	store s+16 c
+	call out "# "
+	call out np nl
+	call out ":"
+	n=8
+	i=0
+	while i<r
+		load s+i*8 as x
+		n*=x
+		call out " "
+		call outn x
+		i+=1
+	end
+	ifz r
+		call out " one number"
+	end
+	i=0
+	while i<n
+		ifz i&63
+			call out "\ndata"
+			ifz i
+				call out " "
+				call out np nl
+			end
+		end
+		call out " "
+		loadb p+i as x
+		call outn x
+		i+=1
+	end
+	call out "\n"
+end
+
+# the case of one number
+fn putv np nl v
+	local s 8
+	store s v
+	call put np nl s 0 0 0 0
+end
+
+# the case of the operation k of ew on x and y, which have the lengths
+# of the case
+fn bin np nl k x y r a b c
+	n=1
+	if r
+		n=a
+	end
+	if r>1
+		n*=b
+	end
+	if r>2
+		n*=c
+	end
+	call ew k gw x y n
+	call put np nl gw r a b c
+end
+
+call argc as n
+if n>1
+	call die "usage: ndgen > tests/lib/ndfix.aiw\n"
+end
+call out "# tests/lib/ndfix.aiw -- inputs and the results NumPy 2.3.5\n"
+call out "# computed of them, for the tests lib_nd_ref_*. Written by\n"
+call out "# tools/ndgen.aiw, which says what each name is; not edited by hand.\n"
+call seed 20261121
+
+# element by element: a and b are 4 by 5, t is 2 by 3 by 4
+call unif aa 20 gfm10 gf20
+call unif bb 20 gfm10 gf20
+call unif row 5 gfm10 gf20
+call unif col 4 gfm10 gf20
+call unif tt 24 gfm10 gf20
+call unif uu 3 gfm10 gf20
+call put "fxea" aa 2 4 5 0
+call put "fxeb" bb 2 4 5 0
+call bin "fxeadd" 0 aa bb 2 4 5 0
+call bin "fxesub" 1 aa bb 2 4 5 0
+call bin "fxemul" 2 aa bb 2 4 5 0
+call bin "fxediv" 3 aa bb 2 4 5 0
+call put "fxerow" row 1 5 0 0
+call put "fxecol" col 2 4 1 0
+# a + row, a * col with col 4 by 1
+call take gv row 0 4 0 5 1 1 0
+call bin "fxerowadd" 0 aa gv 2 4 5 0
+call take gv col 0 4 1 5 0 1 0
+call bin "fxecolmul" 2 aa gv 2 4 5 0
+# 2.5 - a
+store gc gf25
+call take gv gc 0 20 0 1 0 1 0
+call bin "fxescal" 1 gv aa 2 4 5 0
+call put "fxet" tt 3 2 3 4
+call put "fxeu" uu 2 3 1 0
+# t / u with u 3 by 1
+call take gv uu 0 2 0 3 1 4 0
+call bin "fxetu" 3 tt gv 3 2 3 4
+# a[::-1, 1:5:2] * b[:, 3:1:-1]
+call take gv aa 16 4 -5 2 2 1 0
+call take gv2 bb 3 4 5 2 -1 1 0
+call bin "fxeview" 2 gv gv2 2 4 2 0
+
+# sums and means. big is uniform(-1, 1, 10000) * 10.0 ** integers(-8, 8,
+# 10000): a power of ten that is no integer is 1 by one that is
+call unif big 10000 gfm1 gf2
+call ints gw 10000 -8 16
+x=1
+i=0
+while i<8
+	itof x as y
+	store gp+64+i*8 y
+	x*=10
+	itof x as y
+	fdiv gf1 y as y
+	store gp+56-i*8 y
+	i+=1
+end
+i=0
+while i<10000
+	load big+i*8 as x
+	load gw+i*8 as k
+	load gp+64+k*8 as y
+	fmul x y as x
+	store big+i*8 x
+	i+=1
+end
+# a.sum(), a.mean(), a.sum(axis=0), a.sum(axis=1), the means the same
+call pw aa 20 as x
+call putv "fxrsum" x
+store gc x
+call scale gc 1 20
+load gc as x
+call putv "fxrmean" x
+call axsum gw aa 1 4 5 0
+call put "fxrs0" gw 1 5 0 0
+call axsum gw aa 4 5 1 0
+call put "fxrs1" gw 1 4 0 0
+call axsum gw aa 1 4 5 0
+call scale gw 5 4
+call put "fxrm0" gw 1 5 0 0
+call axsum gw aa 4 5 1 0
+call scale gw 4 5
+call put "fxrm1" gw 1 4 0 0
+# t.sum(axis=1), t.mean(axis=2)
+call axsum gw tt 2 3 4 0
+call put "fxrts1" gw 2 2 4 0
+call axsum gw tt 6 4 1 0
+call scale gw 6 4
+call put "fxrtm2" gw 2 2 3 0
+# a[::-1, 1:5:2].sum(axis=0)
+call take gv aa 16 4 -5 2 2 1 0
+call axsum gw gv 1 4 2 0
+call put "fxrvs" gw 1 2 0 0
+call put "fxrbig" big 1 10000 0 0
+call pw big 10000 as x
+call putv "fxrbigsum" x
+store gc x
+call scale gc 1 10000
+load gc as x
+call putv "fxrbigmean" x
+
+# products: pa is 6 by 7, pb is 7 by 5
+call unif pa 42 gfm10 gf20
+call unif pb 35 gfm10 gf20
+call unif px 100 gfm10 gf20
+call unif py 100 gfm10 gf20
+call put "fxpa" pa 2 6 7 0
+call put "fxpb" pb 2 7 5 0
+# pa @ pb, pa.T @ pa, pa[::2, ::-1] @ pb
+call mm gw pa pb 6 7 5 0
+call put "fxpab" gw 2 6 5 0
+call take gv pa 0 7 1 6 7 1 0
+call mm gw gv pa 7 6 7 0
+call put "fxpata" gw 2 7 7 0
+call take gv pa 6 3 14 7 -1 1 0
+call mm gw gv pb 3 7 5 0
+call put "fxpview" gw 2 3 5 0
+call put "fxpx" px 1 100 0 0
+call put "fxpy" py 1 100 0 0
+# px @ py, px[::-2] @ py[1::2]
+call mm gc px py 1 100 1 0
+load gc as x
+call putv "fxpdot" x
+call take gv px 99 50 -2 1 0 1 0
+call take gv2 py 1 50 2 1 0 1 0
+call mm gc gv gv2 1 50 1 0
+load gc as x
+call putv "fxpdotv" x
+
+# infinities, what is no number, and zeros with a sign:
+# sa is inf, -inf, nan, 0, -0, 1, -1, 1e308
+# sb is inf, inf, 1, 0, 0, -inf, nan, 1e308
+store sa 0x7ff0000000000000
+store sa+8 0xfff0000000000000
+store sa+16 0x7ff8000000000000
+store sa+32 0x8000000000000000
+store sa+40 gf1
+store sa+48 gfm1
+store sa+56 0x7fe1ccf385ebc8a0
+store sb 0x7ff0000000000000
+store sb+8 0x7ff0000000000000
+store sb+16 gf1
+store sb+40 0xfff0000000000000
+store sb+48 0x7ff8000000000000
+store sb+56 0x7fe1ccf385ebc8a0
+call put "fxsa" sa 1 8 0 0
+call put "fxsb" sb 1 8 0 0
+call bin "fxsadd" 0 sa sb 1 8 0 0
+call bin "fxssub" 1 sa sb 1 8 0 0
+call bin "fxsmul" 2 sa sb 1 8 0 0
+call bin "fxsdiv" 3 sa sb 1 8 0 0
+# sa.reshape(2, 4).sum(axis=1), sb.reshape(2, 4).sum(axis=0), and
+# the mean of that
+call axsum gw sa 2 4 1 0
+call put "fxss1" gw 1 2 0 0
+call axsum gw sb 1 2 4 0
+call put "fxss0" gw 1 4 0 0
+call scale gw 4 2
+call put "fxsm0" gw 1 4 0 0
+
+# integers: ia and ib are 3 by 4, with the largest and the smallest
+# integer, 3 and 2^62 put in; fa is -2.75, -1, -0.5, 0.5, 1.999,
+# 123456789.25
+call ints ia 12 -1000 2000
+call ints ib 12 -1000 2000
+store ia 0x7fffffffffffffff
+store ia+48 0x8000000000000000
+store ib 3
+store ib+88 0x4000000000000000
+store fa 0xc006000000000000
+store fa+8 gfm1
+store fa+16 0xbfe0000000000000
+store fa+24 0x3fe0000000000000
+store fa+32 0x3ffffbe76c8b4396
+store fa+40 0x419d6f3455000000
+call put "fxia" ia 2 3 4 0
+call put "fxib" ib 2 3 4 0
+call bin "fxiadd" 4 ia ib 2 3 4 0
+call bin "fxisub" 5 ia ib 2 3 4 0
+call bin "fximul" 6 ia ib 2 3 4 0
+# ia.sum(), ia.sum(axis=0), ia @ ib.T
+call axsum gc ia 1 12 1 1
+load gc as x
+call putv "fxisum" x
+call axsum gw ia 1 3 4 1
+call put "fxis0" gw 1 4 0 0
+call take gv ib 0 4 1 3 4 1 0
+call mm gw ia gv 3 4 3 1
+call put "fximm" gw 2 3 3 0
+call put "fxifa" fa 1 6 0 0
+# trunc(fa) as integers, ia as doubles, ia[:, 1].mean()
+call bin "fxitoi" 7 fa fa 1 6 0 0
+call bin "fxitof" 8 ia ia 2 3 4 0
+call take gv ia 1 3 4 1 0 1 0
+call ew 8 gv gv gv 3
+call pw gv 3 as x
+store gc x
+call scale gc 1 3
+load gc as x
+call putv "fximean" x
+
+load gout as p
+load gout+8 as n
+call fdwrite 1 p n as r
+ifz r
+	call die "ndgen: write error\n"
+end

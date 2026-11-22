@@ -44,6 +44,7 @@ $(B)/tools/%: tools/%.aiw $(B)/ailc
 TL := lib/std/io.aiw lib/std/bytes.aiw lib/std/file.aiw
 
 $(B)/tools/hashcol: lib/std/io.aiw
+$(B)/tools/ndgen: lib/std/io.aiw lib/std/bytes.aiw
 $(B)/tools/indent: $(TL) tools/lib/dent.aiw
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aiw tools/lib/flow.aiw tools/lib/dent.aiw
 $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw

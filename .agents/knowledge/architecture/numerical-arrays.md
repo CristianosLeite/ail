@@ -1,7 +1,7 @@
 ---
 title: Numerical arrays (lib/nd)
 last-verified: 2026-11-21
-sources: [conversation 2026-11-21, docs/BACKLOG.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tests/nd/gen.py, tests/lib/ndfix.aiw, bench/algo/harness.aiw, tools/perf.aiw, tests/algo.sh]
+sources: [conversation 2026-11-21, docs/BACKLOG.md, docs/language.md, docs/performance.md, lib/nd/, tests/lib_nd_*, tools/ndgen.aiw, tests/lib/ndfix.aiw, bench/algo/harness.aiw, tools/perf.aiw, tests/algo.sh]
 status: current
 ---
 # Numerical arrays (lib/nd)
@@ -42,8 +42,14 @@ when first measured, 2.18 times since the loops take two doubles at once.
 - Integers wrap at 64 bits. Their quotient is cut off towards 0 (NumPy's `//` floors); a
   divisor array with a 0 is refused before anything is written; the lowest integer by -1
   stays what it is. A mean is always a double. Kinds are never mixed but by `ndtoi`/`ndtof`.
-- `tests/nd/gen.py` is the one Python file of the repository. It writes `tests/lib/ndfix.aiw`
-  and is never run by `make test`; `tests/nd/bench.py` times NumPy for the docs.
+- `tests/lib/ndfix.aiw` was written by `tests/nd/gen.py` with NumPy 2.3.5, the last Python file
+  of the repository, removed on 2026-11-22. `tools/ndgen.aiw` writes the same bytes without
+  NumPy and `tests/tools.sh` requires that: it repeats NumPy's generator (SeedSequence, PCG64,
+  `uniform`, `integers`) and computes every result in NumPy's order with code that shares
+  nothing with `lib/nd`. That order is plain for all of them: the pairwise sum (8 sums, blocks
+  of 128) along the last axis, row after row along another, and products added in the order
+  of the middle index without FMA, which is what the reference BLAS of Ubuntu's NumPy did. A
+  case added later is what the tool computes, no longer what NumPy computed.
 - The array programs `ndelem`, `ndreduce`, `ndmatmul` call `algonum` of the harness, which
   gives every language the same doubles (20 bits / 1024 - 512), so results are the same
   bytes in AIL, C and Rust. C must not be built with `-ffast-math` for that to hold.
