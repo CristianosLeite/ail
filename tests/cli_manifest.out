@@ -1,0 +1,79 @@
+# a manifest
+name [aildb] version [0.1.0] ail [0.2.0]
+1 [aildb] [src/aildb.aiw] [] []
+2 [aildb-stops] [tests/lib/stops.aiw] [] []
+4 [other] [1.2.0] [https://example.org/other.git] []
+8 [local] [../local] [] []
+name [a] version [1.0.0] ail []
+name [a_b-9] version [10.20.30] ail []
+# a manifest that is refused
+error 6 at line 0: no line with the name
+error 7 at line 0: no line with the version
+error 6 at line 0: no line with the name
+error 1 at line 3: a key that is none of name, version, ail, bin, testbin and dep
+error 2 at line 1: a line with too few or too many values
+error 2 at line 1: a line with too few or too many values
+error 3 at line 2: a key that may stand once stands twice
+error 3 at line 3: a key that may stand once stands twice
+error 3 at line 4: a key that may stand once stands twice
+error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 5 at line 2: a version that is not three numbers with dots between, as 1.2.3
+error 5 at line 2: a version that is not three numbers with dots between, as 1.2.3
+error 5 at line 3: a version that is not three numbers with dots between, as 1.2.3
+error 2 at line 3: a line with too few or too many values
+error 9 at line 3: a source that is no path inside the package
+error 9 at line 3: a source that is no path inside the package
+error 8 at line 4: a name that an earlier line has
+error 2 at line 3: a line with too few or too many values
+error 2 at line 3: a line with too few or too many values
+error 4 at line 3: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 5 at line 3: a version that is not three numbers with dots between, as 1.2.3
+error 8 at line 4: a name that an earlier line has
+error 11 at line 3: a byte that is no text
+# a lock
+16 [other] [1.2.0] [0123456789abcdef0123456789abcdef01234567] [https://example.org/other.git]
+16 [third] [0.0.1] [ffffffffffffffffffffffffffffffffffffffff] [../third]
+# a lock that is refused
+error 2 at line 1: a line with too few or too many values
+error 4 at line 1: a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency
+error 5 at line 1: a version that is not three numbers with dots between, as 1.2.3
+error 12 at line 1: a revision that is not forty digits of base sixteen
+error 12 at line 1: a revision that is not forty digits of base sixteen
+error 12 at line 1: a revision that is not forty digits of base sixteen
+error 8 at line 2: a name that an earlier line has
+# versions
+0.0.0 0 1
+0.0.1 1 1
+0.1.0 2097152 1
+1.0.0 4398046511104 1
+1.2.3 4398050705411 1
+2097151.2097151.2097151 9223372036854775807 1
+2097152.0.0 0 0
+01.0.0 0 0
+1.00.0 0 0
+1.0.0.0 0 0
+1.0. 0 0
+1..0 0 0
+.1.0 0 0
+1.0.0-rc1 0 0
+ 0 0
+0.1.0 where 0.1.0 is asked: 1
+0.2.0 where 0.1.5 is asked: 1
+0.1.4 where 0.1.5 is asked: 0
+1.0.0 where 0.9.0 is asked: 0
+1.4.0 where 1.3.9 is asked: 1
+2.0.0 where 1.3.9 is asked: 0
+# lines taken out
+2 left out
+name a
+# dep b is gone
+dep bc ../bc
+0 left out
+name a
+dep b ../b
+1 left out
+bc 1.0.0 rev url
+# the manifest of AIL itself
+0 [ail] a version: 1, entries: 0

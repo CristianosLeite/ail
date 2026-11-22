@@ -58,7 +58,7 @@ build/tools/randvars build/ailc 2000 4 asyncs # with few waits, so that variable
 build/tools/randvars dump dir 5 1   # write the programs of a seed to dir/<n>.txt, compiling nothing
 ```
 
-The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
+The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A package has a manifest, `ail.pkg`, and AIL has its own, with its version (`docs/packages.md`); `cli/manifest.aiw` reads it, and `cli/` is where the command `ail` of `docs/TODO.md` is being written. A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
 
 ```
 build/ailc < prog.aiw > prog && chmod +x prog

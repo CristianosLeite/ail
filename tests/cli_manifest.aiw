@@ -1,0 +1,175 @@
+# cli/manifest.aiw: a manifest and a lock read into their entries, what
+# is refused in each and at which line, the order of versions, and the
+# lines of a dependency taken out of a text
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "cli/manifest.aiw"
+buf d 72
+buf b 24
+buf t 24
+fn field e
+	load e as p
+	load e+8 as n
+	call print " ["
+	call print p n
+	call print "]"
+end
+# read the text as a manifest, or as a lock if lk is 1, and print what
+# the descriptor has, or the error and its line
+fn show p n lk
+	call mfread d p n lk as e l
+	if e
+		call print "error "
+		call putn e
+		call print " at line "
+		call putn l
+		call print ": "
+		call bycut b 0
+		call mfwhy b e
+		load b as q
+		load b+8 as m
+		call print q m
+		call print "\n"
+		ret 0
+	end
+	ifz lk
+		call print "name"
+		call field d
+		call print " version"
+		call field d+16
+		call print " ail"
+		call field d+32
+		call print "\n"
+	end
+	call mfcount d as k
+	i=0
+	while i<k
+		call mfentry d i as e
+		load e as kind
+		call putn kind
+		call field e+8
+		call field e+24
+		call field e+40
+		call field e+56
+		call print "\n"
+		i+=1
+	end
+	ret 0
+end
+fn ver p n
+	call mfver p n as v ok
+	call print p n
+	call print " "
+	call putn v
+	call print " "
+	call putn ok
+	call print "\n"
+end
+fn meets p n q m
+	call mfver p n as a ok
+	call mfver q m as c ok
+	call mfmeets a c as r
+	call print p n
+	call print " where "
+	call print q m
+	call print " is asked: "
+	call putn r
+	call print "\n"
+end
+fn drop p n q m lk
+	call bycut b 0
+	call mfdrop b p n q m lk as c
+	call putn c
+	call print " left out\n"
+	load b as s
+	load b+8 as l
+	call print s l
+end
+
+call print "# a manifest\n"
+call show "# a comment\nname aildb\nversion 0.1.0\nail 0.2.0   # the AIL it needs\n\nbin aildb src/aildb.aiw\ntestbin aildb-stops tests/lib/stops.aiw\ndep other 1.2.0 https://example.org/other.git\ndep local ../local\n" 0
+call show "name a\nversion 1.0.0" 0
+call show "\tname\ta_b-9\x0d\n  version 10.20.30\x0d\n" 0
+call print "# a manifest that is refused\n"
+call show "" 0
+call show "name a\n" 0
+call show "version 1.0.0\n" 0
+call show "name a\nversion 1.0.0\nlicense MIT\n" 0
+call show "name\nversion 1.0.0\n" 0
+call show "name a b\nversion 1.0.0\n" 0
+call show "name a\nname b\nversion 1.0.0\n" 0
+call show "name a\nversion 1.0.0\nversion 1.0.1\n" 0
+call show "name a\nversion 1.0.0\nail 0.1.0\nail 0.1.0\n" 0
+call show "name A\nversion 1.0.0\n" 0
+call show "name -a\nversion 1.0.0\n" 0
+call show "name a/b\nversion 1.0.0\n" 0
+call show "name a\nversion 1.0\n" 0
+call show "name a\nversion v1.0.0\n" 0
+call show "name a\nversion 1.0.0\nail one\n" 0
+call show "name a\nversion 1.0.0\nbin a\n" 0
+call show "name a\nversion 1.0.0\nbin a /src/a.aiw\n" 0
+call show "name a\nversion 1.0.0\nbin a b:src/a.aiw\n" 0
+call show "name a\nversion 1.0.0\nbin a src/a.aiw\ntestbin a src/b.aiw\n" 0
+call show "name a\nversion 1.0.0\ndep b\n" 0
+call show "name a\nversion 1.0.0\ndep b 1.0.0 url more\n" 0
+call show "name a\nversion 1.0.0\ndep ail ../ail\n" 0
+call show "name a\nversion 1.0.0\ndep b 1.x.0 url\n" 0
+call show "name a\nversion 1.0.0\ndep b ../b\ndep b 1.0.0 url\n" 0
+call show "name a\nversion 1.0.0\ndep b ../\x01b\n" 0
+call print "# a lock\n"
+call show "# written by ail\nother 1.2.0 0123456789abcdef0123456789abcdef01234567 https://example.org/other.git\nthird 0.0.1 ffffffffffffffffffffffffffffffffffffffff ../third\n" 1
+call show "" 1
+call print "# a lock that is refused\n"
+call show "other 1.2.0 0123456789abcdef0123456789abcdef01234567\n" 1
+call show "Other 1.2.0 0123456789abcdef0123456789abcdef01234567 url\n" 1
+call show "other 1.2 0123456789abcdef0123456789abcdef01234567 url\n" 1
+call show "other 1.2.0 0123456789abcdef url\n" 1
+call show "other 1.2.0 0123456789ABCDEF0123456789abcdef01234567 url\n" 1
+call show "other 1.2.0 0123456789abcdef0123456789abcdef0123456g url\n" 1
+call show "a 1.2.0 0123456789abcdef0123456789abcdef01234567 url\na 1.2.1 0123456789abcdef0123456789abcdef01234567 url\n" 1
+call print "# versions\n"
+call ver "0.0.0"
+call ver "0.0.1"
+call ver "0.1.0"
+call ver "1.0.0"
+call ver "1.2.3"
+call ver "2097151.2097151.2097151"
+call ver "2097152.0.0"
+call ver "01.0.0"
+call ver "1.00.0"
+call ver "1.0.0.0"
+call ver "1.0."
+call ver "1..0"
+call ver ".1.0"
+call ver "1.0.0-rc1"
+call ver ""
+call meets "0.1.0" "0.1.0"
+call meets "0.2.0" "0.1.5"
+call meets "0.1.4" "0.1.5"
+call meets "1.0.0" "0.9.0"
+call meets "1.4.0" "1.3.9"
+call meets "2.0.0" "1.3.9"
+call print "# lines taken out\n"
+call drop "name a\ndep b 1.0.0 url\n# dep b is gone\ndep bc ../bc\n  dep\tb ../b" "b" 0
+call drop "name a\ndep b ../b\n" "c" 0
+call drop "b 1.0.0 rev url\nbc 1.0.0 rev url\n" "b" 1
+call print "# the manifest of AIL itself\n"
+call fileread "ail.pkg" t as r
+load t as p
+load t+8 as n
+call mfread d p n 0 as e l
+call putn e
+load d as p
+load d+8 as n
+call print " ["
+call print p n
+load d+16 as p
+load d+24 as n
+call mfver p n as v ok
+call print "] a version: "
+call putn ok
+call mfcount d as k
+call print ", entries: "
+call putn k
+call print "\n"

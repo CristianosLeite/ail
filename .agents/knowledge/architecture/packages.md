@@ -64,6 +64,24 @@ The rest is the open section of `docs/TODO.md`.
 - The source of the compiler uses nothing new, so the pinned seed builds
   it and no seed was cut.
 
+## The manifest and the lock (agent, 2026-11-22; for the user to review)
+- The files are `ail.pkg` and `ail.lock`. The keys are `name`, `version`,
+  `ail`, `bin`, `testbin` and `dep`; `docs/packages.md` has their rules.
+- **A version is three numbers and nothing more.** No pre-release and no
+  build part, which no project of AIL has needed. Each number is below
+  2^21, so that a version is one 63-bit number and is compared as one.
+- **A dependency names one exact version**, the tag `v<version>`, and the
+  lock keeps the revision of that tag. Rejected: ranges (`^1.2`), which
+  need a solver and make a build depend on what was published since.
+- **The line `ail` is a lower bound within one first number.** AIL below
+  1.0.0 may change in a way a program notices from one second number to
+  the next; the rule does not say so, and a package that needs an exact
+  AIL has no way to ask for it yet.
+- **AIL is 0.1.0** as its first version: a proposal, since the number and
+  the tag of a release are the user's.
+- A manifest is changed as text (`mfdrop` and lines added), not written
+  again from what was read, so the comments of its author stay.
+
 ## Not checked
 - More than 256 packages and a path of package and file above 4095 bytes
   are refused in the code and have no test.

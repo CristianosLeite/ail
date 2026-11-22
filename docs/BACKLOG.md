@@ -784,3 +784,8 @@ it; `TODO.md` has what is decided and what is left.
   starts from the package of the file that has it, and `lib/` is the
   library of AIL in every package. Without arguments nothing changes.
   `compiler/pkg.aiw`, `tests/pkg.sh`.
+- [x] The manifest `ail.pkg` (`name`, `version`, `ail`, `bin`, `testbin`,
+  `dep`) and the lock `ail.lock`, in `docs/packages.md`; `cli/manifest.aiw`
+  reads and checks both, orders versions and takes the lines of a
+  dependency out of a text. AIL has its manifest and its first version,
+  0.1.0.

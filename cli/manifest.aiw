@@ -1,0 +1,545 @@
+# cli/manifest.aiw -- the manifest of a package, ail.pkg, and its lock,
+# ail.lock, as docs/packages.md has them: read and checked, and changed
+# as text. Needs lib/std/bytes.aiw. The functions print nothing and end
+# nothing: what is wrong is a result.
+#
+# A manifest or a lock that was read is 72 bytes that the caller owns, in
+# a buf or a local, all zero before the first use, here called the
+# descriptor:
+#    0  the name of the package: address and length, 0 and 0 if none
+#   16  its version, the same
+#   32  the version of AIL it asks for, the same
+#   48  a buffer of lib/std/bytes.aiw with the entries
+# An entry is 72 bytes: its kind, and four texts, each an address and a
+# length, of which those it does not have are 0 and 0:
+#   mfbin, mftestbin  the name of an executable, its source
+#   mfgit             the name of a dependency, its version, its address
+#   mfpath            the name of a dependency, its directory
+#   mflocked          of a lock: the name, the version, the revision, the
+#                     address
+# Every address is one into the text that was read, which the caller
+# keeps as long as the descriptor is read. The caller ends the buffer of
+# the entries with byfree.
+#
+# Every name of this file starts with "mf"; a program has no var of such
+# a name (see lib/std/io.aiw).
+
+# the kinds of an entry, bits so that several can be asked for at once
+const mfbin 1
+const mftestbin 2
+const mfgit 4
+const mfpath 8
+const mflocked 16
+
+# 1 if the mfn bytes at mfp and the mfm bytes at mfq are the same bytes
+fn mfeq mfp mfn mfq mfm
+	if mfn!=mfm
+		ret 0
+	end
+	mfi=0
+	while mfi<mfn
+		loadb mfp+mfi as mfa
+		loadb mfq+mfi as mfb
+		if mfa!=mfb
+			ret 0
+		end
+		mfi+=1
+	end
+	ret 1
+end
+
+# the length of the line that starts at mfp, without its line feed, and
+# 1; or mfn and 0 if the mfn bytes have no line feed
+fn mfline mfp mfn
+	mfi=0
+	while mfi<mfn
+		loadb mfp+mfi as mfc
+		if mfc==10
+			ret mfi 1
+		end
+		mfi+=1
+	end
+	ret mfn 0
+end
+
+# The fields of the line of mfn bytes at mfp: their number, with the
+# address and the length of each of the first five in the 80 bytes at
+# mfw. Fields are parted by spaces, tabs and carriage returns, and a
+# field that starts with "#" ends the line with all that follows it. The
+# result is -1 if a field has a byte below 32 or the byte 127.
+fn mffields mfp mfn mfw
+	mfk=0
+	mfi=0
+	while mfi<mfn
+		loadb mfp+mfi as mfc
+		if (mfc==32)|(mfc==9)|(mfc==13)
+			mfi+=1
+		else
+			if mfc==35
+				ret mfk
+			end
+			mfs=mfi
+			mfgo=1
+			while mfgo
+				if mfi==mfn
+					mfgo=0
+				else
+					loadb mfp+mfi as mfc
+					if (mfc==32)|(mfc==9)|(mfc==13)
+						mfgo=0
+					else
+						if (mfc<32)|(mfc==127)
+							ret -1
+						end
+						mfi+=1
+					end
+				end
+			end
+			if mfk<5
+				store mfw+mfk*16 mfp+mfs
+				store mfw+mfk*16+8 mfi-mfs
+			end
+			mfk+=1
+		end
+	end
+	ret mfk
+end
+
+# 1 if the mfn bytes at mfp are the name of a package or an executable:
+# 1 to 64 bytes, each a small letter, a digit, "-" or "_", the first a
+# letter or a digit
+fn mfname mfp mfn
+	if (mfn==0)|(mfn>64)
+		ret 0
+	end
+	mfi=0
+	while mfi<mfn
+		loadb mfp+mfi as mfc
+		mfok=(mfc-97<26)|(mfc-48<10)
+		if mfi
+			mfok=mfok|(mfc==45)|(mfc==95)
+		end
+		ifz mfok
+			ret 0
+		end
+		mfi+=1
+	end
+	ret 1
+end
+
+# The mfn bytes at mfp as a version, three decimal numbers with a dot
+# between, none above 2097151 and none with a zero in front: a number
+# that is larger for the later version, and 1; or 0 and 0.
+fn mfver mfp mfn
+	mfv=0
+	mfk=0
+	mfi=0
+	while mfk<3
+		mfx=0
+		mfd=0
+		mfgo=1
+		while mfgo
+			if mfi==mfn
+				mfgo=0
+			else
+				loadb mfp+mfi as mfc
+				mfc-=48
+				if mfc>9
+					mfgo=0
+				else
+					if (mfd>0)&(mfx==0)
+						ret 0 0
+					end
+					mfx=mfx*10+mfc
+					if mfx>2097151
+						ret 0 0
+					end
+					mfd+=1
+					mfi+=1
+				end
+			end
+		end
+		ifz mfd
+			ret 0 0
+		end
+		mfv=mfv*2097152+mfx
+		mfk+=1
+		if mfk<3
+			if mfi==mfn
+				ret 0 0
+			end
+			loadb mfp+mfi as mfc
+			if mfc!=46
+				ret 0 0
+			end
+			mfi+=1
+		end
+	end
+	if mfi!=mfn
+		ret 0 0
+	end
+	ret mfv 1
+end
+
+# 1 if the version mfhave, a number of mfver, is enough where mfneed is
+# asked for: not earlier, and with the same first number
+fn mfmeets mfhave mfneed
+	ret (mfhave>=mfneed)&(mfhave/4398046511104==mfneed/4398046511104)
+end
+
+# the number of entries of the descriptor, and the address of the entry
+# mfi, counted from 0
+fn mfcount mfd
+	load mfd+56 as mfn
+	ret mfn/72
+end
+fn mfentry mfd mfi
+	load mfd+48 as mfp
+	ret mfp+mfi*72
+end
+
+# the first entry whose kind is among mfkinds and whose name is the mfn
+# bytes at mfp: its number, or -1
+fn mffind mfd mfkinds mfp mfn
+	call mfcount mfd as mfk
+	load mfd+48 as mfe
+	mfi=0
+	while mfi<mfk
+		load mfe as mfa
+		if mfa&mfkinds
+			load mfe+8 as mfq
+			load mfe+16 as mfm
+			call mfeq mfp mfn mfq mfm as mfa
+			if mfa
+				ret mfi
+			end
+		end
+		mfe+=72
+		mfi+=1
+	end
+	ret -1
+end
+
+# add an entry of the kind mfkind whose texts are the fields of mfw from
+# the one numbered mff, mfk of them: 1, or 0 without memory
+fn mfput mfd mfkind mfw mff mfk
+	local mfe 72
+	store mfe mfkind
+	mfi=0
+	while mfi<4
+		mfp=0
+		mfn=0
+		if mfi<mfk
+			load mfw+(mff+mfi)*16 as mfp
+			load mfw+(mff+mfi)*16+8 as mfn
+		end
+		store mfe+8+mfi*16 mfp
+		store mfe+16+mfi*16 mfn
+		mfi+=1
+	end
+	call byadd mfd+48 mfe 72 as mfr
+	ret mfr
+end
+
+# 1 if the mfn bytes at mfp are a path of a source in its package: not
+# empty, not from the root, and with no ":" in it
+fn mfsource mfp mfn
+	ifz mfn
+		ret 0
+	end
+	loadb mfp as mfc
+	if mfc==47
+		ret 0
+	end
+	mfi=0
+	while mfi<mfn
+		loadb mfp+mfi as mfc
+		if mfc==58
+			ret 0
+		end
+		mfi+=1
+	end
+	ret 1
+end
+
+# one line of a manifest, the mfk fields at mfw, into the descriptor: 0,
+# or what is wrong with it as mfwhy names it
+fn mfone mfd mfw mfk
+	load mfw as mfp
+	load mfw+8 as mfn
+	load mfw+16 as mfa
+	load mfw+24 as mfan
+	load mfw+32 as mfb
+	load mfw+40 as mfbn
+	mfat=0
+	call mfeq mfp mfn "name" as mfr
+	if mfr
+		mfat=1
+	end
+	call mfeq mfp mfn "version" as mfr
+	if mfr
+		mfat=2
+	end
+	call mfeq mfp mfn "ail" as mfr
+	if mfr
+		mfat=3
+	end
+	if mfat
+		if mfk!=2
+			ret 2
+		end
+		mfat=mfat*16-16
+		load mfd+mfat+8 as mfr
+		if mfr
+			ret 3
+		end
+		if mfat
+			call mfver mfa mfan as mfv mfr
+			ifz mfr
+				ret 5
+			end
+		else
+			call mfname mfa mfan as mfr
+			ifz mfr
+				ret 4
+			end
+		end
+		store mfd+mfat mfa
+		store mfd+mfat+8 mfan
+		ret 0
+	end
+	mfkind=0
+	call mfeq mfp mfn "bin" as mfr
+	if mfr
+		mfkind=mfbin
+	end
+	call mfeq mfp mfn "testbin" as mfr
+	if mfr
+		mfkind=mftestbin
+	end
+	if mfkind
+		if mfk!=3
+			ret 2
+		end
+		call mfname mfa mfan as mfr
+		ifz mfr
+			ret 4
+		end
+		call mfsource mfb mfbn as mfr
+		ifz mfr
+			ret 9
+		end
+		call mffind mfd mfbin|mftestbin mfa mfan as mfr
+		if mfr!=-1
+			ret 8
+		end
+		call mfput mfd mfkind mfw 1 2 as mfr
+		ifz mfr
+			ret 10
+		end
+		ret 0
+	end
+	call mfeq mfp mfn "dep" as mfr
+	ifz mfr
+		ret 1
+	end
+	if (mfk!=3)&(mfk!=4)
+		ret 2
+	end
+	call mfname mfa mfan as mfr
+	call mfeq mfa mfan "ail" as mfv
+	if (mfr==0)|mfv
+		ret 4
+	end
+	call mffind mfd mfgit|mfpath mfa mfan as mfr
+	if mfr!=-1
+		ret 8
+	end
+	mfkind=mfpath
+	if mfk==4
+		call mfver mfb mfbn as mfv mfr
+		ifz mfr
+			ret 5
+		end
+		mfkind=mfgit
+	end
+	call mfput mfd mfkind mfw 1 mfk-1 as mfr
+	ifz mfr
+		ret 10
+	end
+	ret 0
+end
+
+# one line of a lock, the same
+fn mflockone mfd mfw mfk
+	if mfk!=4
+		ret 2
+	end
+	load mfw as mfp
+	load mfw+8 as mfn
+	call mfname mfp mfn as mfr
+	ifz mfr
+		ret 4
+	end
+	call mffind mfd mflocked mfp mfn as mfr
+	if mfr!=-1
+		ret 8
+	end
+	load mfw+16 as mfa
+	load mfw+24 as mfan
+	call mfver mfa mfan as mfv mfr
+	ifz mfr
+		ret 5
+	end
+	# a revision is forty digits of base sixteen, the letters small
+	load mfw+32 as mfa
+	load mfw+40 as mfan
+	if mfan!=40
+		ret 12
+	end
+	mfi=0
+	while mfi<40
+		loadb mfa+mfi as mfc
+		if (mfc-48>9)&(mfc-97>5)
+			ret 12
+		end
+		mfi+=1
+	end
+	call mfput mfd mflocked mfw 0 4 as mfr
+	ifz mfr
+		ret 10
+	end
+	ret 0
+end
+
+# Read the mfn bytes at mfp, a manifest, or a lock if mflk is 1, into the
+# descriptor, which loses what it had: 0 and 0, or what is wrong, a
+# number that mfwhy takes, and the line it is in, counted from 1, or 0 if
+# it is in none. After an error the descriptor is not to be read.
+fn mfread mfd mfp mfn mflk
+	local mfw 80
+	mfi=0
+	while mfi<48
+		store mfd+mfi 0
+		mfi+=8
+	end
+	call bycut mfd+48 0
+	mfl=1
+	while mfn
+		call mfline mfp mfn as mfll mfnl
+		call mffields mfp mfll mfw as mfk
+		if mfk==-1
+			ret 11 mfl
+		end
+		if mfk
+			if mflk
+				call mflockone mfd mfw mfk as mfe
+			else
+				call mfone mfd mfw mfk as mfe
+			end
+			if mfe
+				ret mfe mfl
+			end
+		end
+		mfp+=mfll+mfnl
+		mfn-=mfll+mfnl
+		mfl+=1
+	end
+	ifz mflk
+		load mfd+8 as mfk
+		ifz mfk
+			ret 6 0
+		end
+		load mfd+24 as mfk
+		ifz mfk
+			ret 7 0
+		end
+	end
+	ret 0 0
+end
+
+# add to the buffer mfb what the error mfe of mfread says, a sentence
+# without a full stop or a line feed: 1, or 0 without memory
+fn mfwhy mfb mfe
+	if mfe==1
+		tail byadd mfb "a key that is none of name, version, ail, bin, testbin and dep"
+	end
+	if mfe==2
+		tail byadd mfb "a line with too few or too many values"
+	end
+	if mfe==3
+		tail byadd mfb "a key that may stand once stands twice"
+	end
+	if mfe==4
+		tail byadd mfb "a name that is not small letters, digits, - and _, at most 64, or that is ail for a dependency"
+	end
+	if mfe==5
+		tail byadd mfb "a version that is not three numbers with dots between, as 1.2.3"
+	end
+	if mfe==6
+		tail byadd mfb "no line with the name"
+	end
+	if mfe==7
+		tail byadd mfb "no line with the version"
+	end
+	if mfe==8
+		tail byadd mfb "a name that an earlier line has"
+	end
+	if mfe==9
+		tail byadd mfb "a source that is no path inside the package"
+	end
+	if mfe==10
+		tail byadd mfb "out of memory"
+	end
+	if mfe==11
+		tail byadd mfb "a byte that is no text"
+	end
+	if mfe==12
+		tail byadd mfb "a revision that is not forty digits of base sixteen"
+	end
+	tail byadd mfb "an error without a name"
+end
+
+# Add to the buffer mfb the mfn bytes at mfp, a manifest, without the
+# lines of the dependency whose name is the mfm bytes at mfq; if mflk is
+# 1 the text is a lock and the lines are those of that name. A last line
+# without a line feed gets one. The result is the number of lines left
+# out, or -1 without memory, after which the buffer has a part of the
+# text.
+fn mfdrop mfb mfp mfn mfq mfm mflk
+	local mfw 80
+	mfc=0
+	while mfn
+		call mfline mfp mfn as mfll mfnl
+		call mffields mfp mfll mfw as mfk
+		mfhit=0
+		load mfw as mfa
+		load mfw+8 as mfan
+		if mflk
+			if (mfk!=-1)&(mfk>0)
+				call mfeq mfa mfan mfq mfm as mfhit
+			end
+		else
+			if (mfk!=-1)&(mfk>1)
+				call mfeq mfa mfan "dep" as mfhit
+				if mfhit
+					load mfw+16 as mfa
+					load mfw+24 as mfan
+					call mfeq mfa mfan mfq mfm as mfhit
+				end
+			end
+		end
+		if mfhit
+			mfc+=1
+		else
+			call byadd mfb mfp mfll as mfa
+			call byaddb mfb 10 as mfk
+			if (mfa==0)|(mfk==0)
+				ret -1
+			end
+		end
+		mfp+=mfll+mfnl
+		mfn-=mfll+mfnl
+	end
+	ret mfc
+end

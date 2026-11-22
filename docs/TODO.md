@@ -21,10 +21,6 @@ number of the seed; a dependency is a git repository and a version, the
 tag `v<version>`, with a lock file that has the revision; one installed
 toolchain, the command, the compiler and the library.
 
-- [ ] The manifest `ail.pkg` (`name`, `version`, `ail`, `bin`, `testbin`,
-  `dep`) and the lock `ail.lock`: a library that reads, checks and writes
-  them and compares versions; the manifest of AIL itself, its first
-  version number.
 - [ ] The command `ail`: `new`, `init`, `build`, `run`, `clean`,
   `version`, `help`.
 - [ ] `ail test`, the convention of `tests/run.sh`, and `ail fmt`.
