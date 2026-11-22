@@ -55,7 +55,9 @@ make -s install PREFIX="$tmp/p" > "$tmp/said" 2>&1
 yes install_again [ $? -eq 0 ]
 make -s install DESTDIR="$tmp/d" PREFIX=/opt/ail > "$tmp/said" 2>&1
 yes install_destdir_make [ $? -eq 0 ]
-yes install_destdir [ -x "$tmp/d/opt/ail/bin/ail" ] && yes install_destdir_whole [ -x "$tmp/d/opt/ail/lib/ail/ailc" ] && [ -f "$tmp/d/opt/ail/lib/ail/lib/std/io.aiw" ]
+yes install_destdir [ -x "$tmp/d/opt/ail/bin/ail" ]
+yes install_destdir_compiler [ -x "$tmp/d/opt/ail/lib/ail/ailc" ]
+yes install_destdir_library [ -f "$tmp/d/opt/ail/lib/ail/lib/std/io.aiw" ]
 
 # under a mask that keeps new files to their owner, the directories are
 # still for everyone, as the files are

@@ -610,7 +610,8 @@ is cli_lock_unreadable_update 4 "" "ail: cannot read ail.lock" $ail update
 is cli_lock_unreadable_add 4 "" "ail: cannot read ail.lock" $ail add "$r/mid"
 is cli_lock_unreadable_remove 4 "" "ail: cannot read ail.lock" $ail remove base
 chmod 600 ail.lock
-yes cli_lock_unreadable_fetched_nothing [ ! -e deps/.new ] && [ ! -e deps/mid ]
+yes cli_lock_unreadable_made_no_clone [ ! -e deps/.new ]
+yes cli_lock_unreadable_fetched_nothing [ ! -e deps/mid ]
 yes cli_lock_unreadable_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_lock_unreadable_lock cmp -s ail.lock "$tmp/lock"
 $ail remove base > /dev/null
 
