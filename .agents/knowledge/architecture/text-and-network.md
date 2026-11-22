@@ -85,16 +85,20 @@ Eighteen findings, all taken; each is a case of the tests unless said otherwise.
   task that could not be made, is -12 and never awaited as if it were a result
   (`httpwait`, which also cancels the operation when its limit cannot be made); a
   connection whose task cannot be made is closed; a handler that could not be started
-  is 500. None of these has a test: nothing here can make an allocation fail.
+  is 500. These had no test when they were fixed, and the reason written here then,
+  that nothing can make an allocation fail, was wrong: see the section on the tests
+  without memory below.
 - A body in chunks keeps no line of its chunks: what is not yet taken is moved down to
   the body before more is read, so the buffer is bounded by the body and one read.
 - The server sends no body with 204 and 304 and no length with 204, and closes without
-  a response when the handler was cancelled (-125), which has no test either.
+  a response when the handler was cancelled (-125), which had no test either and has
+  one now.
 - A test compared 33 bytes with 32 and so always printed 0, which its expected output
   had.
 
 ## The second review of the pull request 28 (Copilot, 2026-11-22)
-Eight findings, all taken, each a case of the tests but those of memory.
+Eight findings, all taken, each a case of the tests; those of memory got theirs
+afterwards (below).
 - Two lines `Content-Length` that differ, and a `Transfer-Encoding` that is not
   `chunked` alone, are no message (-71, 400 from the server): a second parser in front
   of this one could read the body otherwise.
@@ -110,3 +114,27 @@ Eight findings, all taken, each a case of the tests but those of memory.
 - A method is compared as it stands: `head` is not `HEAD`.
 - The server answers `Expect: 100-continue` with `100 Continue` before it reads the
   body, and another expectation with 417.
+
+## The tests without memory (2026-11-22)
+The commits of the two reviews and the answers to them said that the paths without
+memory have no test because nothing here can make an allocation fail. That was wrong,
+and was written without looking: `lib_map_no_memory`, `lib_vec_no_memory` and
+`lib_nd_no_memory` limit the memory of the process with `setrlimit` (`RLIMIT_AS`) and
+grow until the kernel refuses. The user asked why the tests were missing; the tests were
+then written, and the sentence is corrected here and in the pull request. The commits
+that have it are not rewritten, since the answers of the review name them.
+- `tests/lib_http_no_memory.aiw`: a body said to be 1 GiB is -12 with nothing sent; and
+  a connect that cannot be made is -12, not the 0 of an await of no event. For the
+  second, the request is started, then the memory is filled with blocks of 1 MiB, 64
+  KiB and a page, one block of 64 KiB given back, events made until none can be, which
+  takes that block, and two pages set aside before are given back: the request has
+  room and a record has none. A trace of the system calls showed the `mmap` of 4112
+  bytes for the request to succeed and the one of 65536 for the record to fail.
+- `tests/lib_httpd_no_memory.aiw`: a handler that names a content type of 1 GiB gets a
+  connection closed with nothing written; a connection cancelled while its handler
+  sleeps has the handler told -125 and is closed with no response; a server whose
+  accept cannot be made ends with -12.
+- Still without a test: the handle 0 of a read, of a write, of `httpbody` and of the
+  task of a connection or a handler. Each needs the memory to run out at one exact
+  allocation in the middle of a request, after others of the same size succeeded; the
+  one case of the kind that is tested, the connect, is the first event of its request.

@@ -1,0 +1,73 @@
+# the client without memory, the memory of the process limited to 64
+# MiB. A request whose body is said to be 1 GiB cannot be put together:
+# the result is -12 and nothing is sent. Then a request is started and,
+# before it runs, the memory is filled, every record of an event is
+# taken and two pages are given back: the request is put together, the
+# connect cannot be made, and the result is -12 again, not the 0 that the await
+# of no event gives.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+const setrlimit 160
+buf lim 16
+buf q 128
+buf b 24
+buf keep 16
+store lim 0x4000000
+store lim+8 0x4000000
+sys setrlimit 9 lim as r
+if r
+	sys exit 1
+end
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+store q 0x7f000001
+store q+8 port
+store q+16 "POST"
+store q+24 4
+store q+48 q
+store q+56 0x40000000
+call httpcall q b as h
+await h as st
+call print "a body of 1 GiB: -"
+call putn 0-st
+call print "\n"
+store q+56 5
+call httpcall q b as h
+# No memory but two pages, which are set aside first: blocks of 1 MiB,
+# of 64 KiB and of a page are taken until none is given, and one of 64
+# KiB is given back for the records below to take.
+alloc 8000 as spare
+n=1048576
+while n>=4096
+	label take
+	alloc n-16 as p
+	if p
+		if n==65536
+			store keep p
+		end
+		jmp take
+	end
+	n>>=4
+end
+load keep as p
+free p
+# and no record: events until none can be made
+k=0
+label event
+call async 64 0 as e
+if e
+	k+=1
+	jmp event
+end
+# room for the request, and none for a record
+free spare
+await h as st
+call print "the connect cannot be made: -"
+call putn 0-st
+call print ", after events were made until none could be: "
+call putn k>0
+call print "\n"
