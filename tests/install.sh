@@ -57,6 +57,13 @@ make -s install DESTDIR="$tmp/d" PREFIX=/opt/ail > "$tmp/said" 2>&1
 yes install_destdir_make [ $? -eq 0 ]
 yes install_destdir [ -x "$tmp/d/opt/ail/bin/ail" ] && yes install_destdir_whole [ -x "$tmp/d/opt/ail/lib/ail/ailc" ] && [ -f "$tmp/d/opt/ail/lib/ail/lib/std/io.aiw" ]
 
+# under a mask that keeps new files to their owner, the directories are
+# still for everyone, as the files are
+(umask 077; make -s install PREFIX="$tmp/m" > "$tmp/said" 2>&1)
+yes install_mask_make [ $? -eq 0 ]
+yes install_mask_directories [ -z "$(find "$tmp/m" -type d ! -perm 755)" ]
+yes install_mask_files [ -z "$(find "$tmp/m" -type f ! -perm 644 ! -perm 755)" ]
+
 # the file of make dist, unpacked elsewhere
 # one of a run before is not taken for the one of this run
 file=build/ail-$version-x86_64-linux.tar.gz

@@ -8,6 +8,9 @@
 # it. What was in lib/ail/lib before is removed, so that a file the
 # library no longer has does not stay.
 set -eu
+# the directories are for every user, whatever mask the one who installs
+# has for new files: the files get their modes from install below
+umask 022
 cd "$(dirname "$0")/.."
 [ $# -eq 2 ] || { echo "usage: tools/install.sh BUILD PREFIX" >&2; exit 2; }
 b=$1 p=$2

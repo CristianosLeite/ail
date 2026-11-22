@@ -208,7 +208,8 @@ version, the licence, and the library, `lib/`. With `bin/` on `PATH`
 nothing else is needed, and the checkout it was built in may go.
 `DESTDIR` is put before the prefix, for a package made in one place and
 installed to another. A second `make install` replaces the first, the
-library whole.
+library whole. The directories are made for every user to enter and
+the files to read, whatever mask the installing user has.
 
 `make dist` writes the same files as `build/ail-<version>-x86_64-linux.tar.gz`,
 which unpacks into a directory of that name with `bin/` and `lib/` in it:
