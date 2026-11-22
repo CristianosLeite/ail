@@ -530,6 +530,14 @@ is cli_deps_by_hand 0 "base 1.1.0" "" $ail run
 yes cli_deps_by_hand_lock grep -q "^base 1.1.0 $base11 $r/base$" ail.lock
 $ail remove base > /dev/null
 
+# a failure after the manifest was written puts it back: here the lock
+# cannot be written, since its name with ".new" is taken by a directory
+is cli_undo_setup 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+cp ail.pkg "$tmp/pkg" && cp ail.lock "$tmp/lock" && mkdir ail.lock.new
+is cli_update_lock_unwritable 4 "" "ail: cannot write ail.lock" $ail update
+yes cli_update_lock_unwritable_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_update_lock_unwritable_lock cmp -s ail.lock "$tmp/lock"
+rmdir ail.lock.new && $ail remove base > /dev/null
+
 # what is refused
 cp ail.pkg "$tmp/pkg"
 is cli_add_usage 2 "" "usage: ail COMMAND" $ail add

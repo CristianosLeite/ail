@@ -296,6 +296,33 @@ fn tlmove tlp tln tlq tlm
 	ret tlr
 end
 
+# Make the file at the path of tln bytes at tlp hold the tlm bytes at
+# tlq, whole or not at all: they are written to a file beside it, with
+# ".new" after its name, which is then given the name. 0, or the error,
+# after which the file is what it was.
+fn tlwrite tlp tln tlq tlm
+	local tlb 24
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	call byadd tlb tlp tln
+	call byadd tlb ".new" as tlr
+	ifz tlr
+		ret -12
+	end
+	load tlb as tla
+	load tlb+8 as tlan
+	call filewrite tla tlan tlq tlm as tlr
+	ifz tlr
+		call tlmove tla tlan tlp tln as tlr
+	end
+	if tlr
+		call fileunlink tla tlan
+	end
+	call byfree tlb
+	ret tlr
+end
+
 # Remove what is at the path, a file or a directory with all it has; a
 # link is removed and not followed. 0, also if nothing was there, or the
 # error. The path with the names below it stays under 4096 bytes, or the

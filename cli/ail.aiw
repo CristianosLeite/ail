@@ -29,11 +29,48 @@ buf gtmp 24         # the path of the file it is compiled into
 buf gargs 24        # the arguments of a program that is started
 buf gsaid 24        # what a command prints when it is done
 buf uman 24         # the manifest and the lock as a command found them,
-buf ulock 24        # written back if undo is 1 and its packages cannot be
-var undo ulocked    # found; ulocked is 1 if there was a lock
+buf ulock 24        # written back by fail if undo is 1; ulocked is 1 if
+var undo ulocked    # there was a lock
 
-# end with the status st and a line on stderr: the two texts
+# make the file at the path hold the bytes of the buffer b again: 0, or
+# 1 if it does not hold them and they cannot be written
+fn putback p n b
+	local now 24
+	store now 0
+	store now+8 0
+	store now+16 0
+	load b as q
+	load b+8 as m
+	call fileread p n now
+	load now as s
+	load now+8 as l
+	call mfeq q m s l as same
+	call byfree now
+	if same
+		ret 0
+	end
+	call tlwrite p n q m as r
+	ret r!=0
+end
+# end with the status st and a line on stderr: the two texts. The
+# manifest and the lock are first put back, if a command noted them
+# with keep.
 fn fail st p n q m
+	if undo
+		# a command that changed the manifest or the lock and cannot go
+		# on: both are put back as it found them
+		undo=0
+		call putback "ail.pkg" uman as r
+		if ulocked
+			call putback "ail.lock" ulock as a
+			r=r|a
+		else
+			call fileunlink "ail.lock"
+		end
+		if r
+			call eprint "ail: ail.pkg or ail.lock could not be put back as it was\n"
+		end
+	end
 	call eprint "ail: "
 	call eprint p n
 	call eprint q m
@@ -115,18 +152,6 @@ end
 # Find the packages this one is built with, fetch those that are missing
 # and bring the lock up to date; the process ends if that cannot be done.
 fn depsfail
-	if undo
-		load uman as p
-		load uman+8 as n
-		call filewrite "ail.pkg" p n
-		if ulocked
-			load ulock as p
-			load ulock+8 as n
-			call filewrite "ail.lock" p n
-		else
-			call fileunlink "ail.lock"
-		end
-	end
 	load dpmsg as p
 	load dpmsg+8 as n
 	call fail dpst p n ""
@@ -899,7 +924,7 @@ fn cmdfmt
 end
 
 # Note the manifest and the lock as they are, before a command changes
-# them: from here on a failure to find the packages writes them back.
+# them: from here on a command that fails writes them back.
 fn keep
 	call bycut uman 0
 	load gtext as p
@@ -913,11 +938,12 @@ fn keep
 	end
 	undo=1
 end
-# write the bytes of the buffer b as the file at the path
+# write the bytes of the buffer b as the file at the path, whole or not
+# at all
 fn save p n b
 	load b as q
 	load b+8 as m
-	call filewrite p n q m as r
+	call tlwrite p n q m as r
 	if r
 		call fail stio "cannot write " p n
 	end

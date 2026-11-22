@@ -86,9 +86,11 @@ manifest and the lock; it prints `name 1.0.0 -> 1.1.0` or
 `name 1.0.0 is the latest` for each. A version in a manifest is exact,
 so nothing but `update` and `add` moves a dependency.
 
-The three write the manifest and the lock back as they were if the
-packages cannot be found afterwards: a repository that does not answer,
-or a package that two others ask for in two versions.
+The three write the manifest and the lock back as they were if they
+cannot finish: a repository that does not answer, a package that two
+others ask for in two versions, a file that cannot be written. Each of
+the two files is written whole or not at all, to a file beside it that
+is then given its name.
 
 ### Dependencies in a build
 
