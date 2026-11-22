@@ -279,8 +279,9 @@ end
 # itself, which a second command in the same package waits for. So one
 # command at a time reads and writes its manifest, its lock, deps/ and
 # build/. No program that is started has the descriptor, and a command
-# that is killed leaves no lock. 1; or 0 if the directory cannot be
-# opened to be read, and there is then no lock.
+# that is killed leaves no lock. 1; or 0 if there is no lock, because
+# the directory cannot be opened to be read or cannot be locked, and
+# the package is then not to be worked on.
 fn tllock
 	if tllocked
 		ret 1
@@ -289,7 +290,15 @@ fn tllock
 	ifslt tlfd 0
 		ret 0
 	end
-	sys tlflock tlfd 2
+	label again
+	sys tlflock tlfd 2 as tlr
+	ifz tlr+4
+		jmp again
+	end
+	if tlr
+		sys close tlfd
+		ret 0
+	end
 	tllocked=1
 	ret 1
 end

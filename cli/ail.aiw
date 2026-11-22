@@ -115,7 +115,10 @@ fn project
 		call fail stmanifest "no ail.pkg in this directory or in one above it" ""
 	end
 	# one command at a time in a package
-	call tllock
+	call tllock as r
+	ifz r
+		call fail stio "cannot lock the directory of the package" ""
+	end
 	call bycut gtext 0
 	call fileread "ail.pkg" gtext as r
 	ifslt r 0

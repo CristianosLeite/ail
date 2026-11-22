@@ -191,6 +191,15 @@ if flock --version > /dev/null 2>&1; then
 else
     echo "skip cli_lock_waits (no flock)"
 fi
+# a package whose directory cannot be read cannot be locked, and no
+# command works on it without the lock
+if [ "$(id -u)" != 0 ]; then
+    chmod 333 .
+    is cli_package_unreadable 4 "" "ail: cannot lock the directory of the package" $ail build
+    chmod 755 .
+else
+    echo "skip cli_package_unreadable (root)"
+fi
 # two tests of which one is called like a file of the other
 printf 'use "lib/std/io.aiw"\ncall print "first\\n"\n' > tests/a.aiw && echo first > tests/a.out
 printf 'use "lib/std/io.aiw"\ncall print "second\\n"\n' > tests/a.out.aiw && echo second > tests/a.out.out
@@ -633,10 +642,11 @@ shared" "" $ail run
 mkdir "$r/elsewhere" && cp -r "$r/shared" "$r/elsewhere/shared"
 sed -i 's|^dep shared .*|dep shared ../elsewhere/shared|' ail.pkg
 is cli_path_other_directory 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
-# the same in a package whose directory may be entered and not listed
-chmod 333 .
+# the same when the directories of the dependencies may be entered and
+# not listed
+chmod 333 "$r/shared" "$r/elsewhere/shared"
 is cli_path_other_directory_unlisted 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
-chmod 755 .
+chmod 755 "$r/shared" "$r/elsewhere/shared"
 sed -i '/^dep /d' ail.pkg
 
 # a build that has to write the lock and cannot leaves the lock whole:

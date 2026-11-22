@@ -48,6 +48,9 @@ lock, `deps/` and `build/`. The lock is on the directory of the package
 and is held by the command, not by the program that `ail run` starts;
 a command that is killed leaves none. A test of a package therefore
 does not start `ail` on that same package.
+No command works on a package without the lock, and the lock needs
+the directory of the package opened to be read: a package in a
+directory that may be entered and not read is not built, with status 4.
 
 ### `new` and `init`
 
