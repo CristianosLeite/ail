@@ -1,0 +1,8 @@
+# its uses are paths of the package one, where this file is
+use "lib/std/io.aiw"
+use "src/b.aiw"
+use "two:t.aiw"
+fn afn
+	call print "a of one\n"
+	call bfn
+end

@@ -1,0 +1,4 @@
+# the library by its package and by its short form is one file
+use "ail:lib/std/io.aiw"
+use "lib/std/io.aiw"
+call print "once\n"

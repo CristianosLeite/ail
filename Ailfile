@@ -1,0 +1,7 @@
+# The manifest of AIL: the compiler, the libraries and the command ail.
+# docs/packages.md says what a manifest holds. The version is the one a
+# package asks for with its line "ail"; the number of the seed in
+# seed/MANIFEST is another thing, the count of the released compilers
+# that the source is built from.
+name ail
+version 0.1.0

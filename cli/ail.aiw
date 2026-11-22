@@ -1,0 +1,1358 @@
+# cli/ail.aiw -- the command ail: a package made, built, run, tested,
+# formatted and cleaned, and its dependencies added, removed and updated.
+# docs/cli.md says what each command does and docs/packages.md what a
+# manifest holds. This file is the only one of the command that prints
+# and ends the process; the files it uses return what went wrong.
+#
+# The status is 0, or 1 if a source did not compile, a test failed or a
+# source is not formatted, 2 for wrong usage,
+# 3 for a manifest or a lock that is missing or wrong, and 4 if a file
+# or a directory could not be read, written or run, or git failed.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+use "cli/manifest.aiw"
+use "cli/tool.aiw"
+use "cli/deps.aiw"
+
+const stfail 1
+const stusage 2
+const stmanifest 3
+const stio 4
+
+buf gtext 24        # Ailfile of the package, as it was read
+buf gman 72         # and what it holds
+buf gmsg 24         # a line that is being put together
+buf gout 24         # the path of an executable
+buf gtmp 24         # the path of the file it is compiled into
+buf gargs 24        # the arguments of a program that is started
+buf gsaid 24        # what a command prints when it is done
+buf uman 24         # the manifest and the lock as a command found them,
+buf ulock 24        # written back by fail if undo is 1; ulocked is 1 if
+var undo ulocked    # there was a lock
+
+# make the file at the path hold the bytes of the buffer b again: 0, or
+# 1 if it does not hold them and they cannot be written
+fn putback p n b
+	local now 24
+	store now 0
+	store now+8 0
+	store now+16 0
+	load b as q
+	load b+8 as m
+	call fileread p n now
+	load now as s
+	load now+8 as l
+	call mfeq q m s l as same
+	call byfree now
+	if same
+		ret 0
+	end
+	call tlwrite p n q m as r
+	ret r!=0
+end
+# end with the status st and a line on stderr: the two texts. The
+# manifest and the lock are first put back, if a command noted them
+# with keep.
+fn fail st p n q m
+	if undo
+		# a command that changed the manifest or the lock and cannot go
+		# on: both are put back as it found them
+		undo=0
+		call putback "Ailfile" uman as r
+		if ulocked
+			call putback "Ailfile.lock" ulock as a
+			r=r|a
+		else
+			call fileunlink "Ailfile.lock"
+		end
+		if r
+			call eprint "ail: Ailfile or Ailfile.lock could not be put back as it was\n"
+		end
+	end
+	call eprint "ail: "
+	call eprint p n
+	call eprint q m
+	call eprint "\n"
+	sys exit_group st
+end
+# the same with the line that is in gmsg
+fn failmsg st
+	load gmsg as p
+	load gmsg+8 as n
+	call fail st p n ""
+end
+
+fn help fd
+	call fdwrite fd "usage: ail COMMAND\n"
+	call fdwrite fd "  new NAME                    make the directory NAME with a new package in it\n"
+	call fdwrite fd "  init [NAME]                 make this directory a package\n"
+	call fdwrite fd "  build [BIN]                 compile the executables of the package into build/\n"
+	call fdwrite fd "  run [BIN] [-- ARGUMENT...]  build an executable and run it\n"
+	call fdwrite fd "  add URL [VERSION]           use the package of a git repository, at its tag v<VERSION>\n"
+	call fdwrite fd "  add --path DIRECTORY        use the package in a directory\n"
+	call fdwrite fd "  remove NAME                 use the package NAME no longer\n"
+	call fdwrite fd "  update [NAME]               move the dependencies to their latest versions\n"
+	call fdwrite fd "  test [NAME...]              build everything and run the tests of tests/\n"
+	call fdwrite fd "  fmt [--check]               indent the sources, or say which lines are not\n"
+	call fdwrite fd "  clean                       remove build/\n"
+	call fdwrite fd "  version                     print the version of AIL\n"
+	call fdwrite fd "  help                        print this\n"
+end
+fn usage
+	call help 2
+	sys exit_group stusage
+end
+
+# Enter the directory of the package, take its lock, which a second
+# command there waits for, and read its manifest into gman;
+# the process ends if there is none, if it is wrong, or if it asks for
+# an AIL that this one is not.
+fn project
+	call tlenter as r
+	ifz r
+		call fail stmanifest "no Ailfile in this directory or in one above it" ""
+	end
+	# one command at a time in a package
+	call tllock as r
+	ifz r
+		call fail stio "cannot lock the directory of the package" ""
+	end
+	call bycut gtext 0
+	call fileread "Ailfile" gtext as r
+	ifslt r 0
+		call fail stio "cannot read Ailfile" ""
+	end
+	load gtext as p
+	load gtext+8 as n
+	call mfread gman p n 0 as e l
+	call bycut gmsg 0
+	if e
+		call byadd gmsg "Ailfile"
+		if l
+			call byaddb gmsg 58
+			call byaddn gmsg l
+		end
+		call byadd gmsg ": "
+		call mfwhy gmsg e
+		call failmsg stmanifest
+	end
+	load gman+32 as p
+	load gman+40 as n
+	if n
+		call mfver p n as need ok
+		call mfver tlvp tlvn as have ok
+		call mfmeets have need as r
+		ifz r
+			call byadd gmsg "Ailfile asks for AIL "
+			call byadd gmsg p n
+			call byadd gmsg ", which AIL "
+			call byadd gmsg tlvp tlvn
+			call byadd gmsg " is not"
+			call failmsg stmanifest
+		end
+	end
+end
+
+# Find the packages this one is built with, fetch those that are missing
+# and bring the lock up to date; the process ends if that cannot be done.
+fn depsfail
+	load dpmsg as p
+	load dpmsg+8 as n
+	call fail dpst p n ""
+end
+fn deps
+	call dpresolve gman as r
+	ifz r
+		call depsfail
+	end
+end
+
+# Run the compiler on the source at the path of sn bytes at sp, with the
+# file at the path of tn bytes at tp as its output, made anew, never
+# through a link, and to be run, and err as its stderr, -1 for that of
+# this process: the status of the compiler, 0 if the source compiled and
+# 1 if it was refused. A compiler that still runs after ms milliseconds
+# is killed, and the result is -1000; ms 0 sets no limit.
+fn cc sp sn tp tn err ms
+	call fileopen sp sn 0 0 as in
+	ifslt in 0
+		call fail stio "cannot read " sp sn
+	end
+	# a file of its own: what has that name is removed, a link as a link,
+	# and the file is made anew or not at all, and is to be run whatever
+	# the mask of the user takes from a new file
+	call fileunlink tp tn
+	call fileopen tp tn 0x200c1 493 as out
+	ifslt out 0
+		call fail stio "cannot write " tp tn
+	end
+	sys tlfchmod out 493
+	# the compiler, the library of AIL as the package ail, and every
+	# package that deps found, this one included
+	call bycut gargs 0
+	load tlailc as p
+	load tlailc+8 as n
+	call byadd gargs p n
+	call byadd gargs "ail="
+	load tlhome as p
+	load tlhome+8 as n
+	call byadd gargs p n
+	call byaddb gargs 0
+	call dpcount as k
+	i=0
+	while i<k
+		call dpname i as p n
+		# but for a package that is itself called ail, which AIL is: that
+		# name is the library, given above, and the compiler takes a
+		# name once
+		call mfeq p n "ail" as r
+		ifz r
+			call byadd gargs p n
+			call byaddb gargs 61
+			call dpdir i as p n
+			call byadd gargs p n
+			call byaddb gargs 0
+		end
+		i+=1
+	end
+	call tlrunenv gargs in out err "" ms as st
+	sys close in
+	sys close out
+	if (st==-1000)&(ms>0)
+		call fileunlink tp tn
+		ret st
+	end
+	if (st!=0)&(st!=1)
+		call fileunlink tp tn
+		call fail stio "the compiler did not run to its end for " sp sn
+	end
+	ret st
+end
+
+# make the directory at the path, which may be there
+fn dir p n
+	call filemkdir p n 493 as r
+	if (r!=0)&(r!=-17)
+		call fail stio "cannot make the directory " p n
+	end
+end
+
+# Compile the executable of the entry e of the manifest into build/: 0,
+# or 1 if the compiler refused the source, which it has said on stderr.
+# The file build/<name> is replaced only by one that compiled.
+fn compile e
+	load e+8 as np
+	load e+16 as nn
+	load e+24 as sp
+	load e+32 as sn
+	call dir "build"
+	call bycut gout 0
+	call byadd gout "build/"
+	call byadd gout np nn
+	call bycut gtmp 0
+	call byadd gtmp "build/"
+	call byadd gtmp np nn
+	call byadd gtmp ".tmp."
+	sys getpid as pid
+	call byaddn gtmp pid
+	load gtmp as tp
+	load gtmp+8 as tn
+	call cc sp sn tp tn -1 0 as st
+	load gtmp as tp
+	load gtmp+8 as tn
+	if st
+		call fileunlink tp tn
+		ret 1
+	end
+	load gout as p
+	load gout+8 as n
+	call tlmove tp tn p n as r
+	if r
+		call fileunlink tp tn
+		call fail stio "cannot write " p n
+	end
+	ret 0
+end
+
+# Compile the executables of the manifest whose kind is among kinds, or
+# the one of any kind whose name is the n bytes at p if n is not 0: the
+# entry of the last one compiled, or 0 if there was none. The process
+# ends with the status 1 if one does not compile.
+fn build kinds p n
+	if n
+		call mffind gman mfbin|mftestbin p n as i
+		if i==-1
+			call fail stmanifest "Ailfile has no executable " p n
+		end
+		call mfentry gman i as e
+		call compile e as r
+		if r
+			sys exit_group stfail
+		end
+		ret e
+	end
+	call mfcount gman as k
+	last=0
+	i=0
+	while i<k
+		call mfentry gman i as e
+		load e as kind
+		if kind&kinds
+			call compile e as r
+			if r
+				sys exit_group stfail
+			end
+			last=e
+		end
+		i+=1
+	end
+	ret last
+end
+
+fn cmdbuild
+	call argc as c
+	if c>3
+		call usage
+	end
+	call argv 2 as p n
+	call project
+	call deps
+	call build mfbin p n as e
+	ifz e
+		call eprint "ail: Ailfile names no executable to build\n"
+	end
+end
+
+# "ail run [BIN] [-- ARGUMENT...]": the executable named, or the only one
+# of the manifest, built and then put in the place of this process, in
+# the directory the command was started in
+fn cmdrun
+	local w 8
+	local z 4096
+	call argc as c
+	call argv 2 as p n
+	# a = the number of the first argument for the program
+	a=2
+	call mfeq p n "--" as r
+	if r
+		n=0
+		a=3
+	else
+		if n
+			a=3
+			call argv 3 as q m
+			if m
+				call mfeq q m "--" as r
+				ifz r
+					call usage
+				end
+				a=4
+			end
+		end
+	end
+	call project
+	ifz n
+		# the only executable of the manifest
+		call mfcount gman as k
+		i=0
+		while i<k
+			call mfentry gman i as e
+			load e as kind
+			if kind==mfbin
+				if n
+					call fail stusage "Ailfile has more than one executable; name the one to run" ""
+				end
+				load e+8 as p
+				load e+16 as n
+			end
+			i+=1
+		end
+		ifz n
+			call fail stmanifest "Ailfile names no executable to run" ""
+		end
+	end
+	call deps
+	call build 0 p n as e
+	# its path from the root, the arguments, and back to where we were
+	call bycut gout 0
+	load tlroot as q
+	load tlroot+8 as m
+	call byadd gout q m
+	call byadd gout "/build/"
+	call byadd gout p n
+	call byaddb gout 0
+	call bycut gargs 0
+	load gout as q
+	store w q
+	call byadd gargs w 8
+	while a<c
+		call argv a as q m
+		store w q
+		call byadd gargs w 8
+		a+=1
+	end
+	store w 0
+	call byadd gargs w 8 as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+	load tlcwd as q
+	load tlcwd+8 as m
+	call filepath q m z
+	sys tlchdir z
+	load gout as q
+	load gargs as av
+	call procenv as env
+	sys execve q av env
+	call fail stio "cannot run build/" p n
+end
+
+fn cmdclean
+	call argc as c
+	if c!=2
+		call usage
+	end
+	call project
+	call tlremove "build" as r
+	if r
+		call fail stio "cannot remove build" ""
+	end
+end
+
+# Write the file of the n bytes at p under the directory in gout, with
+# the text that is in gmsg. The file is made anew: one that is there,
+# whatever may be done with it, is left as it is if keep is 1, and ends
+# the command if keep is 0.
+fn put p n keep
+	local b 24
+	store b 0
+	store b+8 0
+	store b+16 0
+	load gout as q
+	load gout+8 as m
+	call byadd b q m
+	call byaddb b 47
+	call byadd b p n
+	load b as q
+	load b+8 as m
+	call fileopen q m 0xc1 420 as fd
+	ifslt fd 0
+		if (fd!=-17)|(keep==0)
+			call fail stio "cannot write " q m
+		end
+	else
+		load gmsg as s
+		load gmsg+8 as l
+		call fdwrite fd s l as r
+		sys close fd as c
+		if (r==0)|(c!=0)
+			call fail stio "cannot write " q m
+		end
+	end
+	call byfree b
+end
+# make the directory of the n bytes at p under the one in gout
+fn putdir p n
+	local b 24
+	store b 0
+	store b+8 0
+	store b+16 0
+	load gout as q
+	load gout+8 as m
+	call byadd b q m
+	call byaddb b 47
+	call byadd b p n
+	load b as q
+	load b+8 as m
+	call filemkdir q m 493 as r
+	if (r!=0)&(r!=-17)
+		call fail stio "cannot make the directory " q m
+	end
+	call byfree b
+end
+
+# The files of a new package, named by the n bytes at p, in the
+# directory in gout: the manifest, a source that prints a line, a test,
+# and what git is to leave out. If keep is 1 a source, a test or a
+# .gitignore that is there stays as it is.
+fn scaffold p n keep
+	call bycut gmsg 0
+	call byadd gmsg "name "
+	call byadd gmsg p n
+	call byadd gmsg "\nversion 0.1.0\nail "
+	call byadd gmsg tlvp tlvn
+	call byadd gmsg "\n\nbin "
+	call byadd gmsg p n
+	call byadd gmsg " src/main.aiw\n"
+	call put "Ailfile" 0
+	call putdir "src"
+	call bycut gmsg 0
+	call byadd gmsg "use \"lib/std/io.aiw\"\ncall print \"hello from "
+	call byadd gmsg p n
+	call byadd gmsg "\\n\"\n"
+	call put "src/main.aiw" keep
+	call putdir "tests"
+	call bycut gmsg 0
+	call byadd gmsg "# A test is a program and what it is to print: tests/<name>.aiw and\n# tests/<name>.out. \"ail test\" compiles and runs each one.\nuse \"lib/std/io.aiw\"\ncall print \"a test of "
+	call byadd gmsg p n
+	call byadd gmsg "\\n\"\n"
+	call put "tests/hello.aiw" keep
+	call bycut gmsg 0
+	call byadd gmsg "a test of "
+	call byadd gmsg p n
+	call byadd gmsg "\n"
+	call put "tests/hello.out" keep
+	call bycut gmsg 0
+	call byadd gmsg "build/\ndeps/\n"
+	call put ".gitignore" keep
+end
+
+fn cmdnew
+	call argc as c
+	if c!=3
+		call usage
+	end
+	call argv 2 as p n
+	call mfname p n as r
+	ifz r
+		call fail stusage "the name of a package is small letters, digits, - and _, at most 64: not " p n
+	end
+	call filemkdir p n 493 as r
+	if r==-17
+		call fail stio "there is something called that already: " p n
+	end
+	if r
+		call fail stio "cannot make the directory " p n
+	end
+	call bycut gout 0
+	call byadd gout p n
+	call scaffold p n 0
+	# a repository of git, if git is there; it may as well not be
+	call bycut gargs 0
+	call byadd gargs "git\0init\0-q\0"
+	call byadd gargs p n
+	call byaddb gargs 0
+	call fileopen "/dev/null" 2 0 as fd
+	ifsge fd 0
+		call tlrun gargs fd fd fd
+		sys close fd
+	end
+	call print "created the package "
+	call print p n
+	call print " in "
+	call print p n
+	call print "/\n"
+end
+
+fn cmdinit
+	call argc as c
+	if c>3
+		call usage
+	end
+	# there is none: one that cannot be read is one all the same
+	call fileopen "Ailfile" 0 0 as r
+	if r!=-2
+		call fail stio "this directory has an Ailfile already" ""
+	end
+	call argv 2 as p n
+	ifz n
+		# the last part of the path of this directory
+		load tlcwd as q
+		load tlcwd+8 as m
+		p=q+m
+		while p>q
+			loadb p-1 as x
+			if x==47
+				jmp cut
+			end
+			p-=1
+		end
+		label cut
+		n=q+m-p
+	end
+	call mfname p n as r
+	ifz r
+		call eprint "ail: the name of a package is small letters, digits, - and _, at most 64: not "
+		call eprint p n
+		call eprint "\n"
+		call fail stusage "give one: ail init NAME" ""
+	end
+	call bycut gout 0
+	call byadd gout "."
+	call scaffold p n 1
+	call print "created the package "
+	call print p n
+	call print " in this directory\n"
+end
+
+# the path of a file of a test into the buffer b: the directory, the
+# name of the test and what follows it
+fn tpath b d dn p n s sn
+	call bycut b 0
+	call byadd b d dn
+	call byadd b p n
+	call byadd b s sn as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+end
+
+buf ta 24           # paths of the files of a test
+buf tb 24
+buf tc 24
+buf tenv 24         # "AIL_TMP=" and the directory of a test, "AIL_HOME=" and that of AIL
+
+# Run the test of the n bytes at p: 1 if it does what its files expect,
+# or 0, with a line on stderr that says in what it does not. What the
+# compiler and the program wrote is left in build/tests/. Every file of
+# a test there is its name and an ending, the executable .exe, so that
+# no file of one test is a file of another: of the tests a and a.out,
+# say.
+fn testone p n
+	local num 24
+	call tpath ta "tests/" p n ".aiw"
+	call tpath tb "build/tests/" p n ".exe"
+	call tpath tc "build/tests/" p n ".err"
+	load ta as sp
+	load ta+8 as sn
+	call tlisfile sp sn as r
+	ifz r
+		call eprint "ail: there is no test "
+		call eprint sp sn
+		call eprint "\n"
+		ret 0
+	end
+	load tc as q
+	load tc+8 as m
+	call fileopen q m 0x241 420 as err
+	ifslt err 0
+		call fail stio "cannot write " q m
+	end
+	load tb as tp
+	load tb+8 as tn
+	call cc sp sn tp tn err 10000 as st
+	sys close err
+	if st==-1000
+		call eprint "ail: the compiler still ran after 10 seconds and was killed\n"
+		ret 0
+	end
+	# a test with a file .err: the compiler refuses it with those words
+	call tpath ta "tests/" p n ".err"
+	load ta as sp
+	load ta+8 as sn
+	call tlisfile sp sn as r
+	load tc as q
+	load tc+8 as m
+	if r
+		call tlsame sp sn q m as r
+		if r&(st==1)
+			ret 1
+		end
+		call eprint "ail: the compiler was to refuse it as "
+		call eprint sp sn
+		call eprint " says, and said "
+		call eprint q m
+		call eprint "\n"
+		ret 0
+	end
+	call tlsame q m "" as r
+	if st|(r==0)
+		call eprint "ail: it does not compile, see "
+		call eprint q m
+		call eprint "\n"
+		ret 0
+	end
+	# a directory of its own for the files it makes, named in AIL_TMP,
+	# and the directory of AIL in AIL_HOME
+	call tpath ta "build/tests/" p n ".tmp"
+	load ta as q
+	load ta+8 as m
+	call tlremove q m
+	call dir q m
+	call bycut tenv 0
+	call byadd tenv "AIL_TMP="
+	load tlroot as s
+	load tlroot+8 as l
+	call byadd tenv s l
+	call byaddb tenv 47
+	call byadd tenv q m
+	call byadd tenv "\0AIL_HOME="
+	load tlhome as s
+	load tlhome+8 as l
+	call byadd tenv s l
+	call byaddb tenv 0
+	# the program: its path with a slash, so that it is not searched for
+	call bycut gargs 0
+	call byadd gargs "./"
+	load tb as tp
+	load tb+8 as tn
+	call byadd gargs tp tn
+	call byaddb gargs 0
+	call tpath tb "build/tests/" p n ".out"
+	call tpath tc "build/tests/" p n ".log"
+	load tb as q
+	load tb+8 as m
+	call fileopen q m 0x241 420 as out
+	load tc as q
+	load tc+8 as m
+	call fileopen q m 0x241 420 as err
+	call fileopen "/dev/null" 0 0 as in
+	ifslt in|out|err 0
+		call fail stio "cannot write the files of the test in build/tests" ""
+	end
+	load tenv as s
+	load tenv+8 as l
+	call tlrunenv gargs in out err s l 10000 as st
+	sys close in
+	sys close out
+	sys close err
+	load ta as q
+	load ta+8 as m
+	call tlremove q m
+	if st==-1000
+		call eprint "ail: it still ran after 10 seconds and was killed\n"
+		ret 0
+	end
+	# the status it is to end with, 0 without a file .code
+	call tpath ta "tests/" p n ".code"
+	load ta as q
+	load ta+8 as m
+	want=0
+	store num 0
+	store num+8 0
+	store num+16 0
+	call fileread q m num as r
+	ifslt r 0
+		if r!=-2
+			call byfree num
+			call eprint "ail: cannot read "
+			call eprint q m
+			call eprint "\n"
+			ret 0
+		end
+	end
+	ifsgt r 0
+		load num as s
+		load num+8 as l
+		# without the line feed at its end
+		loadb s+l-1 as x
+		if x==10
+			l-=1
+		end
+		want=0
+		i=0
+		while i<l
+			loadb s+i as x
+			want=want*10+x-48
+			i+=1
+		end
+	end
+	call byfree num
+	if st!=want
+		call eprint "ail: it ended with "
+		ifslt st 0
+			call eprint "the signal "
+			st=0-st
+		else
+			call eprint "the status "
+		end
+		call bycut tenv 0
+		call byaddn tenv st
+		call byadd tenv ", not with the status "
+		call byaddn tenv want
+		call byaddb tenv 10
+		load tenv as s
+		load tenv+8 as l
+		call eprint s l
+		ret 0
+	end
+	call tpath ta "tests/" p n ".out"
+	load ta as sp
+	load ta+8 as sn
+	load tb as q
+	load tb+8 as m
+	call tlsame sp sn q m as r
+	ifz r
+		call eprint "ail: it was to print what "
+		call eprint sp sn
+		call eprint " has, and printed "
+		call eprint q m
+		call eprint "\n"
+	end
+	ret r
+end
+
+# "ail test [NAME...]": every executable built, then the tests named, or
+# all of tests/ in the order of their names
+fn cmdtest
+	local names 24
+	local order 24
+	local all 24
+	i=0
+	while i<24
+		store names+i 0
+		store order+i 0
+		i+=8
+	end
+	call project
+	call dir "build"
+	call dir "build/tests"
+	# project took the lock of the package: a second run of its tests
+	# waits there, and does not write the files of build/tests/ too
+	call deps
+	call build mfbin|mftestbin 0 0
+	call argc as c
+	k=0
+	if c>2
+		i=2
+		while i<c
+			call argv i as p n
+			# a name of a test is a name of a file in tests/, not a path
+			call tlfind47 p n as r
+			if r|(n==0)
+				call fail stusage "the name of a test is that of its file in tests/, without a /: not " p n
+			end
+			call byadd names p n
+			call byaddb names 0
+			k+=1
+			i+=1
+		end
+	else
+		# the names of tests/ that end in ".aiw", without that
+		store all 0
+		store all+8 0
+		store all+16 0
+		call filenames "tests" all as j
+		# a package without tests/ has no tests
+		ifslt j 0
+			if j!=-2
+				call fail stio "cannot read the directory tests" ""
+			end
+			j=0
+		end
+		load all as p
+		while j>0
+			call strlen p as n
+			if n>4
+				load4 p+n-4 as x
+				if x==0x7769612e
+					call byadd names p n-4
+					call byaddb names 0
+					k+=1
+				end
+			end
+			p+=n+1
+			j-=1
+		end
+		call byfree all
+	end
+	load names as p
+	call tlsort order p k as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+	bad=0
+	i=0
+	while i<k
+		load order as p
+		load p+i*8 as p
+		call strlen p as n
+		call testone p n as r
+		if r
+			call print "ok   "
+		else
+			call print "FAIL "
+			bad+=1
+		end
+		call print p n
+		call print "\n"
+		i+=1
+	end
+	call bycut gmsg 0
+	call byaddn gmsg k
+	if k==1
+		call byadd gmsg " test, "
+	else
+		call byadd gmsg " tests, "
+	end
+	call byaddn gmsg bad
+	call byadd gmsg " failed\n"
+	load gmsg as p
+	load gmsg+8 as n
+	call print p n
+	if bad
+		sys exit_group stfail
+	end
+end
+
+# "ail fmt [--check]": the formatter of AIL on every source of the
+# package, with its own output and its status
+fn cmdfmt
+	call argc as c
+	call argv 2 as p n
+	call mfeq p n "--check" as chk
+	if (c>3)|((c==3)&(chk==0))
+		call usage
+	end
+	call project
+	load tlindent+8 as n
+	ifz n
+		call fail stio "this AIL has no formatter" ""
+	end
+	call bycut gargs 0
+	load tlindent as p
+	call byadd gargs p n
+	if chk
+		call byadd gargs "--check\0"
+	end
+	call tlsources gargs "." 1 as k
+	ifslt k 0
+		call fail stio "cannot read the directories of the package" ""
+	end
+	ifz k
+		ret 0
+	end
+	call tlrun gargs -1 -1 -1 as st
+	if st
+		if st==1
+			sys exit_group stfail
+		end
+		call fail stio "the formatter did not run to its end" ""
+	end
+end
+
+# Read the lock into the buffer b, which loses what it had: 1, or 0 if
+# there is none. One that is there and cannot be read ends the command.
+fn readlock b
+	call bycut b 0
+	call fileread "Ailfile.lock" b as r
+	ifsge r 0
+		ret 1
+	end
+	if r!=-2
+		call fail stio "cannot read Ailfile.lock" ""
+	end
+	ret 0
+end
+# Note the manifest and the lock as they are, before a command changes
+# them: from here on a command that fails writes them back.
+fn keep
+	call bycut uman 0
+	load gtext as p
+	load gtext+8 as n
+	call byadd uman p n
+	call readlock ulock as ulocked
+	undo=1
+end
+# write the bytes of the buffer b as the file at the path, whole or not
+# at all
+fn save p n b
+	load b as q
+	load b+8 as m
+	call tlwrite p n q m as r
+	if r
+		call fail stio "cannot write " p n
+	end
+end
+# the text of the buffer from without the lines of the dependency named
+# by the n bytes at p, into the buffer to, which loses what it had; lk
+# is 1 for the text of a lock
+fn without to from p n lk
+	call bycut to 0
+	load from as q
+	load from+8 as m
+	call mfdrop to q m p n lk as r
+	if r==-1
+		call fail stio "out of memory" ""
+	end
+	ret r
+end
+
+buf xa 24           # a manifest or a lock that is being changed
+buf xb 24
+buf xt 24           # the manifest of a dependency
+buf xd 72           # and what it holds
+buf xdir 24         # its directory
+
+# End the command unless the n bytes at p can be one value of a line of
+# a manifest, as docs/packages.md has them: not empty, with no space and
+# no byte below 32 or the byte 127, and not starting with "#", which
+# starts a comment, or with "-", which git reads as an option.
+fn onevalue p n
+	ok=n>0
+	i=0
+	while i<n
+		loadb p+i as x
+		if (x<=32)|(x==127)
+			ok=0
+		end
+		i+=1
+	end
+	if ok
+		loadb p as x
+		if (x==35)|(x==45)
+			ok=0
+		end
+	end
+	ifz ok
+		call fail stusage "an address or a directory in a manifest has no space and does not start with # or -: not " p n
+	end
+end
+
+# "ail add URL [VERSION]" and "ail add --path DIRECTORY": the package is
+# read first, for its name, and then written into the manifest
+fn cmdadd
+	call argc as c
+	call argv 2 as up un
+	call argv 3 as vp vn
+	call mfeq up un "--path" as path
+	if (c<3)|(c>4)|(path&(c!=4))
+		call usage
+	end
+	call project
+	# before anything is fetched: a lock that cannot be read ends it
+	call readlock xb
+	call bycut xdir 0
+	ifz path
+		call onevalue up un
+	end
+	if path
+		# a directory is read from where the command was started
+		loadb vp as x
+		load tlcwd as p
+		load tlcwd+8 as n
+		load tlroot as q
+		load tlroot+8 as m
+		call mfeq p n q m as r
+		if (x!=47)&(r==0)
+			call byadd xdir p n
+			call byaddb xdir 47
+		end
+		call byadd xdir vp vn
+		load xdir as p
+		load xdir+8 as n
+		call onevalue p n
+	else
+		if vn
+			call mfver vp vn as x r
+			ifz r
+				call fail stusage "a version is three numbers with dots between, as 1.2.3: not " vp vn
+			end
+			call bycut dpver 0
+			call byadd dpver vp vn
+		else
+			call dpnewest up un as r
+			ifz r
+				call depsfail
+			end
+		end
+		load dpver as vp
+		load dpver+8 as vn
+		call dptag up un vp vn as r
+		ifz r
+			call depsfail
+		end
+		call byadd xdir "deps/.new"
+		call dpfetch "deps/.new" up un 1 as r
+		ifz r
+			call depsfail
+		end
+	end
+	load xdir as dp
+	load xdir+8 as dn
+	call dpmanifest dp dn xt xd as r
+	ifz r
+		ifz path
+			call tlremove "deps/.new"
+		end
+		call depsfail
+	end
+	load xd as np
+	load xd+8 as nn
+	load gman as p
+	load gman+8 as n
+	call mfeq np nn p n as r
+	if r
+		ifz path
+			call tlremove "deps/.new"
+		end
+		call fail stmanifest "a package does not use itself: " np nn
+	end
+	ifz path
+		# the tag is to name the version that the manifest behind it has
+		load xd+16 as p
+		load xd+24 as n
+		call mfeq vp vn p n as r
+		ifz r
+			call tlremove "deps/.new"
+			call bycut gmsg 0
+			call byadd gmsg "the tag v"
+			call byadd gmsg vp vn
+			call byadd gmsg " of "
+			call byadd gmsg np nn
+			call byadd gmsg " has the version "
+			call byadd gmsg p n
+			call byadd gmsg " in its Ailfile"
+			call failmsg stmanifest
+		end
+	end
+	# the manifest without a line of that name, and the new line
+	call keep
+	call without xa gtext np nn 0
+	call byadd xa "dep "
+	call byadd xa np nn
+	call byaddb xa 32
+	if path
+		call byadd xa dp dn
+	else
+		call byadd xa vp vn
+		call byaddb xa 32
+		call byadd xa up un
+	end
+	call byaddb xa 10
+	ifz path
+		# the clone gets the name of the package, and the lock its line,
+		# so that nothing is asked of the repository again
+		call bycut gout 0
+		call byadd gout "deps/"
+		call byadd gout np nn
+		load gout as q
+		load gout+8 as m
+		call tlremove q m
+		call tlmove "deps/.new" q m as r
+		if r
+			call fail stio "cannot write " q m
+		end
+		call readlock xb
+		call bycut gtmp 0
+		load xb as q
+		load xb+8 as m
+		call mfdrop gtmp q m np nn 1
+		call byadd gtmp np nn
+		call byaddb gtmp 32
+		call byadd gtmp vp vn
+		call byaddb gtmp 32
+		call byadd gtmp dprev 40
+		call byaddb gtmp 32
+		call byadd gtmp up un
+		call byaddb gtmp 10
+		call save "Ailfile.lock" gtmp
+	end
+	# the name is printed from a copy: the manifest is read again
+	call bycut gsaid 0
+	call byadd gsaid "added "
+	call byadd gsaid np nn
+	if path
+		call byadd gsaid " from "
+		call byadd gsaid dp dn
+	else
+		call byaddb gsaid 32
+		call byadd gsaid vp vn
+	end
+	call byaddb gsaid 10
+	call save "Ailfile" xa
+	call project
+	call deps
+	load gsaid as p
+	load gsaid+8 as n
+	call print p n
+end
+
+fn cmdremove
+	call argc as c
+	if c!=3
+		call usage
+	end
+	call argv 2 as p n
+	call project
+	call without xa gtext p n 0 as r
+	ifz r
+		call fail stmanifest "Ailfile has no dependency " p n
+	end
+	call keep
+	call save "Ailfile" xa
+	call project
+	call deps
+	# its clone goes, unless another package of the build still uses it
+	call dpfind p n as i
+	if i==-1
+		call bycut gout 0
+		call byadd gout "deps/"
+		call byadd gout p n
+		load gout as q
+		load gout+8 as m
+		call tlremove q m as r
+		if r
+			call eprint "ail: could not remove "
+			call eprint q m
+			call eprint "\n"
+		end
+	end
+	call print "removed "
+	call print p n
+	call print "\n"
+end
+
+# "ail update [NAME]": each dependency that comes from a repository, or
+# the one named, moved to the latest version its repository has a tag for
+fn cmdupdate
+	call argc as c
+	if c>3
+		call usage
+	end
+	call argv 2 as fp fl
+	call project
+	if fl
+		call mffind gman mfgit fp fl as i
+		if i==-1
+			call fail stmanifest "Ailfile has no dependency from a repository called " fp fl
+		end
+	end
+	# xa has the manifest and xb the lock as they are to be
+	call bycut xa 0
+	load gtext as p
+	load gtext+8 as n
+	call byadd xa p n
+	call readlock xb
+	call bycut gsaid 0
+	changed=0
+	call mfcount gman as k
+	i=0
+	while i<k
+		call mfentry gman i as e
+		load e as kind
+		load e+8 as np
+		load e+16 as nn
+		load e+24 as vp
+		load e+32 as vn
+		load e+40 as up
+		load e+48 as un
+		hit=(kind==mfgit)
+		if hit&(fl>0)
+			call mfeq fp fl np nn as hit
+		end
+		if hit
+			call dpnewest up un as r
+			ifz r
+				call depsfail
+			end
+			load dpver as q
+			load dpver+8 as m
+			call mfver q m as new r
+			call mfver vp vn as old r
+			call byadd gsaid np nn
+			call byaddb gsaid 32
+			call byadd gsaid vp vn
+			if new>old
+				call byadd gsaid " -> "
+				call byadd gsaid q m
+				call without xt xa np nn 0
+				call byadd xt "dep "
+				call byadd xt np nn
+				call byaddb xt 32
+				call byadd xt q m
+				call byaddb xt 32
+				call byadd xt up un
+				call byaddb xt 10
+				call bycut xa 0
+				load xt as q
+				load xt+8 as m
+				call byadd xa q m
+				call without xt xb np nn 1
+				call bycut xb 0
+				load xt as q
+				load xt+8 as m
+				call byadd xb q m
+				changed=1
+			else
+				call byadd gsaid " is the latest"
+			end
+			call byaddb gsaid 10
+		end
+		i+=1
+	end
+	if changed
+		call keep
+		call save "Ailfile" xa
+		call save "Ailfile.lock" xb
+		call project
+		call deps
+	end
+	load gsaid as p
+	load gsaid+8 as n
+	call print p n
+end
+
+call tlstd
+call argv 1 as p n
+ifz n
+	call usage
+end
+call mfeq p n "help" as r
+if r
+	call help 1
+	sys exit_group 0
+end
+call tlfind as r
+ifz r
+	call fail stio "AIL is not where this command looks for it; AIL_HOME names its directory" ""
+end
+call mfeq p n "version" as r
+if r
+	call print "ail "
+	call print tlvp tlvn
+	call print "\n"
+	sys exit_group 0
+end
+call mfeq p n "new" as r
+if r
+	call cmdnew
+	sys exit_group 0
+end
+call mfeq p n "init" as r
+if r
+	call cmdinit
+	sys exit_group 0
+end
+call mfeq p n "build" as r
+if r
+	call cmdbuild
+	sys exit_group 0
+end
+call mfeq p n "run" as r
+if r
+	call cmdrun
+end
+call mfeq p n "add" as r
+if r
+	call cmdadd
+	sys exit_group 0
+end
+call mfeq p n "remove" as r
+if r
+	call cmdremove
+	sys exit_group 0
+end
+call mfeq p n "update" as r
+if r
+	call cmdupdate
+	sys exit_group 0
+end
+call mfeq p n "test" as r
+if r
+	call cmdtest
+	sys exit_group 0
+end
+call mfeq p n "fmt" as r
+if r
+	call cmdfmt
+	sys exit_group 0
+end
+call mfeq p n "clean" as r
+if r
+	call cmdclean
+	sys exit_group 0
+end
+call usage

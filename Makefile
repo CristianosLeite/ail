@@ -1,9 +1,9 @@
 B := build
 
-SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw \
+SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw compiler/pkg.aiw \
        compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw
 
-all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc
+all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc $(B)/ail $(B)/tools/indent
 
 # The seed: the released compiler that seed/MANIFEST pins, from a local
 # copy or fetched, refused unless its checksum is the manifest's.
@@ -48,6 +48,11 @@ $(B)/tools/indent: $(TL) tools/lib/dent.aiw
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aiw tools/lib/flow.aiw tools/lib/dent.aiw
 $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw
 
+# The command ail (docs/cli.md), compiled like a tool: cli/ail.aiw is the
+# source the recipe compiles and names the others with use.
+$(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/proc.aiw $(B)/ailc
+	$(call compile,$(B)/ailc)
+
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -72,6 +77,7 @@ $(B)/ailc2: $(SRC) $(B)/ailc
 test: all $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
+	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; tests/install.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
@@ -88,7 +94,29 @@ endif
 fuzz: $(B)/ailc
 	tests/fuzz.sh $(or $(N),20000) $(or $(SEED),1)
 
+# An installation (docs/cli.md): the command in bin/, and in lib/ail/
+# what it looks for there, the compiler, the formatter, the library and
+# the manifest of AIL. DESTDIR is put before PREFIX, for a package that
+# is put together in another place than it is installed to.
+PREFIX ?= /usr/local
+VERSION := $(shell sed -n 's/^version //p' Ailfile)
+
+install: all
+	tools/install.sh $(B) "$(DESTDIR)$(PREFIX)"
+
+# The same files as one file to pass on, for x86-64 Linux:
+# build/ail-<version>-x86_64-linux.tar.gz, which unpacks into a
+# directory of that name with bin/ and lib/ in it.
+DIST := ail-$(VERSION)-x86_64-linux
+
+dist: all
+	rm -rf $(B)/$(DIST)
+	tools/install.sh $(B) $(B)/$(DIST)
+	tar -C $(B) --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -czf $(B)/$(DIST).tar.gz $(DIST)
+	rm -rf $(B)/$(DIST)
+	@echo $(B)/$(DIST).tar.gz
+
 clean:
 	rm -rf $(B)
 
-.PHONY: all tools test fuzz clean
+.PHONY: all tools test fuzz install dist clean

@@ -31,12 +31,35 @@ use "lib/std/io.aiw"
 call print "hello\n"
 ```
 
-- A path is compiled **once**: a later `use` of the same path, in any file, does nothing. Two files can therefore each name the library they need. Paths are compared as written, so write a file the same way everywhere.
-- The path is taken as it stands between the quotes, with no escapes, on one line, at most 4095 bytes. A relative path starts from the directory the compiler runs in, not from the file that has the `use`.
+- A path is compiled **once**: a later `use` of the same path, in any file of the same [package](#packages), does nothing. Two files can therefore each name the library they need. Paths are compared as written, so write a file the same way everywhere.
+- The path is taken as it stands between the quotes, with no escapes, on one line, at most 4095 bytes. A relative path starts from the directory the compiler runs in, not from the file that has the `use`; a file of a [package](#packages) starts from the directory of its package.
 - `use` is a statement of the top level: it cannot stand inside a function, and a function must end in the file that starts it.
 - Because functions, buffers and data may be [used before they are declared](#names), the place of a `use` matters only for the top-level statements of the file, for its `var` and `const` names, which must come before their uses, and for its top-level variables, which it shares with the rest of the top level.
 
 All files of a program together are subject to the [size limit](#errors) of the source.
+
+### Packages
+
+```
+build/ailc ail=/opt/ail aildb=deps/aildb < prog.aiw > prog
+```
+
+```
+use "lib/std/io.aiw"            # the library of AIL
+use "src/util.aiw"              # a file of this program
+use "aildb:src/lib/snap.aiw"    # a file of the package aildb
+```
+
+A package is a directory of sources with a name, which a program reads files from without having them in its own directory. The compiler is told of each with an argument `name=directory`; it takes no other argument, and without one every path is read as [`use`](#use) says.
+
+- `use "name:path"` compiles the file `path` under the directory of the package `name`. The name is what stands before a colon in the first part of the path, the part before any `/`.
+- A path without a name, in a file of a package, starts from the directory of that package: a package names its own files as it does when it is compiled by itself, and a program that uses it changes nothing in it. In the source given to the compiler and in the files it names without a package, such a path starts from the directory the compiler runs in.
+- A path that starts with `lib/` is in the package `ail`, the library of AIL, whichever file has the `use`, if the arguments name that package: `use "lib/std/io.aiw"` and `use "ail:lib/std/io.aiw"` are the same file, and a program has the library once, the one of its compiler. A package therefore has no directory `lib` of its own at its top. If the arguments name no package `ail`, the path is read like any other.
+- A path that starts with `/` is in no package, and so are the paths without a name in that file.
+- A file is compiled once for its package and its path, so `src/util.aiw` of two packages are two files, and one file named from two packages is compiled where the first `use` stands.
+- An error in a file of a package has the directory of the package before the path, as the file was opened: `ailc: deps/aildb/src/lib/snap.aiw:12: ...`.
+- The names of all packages of a program are one name space, as with any `use`: two packages that define the same function are a `duplicate name`. The [rule of the libraries](#the-io-library), a prefix for each file, keeps them apart.
+- There are at most 256 packages. A name is not empty and has no `/`, `:` or `=`; a directory is not empty, and slashes at its end are not counted. An argument that is not of this form, or a name given twice, is the error `usage: ailc [name=directory]... < source > executable`, with status 2.
 
 ## Separators
 
@@ -1598,9 +1621,11 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
 | `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |
-| `cannot read file` *path* | 1 | the path of a `use` cannot be opened or read |
+| `cannot read file` *path* | 1 | the path of a `use` cannot be opened or read; the path is the one that was opened, with the directory of its [package](#packages) |
+| `unknown package` *name* | 1 | a `use` of `name:path` when no argument of the compiler names that package |
 | `source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes); no place |
 | `program too big` | 1 | the compiled code does not fit; with the source limit this cannot happen, and the message exists so that a mistake in that reckoning is an error and not a damaged program; no place |
+| `usage: ailc [name=directory]... < source > executable` | 2 | an argument of the compiler that names no [package](#packages), or a name given twice; no place |
 | `read error` | 2 | reading stdin failed; no place |
 | `write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included; no place |
 

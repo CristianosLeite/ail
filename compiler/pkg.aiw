@@ -1,0 +1,149 @@
+# ---- packages: the directories that the arguments of the compiler name,
+# each "name=directory", and the files of use that are read from them
+# the package of the n bytes at p, counted from 1, or 0
+fn pkfind p n
+	i=0
+	while i<npkg
+		b=i*32+pkgs
+		load b+8 as t
+		ifz t!=n
+			load b as b
+			call eqn b p n as t
+			if t
+				ret i+1
+			end
+		end
+		i+=1
+	end
+	ret 0
+end
+# read the arguments at a, what "args" gave, into pkgs
+fn pkargs a
+	load a as n
+	a+=16
+	while n>1
+		load a as s
+		# k = the length of the name, t = that of the whole argument
+		k=-1
+		t=0
+		label l
+		loadb s+t as c
+		if c
+			if (c==61)&(k==-1)
+				k=t
+			end
+			if (k==-1)&((c==47)|(c==58))
+				call eargs
+			end
+			t+=1
+			jmp l
+		end
+		if (k==-1)|(k==0)|(k+1==t)|(npkg==256)
+			call eargs
+		end
+		call pkfind s k as c
+		if c
+			call eargs
+		end
+		# a directory is kept without the slashes at its end, so that
+		# one is put between it and a path; "/" is then no byte
+		label e
+		loadb s+t-1 as c
+		if c==47
+			t-=1
+			jmp e
+		end
+		b=npkg*32+pkgs
+		store b s
+		store b+8 k
+		store b+16 s+k+1
+		store b+24 t-k-1
+		npkg+=1
+		# "ail=" as the four bytes are read
+		load4 s as c
+		if c==0x3d6c6961
+			ailpkg=npkg
+		end
+		a+=8
+		n-=1
+	end
+end
+# The package of the path read last, a use in the file that is being
+# read: the one before a colon in its first part, which is taken off the
+# path; that of the library of AIL, if the arguments name one and the path
+# starts with "lib/"; else the package of the file that has the use. A
+# path that starts with "/" is in none.
+fn pkof
+	i=0
+	label l
+	if i<nl
+		loadb ns+i as c
+		if c==58
+			call pkfind ns i as k
+			ifz k
+				epos=ns
+				ename=ns
+				enamel=i
+				call epkg
+			end
+			ns+=i+1
+			nl-=i+1
+			ret k
+		end
+		if c!=47
+			i+=1
+			jmp l
+		end
+		ifz i
+			ret 0
+		end
+	end
+	if ailpkg
+		if nl>4
+			# "lib/" as the four bytes are read
+			load4 ns as c
+			if c==0x2f62696c
+				ret ailpkg
+			end
+		end
+	end
+	ifz curunit
+		ret 0
+	end
+	load curunit*8+upkg-8 as k
+	ret k
+end
+# put the path read last into pathbuf as open takes it, a NUL after it:
+# under the directory of the package k, or as it stands if k is 0
+fn pkpath k
+	b=pathbuf
+	if k
+		k=k*32+pkgs-32
+		load k+16 as p
+		load k+24 as n
+		if n+nl>4094
+			pathl=0
+			call euse
+		end
+		while n
+			loadb p as c
+			storeb b c
+			p+=1
+			b+=1
+			n-=1
+		end
+		storeb b 47
+		b+=1
+	end
+	p=ns
+	n=nl
+	while n
+		loadb p as c
+		storeb b c
+		p+=1
+		b+=1
+		n-=1
+	end
+	storeb b 0
+	pathl=b-pathbuf
+end

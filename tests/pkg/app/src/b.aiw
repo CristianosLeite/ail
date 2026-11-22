@@ -1,0 +1,4 @@
+# a file of the package app, named like one of the package one
+fn appb
+	call print "b of app\n"
+end

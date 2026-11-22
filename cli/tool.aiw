@@ -1,0 +1,874 @@
+# cli/tool.aiw -- what the commands of ail share: where AIL is installed,
+# the directory of the package, a program run to its end, a directory
+# removed with all it has. Needs lib/std/io.aiw, lib/std/bytes.aiw,
+# lib/std/file.aiw, lib/std/proc.aiw and cli/manifest.aiw. The functions
+# print nothing and end nothing.
+#
+# Every name of this file starts with "tl"; a program has no var of such
+# a name (see lib/std/io.aiw).
+
+# syscalls without a name in the compiler
+const tlkill 62
+const tlfcntl 72
+const tlflock 73
+const tlgetcwd 79
+const tlchdir 80
+const tlfchdir 81
+const tlrename 82
+const tlreadlink 89
+const tlsetpgid 109
+const tlpipe2 293
+const tlfchmod 91
+
+buf tlhome 24       # the directory of AIL, as tlfind found it
+buf tlailc 24       # the path of its compiler, with a NUL byte
+buf tlindent 24     # and of its formatter, the same, or no bytes if it has none
+buf tlvtext 24      # its manifest, and where its version is in it
+var tlvp tlvn
+buf tlcwd 24        # the directory the command was started in
+buf tlroot 24       # the directory of the package, once tlenter found it
+var tllocked        # 1 once this process has the lock of the package
+
+# Have the descriptors 0, 1 and 2 open: one that is closed is given
+# /dev/null. A file that this process opens then never gets one of the
+# three numbers, which a program it starts reads as its input and its
+# outputs.
+fn tlstd
+	label more
+	call fileopen "/dev/null" 2 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	if tlfd<3
+		# it stays, without the flag that closes it in a program started
+		sys tlfcntl tlfd 2 0
+		jmp more
+	end
+	sys close tlfd
+	ret 1
+end
+
+# 1 if the tln bytes at tlp have a "/"
+fn tlfind47 tlp tln
+	tli=0
+	while tli<tln
+		loadb tlp+tli as tlc
+		if tlc==47
+			ret 1
+		end
+		tli+=1
+	end
+	ret 0
+end
+
+# 1 if the file at the path can be opened to be read
+fn tlisfile tlp tln
+	call fileopen tlp tln 0 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	sys close tlfd
+	ret 1
+end
+
+# add the directory this process is in to the buffer tlb: 1, or 0
+fn tlgetdir tlb
+	local tlz 4096
+	sys tlgetcwd tlz 4096 as tlr
+	ifsle tlr 0
+		ret 0
+	end
+	call byadd tlb tlz tlr-1 as tlr
+	ret tlr
+end
+
+# Try the directory of the tln bytes at tlp as that of AIL: it has the
+# manifest Ailfile with a version, the compiler as ailc or as build/ailc,
+# which is how a checkout has it, and the library under lib/; the
+# formatter is indent or build/tools/indent, and may be missing. 1 if it
+# is one, and tlhome, tlailc, tlindent and the version are then set.
+fn tlhomeat tlp tln
+	local tld 72
+	call bycut tlvtext 0
+	call bycut tlailc 0
+	call byadd tlailc tlp tln
+	call byadd tlailc "/Ailfile"
+	load tlailc as tlq
+	load tlailc+8 as tlm
+	call fileread tlq tlm tlvtext as tlr
+	ifslt tlr 0
+		ret 0
+	end
+	tli=0
+	while tli<72
+		store tld+tli 0
+		tli+=8
+	end
+	load tlvtext as tlq
+	load tlvtext+8 as tlm
+	call mfread tld tlq tlm 0 as tle tll
+	call byfree tld+48
+	if tle
+		ret 0
+	end
+	load tld+16 as tlvp
+	load tld+24 as tlvn
+	call bycut tlailc 0
+	call byadd tlailc tlp tln
+	call byadd tlailc "/ailc"
+	load tlailc as tlq
+	load tlailc+8 as tlm
+	call tlisfile tlq tlm as tlr
+	ifz tlr
+		call bycut tlailc 0
+		call byadd tlailc tlp tln
+		call byadd tlailc "/build/ailc"
+		load tlailc as tlq
+		load tlailc+8 as tlm
+		call tlisfile tlq tlm as tlr
+		ifz tlr
+			ret 0
+		end
+	end
+	call byaddb tlailc 0
+	# the formatter, beside the compiler or among the tools of a checkout
+	call bycut tlindent 0
+	call byadd tlindent tlp tln
+	call byadd tlindent "/indent"
+	load tlindent as tlq
+	load tlindent+8 as tlm
+	call tlisfile tlq tlm as tlr
+	ifz tlr
+		call bycut tlindent 0
+		call byadd tlindent tlp tln
+		call byadd tlindent "/build/tools/indent"
+		load tlindent as tlq
+		load tlindent+8 as tlm
+		call tlisfile tlq tlm as tlr
+	end
+	if tlr
+		call byaddb tlindent 0
+	else
+		call bycut tlindent 0
+	end
+	call bycut tlhome 0
+	call byadd tlhome tlp tln as tlr
+	ret tlr
+end
+
+# Find AIL: the directory in the variable AIL_HOME of the environment, if
+# there is one; else, from the place of this executable, ../lib/ail, as
+# an installation has it, or .., as a checkout has it with the command in
+# build/. Notes the directory the command was started in. 1 if AIL was
+# found, 0 if not.
+fn tlfind
+	local tlz 4096
+	local tlb 24
+	call tlgetdir tlcwd as tlr
+	ifz tlr
+		ret 0
+	end
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	call procvar "AIL_HOME" as tlp tln
+	if tln
+		loadb tlp as tlc
+		if tlc!=47
+			load tlcwd as tlq
+			load tlcwd+8 as tlm
+			call byadd tlb tlq tlm
+			call byaddb tlb 47
+		end
+		call byadd tlb tlp tln
+		load tlb as tlq
+		load tlb+8 as tlm
+		call tlhomeat tlq tlm as tlr
+		call byfree tlb
+		ret tlr
+	end
+	set "/proc/self/exe\0" as tlq
+	sys tlreadlink tlq tlz 4096 as tln
+	ifsle tln 0
+		ret 0
+	end
+	# the directory of the executable
+	while tln
+		loadb tlz+tln-1 as tlc
+		if tlc==47
+			jmp cut
+		end
+		tln-=1
+	end
+	label cut
+	call byadd tlb tlz tln
+	call byadd tlb "../lib/ail"
+	load tlb as tlq
+	load tlb+8 as tlm
+	call tlhomeat tlq tlm as tlr
+	ifz tlr
+		call bycut tlb tln
+		call byadd tlb ".."
+		load tlb as tlq
+		load tlb+8 as tlm
+		call tlhomeat tlq tlm as tlr
+	end
+	call byfree tlb
+	ret tlr
+end
+
+# Add to the buffer tlb the path of the directory of tln bytes at tlp as
+# the kernel names it, from the root and with no link and no ".." in
+# it, so that two paths of one directory give the same bytes: 1, or 0 if
+# it is no directory that can be entered. The current directory is
+# entered again.
+fn tlreal tlb tlp tln
+	local tlz 4096
+	# a place to come back to, which a directory that may be entered and
+	# not listed is as well: it is not opened to be read
+	call fileopen "." 0x210000 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	call filepath tlp tln tlz as tlr
+	ifz tlr
+		sys tlchdir tlz as tlr
+	end
+	tlok=0
+	ifz tlr
+		sys tlgetcwd tlz 4096 as tlr
+		ifsgt tlr 0
+			call byadd tlb tlz tlr-1 as tlok
+		end
+		sys tlfchdir tlfd
+	end
+	sys close tlfd
+	ret tlok
+end
+
+# Make the directory of the package the current one: the nearest of this
+# directory and those above it that has a file Ailfile. 1, with tlroot
+# set, or 0 if none has one. One that is there and cannot be opened is
+# the manifest of the nearest package all the same: the search does not
+# go past it to a package above.
+fn tlenter
+	local tlz 4096
+	label look
+	call fileopen "Ailfile" 0 0 as tlr
+	ifsge tlr 0
+		sys close tlr
+	end
+	if tlr!=-2
+		call bycut tlroot 0
+		call tlgetdir tlroot as tlr
+		ret tlr
+	end
+	sys tlgetcwd tlz 4096 as tlr
+	if tlr!=2
+		set "..\0" as tlq
+		sys tlchdir tlq as tlr
+		ifz tlr
+			jmp look
+		end
+	end
+	ret 0
+end
+
+# Take the lock of the package, in whose directory this process is, and
+# keep it to the end of the process: an exclusive lock on the directory
+# itself, which a second command in the same package waits for. So one
+# command at a time reads and writes its manifest, its lock, deps/ and
+# build/. No program that is started has the descriptor, and a command
+# that is killed leaves no lock. 1; or 0 if there is no lock, because
+# the directory cannot be opened to be read or cannot be locked, and
+# the package is then not to be worked on.
+fn tllock
+	if tllocked
+		ret 1
+	end
+	call fileopen "." 0x10000 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	label again
+	sys tlflock tlfd 2 as tlr
+	ifz tlr+4
+		jmp again
+	end
+	if tlr
+		sys close tlfd
+		ret 0
+	end
+	tllocked=1
+	ret 1
+end
+
+# Start the program whose arguments are the strings in the buffer tls,
+# each with a NUL byte after it, the first its path or its name, and wait
+# for its end: what procwait gives, or -2000 if it could not be started.
+# tlin, tlout and tlerr are its descriptors 0, 1 and 2, -1 for those of
+# this process.
+fn tlrun tls tlin tlout tlerr
+	local tlv 24
+	local tlw 8
+	store tlv 0
+	store tlv+8 0
+	store tlv+16 0
+	load tls as tlp
+	load tls+8 as tln
+	tlp+=tln
+	tlq=tlp-tln
+	while tlq<tlp
+		store tlw tlq
+		call byadd tlv tlw 8 as tlr
+		ifz tlr
+			call byfree tlv
+			ret -2000
+		end
+		call strlen tlq as tln
+		tlq+=tln+1
+	end
+	store tlw 0
+	call byadd tlv tlw 8 as tlr
+	ifz tlr
+		call byfree tlv
+		ret -2000
+	end
+	load tlv as tlq
+	call procstart tlq tlin tlout tlerr as tlpid
+	call byfree tlv
+	ifslt tlpid 0
+		ret -2000
+	end
+	call procwait tlpid 0 as tlr
+	ret tlr
+end
+
+# give the file at the path of tln bytes at tlp the path of tlm bytes at
+# tlq, in place of a file that is there: 0, or the error
+fn tlmove tlp tln tlq tlm
+	local tla 4096
+	local tlb 4096
+	call filepath tlp tln tla as tlr
+	ifz tlr
+		call filepath tlq tlm tlb as tlr
+	end
+	ifz tlr
+		sys tlrename tla tlb as tlr
+	end
+	ret tlr
+end
+
+# Make the file at the path of tln bytes at tlp hold the tlm bytes at
+# tlq, whole or not at all: they are written to a file beside it, with
+# ".new" after its name, made anew and never through a link, which is
+# then given the name. 0, or the error, after which the file is what it
+# was.
+fn tlwrite tlp tln tlq tlm
+	local tlb 24
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	call byadd tlb tlp tln
+	call byadd tlb ".new" as tlr
+	ifz tlr
+		ret -12
+	end
+	load tlb as tla
+	load tlb+8 as tlan
+	# the file beside it is made anew: what has its name is removed, a
+	# link as a link, and nothing is written through one
+	call fileunlink tla tlan
+	call fileopen tla tlan 0x200c1 420 as tlfd
+	tlr=tlfd
+	ifsge tlfd 0
+		call fdwrite tlfd tlq tlm as tlr
+		# a write that failed late is said when the file is closed
+		sys close tlfd as tlc
+		# 0 for written, or "input/output error" for what was not
+		tlr=tlr*5-5
+		ifz tlr
+			tlr=tlc
+		end
+		ifz tlr
+			call tlmove tla tlan tlp tln as tlr
+		end
+		if tlr
+			call fileunlink tla tlan
+		end
+	end
+	call byfree tlb
+	ret tlr
+end
+
+# Remove what is at the path, a file or a directory with all it has; a
+# link is removed and not followed. 0, also if nothing was there, or the
+# error. The path with the names below it stays under 4096 bytes, or the
+# error is -36.
+fn tlremove tlp tln
+	local tlb 24
+	local tlc 24
+	call fileunlink tlp tln as tlr
+	if (tlr==0)|(tlr==-2)
+		ret 0
+	end
+	if tlr!=-21
+		ret tlr
+	end
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	store tlc 0
+	store tlc+8 0
+	store tlc+16 0
+	call filenames tlp tln tlb as tlk
+	ifslt tlk 0
+		call byfree tlb
+		ret tlk
+	end
+	tli=0
+	tlr=0
+	while tlk
+		load tlb as tlq
+		tlq+=tli
+		call strlen tlq as tlm
+		call bycut tlc 0
+		call byadd tlc tlp tln
+		call byaddb tlc 47
+		call byadd tlc tlq tlm as tlr
+		ifz tlr
+			tlr=-12
+			jmp out
+		end
+		tli+=tlm+1
+		load tlc as tlq
+		load tlc+8 as tlm
+		call tlremove tlq tlm as tlr
+		if tlr
+			jmp out
+		end
+		tlk-=1
+	end
+	call filermdir tlp tln as tlr
+	label out
+	call byfree tlb
+	call byfree tlc
+	ret tlr
+end
+
+# 1 if one of the strings "NAME=value" in the tln bytes at tlp, each
+# with a NUL byte after it, has the name of the string at tls
+fn tlenvhas tlp tln tls
+	tlq=tlp
+	while tlq<tlp+tln
+		tli=0
+		label same
+		loadb tlq+tli as tla
+		loadb tls+tli as tlb
+		if tla==tlb
+			if tla==61
+				ret 1
+			end
+			if tla
+				tli+=1
+				jmp same
+			end
+		end
+		call strlen tlq as tli
+		tlq+=tli+1
+	end
+	ret 0
+end
+
+# Start the program at the path that is the first string in the buffer
+# tls, with the strings as its arguments as tlrun takes them, and wait
+# for its end as tlrun does. The tlen bytes at tlep, strings "NAME=value"
+# with a NUL byte after each, are put before its environment, which
+# loses the variables of those names. A program
+# that still runs after tlms milliseconds is killed, and the result is
+# then -1000; tlms 0 waits without limit. With a limit the program
+# leads a group of processes of its own, and when it has ended, by
+# itself or killed, every process still in that group is killed: those
+# it started. The group is killed as well if this process ends before
+# that, by a signal too: a watcher in the group sees to it. Without a
+# limit the program stays in the group of this process, and a signal
+# for that group reaches it. A program that cannot have its watcher is
+# not started.
+fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
+	local tlv 24
+	local tle 24
+	local tlw 8
+	local tlpipe 8
+	tli=0
+	while tli<24
+		store tlv+tli 0
+		store tle+tli 0
+		tli+=8
+	end
+	load tls as tlq
+	load tls+8 as tln
+	tlp=tlq+tln
+	tlok=1
+	while tlq<tlp
+		store tlw tlq
+		call byadd tlv tlw 8 as tlr
+		tlok=tlok&tlr
+		call strlen tlq as tln
+		tlq+=tln+1
+	end
+	store tlw 0
+	call byadd tlv tlw 8 as tlr
+	tlok=tlok&tlr
+	tlq=tlep
+	while tlq<tlep+tlen
+		store tlw tlq
+		call byadd tle tlw 8 as tlr
+		tlok=tlok&tlr
+		call strlen tlq as tln
+		tlq+=tln+1
+	end
+	call procenv as tlq
+	tlgo=1
+	while tlgo
+		load tlq as tlgo
+		# a variable that was given above is not passed on a second time
+		# with the value it had
+		tlr=0
+		if tlgo
+			call tlenvhas tlep tlen tlgo as tlr
+		end
+		ifz tlr
+			store tlw tlgo
+			call byadd tle tlw 8 as tlr
+			tlok=tlok&tlr
+		end
+		tlq+=8
+	end
+	ifz tlok
+		call byfree tlv
+		call byfree tle
+		ret -2000
+	end
+	ifz tlms>0
+		sys fork as tlpid
+		ifz tlpid
+			# the child: nothing here returns
+			call procopen tlin
+			call procopen tlout
+			call procopen tlerr
+			call procmap tlin tlout tlerr
+			load tlv as tlq
+			load tlq as tlp
+			load tle as tln
+			sys execve tlp tlq tln
+			sys exit 127
+		end
+		call byfree tlv
+		call byfree tle
+		ifslt tlpid 0
+			ret -2000
+		end
+		call procwait tlpid tlms as tlr
+		ret tlr
+	end
+	# Two pipes, both closed in a program that is started. Only this
+	# process writes to the first: its end is how the watcher below
+	# knows of ours. The second holds the child back until the watcher
+	# is there, so that the program never runs without one.
+	sys tlpipe2 tlpipe 0x80000 as tlr
+	if tlr
+		call byfree tlv
+		call byfree tle
+		ret -2000
+	end
+	load4 tlpipe as tlrd
+	load4 tlpipe+4 as tlwr
+	sys tlpipe2 tlpipe 0x80000 as tlr
+	if tlr
+		sys close tlrd
+		sys close tlwr
+		call byfree tlv
+		call byfree tle
+		ret -2000
+	end
+	load4 tlpipe as tlgrd
+	load4 tlpipe+4 as tlgwr
+	sys fork as tlpid
+	ifz tlpid
+		# the child: nothing here returns. It leads a group of its own,
+		# which the processes it starts are in, and waits for the byte
+		# that says the watcher is there; if this process is gone
+		# before that, the pipe ends without one and so does the child.
+		sys tlsetpgid 0 0
+		sys close tlwr
+		sys close tlgwr
+		label go
+		sys read tlgrd tlpipe 1 as tlr
+		ifz tlr+4
+			jmp go
+		end
+		if tlr!=1
+			sys exit 127
+		end
+		call procopen tlin
+		call procopen tlout
+		call procopen tlerr
+		call procmap tlin tlout tlerr
+		load tlv as tlq
+		load tlq as tlp
+		load tle as tln
+		sys execve tlp tlq tln
+		sys exit 127
+	end
+	call byfree tlv
+	call byfree tle
+	tlwd=-1
+	ifsge tlpid 0
+		# the same from here, in case the child has not come to it yet
+		sys tlsetpgid tlpid tlpid
+		# The watcher: a process in the group of the child, where a
+		# signal for the group of this process does not reach it. It
+		# waits for the end of the first pipe, which comes when this
+		# process closes it or is gone, however it went, and then
+		# kills the group, itself with it.
+		sys fork as tlwd
+		ifz tlwd
+			sys tlsetpgid 0 tlpid
+			sys close tlwr
+			sys close tlgwr
+			sys close tlgrd
+			label wait
+			sys read tlrd tlpipe 1 as tlr
+			ifz tlr+4
+				jmp wait
+			end
+			sys tlkill 0-tlpid 9
+			sys exit 0
+		end
+		ifsgt tlwd 0
+			# the same from here, and known to be done before the child
+			# gets its byte: a watcher still in the group of this
+			# process would go with it at a signal for that group
+			sys tlsetpgid tlwd tlpid as tlr
+			if tlr
+				sys tlkill tlwd 9
+				call procwait tlwd 0
+				tlwd=-1
+			end
+		end
+	end
+	sys close tlrd
+	sys close tlgrd
+	ifslt tlwd 0
+		# no child, or no watcher in its group: the child, which still
+		# waits for its byte, ends when the pipe does
+		sys close tlgwr
+		sys close tlwr
+		ifsge tlpid 0
+			sys tlkill 0-tlpid 9
+			call procwait tlpid 0
+		end
+		ret -2000
+	end
+	store tlpipe 0
+	sys write tlgwr tlpipe 1
+	sys close tlgwr
+	call procwait tlpid tlms as tlr
+	# whatever it started and left behind ends with it, the watcher too
+	sys tlkill 0-tlpid 9
+	sys close tlwr
+	sys tlkill tlwd 9
+	call procwait tlwd 0
+	ret tlr
+end
+
+# 1 if the files at the two paths hold the same bytes. One that is not
+# there is a file without bytes; one that is there and cannot be read
+# is the same as nothing, and the result is 0.
+fn tlsame tlp tln tlq tlm
+	local tla 24
+	local tlb 24
+	tli=0
+	while tli<24
+		store tla+tli 0
+		store tlb+tli 0
+		tli+=8
+	end
+	call fileread tlp tln tla as tlr
+	call fileread tlq tlm tlb as tli
+	ifsge tlr 0
+		tlr=-2
+	end
+	ifsge tli 0
+		tli=-2
+	end
+	if (tlr!=-2)|(tli!=-2)
+		call byfree tla
+		call byfree tlb
+		ret 0
+	end
+	load tla as tlp
+	load tla+8 as tln
+	load tlb as tlq
+	load tlb+8 as tlm
+	call mfeq tlp tln tlq tlm as tlr
+	call byfree tla
+	call byfree tlb
+	ret tlr
+end
+
+# 1 if the string at tlp, which ends with a NUL byte, comes after the one
+# at tlq in the order of their bytes
+fn tlafter tlp tlq
+	label next
+	loadb tlp as tla
+	loadb tlq as tlb
+	if tla==tlb
+		ifz tla
+			ret 0
+		end
+		tlp+=1
+		tlq+=1
+		jmp next
+	end
+	ret tla>tlb
+end
+
+# Add to the buffer tlv the addresses of the tlk strings at tlp, each
+# with a NUL byte after it, in the order of their bytes: 1, or 0 without
+# memory. The strings stay where they are.
+fn tlsort tlv tlp tlk
+	local tlw 8
+	load tlv+8 as tlbase
+	tli=0
+	while tli<tlk
+		store tlw tlp
+		call byadd tlv tlw 8 as tlr
+		ifz tlr
+			ret 0
+		end
+		call strlen tlp as tln
+		tlp+=tln+1
+		tli+=1
+	end
+	# an insertion sort of the addresses just added
+	load tlv as tla
+	tla+=tlbase
+	tli=1
+	while tli<tlk
+		load tla+tli*8 as tlx
+		tlj=tli
+		tlgo=1
+		while tlgo
+			tlgo=0
+			if tlj
+				load tla+tlj*8-8 as tly
+				call tlafter tly tlx as tlgo
+				if tlgo
+					store tla+tlj*8 tly
+					tlj-=1
+				end
+			end
+		end
+		store tla+tlj*8 tlx
+		tli+=1
+	end
+	ret 1
+end
+
+# Add to the buffer tlb the paths of the sources of AIL in the directory
+# of the tln bytes at tlp and in those below it, each with a NUL byte
+# after it: the files whose names end in ".aiw". A name that starts with
+# a dot is passed over, a link is not followed, and at the top, where
+# tltop is 1, build and deps are passed over. The result is the number
+# of paths, or the error of the kernel for a directory that could not
+# be read.
+fn tlsources tlb tlp tln tltop
+	local tlnames 24
+	local tlpath 24
+	local tlz 4096
+	local tllink 16
+	tli=0
+	while tli<24
+		store tlnames+tli 0
+		store tlpath+tli 0
+		tli+=8
+	end
+	call filenames tlp tln tlnames as tlk
+	ifslt tlk 0
+		call byfree tlnames
+		ret tlk
+	end
+	tlc=0
+	tlo=0
+	while tlk
+		load tlnames as tlq
+		tlq+=tlo
+		call strlen tlq as tlm
+		tlo+=tlm+1
+		tlk-=1
+		loadb tlq as tlx
+		tlskip=(tlx==46)
+		if tltop
+			call mfeq tlq tlm "build" as tlr
+			tlskip=tlskip|tlr
+			call mfeq tlq tlm "deps" as tlr
+			tlskip=tlskip|tlr
+		end
+		ifz tlskip
+			call bycut tlpath 0
+			# the top is named ".", which a path does not start with
+			ifz tltop
+				call byadd tlpath tlp tln
+				call byaddb tlpath 47
+			end
+			call byadd tlpath tlq tlm as tlr
+			ifz tlr
+				tlc=-12
+				jmp out
+			end
+			load tlpath as tlq
+			load tlpath+8 as tlm
+			# a link is not followed: what it names may lie outside the
+			# package, and is formatted where it is
+			call filepath tlq tlm tlz as tlr
+			ifz tlr
+				sys tlreadlink tlz tllink 16 as tlr
+			end
+			ifsgt tlr 0
+				jmp next
+			end
+			call tlsources tlb tlq tlm 0 as tlr
+			ifsge tlr 0
+				tlc+=tlr
+			else
+				# anything but "not a directory" is a directory that was
+				# not read, and its sources are not known
+				if tlr!=-20
+					tlc=tlr
+					jmp out
+				end
+				# not a directory: a source if its name ends so
+				if tlm>4
+					load tlpath as tlq
+					load4 tlq+tlm-4 as tlx
+					# ".aiw" as the four bytes are read
+					if tlx==0x7769612e
+						call byadd tlb tlq tlm
+						call byaddb tlb 0 as tlr
+						ifz tlr
+							tlc=-12
+							jmp out
+						end
+						tlc+=1
+					end
+				end
+			end
+		end
+		label next
+	end
+	label out
+	call byfree tlnames
+	call byfree tlpath
+	ret tlc
+end

@@ -769,3 +769,51 @@ asked for statements in the compiler.
 - [x] Score binary32 where it lies: `fdot4 a p q n as x`, the loop of `fdot`
   with a `movss` and a `cvtss2sd` between registers for each element of the
   first run; the bits of `f4to8`, `fmul` and `fadd` in order.
+
+## Packages and the `ail` command
+
+A program could not read the files of another project: every path of a
+`use` starts from the directory the compiler runs in, so the `use` lines
+inside a library such as aildb name nothing when it is compiled from the
+directory of a program that imports it. The user asked on 2026-11-22 for
+one mechanism of versions and dependencies for AIL and what is built on
+it; `TODO.md` has what is decided and what is left.
+
+- [x] Packages in `use`: the compiler takes arguments `name=directory`;
+  `use "name:path"` reads a file of that package, a path without a name
+  starts from the package of the file that has it, and `lib/` is the
+  library of AIL in every package. Without arguments nothing changes.
+  `compiler/pkg.aiw`, `tests/pkg.sh`.
+- [x] The manifest `Ailfile` (`name`, `version`, `ail`, `bin`, `testbin`,
+  `dep`) and the lock `Ailfile.lock`, in `docs/packages.md`; `cli/manifest.aiw`
+  reads and checks both, orders versions and takes the lines of a
+  dependency out of a text. AIL has its manifest and its first version,
+  0.1.0.
+- [x] The command `ail`, `cli/ail.aiw` with `cli/tool.aiw`, built as
+  `build/ail`: `new`, `init`, `build`, `run`, `clean`, `version`, `help`;
+  it finds AIL from `AIL_HOME` or from the place of its executable.
+  `docs/cli.md`, `tests/cli.sh`.
+- [x] `ail test`: the executables built, then each `tests/<name>.aiw`
+  compiled and run against its `.out`, `.code` or `.err`, in a directory
+  of its own named in `AIL_TMP`, for 10 seconds at most. `ail fmt` and
+  `ail fmt --check`: the formatter of AIL over the sources of a package.
+- [x] Dependencies: `cli/deps.aiw` finds the packages of a build, those
+  of the manifest and those they name, fetches the ones from a
+  repository into `deps/` at the revision of the lock and writes the
+  lock; `ail add`, `ail remove` and `ail update` change the manifest and
+  put it back if the packages cannot be found.
+- [x] `make install` (with `PREFIX` and `DESTDIR`) and `make dist`, through
+  `tools/install.sh`: `bin/ail`, and in `lib/ail/` the compiler, the
+  formatter, the manifest, the licence and the library.
+  `tests/install.sh` works on a package with nothing but what was
+  installed.
+- [x] A test finds the directory of AIL in `AIL_HOME`, which `ail test`
+  sets beside `AIL_TMP`: aildb has a test that reads the licence of the
+  AIL it is built with.
+- [x] The 30 findings of the review of the pull requests 17 to 24, each
+  fixed in its commit on the branch `packages-review`: what is not there
+  against what cannot be read, files made anew and written whole, the
+  manifest and the lock put back on any failure, names that are no
+  paths, links not followed by `ail fmt`, one run of `ail test` at a
+  time, one directory under two paths, a package called `ail`, and the
+  tests that lost the status of what they ran.
