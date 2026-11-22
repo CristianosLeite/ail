@@ -352,9 +352,13 @@ fn tlwrite tlp tln tlq tlm
 	tlr=tlfd
 	ifsge tlfd 0
 		call fdwrite tlfd tlq tlm as tlr
-		sys close tlfd
+		# a write that failed late is said when the file is closed
+		sys close tlfd as tlc
 		# 0 for written, or "input/output error" for what was not
 		tlr=tlr*5-5
+		ifz tlr
+			tlr=tlc
+		end
 		ifz tlr
 			call tlmove tla tlan tlp tln as tlr
 		end
