@@ -181,6 +181,11 @@ checked against the code and fixed in a commit of its own on the branch
   share the file a lock is written to). Rejected: a name of its own for each writer's
   file, which keeps two writers apart and not a reader from a half-made `deps/`.
   The executable of a test is `<name>.exe`, and the compiler of a test has its deadline.
+  The lock is required (third review): a directory that may be entered and not read
+  cannot be opened for `flock`, and the command then ends with status 4 and touches
+  nothing. Rejected: a lock file inside such a package, a second mechanism and a file
+  left in the sources for a mode nobody was seen to use. The directory of a dependency
+  may still be one that is not listed.
 - **Two paths of one directory are one package**, compared by what the kernel names the
   directory.
 - **A package called `ail`** is built with the library as `ail` and without itself
@@ -190,6 +195,11 @@ checked against the code and fixed in a commit of its own on the branch
   end. AIL has no way to handle a signal in a program, so the command cannot clean up
   on its own way out. Only a program with a limit of time gets a group; the compiler of
   a build stays in the group of the command.
+  The program does not run before its watcher is there (third review): the child
+  waits for a byte on a second pipe, which the command writes once the watcher is
+  forked; if the command is gone first, the pipe ends and the child with it. A program
+  whose pipes or watcher cannot be made is not started. `make` builds the formatter
+  too, so that `ail fmt` works in a checkout that ran only `make`.
 - **A test leads a group of processes, and the group ends with it**, as
   `tests/run.sh` has it for a test that is killed; here also for one that ends by itself
   and leaves a child, whose directory is about to be removed. Asked for by the review of
