@@ -595,6 +595,15 @@ is cli_update_lock_unwritable 4 "" "ail: cannot write ail.lock" $ail update
 yes cli_update_lock_unwritable_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_update_lock_unwritable_lock cmp -s ail.lock "$tmp/lock"
 rmdir ail.lock.new && $ail remove base > /dev/null
 
+# nor is the file a manifest or a lock is written to before it gets the
+# name: a link there is replaced, and what it named is as it was
+echo precious > "$tmp/precious"
+ln -s "$tmp/precious" ail.pkg.new && ln -s "$tmp/precious" ail.lock.new
+is cli_write_through_no_link 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+yes cli_write_through_no_link_target [ "$(cat "$tmp/precious")" = precious ]
+yes cli_write_through_no_link_files [ ! -L ail.pkg ] && yes cli_write_through_no_link_left [ ! -e ail.pkg.new ]
+yes cli_write_through_no_link_lock [ ! -L ail.lock ] && yes cli_write_through_no_link_lock_left [ ! -e ail.lock.new ]
+$ail remove base > /dev/null
 # the file that the words of git are kept in is never a link to another
 echo precious > "$tmp/precious" && mkdir -p deps && ln -s "$tmp/precious" deps/.git-said
 is cli_git_output_link 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0

@@ -326,8 +326,9 @@ end
 
 # Make the file at the path of tln bytes at tlp hold the tlm bytes at
 # tlq, whole or not at all: they are written to a file beside it, with
-# ".new" after its name, which is then given the name. 0, or the error,
-# after which the file is what it was.
+# ".new" after its name, made anew and never through a link, which is
+# then given the name. 0, or the error, after which the file is what it
+# was.
 fn tlwrite tlp tln tlq tlm
 	local tlb 24
 	store tlb 0
@@ -340,12 +341,22 @@ fn tlwrite tlp tln tlq tlm
 	end
 	load tlb as tla
 	load tlb+8 as tlan
-	call filewrite tla tlan tlq tlm as tlr
-	ifz tlr
-		call tlmove tla tlan tlp tln as tlr
-	end
-	if tlr
-		call fileunlink tla tlan
+	# the file beside it is made anew: what has its name is removed, a
+	# link as a link, and nothing is written through one
+	call fileunlink tla tlan
+	call fileopen tla tlan 0x200c1 420 as tlfd
+	tlr=tlfd
+	ifsge tlfd 0
+		call fdwrite tlfd tlq tlm as tlr
+		sys close tlfd
+		# 0 for written, or "input/output error" for what was not
+		tlr=tlr*5-5
+		ifz tlr
+			call tlmove tla tlan tlp tln as tlr
+		end
+		if tlr
+			call fileunlink tla tlan
+		end
 	end
 	call byfree tlb
 	ret tlr
