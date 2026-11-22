@@ -142,7 +142,12 @@ load b as q
 load b+8 as m
 buf t 24
 call fileread q m t as r
-call putn r>0
+# an error is a number below zero, which is no number above it
+x=0
+ifsgt r 0
+	x=1
+end
+call putn x
 call print "\n"
 END
 printf '00/build/tests/tmp.tmp\n1\n' > tests/tmp.out
@@ -294,7 +299,7 @@ is cli_fmt_check_after 0 "" "" $ail fmt --check
 is cli_fmt_usage 2 "" "usage: ail COMMAND" $ail fmt --all
 rm -rf tests src/x.aiw .hidden deps && cp -r "$tmp/keep/tests" tests
 # the executables are built before the tests: a test runs one
-printf 'use "lib/std/io.aiw"\nuse "lib/std/bytes.aiw"\nuse "lib/std/file.aiw"\nbuf b 24\ncall fileread "build/demo" b as r\ncall putn r>0\ncall print "\\n"\n' > tests/has_bin.aiw
+printf 'use "lib/std/io.aiw"\nuse "lib/std/bytes.aiw"\nuse "lib/std/file.aiw"\nbuf b 24\ncall fileread "build/demo" b as r\nx=0\nifsgt r 0\n\tx=1\nend\ncall putn x\ncall print "\\n"\n' > tests/has_bin.aiw
 echo 1 > tests/has_bin.out
 $ail clean
 is cli_test_builds_first 0 "ok   has_bin
