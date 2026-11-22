@@ -423,8 +423,9 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	ret tlr
 end
 
-# 1 if the files at the two paths hold the same bytes; one that is not
-# there or cannot be read is a file without bytes
+# 1 if the files at the two paths hold the same bytes. One that is not
+# there is a file without bytes; one that is there and cannot be read
+# is the same as nothing, and the result is 0.
 fn tlsame tlp tln tlq tlm
 	local tla 24
 	local tlb 24
@@ -434,8 +435,19 @@ fn tlsame tlp tln tlq tlm
 		store tlb+tli 0
 		tli+=8
 	end
-	call fileread tlp tln tla
-	call fileread tlq tlm tlb
+	call fileread tlp tln tla as tlr
+	call fileread tlq tlm tlb as tli
+	ifsge tlr 0
+		tlr=-2
+	end
+	ifsge tli 0
+		tli=-2
+	end
+	if (tlr!=-2)|(tli!=-2)
+		call byfree tla
+		call byfree tlb
+		ret 0
+	end
 	load tla as tlp
 	load tla+8 as tln
 	load tlb as tlq

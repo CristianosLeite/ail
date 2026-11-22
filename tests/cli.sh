@@ -218,6 +218,15 @@ wait
 yes cli_test_two_runs_other [ "$(cat "$tmp/one")" = "ok   slow
 1 test, 0 failed" ]
 rm tests/slow.*
+# what a test expects is there and cannot be read: the test has failed,
+# also where it does what a test without that file is to do
+printf 'sys exit_group 0\n' > tests/quiet.aiw && echo 0 > tests/quiet.code && chmod 000 tests/quiet.code
+is cli_test_code_unreadable 1 "FAIL quiet
+1 test, 1 failed" "ail: cannot read tests/quiet.code" $ail test quiet
+chmod 600 tests/quiet.code && rm tests/quiet.code && : > tests/quiet.out && chmod 000 tests/quiet.out
+is cli_test_out_unreadable 1 "FAIL quiet
+1 test, 1 failed" "ail: it was to print what tests/quiet.out has, and printed build/tests/quiet.out" $ail test quiet
+chmod 600 tests/quiet.out && rm tests/quiet.*
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test

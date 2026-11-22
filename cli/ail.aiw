@@ -687,6 +687,15 @@ fn testone p n
 	store num+8 0
 	store num+16 0
 	call fileread q m num as r
+	ifslt r 0
+		if r!=-2
+			call byfree num
+			call eprint "ail: cannot read "
+			call eprint q m
+			call eprint "\n"
+			ret 0
+		end
+	end
 	ifsgt r 0
 		load num as s
 		load num+8 as l
