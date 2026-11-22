@@ -173,11 +173,17 @@ fn cc sp sn tp tn err ms
 	i=0
 	while i<k
 		call dpname i as p n
-		call byadd gargs p n
-		call byaddb gargs 61
-		call dpdir i as p n
-		call byadd gargs p n
-		call byaddb gargs 0
+		# but for a package that is itself called ail, which AIL is: that
+		# name is the library, given above, and the compiler takes a
+		# name once
+		call mfeq p n "ail" as r
+		ifz r
+			call byadd gargs p n
+			call byaddb gargs 61
+			call dpdir i as p n
+			call byadd gargs p n
+			call byaddb gargs 0
+		end
 		i+=1
 	end
 	call tlrunenv gargs in out err "" ms as st

@@ -380,6 +380,15 @@ is cli_init_unreadable_manifest 4 "" "ail: this directory has an ail.pkg already
 chmod 600 ail.pkg
 yes cli_init_kept_unreadable_manifest [ "$(cat ail.pkg)" = "name mine" ]
 
+# a package that is called ail, as AIL is, builds: its name is not given
+# to the compiler beside the library of that name
+cd "$tmp" || exit 1
+is cli_new_called_ail 0 "created the package ail in ail/" "" $ail new ail
+cd ail || exit 1
+is cli_run_called_ail 0 "hello from ail" "" $ail run
+is cli_test_called_ail 0 "ok   hello
+1 test, 0 failed" "" $ail test
+
 # ---- where AIL is
 cd "$tmp/fresh" || exit 1
 is cli_home_named 0 "ail $version" "" env AIL_HOME="$top" $ail version

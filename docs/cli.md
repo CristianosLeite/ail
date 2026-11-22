@@ -113,7 +113,8 @@ the manifest names, and those that these name in their own manifests.
   that this one is not.
 
 Each of them is given to the compiler with its directory, this package
-under its own name too. `deps/` is not kept with the sources: `ail new`
+under its own name too, unless that name is `ail`, which is the library
+in every build. `deps/` is not kept with the sources: `ail new`
 has git leave it out, and the lock is enough to make it again.
 
 ### `build`
