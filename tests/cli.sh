@@ -4,11 +4,12 @@
 # The command ail, build/ail, on packages it makes in a directory of its
 # own: what each command leaves, prints and returns. AIL is found from
 # the place of the executable, the checkout this script is in, but for
-# the cases that set AIL_HOME. A command still running after 10 seconds
-# is killed, which fails its case.
+# the cases that set AIL_HOME. A command still running after 60 seconds
+# is killed, which fails its case; one case waits the 10 seconds that a
+# test of a package may run.
 cd "$(dirname "$0")/.." || exit 1
 top=$PWD
-ail="timeout --signal=KILL 10 $top/build/ail"
+ail="timeout --signal=KILL 60 $top/build/ail"
 version=$(sed -n 's/^version //p' ail.pkg)
 mkdir -p build/tests
 tmp=$(mktemp -d "$top/build/tests/cli.XXXXXX") || exit 1
@@ -28,7 +29,7 @@ is() {
     rc=$?
     if [ $rc -eq "$st" ] && [ "$(cat "$tmp/out")" = "$out" ] && [ "$(head -n 1 "$tmp/err")" = "$err" ]
     then echo "ok   $name"
-    else echo "FAIL $name"; fail=1
+    else echo "FAIL $name"; fail=1;
     fi
 }
 # yes <name> command...: the command, a test of the shell, holds
@@ -42,7 +43,7 @@ is cli_version 0 "ail $version" "" $ail version
 is cli_no_command 2 "" "usage: ail COMMAND" $ail
 is cli_unknown_command 2 "" "usage: ail COMMAND" $ail frob
 $ail help > "$tmp/help"
-yes cli_help_names_every_command sh -c "for c in new init build run clean version help; do grep -q \"^  \$c\" '$tmp/help' || exit 1; done"
+yes cli_help_names_every_command sh -c "for c in new init build run test fmt clean version help; do grep -q \"^  \$c\" '$tmp/help' || exit 1; done"
 
 # ---- new
 is cli_new 0 "created the package demo in demo/" "" $ail new demo
@@ -53,6 +54,8 @@ ail $version
 bin demo src/main.aiw" ]
 yes cli_new_source [ "$(cat demo/src/main.aiw)" = 'use "lib/std/io.aiw"
 call print "hello from demo\n"' ]
+yes cli_new_test [ "$(cat demo/tests/hello.aiw | tail -n 2)" = 'use "lib/std/io.aiw"
+call print "a test of demo\n"' ] && yes cli_new_test_output [ "$(cat demo/tests/hello.out)" = "a test of demo" ]
 yes cli_new_gitignore [ "$(cat demo/.gitignore)" = "build/
 deps/" ]
 is cli_new_twice 4 "" "ail: there is something called that already: demo" $ail new demo
@@ -74,6 +77,100 @@ is cli_clean 0 "" "" $ail clean
 yes cli_clean_removed_build [ ! -e build ]
 is cli_clean_twice 0 "" "" $ail clean
 is cli_run_builds 0 "hello from demo" "" $ail run
+
+# ---- test and fmt, on the package as new made it
+is cli_test_new 0 "ok   hello
+1 test, 0 failed" "" $ail test
+is cli_fmt_check_new 0 "" "" $ail fmt --check
+mkdir -p "$tmp/keep" && cp -r tests "$tmp/keep/tests"
+# a test for each thing a test can expect, and each way to fail it
+printf 'frob\n' > tests/refused.aiw
+printf 'ailc: 1: unknown statement\n' > tests/refused.err
+printf 'frob\n' > tests/refused_otherwise.aiw
+printf 'ailc: 1: syntax error\n' > tests/refused_otherwise.err
+printf 'set 1 as x\n' > tests/not_refused.aiw
+printf 'ailc: 1: syntax error\n' > tests/not_refused.err
+printf 'use "lib/std/io.aiw"\ncall print "out\\n"\ncall eprint "to stderr\\n"\nsys exit_group 3\n' > tests/status.aiw
+echo out > tests/status.out
+echo 3 > tests/status.code
+cp tests/status.aiw tests/status_other.aiw
+echo out > tests/status_other.out
+cp tests/status.aiw tests/output_other.aiw
+echo 3 > tests/output_other.code
+echo other > tests/output_other.out
+printf 'frob\n' > tests/no_compile.aiw
+printf 'store 0 1\n' > tests/signal.aiw
+printf 'label a\njmp a\n' > tests/spin.aiw
+# one that writes into its directory, which is empty and is its own
+cat > tests/tmp.aiw <<'END'
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+buf b 24
+call procvar "AIL_TMP" as p n
+call filenames p n b as k
+call putn k
+call byadd b p n
+call byadd b "/made"
+load b as q
+load b+8 as m
+call filewrite q m "x" as r
+call putn r
+# the directory is build/tests/tmp.tmp of the package
+call print p+n-20 20
+call print "\n"
+END
+echo "00/build/tests/tmp.tmp" > tests/tmp.out
+mkdir tests/lib && printf '# no test: a file that tests use\nfrob\n' > tests/lib/part.aiw
+is cli_test_all 1 "ok   hello
+FAIL no_compile
+FAIL not_refused
+FAIL output_other
+ok   refused
+FAIL refused_otherwise
+FAIL signal
+FAIL spin
+ok   status
+FAIL status_other
+ok   tmp
+11 tests, 7 failed" "ail: it does not compile, see build/tests/no_compile.err" $ail test
+yes cli_test_says_why [ "$(cat "$tmp/err")" = "ail: it does not compile, see build/tests/no_compile.err
+ail: the compiler was to refuse it as tests/not_refused.err says, and said build/tests/not_refused.err
+ail: it was to print what tests/output_other.out has, and printed build/tests/output_other.out
+ail: the compiler was to refuse it as tests/refused_otherwise.err says, and said build/tests/refused_otherwise.err
+ail: it ended with the signal 11, not with the status 0
+ail: it still ran after 10 seconds and was killed
+ail: it ended with the status 3, not with the status 0" ]
+yes cli_test_keeps_what_was_printed [ "$(cat build/tests/output_other.out)" = out ] && yes cli_test_keeps_stderr [ "$(cat build/tests/status.log)" = "to stderr" ]
+yes cli_test_removes_its_directory [ ! -e build/tests/tmp.tmp ]
+is cli_test_named 0 "ok   refused
+ok   status
+2 tests, 0 failed" "" $ail test status refused
+is cli_test_named_missing 1 "FAIL nope
+1 test, 1 failed" "ail: there is no test tests/nope.aiw" $ail test nope
+# fmt: the lines that are not indented, then the files written again; a
+# file below a directory with a dot, in build/ or in deps/ is not looked at
+printf 'fn f\ncall g\nend\n' > src/x.aiw
+mkdir -p .hidden deps/d build && cp src/x.aiw .hidden/ && cp src/x.aiw deps/d/ && cp src/x.aiw build/x.aiw
+is cli_fmt_check 1 "src/x.aiw:2" "" $ail fmt --check
+is cli_fmt 0 "" "" $ail fmt
+yes cli_fmt_wrote [ "$(cat src/x.aiw)" = "fn f
+	call g
+end" ]
+yes cli_fmt_left_the_rest cmp -s .hidden/x.aiw deps/d/x.aiw
+is cli_fmt_check_after 0 "" "" $ail fmt --check
+is cli_fmt_usage 2 "" "usage: ail COMMAND" $ail fmt --all
+rm -rf tests src/x.aiw .hidden deps && cp -r "$tmp/keep/tests" tests
+# the executables are built before the tests: a test runs one
+printf 'use "lib/std/io.aiw"\nuse "lib/std/bytes.aiw"\nuse "lib/std/file.aiw"\nbuf b 24\ncall fileread "build/demo" b as r\ncall putn r>0\ncall print "\\n"\n' > tests/has_bin.aiw
+echo 1 > tests/has_bin.out
+$ail clean
+is cli_test_builds_first 0 "ok   has_bin
+ok   hello
+2 tests, 0 failed" "" $ail test
+rm tests/has_bin.*
+$ail clean && $ail build
 
 # a program that says its arguments and where it runs, and ends with 7
 cat > src/main.aiw <<'END'

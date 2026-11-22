@@ -15,6 +15,7 @@ const tlreadlink 89
 
 buf tlhome 24       # the directory of AIL, as tlfind found it
 buf tlailc 24       # the path of its compiler, with a NUL byte
+buf tlindent 24     # and of its formatter, the same, or no bytes if it has none
 buf tlvtext 24      # its manifest, and where its version is in it
 var tlvp tlvn
 buf tlcwd 24        # the directory the command was started in
@@ -43,8 +44,9 @@ end
 
 # Try the directory of the tln bytes at tlp as that of AIL: it has the
 # manifest ail.pkg with a version, the compiler as ailc or as build/ailc,
-# which is how a checkout has it, and the library under lib/. 1 if it is
-# one, and tlhome, tlailc and the version are then set.
+# which is how a checkout has it, and the library under lib/; the
+# formatter is indent or build/tools/indent, and may be missing. 1 if it
+# is one, and tlhome, tlailc, tlindent and the version are then set.
 fn tlhomeat tlp tln
 	local tld 72
 	call bycut tlvtext 0
@@ -89,6 +91,26 @@ fn tlhomeat tlp tln
 		end
 	end
 	call byaddb tlailc 0
+	# the formatter, beside the compiler or among the tools of a checkout
+	call bycut tlindent 0
+	call byadd tlindent tlp tln
+	call byadd tlindent "/indent"
+	load tlindent as tlq
+	load tlindent+8 as tlm
+	call tlisfile tlq tlm as tlr
+	ifz tlr
+		call bycut tlindent 0
+		call byadd tlindent tlp tln
+		call byadd tlindent "/build/tools/indent"
+		load tlindent as tlq
+		load tlindent+8 as tlm
+		call tlisfile tlq tlm as tlr
+	end
+	if tlr
+		call byaddb tlindent 0
+	else
+		call bycut tlindent 0
+	end
 	call bycut tlhome 0
 	call byadd tlhome tlp tln as tlr
 	ret tlr
@@ -287,4 +309,232 @@ fn tlremove tlp tln
 	call byfree tlb
 	call byfree tlc
 	ret tlr
+end
+
+# Start the program at the path that is the first string in the buffer
+# tls, with the strings as its arguments as tlrun takes them, and wait
+# for its end as tlrun does. The tlen bytes at tlep, "NAME=value" and a
+# NUL byte, are put before its environment, unless tlen is 0. A program
+# that still runs after tlms milliseconds is killed, and the result is
+# then -1000; tlms 0 waits without limit.
+fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
+	local tlv 24
+	local tle 24
+	local tlw 8
+	tli=0
+	while tli<24
+		store tlv+tli 0
+		store tle+tli 0
+		tli+=8
+	end
+	load tls as tlq
+	load tls+8 as tln
+	tlp=tlq+tln
+	tlok=1
+	while tlq<tlp
+		store tlw tlq
+		call byadd tlv tlw 8 as tlr
+		tlok=tlok&tlr
+		call strlen tlq as tln
+		tlq+=tln+1
+	end
+	store tlw 0
+	call byadd tlv tlw 8 as tlr
+	tlok=tlok&tlr
+	if tlen
+		store tlw tlep
+		call byadd tle tlw 8 as tlr
+		tlok=tlok&tlr
+	end
+	call procenv as tlq
+	tlgo=1
+	while tlgo
+		load tlq as tlgo
+		store tlw tlgo
+		call byadd tle tlw 8 as tlr
+		tlok=tlok&tlr
+		tlq+=8
+	end
+	tlpid=-1
+	if tlok
+		sys fork as tlpid
+		ifz tlpid
+			# the child: nothing here returns
+			call procopen tlin
+			call procopen tlout
+			call procopen tlerr
+			call procmap tlin tlout tlerr
+			load tlv as tlq
+			load tlq as tlp
+			load tle as tln
+			sys execve tlp tlq tln
+			sys exit 127
+		end
+	end
+	call byfree tlv
+	call byfree tle
+	ifslt tlpid 0
+		ret -2000
+	end
+	call procwait tlpid tlms as tlr
+	ret tlr
+end
+
+# 1 if the files at the two paths hold the same bytes; one that is not
+# there or cannot be read is a file without bytes
+fn tlsame tlp tln tlq tlm
+	local tla 24
+	local tlb 24
+	tli=0
+	while tli<24
+		store tla+tli 0
+		store tlb+tli 0
+		tli+=8
+	end
+	call fileread tlp tln tla
+	call fileread tlq tlm tlb
+	load tla as tlp
+	load tla+8 as tln
+	load tlb as tlq
+	load tlb+8 as tlm
+	call mfeq tlp tln tlq tlm as tlr
+	call byfree tla
+	call byfree tlb
+	ret tlr
+end
+
+# 1 if the string at tlp, which ends with a NUL byte, comes after the one
+# at tlq in the order of their bytes
+fn tlafter tlp tlq
+	label next
+	loadb tlp as tla
+	loadb tlq as tlb
+	if tla==tlb
+		ifz tla
+			ret 0
+		end
+		tlp+=1
+		tlq+=1
+		jmp next
+	end
+	ret tla>tlb
+end
+
+# Add to the buffer tlv the addresses of the tlk strings at tlp, each
+# with a NUL byte after it, in the order of their bytes: 1, or 0 without
+# memory. The strings stay where they are.
+fn tlsort tlv tlp tlk
+	local tlw 8
+	load tlv+8 as tlbase
+	tli=0
+	while tli<tlk
+		store tlw tlp
+		call byadd tlv tlw 8 as tlr
+		ifz tlr
+			ret 0
+		end
+		call strlen tlp as tln
+		tlp+=tln+1
+		tli+=1
+	end
+	# an insertion sort of the addresses just added
+	load tlv as tla
+	tla+=tlbase
+	tli=1
+	while tli<tlk
+		load tla+tli*8 as tlx
+		tlj=tli
+		tlgo=1
+		while tlgo
+			tlgo=0
+			if tlj
+				load tla+tlj*8-8 as tly
+				call tlafter tly tlx as tlgo
+				if tlgo
+					store tla+tlj*8 tly
+					tlj-=1
+				end
+			end
+		end
+		store tla+tlj*8 tlx
+		tli+=1
+	end
+	ret 1
+end
+
+# Add to the buffer tlb the paths of the sources of AIL in the directory
+# of the tln bytes at tlp and in those below it, each with a NUL byte
+# after it: the files whose names end in ".aiw". A name that starts with
+# a dot is passed over, and at the top, where tltop is 1, so are build
+# and deps. The result is the number of paths, or a negative error.
+fn tlsources tlb tlp tln tltop
+	local tlnames 24
+	local tlpath 24
+	tli=0
+	while tli<24
+		store tlnames+tli 0
+		store tlpath+tli 0
+		tli+=8
+	end
+	call filenames tlp tln tlnames as tlk
+	ifslt tlk 0
+		call byfree tlnames
+		ret tlk
+	end
+	tlc=0
+	tlo=0
+	while tlk
+		load tlnames as tlq
+		tlq+=tlo
+		call strlen tlq as tlm
+		tlo+=tlm+1
+		tlk-=1
+		loadb tlq as tlx
+		tlskip=(tlx==46)
+		if tltop
+			call mfeq tlq tlm "build" as tlr
+			tlskip=tlskip|tlr
+			call mfeq tlq tlm "deps" as tlr
+			tlskip=tlskip|tlr
+		end
+		ifz tlskip
+			call bycut tlpath 0
+			# the top is named ".", which a path does not start with
+			ifz tltop
+				call byadd tlpath tlp tln
+				call byaddb tlpath 47
+			end
+			call byadd tlpath tlq tlm as tlr
+			ifz tlr
+				tlc=-12
+				jmp out
+			end
+			load tlpath as tlq
+			load tlpath+8 as tlm
+			call tlsources tlb tlq tlm 0 as tlr
+			ifsge tlr 0
+				tlc+=tlr
+			else
+				# not a directory: a source if its name ends so
+				if (tlr==-20)&(tlm>4)
+					load tlpath as tlq
+					load4 tlq+tlm-4 as tlx
+					# ".aiw" as the four bytes are read
+					if tlx==0x7769612e
+						call byadd tlb tlq tlm
+						call byaddb tlb 0 as tlr
+						ifz tlr
+							tlc=-12
+							jmp out
+						end
+						tlc+=1
+					end
+				end
+			end
+		end
+	end
+	label out
+	call byfree tlnames
+	call byfree tlpath
+	ret tlc
 end

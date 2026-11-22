@@ -102,7 +102,19 @@ The rest is the open section of `docs/TODO.md`.
   not required to be a repository.
 - The statuses: 1 a source did not compile, 2 usage, 3 the manifest,
   4 files and AIL not found.
+- **A test of a package is what a test of this repository is**:
+  `tests/<name>.aiw` with `.out`, `.code` or `.err`, the 10 seconds, the
+  directory of its own. `ail test` is `tests/run.sh` written in AIL, so
+  that aildb and the others drop their copy of that script. The
+  directory is named in `AIL_TMP`, where aildb had `AILDB_TMP`.
+- **What a failed test printed is kept** in `build/tests/`, and stderr
+  names the two files that differ; the command does not print a
+  difference itself, which `diff` does.
+- **`ail fmt` starts the formatter**, `tools/indent.aiw` as it is built,
+  and does not have it compiled in: one program does the indenting.
 
 ## Not checked
+- `ail test` kills a test that runs too long, but not the children that
+  test started, where `tests/run.sh` kills the whole process group.
 - More than 256 packages and a path of package and file above 4095 bytes
   are refused in the code and have no test.

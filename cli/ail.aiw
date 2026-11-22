@@ -1,9 +1,11 @@
-# cli/ail.aiw -- the command ail: a package made, built, run and cleaned.
+# cli/ail.aiw -- the command ail: a package made, built, run, tested,
+# formatted and cleaned.
 # docs/cli.md says what each command does and docs/packages.md what a
 # manifest holds. This file is the only one of the command that prints
 # and ends the process; the files it uses return what went wrong.
 #
-# The status is 0, or 1 if a source did not compile, 2 for wrong usage,
+# The status is 0, or 1 if a source did not compile, a test failed or a
+# source is not formatted, 2 for wrong usage,
 # 3 for a manifest that is missing or wrong, and 4 if a file or a
 # directory could not be read, written or run.
 use "lib/std/io.aiw"
@@ -46,6 +48,8 @@ fn help fd
 	call fdwrite fd "  init [NAME]                 make this directory a package\n"
 	call fdwrite fd "  build [BIN]                 compile the executables of the package into build/\n"
 	call fdwrite fd "  run [BIN] [-- ARGUMENT...]  build an executable and run it\n"
+	call fdwrite fd "  test [NAME...]              build everything and run the tests of tests/\n"
+	call fdwrite fd "  fmt [--check]               indent the sources, or say which lines are not\n"
 	call fdwrite fd "  clean                       remove build/\n"
 	call fdwrite fd "  version                     print the version of AIL\n"
 	call fdwrite fd "  help                        print this\n"
@@ -99,33 +103,15 @@ fn project
 	end
 end
 
-# Compile the executable of the entry e of the manifest into build/: 0,
-# or 1 if the compiler refused the source, which it has said on stderr.
-# The file build/<name> is replaced only by one that compiled.
-fn compile e
-	load e+8 as np
-	load e+16 as nn
-	load e+24 as sp
-	load e+32 as sn
-	call filemkdir "build" 493 as r
-	if (r!=0)&(r!=-17)
-		call fail stio "cannot make the directory build" ""
-	end
-	call bycut gout 0
-	call byadd gout "build/"
-	call byadd gout np nn
-	call bycut gtmp 0
-	call byadd gtmp "build/"
-	call byadd gtmp np nn
-	call byadd gtmp ".tmp."
-	sys getpid as pid
-	call byaddn gtmp pid
+# Run the compiler on the source at the path of sn bytes at sp, with the
+# file at the path of tn bytes at tp as its output, made anew and to be
+# run, and err as its stderr, -1 for that of this process: the status of
+# the compiler, 0 if the source compiled and 1 if it was refused.
+fn cc sp sn tp tn err
 	call fileopen sp sn 0 0 as in
 	ifslt in 0
 		call fail stio "cannot read " sp sn
 	end
-	load gtmp as tp
-	load gtmp+8 as tn
 	call fileopen tp tn 0x241 493 as out
 	ifslt out 0
 		call fail stio "cannot write " tp tn
@@ -140,16 +126,49 @@ fn compile e
 	load tlhome+8 as n
 	call byadd gargs p n
 	call byaddb gargs 0
-	call tlrun gargs in out -1 as st
+	call tlrun gargs in out err as st
 	sys close in
 	sys close out
+	if (st!=0)&(st!=1)
+		call fileunlink tp tn
+		call fail stio "the compiler did not run to its end for " sp sn
+	end
+	ret st
+end
+
+# make the directory at the path, which may be there
+fn dir p n
+	call filemkdir p n 493 as r
+	if (r!=0)&(r!=-17)
+		call fail stio "cannot make the directory " p n
+	end
+end
+
+# Compile the executable of the entry e of the manifest into build/: 0,
+# or 1 if the compiler refused the source, which it has said on stderr.
+# The file build/<name> is replaced only by one that compiled.
+fn compile e
+	load e+8 as np
+	load e+16 as nn
+	load e+24 as sp
+	load e+32 as sn
+	call dir "build"
+	call bycut gout 0
+	call byadd gout "build/"
+	call byadd gout np nn
+	call bycut gtmp 0
+	call byadd gtmp "build/"
+	call byadd gtmp np nn
+	call byadd gtmp ".tmp."
+	sys getpid as pid
+	call byaddn gtmp pid
+	load gtmp as tp
+	load gtmp+8 as tn
+	call cc sp sn tp tn -1 as st
 	load gtmp as tp
 	load gtmp+8 as tn
 	if st
 		call fileunlink tp tn
-		if st!=1
-			call fail stio "the compiler did not run to its end for " sp sn
-		end
 		ret 1
 	end
 	load gout as p
@@ -354,9 +373,9 @@ fn putdir p n
 end
 
 # The files of a new package, named by the n bytes at p, in the
-# directory in gout: the manifest, a source that prints a line, and what
-# git is to leave out. If keep is 1 a source or a .gitignore that is
-# there stays as it is.
+# directory in gout: the manifest, a source that prints a line, a test,
+# and what git is to leave out. If keep is 1 a source, a test or a
+# .gitignore that is there stays as it is.
 fn scaffold p n keep
 	call bycut gmsg 0
 	call byadd gmsg "name "
@@ -373,6 +392,17 @@ fn scaffold p n keep
 	call byadd gmsg p n
 	call byadd gmsg "\\n\"\n"
 	call put "src/main.aiw" keep
+	call putdir "tests"
+	call bycut gmsg 0
+	call byadd gmsg "# A test is a program and what it is to print: tests/<name>.aiw and\n# tests/<name>.out. \"ail test\" compiles and runs each one.\nuse \"lib/std/io.aiw\"\ncall print \"a test of "
+	call byadd gmsg p n
+	call byadd gmsg "\\n\"\n"
+	call put "tests/hello.aiw" keep
+	call bycut gmsg 0
+	call byadd gmsg "a test of "
+	call byadd gmsg p n
+	call byadd gmsg "\n"
+	call put "tests/hello.out" keep
 	call bycut gmsg 0
 	call byadd gmsg "build/\ndeps/\n"
 	call put ".gitignore" keep
@@ -455,6 +485,306 @@ fn cmdinit
 	call print " in this directory\n"
 end
 
+# the path of a file of a test into the buffer b: the directory, the
+# name of the test and what follows it
+fn tpath b d dn p n s sn
+	call bycut b 0
+	call byadd b d dn
+	call byadd b p n
+	call byadd b s sn as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+end
+
+buf ta 24           # paths of the files of a test
+buf tb 24
+buf tc 24
+buf tenv 24         # "AIL_TMP=" and the directory of a test
+
+# Run the test of the n bytes at p: 1 if it does what its files expect,
+# or 0, with a line on stderr that says in what it does not. What the
+# compiler and the program wrote is left in build/tests/.
+fn testone p n
+	local num 24
+	call tpath ta "tests/" p n ".aiw"
+	call tpath tb "build/tests/" p n ""
+	call tpath tc "build/tests/" p n ".err"
+	load ta as sp
+	load ta+8 as sn
+	call tlisfile sp sn as r
+	ifz r
+		call eprint "ail: there is no test "
+		call eprint sp sn
+		call eprint "\n"
+		ret 0
+	end
+	load tc as q
+	load tc+8 as m
+	call fileopen q m 0x241 420 as err
+	ifslt err 0
+		call fail stio "cannot write " q m
+	end
+	load tb as tp
+	load tb+8 as tn
+	call cc sp sn tp tn err as st
+	sys close err
+	# a test with a file .err: the compiler refuses it with those words
+	call tpath ta "tests/" p n ".err"
+	load ta as sp
+	load ta+8 as sn
+	call tlisfile sp sn as r
+	load tc as q
+	load tc+8 as m
+	if r
+		call tlsame sp sn q m as r
+		if r&(st==1)
+			ret 1
+		end
+		call eprint "ail: the compiler was to refuse it as "
+		call eprint sp sn
+		call eprint " says, and said "
+		call eprint q m
+		call eprint "\n"
+		ret 0
+	end
+	call tlsame q m "" as r
+	if st|(r==0)
+		call eprint "ail: it does not compile, see "
+		call eprint q m
+		call eprint "\n"
+		ret 0
+	end
+	# a directory of its own for the files it makes, named in AIL_TMP
+	call tpath ta "build/tests/" p n ".tmp"
+	load ta as q
+	load ta+8 as m
+	call tlremove q m
+	call dir q m
+	call bycut tenv 0
+	call byadd tenv "AIL_TMP="
+	load tlroot as s
+	load tlroot+8 as l
+	call byadd tenv s l
+	call byaddb tenv 47
+	call byadd tenv q m
+	call byaddb tenv 0
+	# the program: its path with a slash, so that it is not searched for
+	call bycut gargs 0
+	call byadd gargs "./"
+	load tb as tp
+	load tb+8 as tn
+	call byadd gargs tp tn
+	call byaddb gargs 0
+	call tpath tb "build/tests/" p n ".out"
+	call tpath tc "build/tests/" p n ".log"
+	load tb as q
+	load tb+8 as m
+	call fileopen q m 0x241 420 as out
+	load tc as q
+	load tc+8 as m
+	call fileopen q m 0x241 420 as err
+	call fileopen "/dev/null" 0 0 as in
+	ifslt in|out|err 0
+		call fail stio "cannot write the files of the test in build/tests" ""
+	end
+	load tenv as s
+	load tenv+8 as l
+	call tlrunenv gargs in out err s l 10000 as st
+	sys close in
+	sys close out
+	sys close err
+	load ta as q
+	load ta+8 as m
+	call tlremove q m
+	if st==-1000
+		call eprint "ail: it still ran after 10 seconds and was killed\n"
+		ret 0
+	end
+	# the status it is to end with, 0 without a file .code
+	call tpath ta "tests/" p n ".code"
+	load ta as q
+	load ta+8 as m
+	want=0
+	store num 0
+	store num+8 0
+	store num+16 0
+	call fileread q m num as r
+	ifsgt r 0
+		load num as s
+		load num+8 as l
+		# without the line feed at its end
+		loadb s+l-1 as x
+		if x==10
+			l-=1
+		end
+		want=0
+		i=0
+		while i<l
+			loadb s+i as x
+			want=want*10+x-48
+			i+=1
+		end
+	end
+	call byfree num
+	if st!=want
+		call eprint "ail: it ended with "
+		ifslt st 0
+			call eprint "the signal "
+			st=0-st
+		else
+			call eprint "the status "
+		end
+		call bycut tenv 0
+		call byaddn tenv st
+		call byadd tenv ", not with the status "
+		call byaddn tenv want
+		call byaddb tenv 10
+		load tenv as s
+		load tenv+8 as l
+		call eprint s l
+		ret 0
+	end
+	call tpath ta "tests/" p n ".out"
+	load ta as sp
+	load ta+8 as sn
+	load tb as q
+	load tb+8 as m
+	call tlsame sp sn q m as r
+	ifz r
+		call eprint "ail: it was to print what "
+		call eprint sp sn
+		call eprint " has, and printed "
+		call eprint q m
+		call eprint "\n"
+	end
+	ret r
+end
+
+# "ail test [NAME...]": every executable built, then the tests named, or
+# all of tests/ in the order of their names
+fn cmdtest
+	local names 24
+	local order 24
+	local all 24
+	i=0
+	while i<24
+		store names+i 0
+		store order+i 0
+		i+=8
+	end
+	call project
+	call build mfbin|mftestbin 0 0
+	call dir "build"
+	call dir "build/tests"
+	call argc as c
+	k=0
+	if c>2
+		i=2
+		while i<c
+			call argv i as p n
+			call byadd names p n
+			call byaddb names 0
+			k+=1
+			i+=1
+		end
+	else
+		# the names of tests/ that end in ".aiw", without that
+		store all 0
+		store all+8 0
+		store all+16 0
+		call filenames "tests" all as j
+		load all as p
+		while j>0
+			call strlen p as n
+			if n>4
+				load4 p+n-4 as x
+				if x==0x7769612e
+					call byadd names p n-4
+					call byaddb names 0
+					k+=1
+				end
+			end
+			p+=n+1
+			j-=1
+		end
+		call byfree all
+	end
+	load names as p
+	call tlsort order p k as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+	bad=0
+	i=0
+	while i<k
+		load order as p
+		load p+i*8 as p
+		call strlen p as n
+		call testone p n as r
+		if r
+			call print "ok   "
+		else
+			call print "FAIL "
+			bad+=1
+		end
+		call print p n
+		call print "\n"
+		i+=1
+	end
+	call bycut gmsg 0
+	call byaddn gmsg k
+	if k==1
+		call byadd gmsg " test, "
+	else
+		call byadd gmsg " tests, "
+	end
+	call byaddn gmsg bad
+	call byadd gmsg " failed\n"
+	load gmsg as p
+	load gmsg+8 as n
+	call print p n
+	if bad
+		sys exit_group stfail
+	end
+end
+
+# "ail fmt [--check]": the formatter of AIL on every source of the
+# package, with its own output and its status
+fn cmdfmt
+	call argc as c
+	call argv 2 as p n
+	call mfeq p n "--check" as chk
+	if (c>3)|((c==3)&(chk==0))
+		call usage
+	end
+	call project
+	load tlindent+8 as n
+	ifz n
+		call fail stio "this AIL has no formatter" ""
+	end
+	call bycut gargs 0
+	load tlindent as p
+	call byadd gargs p n
+	if chk
+		call byadd gargs "--check\0"
+	end
+	call tlsources gargs "." 1 as k
+	ifslt k 0
+		call fail stio "cannot read the directories of the package" ""
+	end
+	ifz k
+		ret 0
+	end
+	call tlrun gargs -1 -1 -1 as st
+	if st
+		if st==1
+			sys exit_group stfail
+		end
+		call fail stio "the formatter did not run to its end" ""
+	end
+end
+
 call argv 1 as p n
 ifz n
 	call usage
@@ -493,6 +823,16 @@ end
 call mfeq p n "run" as r
 if r
 	call cmdrun
+end
+call mfeq p n "test" as r
+if r
+	call cmdtest
+	sys exit_group 0
+end
+call mfeq p n "fmt" as r
+if r
+	call cmdfmt
+	sys exit_group 0
 end
 call mfeq p n "clean" as r
 if r

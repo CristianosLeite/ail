@@ -793,3 +793,7 @@ it; `TODO.md` has what is decided and what is left.
   `build/ail`: `new`, `init`, `build`, `run`, `clean`, `version`, `help`;
   it finds AIL from `AIL_HOME` or from the place of its executable.
   `docs/cli.md`, `tests/cli.sh`.
+- [x] `ail test`: the executables built, then each `tests/<name>.aiw`
+  compiled and run against its `.out`, `.code` or `.err`, in a directory
+  of its own named in `AIL_TMP`, for 10 seconds at most. `ail fmt` and
+  `ail fmt --check`: the formatter of AIL over the sources of a package.
