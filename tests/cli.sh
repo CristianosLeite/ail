@@ -227,6 +227,36 @@ chmod 600 tests/quiet.code && rm tests/quiet.code && : > tests/quiet.out && chmo
 is cli_test_out_unreadable 1 "FAIL quiet
 1 test, 1 failed" "ail: it was to print what tests/quiet.out has, and printed build/tests/quiet.out" $ail test quiet
 chmod 600 tests/quiet.out && rm tests/quiet.*
+# AIL_TMP and AIL_HOME are in the environment of a test once each, also
+# when the command was started with them set
+cat > tests/once.aiw <<'END'
+use "lib/std/io.aiw"
+use "lib/std/proc.aiw"
+call procenv as e
+tmps=0
+homes=0
+label next
+load e as s
+if s
+	load s as x
+	# "AIL_TMP=" and "AIL_HOME" as the eight bytes are read
+	if x==0x3d504d545f4c4941
+		tmps+=1
+	end
+	if x==0x454d4f485f4c4941
+		homes+=1
+	end
+	e+=8
+	jmp next
+end
+call putn tmps
+call putn homes
+call print "\n"
+END
+echo 11 > tests/once.out
+is cli_test_environment_once 0 "ok   once
+1 test, 0 failed" "" env AIL_TMP=elsewhere AIL_HOME="$top" $ail test once
+rm tests/once.*
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test

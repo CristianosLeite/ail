@@ -406,10 +406,35 @@ fn tlremove tlp tln
 	ret tlr
 end
 
+# 1 if one of the strings "NAME=value" in the tln bytes at tlp, each
+# with a NUL byte after it, has the name of the string at tls
+fn tlenvhas tlp tln tls
+	tlq=tlp
+	while tlq<tlp+tln
+		tli=0
+		label same
+		loadb tlq+tli as tla
+		loadb tls+tli as tlb
+		if tla==tlb
+			if tla==61
+				ret 1
+			end
+			if tla
+				tli+=1
+				jmp same
+			end
+		end
+		call strlen tlq as tli
+		tlq+=tli+1
+	end
+	ret 0
+end
+
 # Start the program at the path that is the first string in the buffer
 # tls, with the strings as its arguments as tlrun takes them, and wait
 # for its end as tlrun does. The tlen bytes at tlep, strings "NAME=value"
-# with a NUL byte after each, are put before its environment. A program
+# with a NUL byte after each, are put before its environment, which
+# loses the variables of those names. A program
 # that still runs after tlms milliseconds is killed, and the result is
 # then -1000; tlms 0 waits without limit.
 fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
@@ -448,9 +473,17 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	tlgo=1
 	while tlgo
 		load tlq as tlgo
-		store tlw tlgo
-		call byadd tle tlw 8 as tlr
-		tlok=tlok&tlr
+		# a variable that was given above is not passed on a second time
+		# with the value it had
+		tlr=0
+		if tlgo
+			call tlenvhas tlep tlen tlgo as tlr
+		end
+		ifz tlr
+			store tlw tlgo
+			call byadd tle tlw 8 as tlr
+			tlok=tlok&tlr
+		end
 		tlq+=8
 	end
 	tlpid=-1
