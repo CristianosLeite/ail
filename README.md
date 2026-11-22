@@ -41,6 +41,20 @@ build/ailc < prog.aiw > prog && chmod +x prog
 
 Or put it in `examples/foo.aiw` and run `make build/foo`.
 
+A project of its own is a package, which the command `ail` makes, builds,
+runs and tests ([docs/cli.md](docs/cli.md)); `make install` puts the
+command, the compiler and the library under a prefix, `/usr/local` if
+none is given:
+
+```
+make install PREFIX=$HOME/.local   # bin/ail, and the rest in lib/ail/
+ail new hello                      # hello/: ail.pkg, src/main.aiw, a test
+cd hello
+ail run                            # prints: hello from hello
+ail test                           # prints: ok   hello, and 1 test, 0 failed
+ail add https://example.org/other.git   # use another package, at its latest tag v1.2.3
+```
+
 ## The language in one minute
 
 | Form | Meaning |
@@ -91,7 +105,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
 - [Packages](docs/packages.md): the manifest `ail.pkg` of a package, its version and its dependencies, and the lock
-- [The command `ail`](docs/cli.md): a package made, built and run
+- [The command `ail`](docs/cli.md): a package made, built, run and tested, its dependencies, and how AIL is installed
 - [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.aiw`
 - [Performance](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md): how the examples are timed against C, Rust and assembly, the kernels of the algorithm programs apart from their setup, and the results
 - [Roadmap](docs/roadmap.md): what is done and what comes next

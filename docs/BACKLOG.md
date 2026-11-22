@@ -802,3 +802,8 @@ it; `TODO.md` has what is decided and what is left.
   repository into `deps/` at the revision of the lock and writes the
   lock; `ail add`, `ail remove` and `ail update` change the manifest and
   put it back if the packages cannot be found.
+- [x] `make install` (with `PREFIX` and `DESTDIR`) and `make dist`, through
+  `tools/install.sh`: `bin/ail`, and in `lib/ail/` the compiler, the
+  formatter, the manifest, the licence and the library.
+  `tests/install.sh` works on a package with nothing but what was
+  installed.

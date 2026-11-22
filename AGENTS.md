@@ -27,7 +27,7 @@ Requires x86-64 Linux and the seed: a local `seed/ailc-<version>`, or `curl` or 
 make            # build build/ailc (from the seed) and every example in examples/
 make test       # run every test in tests/, the I/O checks of tests/io.sh and
                 # the packages of use (tests/pkg.sh) and the command ail
-                # (tests/cli.sh),
+                # (tests/cli.sh) and an installation of it (tests/install.sh),
                 # check a failed example build (tests/make.sh), the form of the
                 # tables (tests/tables.sh), instruction bytes (tests/insn.sh) and
                 # emitted files (tests/bytes.sh), compare the compiler with its
@@ -59,7 +59,7 @@ build/tools/randvars build/ailc 2000 4 asyncs # with few waits, so that variable
 build/tools/randvars dump dir 5 1   # write the programs of a seed to dir/<n>.txt, compiling nothing
 ```
 
-The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A package has a manifest, `ail.pkg`, and AIL has its own, with its version (`docs/packages.md`); `cli/manifest.aiw` reads it. The command `ail` (`docs/cli.md`) is `cli/ail.aiw`, the only file of it that prints and exits, with `cli/tool.aiw`; `make` builds it as `build/ail` and `tests/cli.sh` runs it on packages it makes. `ail test` runs the tests of a package by the convention of `tests/run.sh` below, and `ail fmt` its formatter. `cli/deps.aiw` finds the packages a manifest names and fetches those from a git repository into `deps/` at the revision of `ail.lock`; `ail add`, `remove` and `update` change the manifest. `tests/cli.sh` tests them against repositories it makes, with no network. An installation is the open item of `docs/TODO.md`. A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
+The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A package has a manifest, `ail.pkg`, and AIL has its own, with its version (`docs/packages.md`); `cli/manifest.aiw` reads it. The command `ail` (`docs/cli.md`) is `cli/ail.aiw`, the only file of it that prints and exits, with `cli/tool.aiw`; `make` builds it as `build/ail` and `tests/cli.sh` runs it on packages it makes. `ail test` runs the tests of a package by the convention of `tests/run.sh` below, and `ail fmt` its formatter. `cli/deps.aiw` finds the packages a manifest names and fetches those from a git repository into `deps/` at the revision of `ail.lock`; `ail add`, `remove` and `update` change the manifest. `tests/cli.sh` tests them against repositories it makes, with no network. `make install PREFIX=<dir>` and `make dist` put the command, the compiler, the formatter and the library in one place (`tools/install.sh`, `tests/install.sh`). A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
 
 ```
 build/ailc < prog.aiw > prog && chmod +x prog

@@ -77,7 +77,7 @@ $(B)/ailc2: $(SRC) $(B)/ailc
 test: all $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
-	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; \
+	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; tests/install.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
@@ -94,7 +94,29 @@ endif
 fuzz: $(B)/ailc
 	tests/fuzz.sh $(or $(N),20000) $(or $(SEED),1)
 
+# An installation (docs/cli.md): the command in bin/, and in lib/ail/
+# what it looks for there, the compiler, the formatter, the library and
+# the manifest of AIL. DESTDIR is put before PREFIX, for a package that
+# is put together in another place than it is installed to.
+PREFIX ?= /usr/local
+VERSION := $(shell sed -n 's/^version //p' ail.pkg)
+
+install: all $(B)/tools/indent
+	tools/install.sh $(B) "$(DESTDIR)$(PREFIX)"
+
+# The same files as one file to pass on, for x86-64 Linux:
+# build/ail-<version>-x86_64-linux.tar.gz, which unpacks into a
+# directory of that name with bin/ and lib/ in it.
+DIST := ail-$(VERSION)-x86_64-linux
+
+dist: all $(B)/tools/indent
+	rm -rf $(B)/$(DIST)
+	tools/install.sh $(B) $(B)/$(DIST)
+	tar -C $(B) --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -czf $(B)/$(DIST).tar.gz $(DIST)
+	rm -rf $(B)/$(DIST)
+	@echo $(B)/$(DIST).tar.gz
+
 clean:
 	rm -rf $(B)
 
-.PHONY: all tools test fuzz clean
+.PHONY: all tools test fuzz install dist clean

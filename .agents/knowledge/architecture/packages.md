@@ -144,6 +144,19 @@ The rest is the open section of `docs/TODO.md`.
 - A package may name files of a package it does not list, if another
   package of the build lists it; the compiler is given all of them.
 
+## Installation (agent, 2026-11-22; for the user to review)
+- **`bin/ail` and `lib/ail/`**: the command where a shell looks, and the
+  compiler, the formatter, the manifest and the library where only the
+  command looks. `ailc` is not in `bin/`: a user of packages does not
+  call it, and one who does has the checkout.
+- **The library is installed as sources**, since a `use` compiles a
+  file; there is nothing to build ahead.
+- **`make dist` is the file of a release**, with times and owners set to
+  zero so that the same build gives the same file. Publishing it, with a
+  tag `v<version>`, is the user's.
+- The seed and its manifest are no part of an installation: they build
+  the compiler, which is installed as it was built.
+
 ## Not checked
 - No test fetches from a network; `tests/cli.sh` uses repositories on
   disk, by their paths.

@@ -15,9 +15,9 @@ ail run
 prints `hello from hello`, and `ail test` runs the one test the package
 starts with.
 
-`make` builds the command as `build/ail`, from `cli/ail.aiw`;
-`tests/cli.sh` is its test. An installation is not written yet
-([TODO.md](TODO.md)): a package is built with the `ail` of a checkout.
+`make` builds the command as `build/ail`, from `cli/ail.aiw`, and
+`make install` puts it where a shell finds it ([Installing](#installing));
+`tests/cli.sh` and `tests/install.sh` are its tests.
 
 ## Commands
 
@@ -181,6 +181,30 @@ package and the directories below it, without `build/`, `deps/` and
 what starts with a dot. The work is done by the formatter of AIL
 (`tools/indent.aiw`), which the command starts.
 
+## Installing
+
+```
+make install PREFIX=$HOME/.local
+```
+
+puts the command at `bin/ail` under the prefix, `/usr/local` if none is
+given, and in `lib/ail/` what the command looks for from there: the
+compiler `ailc`, the formatter `indent`, the manifest `ail.pkg` with the
+version, the licence, and the library, `lib/`. With `bin/` on `PATH`
+nothing else is needed, and the checkout it was built in may go.
+`DESTDIR` is put before the prefix, for a package made in one place and
+installed to another. A second `make install` replaces the first, the
+library whole.
+
+`make dist` writes the same files as `build/ail-<version>-x86_64-linux.tar.gz`,
+which unpacks into a directory of that name with `bin/` and `lib/` in it:
+the file of a release, for a machine that has no checkout and no seed.
+It is used where it is unpacked, with its `bin/` on `PATH`.
+
+One AIL is installed under a prefix. A package that asks for a later one
+is refused by the command and built after AIL is installed again;
+several versions side by side are not managed ([TODO.md](TODO.md)).
+
 ## Where AIL is
 
 The command needs the compiler, the library and the manifest of AIL. It
@@ -189,7 +213,7 @@ looks, in this order:
 1. in the directory that the variable `AIL_HOME` of the environment
    names, if it is set;
 2. in `../lib/ail` from the directory of its own executable, where an
-   installation is to have them;
+   installation has them;
 3. in `..` from that directory, which is a checkout with the command in
    `build/`.
 
