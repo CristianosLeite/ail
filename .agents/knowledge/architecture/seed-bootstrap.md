@@ -30,6 +30,21 @@ version, source revision and SHA-256; the file itself is a GitHub release asset.
   `ailc1` of other bytes than `ailc`). It was built in a clean worktree of that commit, where
   `make test` passed (2614 checks) and `ailc`, `ailc2` and `ailc` compiled by itself once
   more were one file.
+- Seed 5 is `build/ailc` of commit e8acf57 (2026-11-21), the merge of the statements on
+  binary32: 67595 bytes, SHA-256 `7008f286...`, the fixed point of the build from seed 4,
+  released as `seed-5` (asset `ailc-5`) when the user asked for a new seed. It adds `f4to8`,
+  `f8to4` and `fdot4` to what a seed understands, writes the code seed 4 writes (`ailc1` and
+  `ailc` were one file) and is the first built from sources named `.aiw`. It was built in a
+  clean worktree of that commit, where `make test` passed (2631 checks) and `ailc`, `ailc2`
+  and `ailc` compiled by itself once more were one file.
+- Seed 6 is `build/ailc` of commit f4f4004 (2026-11-22), the tip of main after the package
+  work: 69899 bytes, SHA-256 `41f4c7b3...`, released as `seed-6` (asset `ailc-6`) when the
+  user asked for a new seed. It adds the arguments `name=directory` and `use "name:path"`
+  (`compiler/pkg.aiw`) to what a seed understands and writes the code seed 5 writes. That
+  revision was still pinned to seed 4, since the pin of seed 5 had stayed on a local branch
+  and reached main only together with this one; the build from seed 4 gave `ailc1` and `ailc`
+  as one file. It was built in a clean worktree of that commit, where `make test` passed
+  (2900 checks) and `ailc`, `ailc2` and `ailc` compiled by itself once more were one file.
 - The manifest keeps one line per seed, the last one pinned; a local copy is `seed/ailc-<n>`,
   ignored by git.
 - The repository had no remote, tag or CI before this; the remote was created for the release.
