@@ -173,6 +173,14 @@ ok   status
 2 tests, 0 failed" "" $ail test status refused
 is cli_test_named_missing 1 "FAIL nope
 1 test, 1 failed" "ail: there is no test tests/nope.aiw" $ail test nope
+# two tests of which one is called like a file of the other
+printf 'use "lib/std/io.aiw"\ncall print "first\\n"\n' > tests/a.aiw && echo first > tests/a.out
+printf 'use "lib/std/io.aiw"\ncall print "second\\n"\n' > tests/a.out.aiw && echo second > tests/a.out.out
+is cli_test_names_overlap 0 "ok   a
+ok   a.out
+2 tests, 0 failed" "" $ail test a a.out
+yes cli_test_names_overlap_kept [ "$(cat build/tests/a.out)" = first ]
+rm tests/a.*
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test

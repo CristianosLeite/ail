@@ -169,7 +169,7 @@ stdout, then the number of tests and of those that failed; a line on
 stderr says in what a test failed. What the compiler said, what the
 program wrote to stdout and what it wrote to stderr stay in
 `build/tests/<name>.err`, `.out` and `.log`, to be compared with what
-was expected. The status is 1 if a test failed.
+was expected; the executable of the test is `build/tests/<name>.exe`. The status is 1 if a test failed.
 
 ### `fmt`
 

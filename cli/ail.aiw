@@ -563,11 +563,14 @@ buf tenv 24         # "AIL_TMP=" and the directory of a test, "AIL_HOME=" and th
 
 # Run the test of the n bytes at p: 1 if it does what its files expect,
 # or 0, with a line on stderr that says in what it does not. What the
-# compiler and the program wrote is left in build/tests/.
+# compiler and the program wrote is left in build/tests/. Every file of
+# a test there is its name and an ending, the executable .exe, so that
+# no file of one test is a file of another: of the tests a and a.out,
+# say.
 fn testone p n
 	local num 24
 	call tpath ta "tests/" p n ".aiw"
-	call tpath tb "build/tests/" p n ""
+	call tpath tb "build/tests/" p n ".exe"
 	call tpath tc "build/tests/" p n ".err"
 	load ta as sp
 	load ta+8 as sn
