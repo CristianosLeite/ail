@@ -21,8 +21,9 @@ number of the seed; a dependency is a git repository and a version, the
 tag `v<version>`, with a lock file that has the revision; one installed
 toolchain, the command, the compiler and the library.
 
-- [ ] The repositories ail-bench and ail-extensions moved to `Ailfile`
-  (aildb has the step in its own TODO).
+- [ ] The repository ail-bench moved to `Ailfile`. ail-extensions is a
+  package since its pull request 2 (2026-11-22), and aildb since the
+  packages.
 - [ ] Left for later: several installed toolchains, a registry of
   packages.
 
