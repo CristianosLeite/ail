@@ -831,3 +831,11 @@ program that first needs them).
   with their shortest digits and with 17 and 25, the exact middles of
   neighbours with a digit more and less, long runs of digits, every
   exponent up to the edges): no difference. `tests/lib_num_*`.
+- [x] `lib/std/json.aiw`: JSON read in the bytes it is written in, a
+  value an address, a length and a kind, with no tree and no allocation
+  (`jsonvalue`, `jsonelem`, `jsonmember`, `jsonget`, `jsoneq`,
+  `jsonstr`), and written (`jsonadds`, `jsonaddi`). RFC 8259 with the
+  UTF-8 and the surrogate pairs of I-JSON, 128 deep. Compared with the
+  `json` module of Python on 80,066 texts, values it wrote and those with
+  a byte removed, changed or added, and on 30,005 values walked and
+  written again: no difference. `tests/lib_json_*`.

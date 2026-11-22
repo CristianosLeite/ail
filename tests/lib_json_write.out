@@ -1,0 +1,11 @@
+""  kind 5, reads back the same: 1
+"plain"  kind 5, reads back the same: 1
+"say \"hi\""  kind 5, reads back the same: 1
+"a\\b"  kind 5, reads back the same: 1
+"line\nfeed\rreturn\ttab"  kind 5, reads back the same: 1
+"\u0001\u0008\u000c\u001f"  kind 5, reads back the same: 1
+"é€😀"  kind 5, reads back the same: 1
+"</script>"  kind 5, reads back the same: 1
+"\u0000"  kind 5, reads back the same: 1
+{"n":[0,-1,9223372036854775807,-9223372036854775808],"s":"a\"b","x":null}
+kind 7

@@ -1,0 +1,125 @@
+# a value is walked in its bytes: the members of an object and the
+# elements of an array one after the other, the member of a name, a name
+# written with escapes, numbers read by lib/std/num.aiw, and a string
+# read into a buffer. The text is a request as a program gets one.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/num.aiw"
+use "lib/std/json.aiw"
+buf s 24
+data doc "{ \"id\": 7, \"method\": \"tools/call\",\n  \"params\": {\"name\": \"se\\u0061rch\", \"k\": -3,\n    \"v\": [0.5, 1e2, [], \"a\\tb\\u00e9\\ud83d\\ude00\", null, true, {\"x\": false}]},\n  \"id\": 8 }"
+fn kindname k
+	if k==1
+		call print "null"
+	end
+	if k==2
+		call print "false"
+	end
+	if k==3
+		call print "true"
+	end
+	if k==4
+		call print "number"
+	end
+	if k==5
+		call print "string"
+	end
+	if k==6
+		call print "array"
+	end
+	if k==7
+		call print "object"
+	end
+end
+len doc as n
+call jsonvalue doc n as a an k
+call print "the text is an "
+call kindname k
+call print " of "
+call putn an
+call print " of "
+call putn n
+call print " bytes\n# its members\n"
+q=a+1
+label member
+call jsonmember q a+an as kp kn v vn vk q
+if vk
+	call print kp kn
+	call print " is the "
+	call kindname vk
+	call print " "
+	call print v vn
+	call print "\n"
+	jmp member
+end
+call print "after the last, the place is the end: "
+call putn q==a+an
+call print "\n# by name\n"
+call jsonget a an "id" as v vn vk
+call numint v vn as x ok
+call print "id, the first of two: "
+call putn x
+call jsonget a an "method" as v vn vk
+call jsoneq v vn "tools/call" as same
+call print "\nmethod is tools/call: "
+call putn same
+call jsoneq v vn "tools/cal" as same
+call print ", is tools/cal: "
+call putn same
+call jsonget a an "none" as v vn vk
+call print "\na member that is not there has the kind "
+call putn vk
+call jsonget a an "params" as p pn pk
+call jsonget p pn "name" as v vn vk
+call jsoneq v vn "search" as same
+call print "\nname, written se\\u0061rch, is search: "
+call putn same
+call jsonget p pn "k" as v vn vk
+call numint v vn as x ok
+call print "\nk is below 0: "
+call putn x>>63
+call print ", and is -"
+call putn 0-x
+call print "\n# the elements of v\n"
+call jsonget p pn "v" as v vn vk
+q=v+1
+label elem
+call jsonelem q v+vn as e en ek q
+if ek
+	call kindname ek
+	if ek==4
+		call numdouble e en as x ok
+		ftoi x as i
+		call print ", as a double and cut to a whole number: "
+		call putn i
+	end
+	if ek==5
+		call bycut s 0
+		call jsonstr s e en as ok
+		load s as sp
+		load s+8 as sn
+		call print ", "
+		call putn en
+		call print " bytes that say "
+		call putn sn
+		call print ":"
+		i=0
+		while i<sn
+			loadb sp+i as c
+			call print " "
+			call putn c
+			i+=1
+		end
+	end
+	if ek==7
+		call jsonget e en "x" as w wn wk
+		call print " whose x is "
+		call kindname wk
+	end
+	call print "\n"
+	jmp elem
+end
+call jsonget v vn "x" as w wn wk
+call print "jsonget of an array has the kind "
+call putn wk
+call print "\n"

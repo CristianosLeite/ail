@@ -1,0 +1,62 @@
+# jsonadds writes bytes as a string that reads back as the same bytes,
+# with an escape where one is needed and no other; jsonaddi writes a
+# whole number with its sign; and a value is put together with byadd.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/json.aiw"
+buf b 24
+buf r 24
+fn show p n
+	call bycut b 0
+	call jsonadds b p n as ok
+	load b as q
+	load b+8 as m
+	call print q m
+	# read back
+	call jsonvalue q m as a an k
+	call bycut r 0
+	call jsonstr r a an as ok2
+	load r as x
+	load r+8 as y
+	same=y==n
+	i=0
+	while same&(i<n)
+		loadb x+i as c
+		loadb p+i as d
+		same=c==d
+		i+=1
+	end
+	call print "  kind "
+	call putn k
+	call print ", reads back the same: "
+	call putn ok&ok2&same
+	call print "\n"
+end
+call show ""
+call show "plain"
+call show "say \x22hi\x22"
+call show "a\x5cb"
+call show "line\x0afeed\x0dreturn\x09tab"
+call show "\x01\x08\x0c\x1f\x7f"
+call show "\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80"
+call show "</script>"
+call show "\x00"
+call bycut b 0
+call byadd b "{\x22n\x22:["
+call jsonaddi b 0
+call byaddb b 44
+call jsonaddi b 0-1
+call byaddb b 44
+call jsonaddi b 0x7fffffffffffffff
+call byaddb b 44
+call jsonaddi b 0x8000000000000000
+call byadd b "],\x22s\x22:"
+call jsonadds b "a\x22b"
+call byadd b ",\x22x\x22:null}"
+load b as q
+load b+8 as m
+call print q m
+call jsonvalue q m as a an k
+call print "\nkind "
+call putn k
+call print "\n"

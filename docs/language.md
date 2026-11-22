@@ -1238,6 +1238,56 @@ call putn n                        # 2500
 - **A binary32** is `f8to4` of the result, which rounds a second time. A text that names the double a binary32 widens to, as a program prints one from that double, gives that binary32.
 - **Names**: the library owns every name that starts with `num`; a program has no `var` of such a name.
 
+## The JSON library
+
+`lib/std/json.aiw` (use `lib/std/bytes.aiw` first) reads JSON in the bytes it is written in and writes it to a bytes buffer. Reading makes no tree and allocates nothing: a value is an address, a length and a kind, and what a walk returns is again a value in the same bytes.
+
+| Kind | Is |
+|---:|---|
+| 1, 2, 3 | `null`, `false`, `true` |
+| 4 | a number, read with `numint` or `numdouble` of `lib/std/num.aiw` |
+| 5 | a string, with its quotes |
+| 6, 7 | an array, an object |
+| 0 | no value |
+
+| Function | Does |
+|---|---|
+| `jsonvalue p n` | checks that the `n` bytes at `p` are one value of JSON with nothing but blanks around it: its address, its length and its kind, or three zeros |
+| `jsonelem q e` | the next element of an array: its address, length and kind, and the place to ask for the one after it; `q` is that place, the address after the `[` for the first, and `e` the address after the array. After the last, the kind is 0 |
+| `jsonmember q e` | the next member of an object, the same way, from the address after the `{`: the address and length of its name (a string), the address, length and kind of its value, and the next place |
+| `jsonget p n q m` | the value of the member of the object at `p n` whose name says the `m` bytes at `q`: address, length, kind, or three zeros |
+| `jsoneq p n q m` | 1 if the string at `p n` says the `m` bytes at `q` |
+| `jsonstr b p n` | adds what the string at `p n` says to the bytes buffer `b`, as UTF-8: 1, or 0 without memory |
+| `jsonadds b p n` | adds the `n` bytes at `p` to `b` as a string, in quotes and with the escapes it needs: 1, or 0 without memory |
+| `jsonaddi b v` | adds the signed whole number `v` in decimal |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/num.aiw"
+use "lib/std/json.aiw"
+call jsonvalue "{\"name\":\"search\",\"k\":[3,5]}" as a n kind    # kind 7
+call jsonget a n "k" as v vn vk                                  # [3,5], kind 6
+q=v+1
+sum=0
+label next
+call jsonelem q v+vn as e en ek q
+if ek
+	call numint e en as x ok
+	sum+=x
+	jmp next
+end
+call putn sum                                                    # 8
+```
+
+- **Checked once**: `jsonvalue` checks everything inside the value, so the walks do not fail on a value it accepted, and a value they return needs no second check. Given other bytes they return the kind 0.
+- **What is JSON here**: RFC 8259, and stricter in two things, as I-JSON (RFC 7493): a string is well-formed UTF-8, and an escape from `\uD800` to `\uDFFF` is half of a pair that must be whole, so every string can be written as UTF-8. A byte below 0x20 in a string, a number that starts with `0` and goes on, `+1`, `.5`, `NaN`, a comma before a `]` and a byte order mark are no JSON. Blanks are the space, the tab, the line feed and the carriage return.
+- **Depth**: arrays and objects may be nested 128 deep; a value nested deeper is no value. `jsonvalue` calls itself once a level, about 100 bytes of stack each.
+- **Names**: two members of one name are allowed, and `jsonget` returns the first. A name is compared by what it says, so `"\u0061"` is the name `a`.
+- **Numbers**: the bytes of a number are what `numdouble` takes, and `numint` if it has no fraction and no exponent; a number that fits neither a double nor 64 bits is still a value, and the program decides.
+- **Writing**: `jsonadds` writes a quote and a backslash with a backslash before them, a line feed, a carriage return and a tab as `\n`, `\r` and `\t`, any other byte below 0x20 as `\u00` and two digits, and every other byte as it is; the string is valid if the bytes are well-formed UTF-8, which it does not check. Braces, commas, `null` and a number the program has as text are added with `byadd`. There is no function that writes a double.
+- **Names of the library**: it owns every name that starts with `json`; a program has no `var` of such a name.
+
 ## The algo library
 
 The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: sorts, a binary search, a hash table of a fixed size and two walks over a graph. They allocate nothing and return no error, since nothing can fail in them; the caller gives every array, also the ones to work in. The algorithm programs of `examples/` are callers of them. Each file is used by itself and has its own prefix.

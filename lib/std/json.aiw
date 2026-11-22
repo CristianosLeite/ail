@@ -1,0 +1,672 @@
+# lib/std/json.aiw -- JSON read in place and written to a buffer.
+# A program that uses it uses lib/std/bytes.aiw first.
+#
+# Reading makes no tree and allocates nothing. A value is the bytes it is
+# written with, an address and a length, and a kind:
+#
+#     1 null   2 false   3 true   4 a number   5 a string
+#     6 an array   7 an object                  0 no value
+#
+# jsonvalue checks that bytes are one value of JSON (RFC 8259), with
+# nothing but blanks around it, and returns where the value starts, its
+# length and its kind. Everything inside is checked with it, so the
+# functions that walk a value it accepted do not fail on that value:
+# jsonelem gives the elements of an array one after the other,
+# jsonmember the members of an object, jsonget the member of a name.
+# What they return are again values in the same bytes.
+#
+# A number is read with numint or numdouble of lib/std/num.aiw from its
+# bytes. A string is its bytes with the quotes; jsonstr adds what it
+# says to a bytes buffer, as UTF-8, and jsoneq compares it with bytes.
+#
+# Stricter than the RFC in two things, as I-JSON (RFC 7493) is: a
+# string is well-formed UTF-8, and an escape \uD800 to \uDFFF is half
+# of a pair that must be whole, so that every string can be written as
+# UTF-8. Arrays and objects may be nested 128 deep, and a value nested
+# deeper is no value. Two members of one name are allowed; jsonget
+# returns the first.
+#
+# Writing: jsonadds adds bytes as a string, in quotes and with the
+# escapes it needs, and jsonaddi a signed whole number. The rest of a
+# value is added as it is written, with byadd: braces, commas, null,
+# true, and a number that the program has as text. There is no function
+# that writes a double.
+#
+# Every variable and parameter of this file has a name that starts with
+# "json"; a program has no var of such a name (see lib/std/io.aiw).
+
+const jsondeep 128
+
+# the address of the first byte from jsonp on that is no blank, jsone at
+# most: a space, a tab, a line feed and a carriage return are blanks
+fn jsonws jsonp jsone
+	label more
+	if jsonp<jsone
+		loadb jsonp as jsonc
+		if (jsonc==32)|(jsonc==10)|(jsonc==13)|(jsonc==9)
+			jsonp+=1
+			jmp more
+		end
+	end
+	ret jsonp
+end
+
+# the number that the four hexadecimal digits at jsonp are and 1, or 0
+# and 0 if there are not four before jsone
+fn jsonhex jsonp jsone
+	if jsonp+4>jsone
+		ret 0 0
+	end
+	jsonv=0
+	jsoni=0
+	while jsoni<4
+		loadb jsonp+jsoni as jsonc
+		jsond=jsonc-48
+		if jsond>9
+			# a letter, in either case
+			jsond=(jsonc|32)-87
+			if (jsond<10)|(jsond>15)
+				ret 0 0
+			end
+		end
+		jsonv=jsonv<<4|jsond
+		jsoni+=1
+	end
+	ret jsonv 1
+end
+
+# the number of bytes of the character of UTF-8 at jsonp, 1 to 4, or 0
+# if the bytes before jsone are none: no byte that only continues one,
+# no longer form than needed, nothing from U+D800 to U+DFFF or above
+# U+10FFFF
+fn jsonutf jsonp jsone
+	loadb jsonp as jsonc
+	if jsonc<128
+		ret 1
+	end
+	if (jsonc<0xc2)|(jsonc>0xf4)
+		ret 0
+	end
+	jsonk=2
+	if jsonc>=0xe0
+		jsonk=3
+	end
+	if jsonc>=0xf0
+		jsonk=4
+	end
+	if jsonp+jsonk>jsone
+		ret 0
+	end
+	# the second byte has a range of its own after four first bytes
+	loadb jsonp+1 as jsond
+	jsonlo=0x80
+	jsonhi=0xbf
+	if jsonc==0xe0
+		jsonlo=0xa0
+	end
+	if jsonc==0xed
+		jsonhi=0x9f
+	end
+	if jsonc==0xf0
+		jsonlo=0x90
+	end
+	if jsonc==0xf4
+		jsonhi=0x8f
+	end
+	if (jsond<jsonlo)|(jsond>jsonhi)
+		ret 0
+	end
+	jsoni=2
+	while jsoni<jsonk
+		loadb jsonp+jsoni as jsond
+		if (jsond&0xc0)!=0x80
+			ret 0
+		end
+		jsoni+=1
+	end
+	ret jsonk
+end
+
+# the address after the string that starts with the quote at jsonp, or 0
+# if no string ends before jsone
+fn jsonstring jsonp jsone
+	jsonp+=1
+	label more
+	if jsonp>=jsone
+		ret 0
+	end
+	loadb jsonp as jsonc
+	if jsonc==34
+		ret jsonp+1
+	end
+	if jsonc<32
+		ret 0
+	end
+	if jsonc==92
+		if jsonp+1>=jsone
+			ret 0
+		end
+		loadb jsonp+1 as jsonc
+		if jsonc==117
+			call jsonhex jsonp+2 jsone as jsonv jsonok
+			ifz jsonok
+				ret 0
+			end
+			jsonp+=6
+			if (jsonv>=0xd800)&(jsonv<0xe000)
+				# the first half of a pair, and the second after it
+				if (jsonv>=0xdc00)|(jsonp+2>jsone)
+					ret 0
+				end
+				load2 jsonp as jsonc
+				if jsonc!=0x755c
+					ret 0
+				end
+				call jsonhex jsonp+2 jsone as jsonv jsonok
+				if (jsonok==0)|(jsonv<0xdc00)|(jsonv>0xdfff)
+					ret 0
+				end
+				jsonp+=6
+			end
+			jmp more
+		end
+		# " \ / b f n r t
+		if (jsonc!=34)&(jsonc!=92)&(jsonc!=47)&(jsonc!=98)&(jsonc!=102)&(jsonc!=110)&(jsonc!=114)&(jsonc!=116)
+			ret 0
+		end
+		jsonp+=2
+		jmp more
+	end
+	call jsonutf jsonp jsone as jsonk
+	ifz jsonk
+		ret 0
+	end
+	jsonp+=jsonk
+	jmp more
+end
+
+# the address after the digits at jsonp, which is jsonp if there is none
+fn jsondigits jsonp jsone
+	label more
+	if jsonp<jsone
+		loadb jsonp as jsonc
+		if jsonc-48<10
+			jsonp+=1
+			jmp more
+		end
+	end
+	ret jsonp
+end
+
+# the address after the number at jsonp, or 0 if there is none: a "-" or
+# not, a 0 or digits that do not start with one, then a "." and digits or
+# not, then an exponent or not
+fn jsonnumber jsonp jsone
+	loadb jsonp as jsonc
+	if jsonc==45
+		jsonp+=1
+	end
+	call jsondigits jsonp jsone as jsonq
+	if jsonq==jsonp
+		ret 0
+	end
+	loadb jsonp as jsonc
+	if (jsonc==48)&(jsonq!=jsonp+1)
+		ret 0
+	end
+	jsonp=jsonq
+	if jsonp<jsone
+		loadb jsonp as jsonc
+		if jsonc==46
+			call jsondigits jsonp+1 jsone as jsonq
+			if jsonq==jsonp+1
+				ret 0
+			end
+			jsonp=jsonq
+		end
+	end
+	if jsonp<jsone
+		loadb jsonp as jsonc
+		if (jsonc|32)==101
+			jsonp+=1
+			if jsonp<jsone
+				loadb jsonp as jsonc
+				if (jsonc==43)|(jsonc==45)
+					jsonp+=1
+				end
+			end
+			call jsondigits jsonp jsone as jsonq
+			if jsonq==jsonp
+				ret 0
+			end
+			jsonp=jsonq
+		end
+	end
+	ret jsonp
+end
+
+# The value that starts at jsonp, where no blank stands, and ends before
+# jsone: the address after it and its kind, or 0 and 0. jsond is how
+# deep in arrays and objects it stands.
+fn jsonany jsonp jsone jsond
+	if jsonp>=jsone
+		ret 0 0
+	end
+	loadb jsonp as jsonc
+	if jsonc==34
+		call jsonstring jsonp jsone as jsonq
+		ifz jsonq
+			ret 0 0
+		end
+		ret jsonq 5
+	end
+	if (jsonc==91)|(jsonc==123)
+		if jsond>=jsondeep
+			ret 0 0
+		end
+		# the byte that closes it, and whether it has names
+		jsonobj=jsonc==123
+		jsonend=jsonc+2
+		call jsonws jsonp+1 jsone as jsonp
+		if jsonp>=jsone
+			ret 0 0
+		end
+		loadb jsonp as jsonc
+		if jsonc==jsonend
+			ret jsonp+1 6+jsonobj
+		end
+		label item
+		if jsonobj
+			if jsonp>=jsone
+				ret 0 0
+			end
+			loadb jsonp as jsonc
+			if jsonc!=34
+				ret 0 0
+			end
+			call jsonstring jsonp jsone as jsonp
+			ifz jsonp
+				ret 0 0
+			end
+			call jsonws jsonp jsone as jsonp
+			if jsonp>=jsone
+				ret 0 0
+			end
+			loadb jsonp as jsonc
+			if jsonc!=58
+				ret 0 0
+			end
+			call jsonws jsonp+1 jsone as jsonp
+		end
+		call jsonany jsonp jsone jsond+1 as jsonp jsonk
+		ifz jsonk
+			ret 0 0
+		end
+		call jsonws jsonp jsone as jsonp
+		if jsonp>=jsone
+			ret 0 0
+		end
+		loadb jsonp as jsonc
+		if jsonc==jsonend
+			ret jsonp+1 6+jsonobj
+		end
+		if jsonc!=44
+			ret 0 0
+		end
+		call jsonws jsonp+1 jsone as jsonp
+		jmp item
+	end
+	if (jsonc==45)|(jsonc-48<10)
+		call jsonnumber jsonp jsone as jsonq
+		ifz jsonq
+			ret 0 0
+		end
+		ret jsonq 4
+	end
+	# null, true and false, four bytes at once and one more
+	if jsonp+4<=jsone
+		load4 jsonp as jsonv
+		if jsonv==0x6c6c756e
+			ret jsonp+4 1
+		end
+		if jsonv==0x65757274
+			ret jsonp+4 3
+		end
+		if (jsonv==0x736c6166)&(jsonp+5<=jsone)
+			loadb jsonp+4 as jsonc
+			if jsonc==101
+				ret jsonp+5 2
+			end
+		end
+	end
+	ret 0 0
+end
+
+# The one value that the jsonn bytes at jsonp are, with blanks or
+# nothing before and after it: its address, its length and its kind, or
+# three zeros for bytes that are not one value of JSON.
+fn jsonvalue jsonp jsonn
+	jsone=jsonp+jsonn
+	call jsonws jsonp jsone as jsonp
+	call jsonany jsonp jsone 0 as jsonq jsonk
+	ifz jsonk
+		ret 0 0 0
+	end
+	call jsonws jsonq jsone as jsonr
+	if jsonr!=jsone
+		ret 0 0 0
+	end
+	ret jsonp jsonq-jsonp jsonk
+end
+
+# The next element of an array: its address, its length and its kind,
+# and the place to ask for the one after it. jsonq is that place, for the
+# first element the address after the "[", and jsone the address after
+# the array. After the last element the kind is 0 and the place jsone.
+fn jsonelem jsonq jsone
+	call jsonws jsonq jsone as jsonq
+	if jsonq<jsone
+		loadb jsonq as jsonc
+		if jsonc==44
+			call jsonws jsonq+1 jsone as jsonq
+		end
+	end
+	call jsonany jsonq jsone 0 as jsonr jsonk
+	ifz jsonk
+		ret 0 0 0 jsone
+	end
+	ret jsonq jsonr-jsonq jsonk jsonr
+end
+
+# The next member of an object: the address and the length of its name,
+# a string with its quotes, the address, the length and the kind of its
+# value, and the place to ask for the member after it. jsonq is that
+# place, for the first member the address after the "{", and jsone the
+# address after the object. After the last member the kind is 0 and the
+# place jsone.
+fn jsonmember jsonq jsone
+	call jsonws jsonq jsone as jsonq
+	if jsonq<jsone
+		loadb jsonq as jsonc
+		if jsonc==44
+			call jsonws jsonq+1 jsone as jsonq
+		end
+	end
+	if jsonq>=jsone
+		ret 0 0 0 0 0 jsone
+	end
+	loadb jsonq as jsonc
+	if jsonc!=34
+		ret 0 0 0 0 0 jsone
+	end
+	call jsonstring jsonq jsone as jsonr
+	ifz jsonr
+		ret 0 0 0 0 0 jsone
+	end
+	jsonkn=jsonr-jsonq
+	call jsonws jsonr jsone as jsonr
+	if jsonr>=jsone
+		ret 0 0 0 0 0 jsone
+	end
+	loadb jsonr as jsonc
+	if jsonc!=58
+		ret 0 0 0 0 0 jsone
+	end
+	call jsonws jsonr+1 jsone as jsonv
+	call jsonany jsonv jsone 0 as jsonr jsonk
+	ifz jsonk
+		ret 0 0 0 0 0 jsone
+	end
+	ret jsonq jsonkn jsonv jsonr-jsonv jsonk jsonr
+end
+
+# Add what the string of the jsonn bytes at jsonp says, a string with
+# its quotes as jsonvalue and the walks return one, to the bytes buffer
+# jsonb, as UTF-8: 1, or 0 if memory ran out or the bytes are no string,
+# and then the buffer may have part of it.
+fn jsonstr jsonb jsonp jsonn
+	if jsonn<2
+		ret 0
+	end
+	jsone=jsonp+jsonn-1
+	jsonp+=1
+	label more
+	if jsonp>=jsone
+		ret 1
+	end
+	# a run of bytes that stand for themselves
+	jsonq=jsonp
+	label plain
+	if jsonq<jsone
+		loadb jsonq as jsonc
+		if jsonc!=92
+			jsonq+=1
+			jmp plain
+		end
+	end
+	if jsonq>jsonp
+		call byadd jsonb jsonp jsonq-jsonp as jsonok
+		ifz jsonok
+			ret 0
+		end
+		jsonp=jsonq
+		jmp more
+	end
+	if jsonp+1>=jsone
+		ret 0
+	end
+	loadb jsonp+1 as jsonc
+	jsonp+=2
+	if jsonc==117
+		call jsonhex jsonp jsone as jsonv jsonok
+		ifz jsonok
+			ret 0
+		end
+		jsonp+=4
+		if (jsonv>=0xd800)&(jsonv<0xdc00)
+			call jsonhex jsonp+2 jsone as jsonw jsonok
+			if (jsonok==0)|(jsonw<0xdc00)|(jsonw>0xdfff)
+				ret 0
+			end
+			jsonv=0x10000+(jsonv-0xd800<<10)+jsonw-0xdc00
+			jsonp+=6
+		end
+		# the character jsonv as one to four bytes
+		if jsonv<0x80
+			call byaddb jsonb jsonv as jsonok
+		else
+			if jsonv<0x800
+				call byaddb jsonb jsonv>>6|0xc0
+			else
+				if jsonv<0x10000
+					call byaddb jsonb jsonv>>12|0xe0
+				else
+					call byaddb jsonb jsonv>>18|0xf0
+					call byaddb jsonb jsonv>>12&0x3f|0x80
+				end
+				call byaddb jsonb jsonv>>6&0x3f|0x80
+			end
+			call byaddb jsonb jsonv&0x3f|0x80 as jsonok
+		end
+		ifz jsonok
+			ret 0
+		end
+		jmp more
+	end
+	# the byte that the letter after the backslash names; " \ and / name
+	# themselves
+	if jsonc==98
+		jsonc=8
+	end
+	if jsonc==102
+		jsonc=12
+	end
+	if jsonc==110
+		jsonc=10
+	end
+	if jsonc==114
+		jsonc=13
+	end
+	if jsonc==116
+		jsonc=9
+	end
+	call byaddb jsonb jsonc as jsonok
+	ifz jsonok
+		ret 0
+	end
+	jmp more
+end
+
+# 1 if the string of the jsonn bytes at jsonp, with its quotes, says the
+# jsonm bytes at jsonq
+fn jsoneq jsonp jsonn jsonq jsonm
+	local jsont 24
+	if jsonn<2
+		ret 0
+	end
+	# without a backslash the bytes between the quotes are what it says
+	jsoni=1
+	label look
+	if jsoni<jsonn-1
+		loadb jsonp+jsoni as jsonc
+		if jsonc!=92
+			jsoni+=1
+			jmp look
+		end
+	end
+	jsons=0
+	if jsoni==jsonn-1
+		jsona=jsonp+1
+		jsonk=jsonn-2
+	else
+		store jsont 0
+		store jsont+8 0
+		store jsont+16 0
+		call jsonstr jsont jsonp jsonn as jsons
+		load jsont as jsona
+		load jsont+8 as jsonk
+		ifz jsons
+			call byfree jsont
+			ret 0
+		end
+	end
+	jsonr=jsonk==jsonm
+	jsoni=0
+	while jsonr&(jsoni<jsonm)
+		loadb jsona+jsoni as jsonc
+		loadb jsonq+jsoni as jsond
+		jsonr=jsonc==jsond
+		jsoni+=1
+	end
+	if jsons
+		call byfree jsont
+	end
+	ret jsonr
+end
+
+# The value of the member whose name says the jsonm bytes at jsonq, in
+# the object of the jsonn bytes at jsonp: its address, its length and
+# its kind, or three zeros if the object has no such member or the bytes
+# are no object. Of two members of the name it is the first.
+fn jsonget jsonp jsonn jsonq jsonm
+	ifz jsonn
+		ret 0 0 0
+	end
+	loadb jsonp as jsonc
+	if jsonc!=123
+		ret 0 0 0
+	end
+	jsone=jsonp+jsonn
+	jsonp+=1
+	label next
+	call jsonmember jsonp jsone as jsona jsonan jsonv jsonvn jsonk jsonp
+	ifz jsonk
+		ret 0 0 0
+	end
+	call jsoneq jsona jsonan jsonq jsonm as jsonr
+	ifz jsonr
+		jmp next
+	end
+	ret jsonv jsonvn jsonk
+end
+
+# Add the jsonn bytes at jsonp to the bytes buffer jsonb as a string of
+# JSON: in quotes, a quote and a backslash with a backslash before them,
+# a line feed, a carriage return and a tab as \n, \r and \t, any other
+# byte below 0x20 as \u00 and two digits, every other byte as it is. The
+# result is 1, or 0 if memory ran out. The string is valid JSON if the
+# bytes are well-formed UTF-8, which is not checked.
+fn jsonadds jsonb jsonp jsonn
+	local jsont 8
+	call byaddb jsonb 34 as jsonok
+	ifz jsonok
+		ret 0
+	end
+	jsone=jsonp+jsonn
+	label more
+	# a run of bytes that need no escape
+	jsonq=jsonp
+	label plain
+	if jsonq<jsone
+		loadb jsonq as jsonc
+		if (jsonc>=32)&(jsonc!=34)&(jsonc!=92)
+			jsonq+=1
+			jmp plain
+		end
+	end
+	if jsonq>jsonp
+		call byadd jsonb jsonp jsonq-jsonp as jsonok
+		ifz jsonok
+			ret 0
+		end
+		jsonp=jsonq
+	end
+	if jsonp<jsone
+		loadb jsonp as jsonc
+		storeb jsont 92
+		jsonk=2
+		jsond=jsonc
+		if jsonc==10
+			jsond=110
+		end
+		if jsonc==13
+			jsond=114
+		end
+		if jsonc==9
+			jsond=116
+		end
+		if (jsonc<32)&(jsond==jsonc)
+			storeb jsont+1 117
+			storeb jsont+2 48
+			storeb jsont+3 48
+			storeb jsont+4 (jsonc>>4)+48
+			jsond=(jsonc&15)+48
+			if jsond>57
+				jsond+=39
+			end
+			storeb jsont+5 jsond
+			jsonk=6
+		else
+			storeb jsont+1 jsond
+		end
+		call byadd jsonb jsont jsonk as jsonok
+		ifz jsonok
+			ret 0
+		end
+		jsonp+=1
+		jmp more
+	end
+	call byaddb jsonb 34 as jsonok
+	ret jsonok
+end
+
+# add the signed whole number jsonv to the bytes buffer jsonb in decimal:
+# 1, or 0 if memory ran out
+fn jsonaddi jsonb jsonv
+	ifslt jsonv 0
+		call byaddb jsonb 45
+		jsonv=0-jsonv
+	end
+	call byaddn jsonb jsonv as jsonok
+	ret jsonok
+end
