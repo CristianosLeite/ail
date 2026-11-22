@@ -1157,6 +1157,7 @@ fn cmdupdate
 	call print p n
 end
 
+call tlstd
 call argv 1 as p n
 ifz n
 	call usage

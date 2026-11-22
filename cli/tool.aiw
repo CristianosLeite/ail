@@ -8,6 +8,7 @@
 # a name (see lib/std/io.aiw).
 
 # syscalls without a name in the compiler
+const tlfcntl 72
 const tlgetcwd 79
 const tlchdir 80
 const tlrename 82
@@ -20,6 +21,25 @@ buf tlvtext 24      # its manifest, and where its version is in it
 var tlvp tlvn
 buf tlcwd 24        # the directory the command was started in
 buf tlroot 24       # the directory of the package, once tlenter found it
+
+# Have the descriptors 0, 1 and 2 open: one that is closed is given
+# /dev/null. A file that this process opens then never gets one of the
+# three numbers, which a program it starts reads as its input and its
+# outputs.
+fn tlstd
+	label more
+	call fileopen "/dev/null" 2 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	if tlfd<3
+		# it stays, without the flag that closes it in a program started
+		sys tlfcntl tlfd 2 0
+		jmp more
+	end
+	sys close tlfd
+	ret 1
+end
 
 # 1 if the file at the path can be opened to be read
 fn tlisfile tlp tln

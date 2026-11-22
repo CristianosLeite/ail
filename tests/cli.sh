@@ -73,6 +73,15 @@ is cli_run_named 0 "hello from demo" "" $ail run demo
 is cli_run_unknown 3 "" "ail: ail.pkg has no executable other" $ail run other
 is cli_run_two_names 2 "" "usage: ail COMMAND" $ail run demo other
 is cli_build_unknown 3 "" "ail: ail.pkg has no executable other" $ail build other
+# with its input closed, and its output: the files it opens do not take
+# their numbers
+$ail clean
+is cli_build_input_closed 0 "" "" sh -c "$ail build <&-"
+yes cli_build_input_closed_made [ -x build/demo ]
+is cli_run_input_closed 0 "hello from demo" "" sh -c "$ail run <&-"
+$ail clean
+sh -c "$ail build >&-" 2> "$tmp/err"
+yes cli_build_output_closed [ $? -eq 0 ] && yes cli_build_output_closed_made [ -x build/demo ]
 is cli_clean 0 "" "" $ail clean
 yes cli_clean_removed_build [ ! -e build ]
 is cli_clean_twice 0 "" "" $ail clean
