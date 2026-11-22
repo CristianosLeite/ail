@@ -181,6 +181,10 @@ checked against the code and fixed in a commit of its own on the branch
   directory.
 - **A package called `ail`** is built with the library as `ail` and without itself
   under that name.
+- **A test leads a group of processes, and the group ends with it**, as
+  `tests/run.sh` has it for a test that is killed; here also for one that ends by itself
+  and leaves a child, whose directory is about to be removed. Asked for by the review of
+  the pull request 3 of aildb, whose tests start `aildb` and stop it in a build.
 - **The command keeps the descriptors 0 to 2 open**, so no file it opens is taken by a
   program it starts for its input or output.
 
@@ -189,8 +193,6 @@ checked against the code and fixed in a commit of its own on the branch
   disk, by their paths.
 - A dependency whose clone has changes of its own is not noticed while
   its `.git/HEAD` is the locked revision.
-- `ail test` kills a test that runs too long, but not the children that
-  test started, where `tests/run.sh` kills the whole process group.
 - That the file a source is compiled into is not opened through a link has
   no test: its name has the number of the process in it.
 - More than 256 packages and a path of package and file above 4095 bytes

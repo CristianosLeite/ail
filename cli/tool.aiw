@@ -8,6 +8,7 @@
 # a name (see lib/std/io.aiw).
 
 # syscalls without a name in the compiler
+const tlkill 62
 const tlfcntl 72
 const tlflock 73
 const tlgetcwd 79
@@ -15,6 +16,7 @@ const tlchdir 80
 const tlfchdir 81
 const tlrename 82
 const tlreadlink 89
+const tlsetpgid 109
 const tlfchmod 91
 
 buf tlhome 24       # the directory of AIL, as tlfind found it
@@ -449,7 +451,9 @@ end
 # with a NUL byte after each, are put before its environment, which
 # loses the variables of those names. A program
 # that still runs after tlms milliseconds is killed, and the result is
-# then -1000; tlms 0 waits without limit.
+# then -1000; tlms 0 waits without limit. The program leads a group of
+# processes of its own, and when it has ended, by itself or killed,
+# every process still in that group is killed: those it started.
 fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	local tlv 24
 	local tle 24
@@ -503,7 +507,9 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	if tlok
 		sys fork as tlpid
 		ifz tlpid
-			# the child: nothing here returns
+			# the child: nothing here returns. It leads a group of its
+			# own, which the processes it starts are in.
+			sys tlsetpgid 0 0
 			call procopen tlin
 			call procopen tlout
 			call procopen tlerr
@@ -520,7 +526,11 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	ifslt tlpid 0
 		ret -2000
 	end
+	# the same from here, in case the child has not come to it yet
+	sys tlsetpgid tlpid tlpid
 	call procwait tlpid tlms as tlr
+	# whatever it started and left behind ends with it
+	sys tlkill 0-tlpid 9
 	ret tlr
 end
 

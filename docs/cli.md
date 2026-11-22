@@ -170,7 +170,9 @@ its own and empty, for the files it makes, which is removed when the
 test has ended, and in `AIL_HOME` the directory of the AIL that runs
 it ([Where AIL is](#where-ail-is)), for a test that reads a file of AIL.
 A test that still runs after 10 seconds is killed and has failed, and
-so has one whose compiling takes that long.
+so has one whose compiling takes that long. The processes a test
+started end with it: when it has ended or was killed, what is left of
+its group of processes is killed.
 
 Two runs of `ail test` in one package do not run at the same time: the
 second waits for the first before it fetches or builds anything, since

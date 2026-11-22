@@ -264,6 +264,34 @@ echo 11 > tests/once.out
 is cli_test_environment_once 0 "ok   once
 1 test, 0 failed" "" env AIL_TMP=elsewhere AIL_HOME="$top" $ail test once
 rm tests/once.*
+# what a test started ends with the test: one that ends and leaves a
+# child, and one that is killed with its child
+cat > tests/kid.aiw <<'END'
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+buf b 24
+buf t 16
+call argc as c
+sys fork as pid
+ifz pid
+	store t 60
+	sys nanosleep t 0
+	sys exit_group 0
+end
+call byaddn b pid
+load b as p
+load b+8 as n
+call filewrite "build/kid" p n
+END
+is cli_test_child_left 0 "ok   kid
+1 test, 0 failed" "" $ail test kid
+yes cli_test_child_left_is_gone sh -c '! kill -0 "$(cat build/kid)" 2> /dev/null'
+printf 'label spin\njmp spin\n' >> tests/kid.aiw
+is cli_test_child_of_killed 1 "FAIL kid
+1 test, 1 failed" "ail: it still ran after 10 seconds and was killed" $ail test kid
+yes cli_test_child_of_killed_is_gone sh -c '! kill -0 "$(cat build/kid)" 2> /dev/null'
+rm tests/kid.aiw
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test
