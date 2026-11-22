@@ -538,6 +538,12 @@ is cli_update_lock_unwritable 4 "" "ail: cannot write ail.lock" $ail update
 yes cli_update_lock_unwritable_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_update_lock_unwritable_lock cmp -s ail.lock "$tmp/lock"
 rmdir ail.lock.new && $ail remove base > /dev/null
 
+# the file that the words of git are kept in is never a link to another
+echo precious > "$tmp/precious" && mkdir -p deps && ln -s "$tmp/precious" deps/.git-said
+is cli_git_output_link 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+yes cli_git_output_link_target [ "$(cat "$tmp/precious")" = precious ]
+$ail remove base > /dev/null
+
 # what is refused
 cp ail.pkg "$tmp/pkg"
 is cli_add_usage 2 "" "usage: ail COMMAND" $ail add

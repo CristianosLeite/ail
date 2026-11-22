@@ -93,7 +93,10 @@ end
 # it says itself why it failed, or /dev/null if dpquiet is 1.
 fn dpgit dpquiet
 	call filemkdir "deps" 493
-	call fileopen "deps/.git-said" 0x242 384 as dpout
+	# a file made anew: what has the name is removed, a link as a link,
+	# and nothing is written through one
+	call fileunlink "deps/.git-said"
+	call fileopen "deps/.git-said" 0x200c2 384 as dpout
 	ifslt dpout 0
 		ret -2000
 	end
