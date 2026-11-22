@@ -27,6 +27,14 @@ fn die m n s
 	st=in
 	if u
 		load u*8+ustart-8 as st
+		load u*8+upkg-8 as c
+		if c
+			c=c*32+pkgs-32
+			load c+16 as pp
+			load c+24 as pl
+			call ew pp pl
+			call ew "/"
+		end
 		c=(u-1)*16+uses
 		load c as pp
 		load c+8 as pl
@@ -135,9 +143,18 @@ fn eacc
 	call die "invalid access" 1
 end
 fn euse
-	ename=ns
-	enamel=nl
+	ename=pathbuf
+	enamel=pathl
 	call die "cannot read file" 1
+end
+fn epkg
+	call die "unknown package" 1
+end
+fn eargs
+	epos=-1
+	ename=0
+	enamel=0
+	call die "usage: ailc [name=directory]... < source > executable" 2
 end
 fn elab
 	ename=ns

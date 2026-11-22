@@ -1,0 +1,6 @@
+# the line below runs once, however many files use this one
+use "lib/std/io.aiw"
+call print "two is read\n"
+fn tfn
+	call print "t of two\n"
+end

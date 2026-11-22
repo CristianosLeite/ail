@@ -21,9 +21,10 @@ The VS Code extension is in the repository ail-extensions (https://github.com/Cr
 - [Generated code after the algorithm measurements](architecture/generated-code-follow-up.md) — scaled index, registers by weight, two-jump `while`, calls in place (also of bodies that call and name globals, four deep), short slot displacements, `test` with a mask and `lea`, loops aligned to 64 bytes so that placement moves times by 1 to 3% where it was a fifth, `perf --places`; what was decided against
 - [Source extension](architecture/source-extension.md) — `.aiw` since 2026-11-21: `.aw` is PHP in GitHub Linguist, the names looked at, what Linguist asks before it takes a language
 - [Review fixes of 2026-11-20](architecture/review-fixes-2026-11.md) — `tail` with a local, result count through `tail`, names of a `while` value, limit of locals, and why
+- [Packages, the manifest and the ail command](architecture/packages.md) — one mechanism of versions and dependencies; `use "name:path"`, `lib/` as the package of AIL, packages from the compiler's arguments
 
 ## testing
 - [Stage0 test suite](testing/stage0-test-suite.md) — runner deadline, fixtures that must execute what they generate, mutation checks, what goes unchecked
 
 ## status
-- [Open items](status/open-items.md) — pending work; none since 2026-11-21
+- [Open items](status/open-items.md) — pending decisions; the packages and the `ail` command since 2026-11-22

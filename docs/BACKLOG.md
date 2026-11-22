@@ -769,3 +769,18 @@ asked for statements in the compiler.
 - [x] Score binary32 where it lies: `fdot4 a p q n as x`, the loop of `fdot`
   with a `movss` and a `cvtss2sd` between registers for each element of the
   first run; the bits of `f4to8`, `fmul` and `fadd` in order.
+
+## Packages and the `ail` command
+
+A program could not read the files of another project: every path of a
+`use` starts from the directory the compiler runs in, so the `use` lines
+inside a library such as aildb name nothing when it is compiled from the
+directory of a program that imports it. The user asked on 2026-11-22 for
+one mechanism of versions and dependencies for AIL and what is built on
+it; `TODO.md` has what is decided and what is left.
+
+- [x] Packages in `use`: the compiler takes arguments `name=directory`;
+  `use "name:path"` reads a file of that package, a path without a name
+  starts from the package of the file that has it, and `lib/` is the
+  library of AIL in every package. Without arguments nothing changes.
+  `compiler/pkg.aiw`, `tests/pkg.sh`.

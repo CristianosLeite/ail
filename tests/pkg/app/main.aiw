@@ -1,0 +1,9 @@
+use "lib/std/io.aiw"
+use "one:src/a.aiw"
+use "src/own.aiw"
+use "src/b.aiw"
+use "two:t.aiw"
+call afn
+call own
+call appb
+call tfn

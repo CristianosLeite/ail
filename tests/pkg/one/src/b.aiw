@@ -1,0 +1,3 @@
+fn bfn
+	call print "b of one\n"
+end

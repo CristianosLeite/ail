@@ -1,6 +1,6 @@
 B := build
 
-SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw \
+SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw compiler/pkg.aiw \
        compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw
 
 all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc
@@ -72,6 +72,7 @@ $(B)/ailc2: $(SRC) $(B)/ailc
 test: all $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
+	AILC=$(B)/ailc tests/pkg.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \

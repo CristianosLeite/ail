@@ -99,7 +99,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 
 ## Layout
 
-- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.aiw` is its first file and names the others (`diag.aiw`, `lex.aiw`, `names.aiw`, `expr.aiw`, `emit.aiw`, `tables.aiw`) with `use`
+- `compiler/`: the compiler, written in AIL, built by the seed and then by itself; `ailc.aiw` is its first file and names the others (`diag.aiw`, `lex.aiw`, `names.aiw`, `pkg.aiw`, `expr.aiw`, `emit.aiw`, `tables.aiw`) with `use`
 - `seed/MANIFEST`: the released compilers a build may start from
 - `examples/`: sample programs: `hello` (a syscall result kept in a variable), `echo` (a buffer), `count` (arithmetic and byte stores), `loop` (a comparison and a jump), `fact` (a recursive function), and five that compute, for the measurements: `compute` (an arithmetic recurrence), `sieve` (primes in a table of bytes), `collatz` (branches and division), `fnv` (a hash over a buffer), `isort` (an insertion sort)
 - `lib/`: the library, files of functions that a program compiles in with `use`: in `std/`, `io.aiw` (output, arguments), `bytes.aiw` (a buffer of bytes that grows), `file.aiw` (whole files, directories), `proc.aiw` (child processes, the clock), `task.aiw` (`spawn` and `join` on a pool of threads), `vec.aiw` (a vector of 64-bit values), `queue.aiw` (a queue with a fixed room), `heap.aiw` (the smallest value first), `map.aiw` (a hash map of 64-bit keys and values), and `async/` (tasks that are polled: timers, sockets, channels); each has a section in the [language reference](docs/language.md)

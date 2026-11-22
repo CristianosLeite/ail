@@ -1,0 +1,3 @@
+fn own
+	call print "own of app\n"
+end

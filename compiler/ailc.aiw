@@ -41,6 +41,9 @@ var fnregs
 # srcend = end of all source read so far; nuses = files compiled through
 # use; nustk = uses being compiled
 var srcend nuses nustk
+# npkg = packages that the arguments name; ailpkg = the one named "ail",
+# counted from 1, or 0; pathl = the length of the path in pathbuf
+var npkg ailpkg pathl
 # fnres = results of the open function, 0 until its first ret; fntail = 1
 # once it has a tail; ncap = names after "as" in this statement
 var fnres fntail ncap
@@ -192,6 +195,9 @@ buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as wr
 buf ustack 19173968   # per use being compiled: where its line ended, and the end of
 # the unit that has it
 buf pathbuf 4096    # the path of a use, with a NUL for open
+buf pkgs 8192       # 256 packages of 32 bytes: name, length, directory, length
+buf upkg 9586984    # per file of use: its package, counted from 1, or 0 for a file
+# that is read from the working directory
 buf lback 1048577    # a byte for each label: a jump of the first pass went back to it
 buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
 # source, variables assigned on every way to it
@@ -228,12 +234,15 @@ buf refs 201326624    # 4194305 uses of a name not declared yet, and 2097152 mor
 use "compiler/diag.aiw"
 use "compiler/lex.aiw"
 use "compiler/names.aiw"
+use "compiler/pkg.aiw"
 use "compiler/expr.aiw"
 use "compiler/emit.aiw"
 
 # ---- start: a closed output pipe must be a write error, not a death
 store sig 1
 sys rt_sigaction 13 sig 0 8
+args as p
+call pkargs p
 p=in
 q=in+inmax
 label rd
@@ -422,7 +431,8 @@ load p as ie
 jmp next
 
 # "use "<path>"": read the file behind the source read so far and compile
-# it here, unless a use with the same path was compiled before
+# it here, unless a use of the same path in the same package was compiled
+# before
 label usedef
 if infn
 	call eplace
@@ -451,22 +461,25 @@ ns=p
 nl=q
 call ok q
 call no q>4095
-call look uses nuses 16 as r
-jne r -1 next
-call putn nuses*16+uses
-nuses+=1
-r=pathbuf
+# the package of the file; ns and nl are its path there from here on
+call pkof as d
+call ok nl
+r=0
 label u8
-if q
-	loadb p as c
-	storeb r c
-	p+=1
+if r<nuses
+	call same r*16+uses as c
+	if c
+		load r*8+upkg as c
+		jeq c d next
+	end
 	r+=1
-	q-=1
 	jmp u8
 end
-storeb r 0
+call putn nuses*16+uses
+store nuses*8+upkg d
+nuses+=1
 epos=ns
+call pkpath d
 sys open pathbuf 0 0 as f
 ifslt f 0
 	call euse
