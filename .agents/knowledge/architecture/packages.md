@@ -198,7 +198,8 @@ checked against the code and fixed in a commit of its own on the branch
   The program does not run before its watcher is there (third review): the child
   waits for a byte on a second pipe, which the command writes once the watcher is
   forked; if the command is gone first, the pipe ends and the child with it. A program
-  whose pipes or watcher cannot be made is not started. `make` builds the formatter
+  whose pipes or watcher cannot be made is not started. The command itself moves the
+  watcher into the group and checks it before it writes the byte (fourth review). `make` builds the formatter
   too, so that `ail fmt` works in a checkout that ran only `make`.
 - **A test leads a group of processes, and the group ends with it**, as
   `tests/run.sh` has it for a test that is killed; here also for one that ends by itself

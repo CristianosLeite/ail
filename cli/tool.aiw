@@ -645,12 +645,23 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 			sys tlkill 0-tlpid 9
 			sys exit 0
 		end
+		ifsgt tlwd 0
+			# the same from here, and known to be done before the child
+			# gets its byte: a watcher still in the group of this
+			# process would go with it at a signal for that group
+			sys tlsetpgid tlwd tlpid as tlr
+			if tlr
+				sys tlkill tlwd 9
+				call procwait tlwd 0
+				tlwd=-1
+			end
+		end
 	end
 	sys close tlrd
 	sys close tlgrd
 	ifslt tlwd 0
-		# no child, or no watcher for it: the child, which still waits
-		# for its byte, ends when the pipe does
+		# no child, or no watcher in its group: the child, which still
+		# waits for its byte, ends when the pipe does
 		sys close tlgwr
 		sys close tlwr
 		ifsge tlpid 0
