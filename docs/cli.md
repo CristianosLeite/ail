@@ -173,8 +173,8 @@ A test that still runs after 10 seconds is killed and has failed, and
 so has one whose compiling takes that long.
 
 Two runs of `ail test` in one package do not run at the same time: the
-second waits for the first, since both write the files of
-`build/tests/`.
+second waits for the first before it fetches or builds anything, since
+both write the files of `deps/` and `build/`.
 
 For each test a line `ok   <name>` or `FAIL <name>` is written to
 stdout, then the number of tests and of those that failed; a line on
