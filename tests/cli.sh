@@ -188,6 +188,36 @@ printf 'use "tests/lib/pipe.aiw"\n' > tests/hang.aiw
 is cli_test_compiler_deadline 1 "FAIL hang
 1 test, 1 failed" "ail: the compiler still ran after 10 seconds and was killed" $ail test hang
 rm tests/hang.aiw tests/lib/pipe.aiw
+# two runs at the same time: a test that writes into its directory, waits
+# and reads it again finds its file both times
+cat > tests/slow.aiw <<'END'
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+buf b 24
+buf t 16
+buf got 24
+call procvar "AIL_TMP" as p n
+call byadd b p n
+call byadd b "/mine"
+load b as q
+load b+8 as m
+call filewrite q m "x" as r
+store t 1
+sys nanosleep t 0
+call fileread q m got as r
+call putn r==1
+call print "\n"
+END
+echo 1 > tests/slow.out
+$ail test slow > "$tmp/one" 2>&1 &
+is cli_test_two_runs 0 "ok   slow
+1 test, 0 failed" "" $ail test slow
+wait
+yes cli_test_two_runs_other [ "$(cat "$tmp/one")" = "ok   slow
+1 test, 0 failed" ]
+rm tests/slow.*
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test

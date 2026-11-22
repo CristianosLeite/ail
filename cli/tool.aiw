@@ -9,6 +9,7 @@
 
 # syscalls without a name in the compiler
 const tlfcntl 72
+const tlflock 73
 const tlgetcwd 79
 const tlchdir 80
 const tlrename 82

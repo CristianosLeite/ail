@@ -755,6 +755,14 @@ fn cmdtest
 	call build mfbin|mftestbin 0 0
 	call dir "build"
 	call dir "build/tests"
+	# one run of the tests of a package at a time: a second one waits
+	# here, since both would write the same files of build/tests/. The
+	# lock is gone with this process, and no test has its descriptor.
+	call fileopen "build/tests/.lock" 0x42 420 as fd
+	ifslt fd 0
+		call fail stio "cannot write build/tests/.lock" ""
+	end
+	sys tlflock fd 2
 	call argc as c
 	k=0
 	if c>2
