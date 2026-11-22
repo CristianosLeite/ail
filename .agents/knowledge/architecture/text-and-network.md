@@ -64,8 +64,9 @@ ail-extensions.
 - The server under many connections at once, and a slow client that sends a byte at a
   time (only the limit of 30 seconds a read holds it).
 - `numdouble` against another `strtod` than that of Python (glibc).
-- The version of AIL: the libraries came after the tag `v0.1.0`, and `Ailfile` still
-  says 0.1.0, so a package cannot yet ask for an AIL that has them.
+- (Settled on 2026-11-22: the libraries came after the tag `v0.1.0`, and the user had the
+  version made 0.1.1 and tagged once the pull request 28 was merged, so a package asks
+  for them with `ail 0.1.1`.)
 
 ## The review of the pull request 28 (Copilot, 2026-11-22)
 Eighteen findings, all taken; each is a case of the tests unless said otherwise.

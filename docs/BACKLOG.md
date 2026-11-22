@@ -851,3 +851,6 @@ program that first needs them).
   and calls the handler of the program, an async function, with a
   request of 136 bytes to which it adds the body of the response;
   400, 431 and 413 are the server's own. `tests/lib_httpd_*`.
+- [x] The version 0.1.1 of AIL (user, 2026-11-22), the first with the
+  four libraries: `Ailfile` says it and the tag `v0.1.1` names the merge
+  of it, so that a package asks for them with `ail 0.1.1`.
