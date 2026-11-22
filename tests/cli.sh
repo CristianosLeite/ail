@@ -201,6 +201,11 @@ end" ]
 yes cli_fmt_left_the_rest cmp -s .hidden/x.aiw deps/d/x.aiw
 yes cli_fmt_left_what_a_link_names cmp -s .hidden/x.aiw "$tmp/elsewhere/y.aiw"
 rm linked src/z.aiw
+# a directory that cannot be read is not passed over as one without sources
+mkdir src/closed && cp .hidden/x.aiw src/closed/ && chmod 000 src/closed
+is cli_fmt_check_unreadable 4 "" "ail: cannot read the directories of the package" $ail fmt --check
+is cli_fmt_unreadable 4 "" "ail: cannot read the directories of the package" $ail fmt
+chmod 700 src/closed && rm -r src/closed
 is cli_fmt_check_after 0 "" "" $ail fmt --check
 is cli_fmt_usage 2 "" "usage: ail COMMAND" $ail fmt --all
 rm -rf tests src/x.aiw .hidden deps && cp -r "$tmp/keep/tests" tests

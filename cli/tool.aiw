@@ -508,7 +508,9 @@ end
 # of the tln bytes at tlp and in those below it, each with a NUL byte
 # after it: the files whose names end in ".aiw". A name that starts with
 # a dot is passed over, a link is not followed, and at the top, where
-# tltop is 1, build and deps are passed over. The result is the number of paths, or a negative error.
+# tltop is 1, build and deps are passed over. The result is the number
+# of paths, or the error of the kernel for a directory that could not
+# be read.
 fn tlsources tlb tlp tln tltop
 	local tlnames 24
 	local tlpath 24
@@ -568,8 +570,14 @@ fn tlsources tlb tlp tln tltop
 			ifsge tlr 0
 				tlc+=tlr
 			else
+				# anything but "not a directory" is a directory that was
+				# not read, and its sources are not known
+				if tlr!=-20
+					tlc=tlr
+					jmp out
+				end
 				# not a directory: a source if its name ends so
-				if (tlr==-20)&(tlm>4)
+				if tlm>4
 					load tlpath as tlq
 					load4 tlq+tlm-4 as tlx
 					# ".aiw" as the four bytes are read
