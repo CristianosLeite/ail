@@ -114,6 +114,20 @@ call show "name a\nversion 1.0.0\nbin a ../outside.aiw\n" 0
 call show "name a\nversion 1.0.0\ntestbin a src/../../outside.aiw\n" 0
 call print "# a source that goes back and stays inside\n"
 call show "name a\nversion 1.0.0\nbin a src/../a.aiw\nbin b ./src//b.aiw\nbin c ..a/b..aiw\n" 0
+# a source that ends in "/" at the last byte that can be read: nothing
+# is read after it
+const pagemmap 9
+sys pagemmap 0 8192 3 0x22 -1 0 as page
+sys mprotect page+4096 4096 0
+edge=page+4096-4
+storeb edge 115
+storeb edge+1 114
+storeb edge+2 99
+storeb edge+3 47
+call mfsource edge 4 as r
+call print "a source at the end of a page: "
+call putn r
+call print "\n"
 call print "# a manifest that is refused, on\n"
 call show "name a\nversion 1.0.0\nbin a src/a.aiw\ntestbin a src/b.aiw\n" 0
 call show "name a\nversion 1.0.0\ndep b\n" 0

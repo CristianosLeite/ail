@@ -268,7 +268,12 @@ fn mfsource mfp mfn
 		end
 		if mfc==47
 			mfl=mfi-mfs
-			loadb mfp+mfs as mfa
+			# the first bytes of the part, of a part that has them: one
+			# after a last "/" has none, and nothing is read there
+			mfa=0
+			if mfl
+				loadb mfp+mfs as mfa
+			end
 			mfb=0
 			if mfl==2
 				loadb mfp+mfs+1 as mfb

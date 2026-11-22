@@ -32,6 +32,7 @@ name [a] version [1.0.0] ail []
 1 [a] [src/../a.aiw] [] []
 1 [b] [./src//b.aiw] [] []
 1 [c] [..a/b..aiw] [] []
+a source at the end of a page: 1
 # a manifest that is refused, on
 error 8 at line 4: a name that an earlier line has
 error 2 at line 3: a line with too few or too many values
