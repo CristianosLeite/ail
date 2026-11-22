@@ -99,7 +99,7 @@ fuzz: $(B)/ailc
 # the manifest of AIL. DESTDIR is put before PREFIX, for a package that
 # is put together in another place than it is installed to.
 PREFIX ?= /usr/local
-VERSION := $(shell sed -n 's/^version //p' ail.pkg)
+VERSION := $(shell sed -n 's/^version //p' Ailfile)
 
 install: all
 	tools/install.sh $(B) "$(DESTDIR)$(PREFIX)"

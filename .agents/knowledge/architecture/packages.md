@@ -19,6 +19,13 @@ The rest is the open section of `docs/TODO.md`.
 - **The manifest is lines of a key and its values** (user, 2026-11-22), as
   `ail.pin` and `seed/MANIFEST` are written: read by AIL and by a shell
   with no parser. Rejected: TOML, which needs one.
+- **The manifest is `Ailfile` and the lock `Ailfile.lock`** (user, 2026-11-22), names
+  without an extension, as `Makefile` and `Gemfile` with `Gemfile.lock` are. They were
+  `ail.pkg` and `ail.lock`, the agent's proposal, until the same day: `.pkg` is the
+  installer package of macOS, which opens such a file in its Installer, and the
+  package of other systems, so a tool that goes by the extension takes the manifest
+  for something else. Rejected: `package.ail` with `ail.lock`, whose two names are not
+  alike, and other short extensions, each of which is somebody's already.
 - **AIL has a semantic version apart from the number of the seed** (user,
   2026-11-22). The seed number counts released compilers the source is
   built from; the version is what a manifest asks for.
@@ -46,7 +53,7 @@ The rest is the open section of `docs/TODO.md`.
   the first it ever took; without one it does what it did, so every test
   and every repository that links `lib` goes on unchanged. It reads no
   manifest: the command reads that and names the directories. Rejected:
-  the compiler reading `ail.pkg`, which puts the format and the place of
+  the compiler reading `Ailfile`, which puts the format and the place of
   the fetched packages into the compiler.
 - A path without a name is relative to the package of the file that has
   the `use`, not to the directory the compiler runs in. This is what lets
@@ -65,7 +72,7 @@ The rest is the open section of `docs/TODO.md`.
   it and no seed was cut.
 
 ## The manifest and the lock (agent, 2026-11-22; for the user to review)
-- The files are `ail.pkg` and `ail.lock`. The keys are `name`, `version`,
+- The files are `Ailfile` and `Ailfile.lock`. The keys are `name`, `version`,
   `ail`, `bin`, `testbin` and `dep`; `docs/packages.md` has their rules.
 - **A version is three numbers and nothing more.** No pre-release and no
   build part, which no project of AIL has needed. Each number is below

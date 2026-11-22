@@ -2,7 +2,7 @@
 
 A package is a directory of AIL sources with a name and a version: a
 program, a library that other packages use, or both. Its manifest, the
-file `ail.pkg` at its top, says what it is called, which version it is,
+file `Ailfile` at its top, says what it is called, which version it is,
 which AIL it needs, what is built from it and which packages it uses.
 AIL itself has one, and so has everything built on it, so that a version
 means the same thing in each.
@@ -14,7 +14,7 @@ lock. The command that works with them is `ail` ([cli.md](cli.md)):
 `tests/cli_manifest.aiw` as its test, and `cli/deps.aiw` finds and
 fetches the packages they name.
 
-## The manifest, `ail.pkg`
+## The manifest, `Ailfile`
 
 ```
 # a vector search engine
@@ -67,7 +67,7 @@ space, and none has a byte below 32 or the byte 127.
 - Another key, a value too few or too many, and `name`, `version` or
   `ail` a second time are errors, with the number of the line.
 
-## The lock, `ail.lock`
+## The lock, `Ailfile.lock`
 
 ```
 other 1.2.0 0123456789abcdef0123456789abcdef01234567 https://example.org/other.git
@@ -86,7 +86,7 @@ has no line, and none is called `ail`, as in the manifest. Comments and empty li
 
 ## Versions of AIL
 
-The version of AIL is in its own `ail.pkg`, and is the one a line `ail`
+The version of AIL is in its own `Ailfile`, and is the one a line `ail`
 asks for. It is apart from the number of the seed in `seed/MANIFEST`,
 which counts the released compilers that the source is built from: a
 seed is cut when the source of the compiler is to use a new statement,

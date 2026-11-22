@@ -300,13 +300,13 @@ fn dpmanifest dpp dpn dpt dps
 	store dpb+8 0
 	store dpb+16 0
 	call byadd dpb dpp dpn
-	call byadd dpb "/ail.pkg"
+	call byadd dpb "/Ailfile"
 	load dpb as dpq
 	load dpb+8 as dpm
 	call bycut dpt 0
 	call fileread dpq dpm dpt as dpr
 	ifslt dpr 0
-		call dpfail 4 "" dpp dpn " has no ail.pkg"
+		call dpfail 4 "" dpp dpn " has no Ailfile"
 		call byfree dpb
 		ret 0
 	end
@@ -457,7 +457,7 @@ fn dpone dpe dpp dpn dpt dps dpd
 			call byadd dpmsg dpa dpan
 			call byadd dpmsg " has the version "
 			call byadd dpmsg dpo dpl
-			call byadd dpmsg " in its ail.pkg"
+			call byadd dpmsg " in its Ailfile"
 			dpst=3
 			ret 0
 		end
@@ -530,12 +530,12 @@ fn dpresolve dpm
 	call bycut dplock 0
 	call byadd dplock "# The revisions of the dependencies, written by ail; keep it with the sources.\n"
 	load dplock+8 as dphead
-	call fileread "ail.lock" dpoldt as dphad
+	call fileread "Ailfile.lock" dpoldt as dphad
 	# no lock is one thing, a lock that cannot be read another: its
 	# revisions are not to be replaced by what the tags name now
 	ifslt dphad 0
 		if dphad!=-2
-			call dpfail 4 "cannot read ail.lock" "" ""
+			call dpfail 4 "cannot read Ailfile.lock" "" ""
 			ret 0
 		end
 	end
@@ -545,7 +545,7 @@ fn dpresolve dpm
 	if dpe
 		dpst=3
 		call bycut dpmsg 0
-		call byadd dpmsg "ail.lock:"
+		call byadd dpmsg "Ailfile.lock:"
 		call byaddn dpmsg dpl
 		call byadd dpmsg ": "
 		call mfwhy dpmsg dpe
@@ -567,7 +567,7 @@ fn dpresolve dpm
 	if dpn==dphead
 		# no package comes from a repository: there is no lock
 		ifsge dphad 0
-			call fileunlink "ail.lock"
+			call fileunlink "Ailfile.lock"
 		end
 		ret 1
 	end
@@ -575,9 +575,9 @@ fn dpresolve dpm
 	load dpoldt+8 as dpm
 	call mfeq dpp dpn dpq dpm as dpr
 	ifz dpr
-		call tlwrite "ail.lock" dpp dpn as dpr
+		call tlwrite "Ailfile.lock" dpp dpn as dpr
 		if dpr
-			call dpfail 4 "cannot write ail.lock" "" ""
+			call dpfail 4 "cannot write Ailfile.lock" "" ""
 			ret 0
 		end
 	end

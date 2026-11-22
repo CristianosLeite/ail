@@ -21,7 +21,7 @@ const stusage 2
 const stmanifest 3
 const stio 4
 
-buf gtext 24        # ail.pkg of the package, as it was read
+buf gtext 24        # Ailfile of the package, as it was read
 buf gman 72         # and what it holds
 buf gmsg 24         # a line that is being put together
 buf gout 24         # the path of an executable
@@ -60,15 +60,15 @@ fn fail st p n q m
 		# a command that changed the manifest or the lock and cannot go
 		# on: both are put back as it found them
 		undo=0
-		call putback "ail.pkg" uman as r
+		call putback "Ailfile" uman as r
 		if ulocked
-			call putback "ail.lock" ulock as a
+			call putback "Ailfile.lock" ulock as a
 			r=r|a
 		else
-			call fileunlink "ail.lock"
+			call fileunlink "Ailfile.lock"
 		end
 		if r
-			call eprint "ail: ail.pkg or ail.lock could not be put back as it was\n"
+			call eprint "ail: Ailfile or Ailfile.lock could not be put back as it was\n"
 		end
 	end
 	call eprint "ail: "
@@ -112,7 +112,7 @@ end
 fn project
 	call tlenter as r
 	ifz r
-		call fail stmanifest "no ail.pkg in this directory or in one above it" ""
+		call fail stmanifest "no Ailfile in this directory or in one above it" ""
 	end
 	# one command at a time in a package
 	call tllock as r
@@ -120,16 +120,16 @@ fn project
 		call fail stio "cannot lock the directory of the package" ""
 	end
 	call bycut gtext 0
-	call fileread "ail.pkg" gtext as r
+	call fileread "Ailfile" gtext as r
 	ifslt r 0
-		call fail stio "cannot read ail.pkg" ""
+		call fail stio "cannot read Ailfile" ""
 	end
 	load gtext as p
 	load gtext+8 as n
 	call mfread gman p n 0 as e l
 	call bycut gmsg 0
 	if e
-		call byadd gmsg "ail.pkg"
+		call byadd gmsg "Ailfile"
 		if l
 			call byaddb gmsg 58
 			call byaddn gmsg l
@@ -145,7 +145,7 @@ fn project
 		call mfver tlvp tlvn as have ok
 		call mfmeets have need as r
 		ifz r
-			call byadd gmsg "ail.pkg asks for AIL "
+			call byadd gmsg "Ailfile asks for AIL "
 			call byadd gmsg p n
 			call byadd gmsg ", which AIL "
 			call byadd gmsg tlvp tlvn
@@ -284,7 +284,7 @@ fn build kinds p n
 	if n
 		call mffind gman mfbin|mftestbin p n as i
 		if i==-1
-			call fail stmanifest "ail.pkg has no executable " p n
+			call fail stmanifest "Ailfile has no executable " p n
 		end
 		call mfentry gman i as e
 		call compile e as r
@@ -321,7 +321,7 @@ fn cmdbuild
 	call deps
 	call build mfbin p n as e
 	ifz e
-		call eprint "ail: ail.pkg names no executable to build\n"
+		call eprint "ail: Ailfile names no executable to build\n"
 	end
 end
 
@@ -362,7 +362,7 @@ fn cmdrun
 			load e as kind
 			if kind==mfbin
 				if n
-					call fail stusage "ail.pkg has more than one executable; name the one to run" ""
+					call fail stusage "Ailfile has more than one executable; name the one to run" ""
 				end
 				load e+8 as p
 				load e+16 as n
@@ -370,7 +370,7 @@ fn cmdrun
 			i+=1
 		end
 		ifz n
-			call fail stmanifest "ail.pkg names no executable to run" ""
+			call fail stmanifest "Ailfile names no executable to run" ""
 		end
 	end
 	call deps
@@ -486,7 +486,7 @@ fn scaffold p n keep
 	call byadd gmsg "\n\nbin "
 	call byadd gmsg p n
 	call byadd gmsg " src/main.aiw\n"
-	call put "ail.pkg" 0
+	call put "Ailfile" 0
 	call putdir "src"
 	call bycut gmsg 0
 	call byadd gmsg "use \"lib/std/io.aiw\"\ncall print \"hello from "
@@ -552,9 +552,9 @@ fn cmdinit
 		call usage
 	end
 	# there is none: one that cannot be read is one all the same
-	call fileopen "ail.pkg" 0 0 as r
+	call fileopen "Ailfile" 0 0 as r
 	if r!=-2
-		call fail stio "this directory has an ail.pkg already" ""
+		call fail stio "this directory has an Ailfile already" ""
 	end
 	call argv 2 as p n
 	ifz n
@@ -927,12 +927,12 @@ end
 # there is none. One that is there and cannot be read ends the command.
 fn readlock b
 	call bycut b 0
-	call fileread "ail.lock" b as r
+	call fileread "Ailfile.lock" b as r
 	ifsge r 0
 		ret 1
 	end
 	if r!=-2
-		call fail stio "cannot read ail.lock" ""
+		call fail stio "cannot read Ailfile.lock" ""
 	end
 	ret 0
 end
@@ -1094,7 +1094,7 @@ fn cmdadd
 			call byadd gmsg np nn
 			call byadd gmsg " has the version "
 			call byadd gmsg p n
-			call byadd gmsg " in its ail.pkg"
+			call byadd gmsg " in its Ailfile"
 			call failmsg stmanifest
 		end
 	end
@@ -1138,7 +1138,7 @@ fn cmdadd
 		call byaddb gtmp 32
 		call byadd gtmp up un
 		call byaddb gtmp 10
-		call save "ail.lock" gtmp
+		call save "Ailfile.lock" gtmp
 	end
 	# the name is printed from a copy: the manifest is read again
 	call bycut gsaid 0
@@ -1152,7 +1152,7 @@ fn cmdadd
 		call byadd gsaid vp vn
 	end
 	call byaddb gsaid 10
-	call save "ail.pkg" xa
+	call save "Ailfile" xa
 	call project
 	call deps
 	load gsaid as p
@@ -1169,10 +1169,10 @@ fn cmdremove
 	call project
 	call without xa gtext p n 0 as r
 	ifz r
-		call fail stmanifest "ail.pkg has no dependency " p n
+		call fail stmanifest "Ailfile has no dependency " p n
 	end
 	call keep
-	call save "ail.pkg" xa
+	call save "Ailfile" xa
 	call project
 	call deps
 	# its clone goes, unless another package of the build still uses it
@@ -1207,7 +1207,7 @@ fn cmdupdate
 	if fl
 		call mffind gman mfgit fp fl as i
 		if i==-1
-			call fail stmanifest "ail.pkg has no dependency from a repository called " fp fl
+			call fail stmanifest "Ailfile has no dependency from a repository called " fp fl
 		end
 	end
 	# xa has the manifest and xb the lock as they are to be
@@ -1275,8 +1275,8 @@ fn cmdupdate
 	end
 	if changed
 		call keep
-		call save "ail.pkg" xa
-		call save "ail.lock" xb
+		call save "Ailfile" xa
+		call save "Ailfile.lock" xb
 		call project
 		call deps
 	end

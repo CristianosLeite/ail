@@ -48,7 +48,7 @@ none is given:
 
 ```
 make install PREFIX=$HOME/.local   # bin/ail, and the rest in lib/ail/
-ail new hello                      # hello/: ail.pkg, src/main.aiw, a test
+ail new hello                      # hello/: Ailfile, src/main.aiw, a test
 cd hello
 ail run                            # prints: hello from hello
 ail test                           # prints: ok   hello, and 1 test, 0 failed
@@ -104,7 +104,7 @@ One statement per line. The program starts at the first line and `exit(0)` is ap
 ## Documentation
 
 - [Language reference](docs/language.md): everything the compiler accepts, with examples and error cases
-- [Packages](docs/packages.md): the manifest `ail.pkg` of a package, its version and its dependencies, and the lock
+- [Packages](docs/packages.md): the manifest `Ailfile` of a package, its version and its dependencies, and the lock
 - [The command `ail`](docs/cli.md): a package made, built, run and tested, its dependencies, and how AIL is installed
 - [How the compiler works](docs/compiler.md): how it is built from its seed, pipeline, output file layout, code generation, a byte-by-byte walkthrough of `examples/hello.aiw`
 - [Performance](https://github.com/CristianosLeite/ail-bench/blob/main/docs/performance.md): how the examples are timed against C, Rust and assembly, the kernels of the algorithm programs apart from their setup, and the results

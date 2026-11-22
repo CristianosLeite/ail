@@ -21,7 +21,7 @@ mkdir -p "$p/bin" "$p/lib/ail"
 install -m 755 "$b/ail" "$p/bin/ail"
 install -m 755 "$b/ailc" "$p/lib/ail/ailc"
 install -m 755 "$b/tools/indent" "$p/lib/ail/indent"
-install -m 644 ail.pkg LICENSE "$p/lib/ail/"
+install -m 644 Ailfile LICENSE "$p/lib/ail/"
 rm -rf "$p/lib/ail/lib"
 # the sources of the library, and nothing else that lies among them
 find lib -type f -name '*.aiw' | while read -r f; do

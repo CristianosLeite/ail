@@ -83,7 +83,7 @@ fn tlgetdir tlb
 end
 
 # Try the directory of the tln bytes at tlp as that of AIL: it has the
-# manifest ail.pkg with a version, the compiler as ailc or as build/ailc,
+# manifest Ailfile with a version, the compiler as ailc or as build/ailc,
 # which is how a checkout has it, and the library under lib/; the
 # formatter is indent or build/tools/indent, and may be missing. 1 if it
 # is one, and tlhome, tlailc, tlindent and the version are then set.
@@ -92,7 +92,7 @@ fn tlhomeat tlp tln
 	call bycut tlvtext 0
 	call bycut tlailc 0
 	call byadd tlailc tlp tln
-	call byadd tlailc "/ail.pkg"
+	call byadd tlailc "/Ailfile"
 	load tlailc as tlq
 	load tlailc+8 as tlm
 	call fileread tlq tlm tlvtext as tlr
@@ -247,14 +247,14 @@ fn tlreal tlb tlp tln
 end
 
 # Make the directory of the package the current one: the nearest of this
-# directory and those above it that has a file ail.pkg. 1, with tlroot
+# directory and those above it that has a file Ailfile. 1, with tlroot
 # set, or 0 if none has one. One that is there and cannot be opened is
 # the manifest of the nearest package all the same: the search does not
 # go past it to a package above.
 fn tlenter
 	local tlz 4096
 	label look
-	call fileopen "ail.pkg" 0 0 as tlr
+	call fileopen "Ailfile" 0 0 as tlr
 	ifsge tlr 0
 		sys close tlr
 	end

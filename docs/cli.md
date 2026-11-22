@@ -2,7 +2,7 @@
 
 `ail` makes a package, builds it, runs it and tests it, and brings in
 the packages it uses. A package is a directory
-with a manifest, `ail.pkg` ([packages.md](packages.md)); the command
+with a manifest, `Ailfile` ([packages.md](packages.md)); the command
 reads it, finds the compiler and the library of AIL, and does what would
 otherwise be a Makefile and a script in each project.
 
@@ -40,7 +40,7 @@ compiler and the formatter it looks for in a checkout, and
 
 All but `new`, `init`, `version` and `help` work on the package the current directory is
 in: the nearest directory, this one or one above it, that has an
-`ail.pkg`. Sources are compiled from that directory, so a `use` names a
+`Ailfile`. Sources are compiled from that directory, so a `use` names a
 file of the package from its top, wherever the command was started.
 
 One command at a time works on a package: a second one, started while
@@ -58,7 +58,7 @@ directory that may be entered and not read is not built, with status 4.
 `ail new NAME` makes the directory `NAME`, which must not be there, and in
 it:
 
-- `ail.pkg`, with the name, the version 0.1.0, the version of the AIL
+- `Ailfile`, with the name, the version 0.1.0, the version of the AIL
   that made it as the one it needs, and one executable, `NAME`, from
   `src/main.aiw`;
 - `src/main.aiw`, a program that prints a line;
@@ -68,7 +68,7 @@ it:
 It then runs `git init` there, and goes on without a repository if git
 is not installed. `ail init` writes the same files into the current
 directory and calls the package like the directory, or `NAME` if one is
-given. It refuses a directory that has an `ail.pkg`, and leaves a
+given. It refuses a directory that has an `Ailfile`, and leaves a
 `src/main.aiw`, a test and a `.gitignore` that are there as they are.
 
 ### `add`, `remove` and `update`
@@ -79,8 +79,8 @@ ail add https://github.com/CristianosLeite/aildb.git
 
 `ail add URL` reads the tags of the repository, takes the latest that is
 a version, `v1.2.3`, fetches it into `deps/`, reads the name of the
-package from its manifest, and writes the line `dep` into `ail.pkg` and
-the revision into `ail.lock`; `ail add URL VERSION` takes that version.
+package from its manifest, and writes the line `dep` into `Ailfile` and
+the revision into `Ailfile.lock`; `ail add URL VERSION` takes that version.
 A source of the package then names a file of it as
 `use "name:path"` ([language.md](language.md#packages)).
 `ail add --path DIRECTORY` uses the package as it lies in a directory,
@@ -113,7 +113,7 @@ is then given its name.
 the manifest names, and those that these name in their own manifests.
 
 - A package from a repository is in `deps/<name>`, a clone at the
-  revision that `ail.lock` has for it. A clone that is missing is made,
+  revision that `Ailfile.lock` has for it. A clone that is missing is made,
   and one at another revision is moved; one that is at its revision is
   not looked at again, so a build asks nothing of a network.
 - A package without a line in the lock, because the manifest was changed
@@ -214,7 +214,7 @@ make install PREFIX=$HOME/.local
 
 puts the command at `bin/ail` under the prefix, `/usr/local` if none is
 given, and in `lib/ail/` what the command looks for from there: the
-compiler `ailc`, the formatter `indent`, the manifest `ail.pkg` with the
+compiler `ailc`, the formatter `indent`, the manifest `Ailfile` with the
 version, the licence, and the library, `lib/`. With `bin/` on `PATH`
 nothing else is needed, and the checkout it was built in may go.
 `DESTDIR` is put before the prefix, for a package made in one place and
@@ -243,9 +243,9 @@ looks, in this order:
 3. in `..` from that directory, which is a checkout with the command in
    `build/`.
 
-Such a directory has `ail.pkg`, `lib/`, the compiler as `ailc` or as
+Such a directory has `Ailfile`, `lib/`, the compiler as `ailc` or as
 `build/ailc`, and the formatter as `indent` or as `build/tools/indent`. The line `ail` of a manifest is compared with the version
-in that `ail.pkg`, and a package that asks for an AIL this one is not
+in that `Ailfile`, and a package that asks for an AIL this one is not
 ([packages.md](packages.md)) is not built.
 
 ## Statuses

@@ -1,5 +1,5 @@
-# cli/manifest.aiw -- the manifest of a package, ail.pkg, and its lock,
-# ail.lock, as docs/packages.md has them: read and checked, and changed
+# cli/manifest.aiw -- the manifest of a package, Ailfile, and its lock,
+# Ailfile.lock, as docs/packages.md has them: read and checked, and changed
 # as text. Needs lib/std/bytes.aiw. The functions print nothing and end
 # nothing: what is wrong is a result.
 #

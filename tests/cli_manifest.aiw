@@ -177,7 +177,7 @@ call drop "name a\ndep b 1.0.0 url\n# dep b is gone\ndep bc ../bc\n  dep\tb ../b
 call drop "name a\ndep b ../b\n" "c" 0
 call drop "b 1.0.0 rev url\nbc 1.0.0 rev url\n" "b" 1
 call print "# the manifest of AIL itself\n"
-call fileread "ail.pkg" t as r
+call fileread "Ailfile" t as r
 load t as p
 load t+8 as n
 call mfread d p n 0 as e l

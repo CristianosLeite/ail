@@ -8,7 +8,7 @@
 # its case.
 cd "$(dirname "$0")/.." || exit 1
 top=$PWD
-version=$(sed -n 's/^version //p' ail.pkg)
+version=$(sed -n 's/^version //p' Ailfile)
 tmp=$(mktemp -d) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -47,7 +47,7 @@ works() {
 
 make -s install PREFIX="$tmp/p" > "$tmp/said" 2>&1
 yes install_make [ $? -eq 0 ]
-yes install_files [ "$(cd "$tmp/p" && find . -type f ! -path './lib/ail/lib/*' | LC_ALL=C sort | tr '\n' ' ')" = "./bin/ail ./lib/ail/LICENSE ./lib/ail/ail.pkg ./lib/ail/ailc ./lib/ail/indent " ]
+yes install_files [ "$(cd "$tmp/p" && find . -type f ! -path './lib/ail/lib/*' | LC_ALL=C sort | tr '\n' ' ')" = "./bin/ail ./lib/ail/Ailfile ./lib/ail/LICENSE ./lib/ail/ailc ./lib/ail/indent " ]
 yes install_library [ "$(cd "$tmp/p/lib/ail" && find lib -type f | sort)" = "$(find lib -type f -name '*.aiw' | sort)" ]
 works install "$tmp/p"
 # a second time over the first, and with DESTDIR before the prefix
