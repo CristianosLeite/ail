@@ -138,3 +138,20 @@ that have it are not rewritten, since the answers of the review name them.
   task of a connection or a handler. Each needs the memory to run out at one exact
   allocation in the middle of a request, after others of the same size succeeded; the
   one case of the kind that is tested, the connect, is the first event of its request.
+
+## The third review of the pull request 28 (Copilot, 2026-11-22)
+Five findings, all taken.
+- The connect of `httpcall` was given to `asynctimeout`, and the review said that a
+  cancel of the request between the end of the connect and the poll of the limit could
+  lose the descriptor. The connect is now kept by the task: its limit is a timer and
+  `asyncfirst` (so the file uses `lib/async/chan.aiw`), and after the time, a cancel or
+  no memory the connect is cancelled, awaited and, if it has a descriptor, closed.
+  `tests/lib_http_cancel.aiw` cancels a request after 0 to 200 polls of another task
+  and counts the descriptors of the process: none is left. It finds none left with the
+  code before the change either, so the fault of the review was not reproduced; the
+  test holds the property, not the fix.
+- A second line `Transfer-Encoding` and a status above 599 are no message.
+- `jsonstr` asks for the room of a whole character before it adds a byte of it, and
+  `jsonaddi` returns 0 when the sign cannot be added. `tests/lib_json_no_memory.aiw`:
+  with room for one byte and no memory, `jsonstr` of a character of two adds none,
+  where it added one before the fix.

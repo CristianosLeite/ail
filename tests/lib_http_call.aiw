@@ -162,6 +162,8 @@ call against "a response after 400 ms, for a limit of 100" "HTTP/1.1 200 OK\x0d\
 call against "two lengths that are the same" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\ncontent-length: 2\x0d\n\x0d\nok" 0
 call against "two lengths that differ" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
 call against "a second length that is no number" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\nContent-Length: x\x0d\n\x0d\nok" 0
+call against "a second line of the transfer coding" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\nTransfer-Encoding: gzip\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
+call against "a status above 599" "HTTP/1.1 700 Invalid\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
 call against "a transfer coding that is not chunked alone" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
 store q+16 "head"
 store q+24 4

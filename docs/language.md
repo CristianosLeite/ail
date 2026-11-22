@@ -1657,7 +1657,7 @@ await s
 
 ## The HTTP library
 
-`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it. [The server](#the-http-server) is a file of its own.
+`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it; it brings `lib/async/chan.aiw` itself. [The server](#the-http-server) is a file of its own.
 
 | Function | Does |
 |---|---|
@@ -1707,9 +1707,10 @@ load q+112 as h
 call print x+h len-h                # the body
 ```
 
-- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. Two lines `Content-Length` that do not say the same number, and a `Transfer-Encoding` other than `chunked` alone, are -71: no other rule is taken in their place. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
+- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. Two lines `Content-Length` that do not say the same number, a `Transfer-Encoding` other than `chunked` alone or on two lines, and a status above 599, are -71: no other rule is taken in their place. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
 - **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB, a response above the limit or a chunk whose size no body may have, -12 without memory. A limit of time that cannot be made cancels the step it was for, whose error is then -125.
 - **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
+- **Cancelling** `httpcall` (`asynccancel`, or a limit of the program around it) ends it with -125 and leaves no connection open: the connect is kept by the task and asked for what it has, also when it was done and not yet taken.
 - **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
 - **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
 

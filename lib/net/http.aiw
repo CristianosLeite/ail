@@ -1,7 +1,9 @@
 # lib/net/http.aiw -- HTTP/1.1 over the sockets of lib/async/io.aiw: what
 # a message is made of, and a client. lib/net/httpd.aiw is the server.
 # A program that uses it uses lib/std/bytes.aiw, lib/async/task.aiw,
-# lib/async/time.aiw and lib/async/io.aiw first.
+# lib/async/time.aiw and lib/async/io.aiw first; it brings
+# lib/async/chan.aiw itself, for the first of two events.
+use "lib/async/chan.aiw"
 #
 # The client sends one request and reads its response:
 #
@@ -416,6 +418,11 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 		# its place
 		ret 0-71
 	end
+	# and a second line of the name makes the coding another one
+	call httpfieldn httpp httph "transfer-encoding" 1 as httpa httpl
+	if httpa
+		ret 0-71
+	end
 	if httpr
 		# httpw is where the body ends so far and httpq where what is
 		# not yet taken starts; both are offsets, since the bytes may
@@ -723,11 +730,43 @@ async fn httpcall httpq httpb
 	call byadd httpw httpp httpn
 	load httpq as httpa
 	load httpq+8 as httpl
+	# The connect is kept by this task and not given to a limit, since
+	# its result is a descriptor that only this task can close: the
+	# limit is a timer of its own, and whichever of the two is done
+	# first, and also when this task is cancelled while it waits, the
+	# connect is ended and asked for what it has.
 	call asyncconnect httpa httpl as httph
-	call httplimit httph httpms as httph
 	httpfd=0-12
 	if httph
+		httpr=0
+		if httpms
+			call asyncsleep httpms as https
+			httpr=0-12
+			if https
+				call asyncfirst httph https as httpg
+				if httpg
+					await httpg as httpr
+				end
+				call asynccancel https
+				await https as httpt
+			end
+			if httpr
+				call asynccancel httph
+			end
+		end
 		await httph as httpfd
+		if httpr
+			# the time ran out, this task was cancelled, or there was
+			# no memory: a connection that was made all the same is
+			# closed
+			ifsge httpfd 0
+				call asyncclose httpfd
+			end
+			httpfd=httpr
+			if httpr==1
+				httpfd=0-62
+			end
+		end
 	end
 	ifslt httpfd 0
 		call byfree httpw
@@ -778,7 +817,7 @@ async fn httpcall httpq httpb
 		ret 0-90
 	end
 	call httpstatus httpp httph as httpv
-	ifz httpv
+	if (httpv==0)|(httpv>599)
 		call asyncclose httpfd
 		ret 0-71
 	end

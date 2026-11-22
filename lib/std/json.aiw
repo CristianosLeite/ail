@@ -471,7 +471,12 @@ fn jsonstr jsonb jsonp jsonn
 			jsonv=0x10000+(jsonv-0xd800<<10)+jsonw-0xdc00
 			jsonp+=6
 		end
-		# the character jsonv as one to four bytes
+		# the character jsonv as one to four bytes, with room for all
+		# of them asked for first, so that none is left out
+		call byneed jsonb 4 as jsonok
+		ifz jsonok
+			ret 0
+		end
 		if jsonv<0x80
 			call byaddb jsonb jsonv as jsonok
 		else
@@ -724,7 +729,10 @@ end
 # 1, or 0 if memory ran out
 fn jsonaddi jsonb jsonv
 	ifslt jsonv 0
-		call byaddb jsonb 45
+		call byaddb jsonb 45 as jsonok
+		ifz jsonok
+			ret 0
+		end
 		jsonv=0-jsonv
 	end
 	call byaddn jsonb jsonv as jsonok

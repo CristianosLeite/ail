@@ -53,6 +53,10 @@ status 200, a head of 57 bytes, body [ok]
 error -71
 # a second length that is no number
 error -71
+# a second line of the transfer coding
+error -71
+# a status above 599
+error -71
 # a transfer coding that is not chunked alone
 error -71
 # a method head, which is not HEAD: its body is read

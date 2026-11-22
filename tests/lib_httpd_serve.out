@@ -128,6 +128,13 @@ Content-Length: 0
 Connection: close
 
 
+# a second line of the transfer coding
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
 # Expect: 100-continue, answered before the body is read
 HTTP/1.1 100 Continue
 
