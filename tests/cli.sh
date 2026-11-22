@@ -173,6 +173,12 @@ ok   status
 2 tests, 0 failed" "" $ail test status refused
 is cli_test_named_missing 1 "FAIL nope
 1 test, 1 failed" "ail: there is no test tests/nope.aiw" $ail test nope
+# a package without tests/, and one whose tests/ cannot be read
+mv tests "$tmp/keep/moved"
+is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test
+mkdir tests && chmod 000 tests
+is cli_test_directory_unreadable 4 "" "ail: cannot read the directory tests" $ail test
+chmod 700 tests && rmdir tests && mv "$tmp/keep/moved" tests
 # a name that is a path is no name of a test: nothing outside tests/
 # is read, and nothing outside build/tests/ written or removed
 mkdir -p victim.tmp && printf 'sys exit_group 0\n' > outside.aiw

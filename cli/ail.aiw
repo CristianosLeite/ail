@@ -764,6 +764,13 @@ fn cmdtest
 		store all+8 0
 		store all+16 0
 		call filenames "tests" all as j
+		# a package without tests/ has no tests
+		ifslt j 0
+			if j!=-2
+				call fail stio "cannot read the directory tests" ""
+			end
+			j=0
+		end
 		load all as p
 		while j>0
 			call strlen p as n
