@@ -55,6 +55,10 @@ error -71
 error -71
 # a second line of the transfer coding
 error -71
+# a transfer coding and a length
+error -71
+# a blank before the colon of a length
+error -71
 # a status above 599
 error -71
 # a transfer coding that is not chunked alone

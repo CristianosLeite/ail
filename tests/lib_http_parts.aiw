@@ -1,6 +1,7 @@
 # the parts of a message: where a head ends, the value of a header line
 # whatever the case of its name and without the blanks around it, the
-# status of a response, an IPv4 address and an address with "http://"
+# status of a response, an IPv4 address and an address with "http://",
+# and what a head says of its body, or that it is no head to be read
 use "lib/std/io.aiw"
 use "lib/std/bytes.aiw"
 use "lib/async/task.aiw"
@@ -51,6 +52,21 @@ fn url p n
 		call print " -> no address\n"
 	end
 end
+fn frame tp tn p n
+	call httpframe p n as k v
+	call print tp tn
+	call print ": "
+	ifslt k 0
+		call print "-"
+		call putn 0-k
+	else
+		call putn k
+	end
+	call print " "
+	call putn v
+	call print "\n"
+end
+buf many 24
 len msg as n
 call httphead msg n as h
 call print "the head is "
@@ -84,6 +100,42 @@ call field msg h "HTTP/1.1 404 Not Found"
 call field msg h "No colon here"
 call field msg h "Content"
 call field msg h "Absent"
+call frame "the head above, with a line without a colon" msg h
+call frame "a length" "HTTP/1.1 200 OK\x0d\nHost: a\x0d\ncontent-LENGTH: \x0912 \x0d\n\x0d\n"
+call frame "chunks" "POST / HTTP/1.1\x0d\nTransfer-Encoding: Chunked\x0d\n\x0d\n"
+call frame "neither" "GET / HTTP/1.1\x0d\nHost: a\x0d\nX-Empty:\x0d\n\x0d\n"
+call frame "no header line" "GET / HTTP/1.1\x0d\n\x0d\n"
+call frame "a blank before the colon" "GET / HTTP/1.1\x0d\nContent-Length : 5\x0d\n\x0d\n"
+call frame "a tab before the colon" "GET / HTTP/1.1\x0d\nX-Other\x09: 5\x0d\n\x0d\n"
+call frame "a line that starts with a blank" "GET / HTTP/1.1\x0d\nX-A: 1\x0d\n more\x0d\n\x0d\n"
+call frame "a name of no bytes" "GET / HTTP/1.1\x0d\n: 5\x0d\n\x0d\n"
+call frame "a byte above ASCII in a name" "GET / HTTP/1.1\x0d\nX-\xc3\xa9: 5\x0d\n\x0d\n"
+call frame "a length and chunks" "GET / HTTP/1.1\x0d\nContent-Length: 5\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n"
+call frame "chunks and two lengths that differ" "GET / HTTP/1.1\x0d\nTransfer-Encoding: chunked\x0d\nContent-Length: 0\x0d\nContent-Length: 5\x0d\n\x0d\n"
+call frame "two lengths that are the same" "GET / HTTP/1.1\x0d\nContent-Length: 5\x0d\nContent-Length: 5\x0d\n\x0d\n"
+call frame "two lengths that differ" "GET / HTTP/1.1\x0d\nContent-Length: 5\x0d\nContent-Length: 6\x0d\n\x0d\n"
+call frame "a length that is no number" "GET / HTTP/1.1\x0d\nContent-Length: 5, 5\x0d\n\x0d\n"
+call frame "a coding that is not chunked alone" "GET / HTTP/1.1\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n"
+call frame "chunks twice" "GET / HTTP/1.1\x0d\nTransfer-Encoding: chunked\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n"
+call frame "a head that does not end" "GET / HTTP/1.1\x0d\nContent-Length: 5\x0d\n"
+call frame "no bytes" ""
+# 3,400 lines of the same length, a head just below 64 KiB, and then
+# one that differs
+call byadd many "GET / HTTP/1.1\x0d\n"
+i=0
+while i<3400
+	call byadd many "Content-Length: 7\x0d\n"
+	i+=1
+end
+call byadd many "\x0d\n"
+load many as x
+load many+8 as y
+call frame "3,400 lengths that are the same" x y
+call bycut many y-2
+call byadd many "Content-Length: 8\x0d\n\x0d\n"
+load many as x
+load many+8 as y
+call frame "and one more that differs" x y
 call ip "127.0.0.1"
 call ip "localhost"
 call ip "255.255.255.255"

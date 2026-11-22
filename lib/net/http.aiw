@@ -113,14 +113,9 @@ end
 # the httpn bytes at httpp: its address and its length, without the
 # blanks around it, or 0 and 0 if the head has no such line. The first
 # line of a head is no header line. Of two lines of the name it is the
-# first.
+# first. httpframe is what says whether the lines of a head are header
+# lines at all.
 fn httpfield httpp httpn httpq httpm
-	tail httpfieldn httpp httpn httpq httpm 0
-end
-
-# the same for the line after httpo lines of the name: the second of two
-# with httpo 1
-fn httpfieldn httpp httpn httpq httpm httpo
 	httpe=httpp+httpn
 	# after the first line
 	label first
@@ -157,11 +152,6 @@ fn httpfieldn httpp httpn httpq httpm httpo
 			jmp colon
 		end
 		call httpsame httpp httpk-httpp httpq httpm as httpr
-		if httpr&(httpo!=0)
-			# one of the name that is not the one asked for
-			httpo-=1
-			httpr=0
-		end
 		if httpr
 			httpk+=1
 			label lead
@@ -213,6 +203,105 @@ fn httpnum httpp httpn
 		httpi+=1
 	end
 	ret httpv 1
+end
+
+# What the head of the httpn bytes at httpp, with the empty line that
+# ends it, says of the body after it, in one walk over its lines: 1 and
+# the number of the line Content-Length, 2 and 0 for "Transfer-Encoding:
+# chunked", 0 and 0 with neither line, or -71 and 0 for a head that is
+# not to be read. That is one with a header line that has no colon, or a
+# name before it of no bytes or with a byte that is a blank or not a
+# visible ASCII character, so "Content-Length : 5" is no line of another
+# name; a transfer coding that is not "chunked" alone, or a second line
+# of it; a length that is no number, or two that differ; and both a
+# transfer coding and a length, which say two ends of one body. The
+# first line of a head is no header line.
+fn httpframe httpp httpn
+	httpe=httpp+httpn
+	httpte=0
+	httpcl=0
+	httpv=0
+	httpf=0
+	label line
+	# the end of this line
+	httpl=httpp
+	label eol
+	if httpl+1>=httpe
+		ret 0-71 0
+	end
+	load2 httpl as httpc
+	if httpc!=0x0a0d
+		httpl+=1
+		jmp eol
+	end
+	if httpf
+		if httpl==httpp
+			# the empty line
+			if httpte&httpcl
+				ret 0-71 0
+			end
+			if httpte
+				ret 2 0
+			end
+			ret httpcl httpv
+		end
+		# the name, up to the colon
+		httpk=httpp
+		label name
+		if httpk>=httpl
+			ret 0-71 0
+		end
+		loadb httpk as httpc
+		if httpc!=58
+			if httpc-33>93
+				ret 0-71 0
+			end
+			httpk+=1
+			jmp name
+		end
+		if httpk==httpp
+			ret 0-71 0
+		end
+		# the value, without the blanks around it
+		httpa=httpk+1
+		label lead
+		if httpa<httpl
+			loadb httpa as httpc
+			if (httpc==32)|(httpc==9)
+				httpa+=1
+				jmp lead
+			end
+		end
+		httpz=httpl
+		label trail
+		if httpz>httpa
+			loadb httpz-1 as httpc
+			if (httpc==32)|(httpc==9)
+				httpz-=1
+				jmp trail
+			end
+		end
+		call httpsame httpp httpk-httpp "transfer-encoding" as httpr
+		if httpr
+			call httpsame httpa httpz-httpa "chunked" as httpr
+			if (httpr==0)|httpte
+				ret 0-71 0
+			end
+			httpte=1
+		end
+		call httpsame httpp httpk-httpp "content-length" as httpr
+		if httpr
+			call httpnum httpa httpz-httpa as httpd httpr
+			if (httpr==0)|(httpcl&(httpd!=httpv))
+				ret 0-71 0
+			end
+			httpcl=1
+			httpv=httpd
+		end
+	end
+	httpf=1
+	httpp=httpl+2
+	jmp line
 end
 
 # the status of the response whose head is the httpn bytes at httpp, 100
@@ -406,24 +495,20 @@ end
 # Encoding: chunked" put together, or, with httpeof 1 and neither line,
 # everything up to the end of the connection; with httpeof 0 and neither
 # line there is no body. httpms is the limit of a read and httpmax the
-# most bytes the buffer may come to hold. The result is 0, or the error.
+# most bytes the buffer may come to hold. The result is 0, or the error,
+# -71 also for a head that httpframe does not read.
 async fn httpbody httpfd httpb httpms httpmax httpeof
 	load httpb as httpp
 	load httpb+8 as httpn
 	call httphead httpp httpn as httph
-	call httpfield httpp httph "transfer-encoding" as httpa httpl
-	call httpsame httpa httpl "chunked" as httpr
-	if (httpa!=0)&(httpr==0)
-		# a coding this library has not: no other rule is taken in
-		# its place
-		ret 0-71
+	# one walk over the head says which rule the body has, or that the
+	# head is not to be read; no other rule is taken in the place of
+	# one this library has not
+	call httpframe httpp httph as httpf httplen
+	ifslt httpf 0
+		ret httpf
 	end
-	# and a second line of the name makes the coding another one
-	call httpfieldn httpp httph "transfer-encoding" 1 as httpa httpl
-	if httpa
-		ret 0-71
-	end
-	if httpr
+	if httpf==2
 		# httpw is where the body ends so far and httpq where what is
 		# not yet taken starts; both are offsets, since the bytes may
 		# move. Before more is read, what is not taken is moved down to
@@ -580,24 +665,8 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 		httpq+=httpv+2
 		jmp chunk
 	end
-	call httpfield httpp httph "content-length" as httpa httpl
-	if httpa
-		call httpnum httpa httpl as httpv httpr
-		ifz httpr
-			ret 0-71
-		end
-		# further lines of the name are to say the same number
-		httpk=1
-		label again
-		call httpfieldn httpp httph "content-length" httpk as httpa httpl
-		if httpa
-			call httpnum httpa httpl as httpd httpr
-			if (httpr==0)|(httpd!=httpv)
-				ret 0-71
-			end
-			httpk+=1
-			jmp again
-		end
+	if httpf
+		httpv=httplen
 		if httph+httpv>httpmax
 			ret 0-90
 		end

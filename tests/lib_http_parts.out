@@ -8,6 +8,27 @@ HTTP/1.1 404 Not Found none
 No colon here none
 Content none
 Absent none
+the head above, with a line without a colon: -71 0
+a length: 1 12
+chunks: 2 0
+neither: 0 0
+no header line: 0 0
+a blank before the colon: -71 0
+a tab before the colon: -71 0
+a line that starts with a blank: -71 0
+a name of no bytes: -71 0
+a byte above ASCII in a name: -71 0
+a length and chunks: -71 0
+chunks and two lengths that differ: -71 0
+two lengths that are the same: 1 5
+two lengths that differ: -71 0
+a length that is no number: -71 0
+a coding that is not chunked alone: -71 0
+chunks twice: -71 0
+a head that does not end: -71 0
+no bytes: -71 0
+3,400 lengths that are the same: 1 7
+and one more that differs: -71 0
 127.0.0.1 127 0 0 1
 localhost 127 0 0 1
 255.255.255.255 255 255 255 255

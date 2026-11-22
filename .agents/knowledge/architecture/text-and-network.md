@@ -155,3 +155,22 @@ Five findings, all taken.
   `jsonaddi` returns 0 when the sign cannot be added. `tests/lib_json_no_memory.aiw`:
   with room for one byte and no memory, `jsonstr` of a character of two adds none,
   where it added one before the fix.
+
+## The fourth review of the pull request 28 (Copilot, 2026-11-22)
+Four findings, all taken, each with cases that fail on the code before.
+- `httpframe` reads the lines of a head once and says what the body is: a length,
+  chunks, neither, or a head that is not to be read (-71, 400 from the server). It took
+  the place of the lookups by name in `httpbody`, which looked at the lengths only when
+  there was no transfer coding and asked for the k-th line `Content-Length` from the
+  start each time (`httpfieldn`, removed), quadratic in the lines.
+- A length together with a transfer coding is no message, and so is a header line
+  without a colon or with a name of no bytes or of a byte that is a blank or no visible
+  ASCII character: `Content-Length : 5` was a line of another name, so a request with it
+  had no body here and one for a parser that drops the blank. The check is not the
+  whole `token` of RFC 9110: `(` or `@` in a name pass.
+- The server calls `httpframe` before it looks at `Expect`, so such a head gets 400 and
+  no `100 Continue`; `httpbody` calls it again, a second walk of at most 64 KiB.
+  `httpfield` still passes over a line without a colon: it is asked about heads that
+  `httpframe` has read, and about any by a program.
+- `jsonstr` asks for the room of the bytes the character has, not for four: an escape
+  of one byte goes into a buffer with room for one and no memory.

@@ -36,8 +36,9 @@
 # and one to a HEAD, is sent without the body, whatever the handler
 # added. The server answers itself,
 # and calls no handler, for a request it cannot read: 400 for one that
-# is no HTTP or has a transfer coding other than "chunked" or two
-# lengths, 431 for a head above 64 KiB, 413 for a body above 16 MiB, 417
+# is no HTTP, has a header line without a colon or with a blank before
+# it, a transfer coding other than "chunked", two lengths that differ or
+# a length and a transfer coding, 431 for a head above 64 KiB, 413 for a body above 16 MiB, 417
 # for an expectation other than "100-continue", which it answers with
 # "100 Continue" before it reads the body,
 # and nothing for a connection that ends or sends nothing for 30
@@ -173,6 +174,13 @@ async fn httpdconn httpdc httpdf httpdx
 		end
 	end
 	ifz httpdr
+		httpdv=400
+		jmp answer
+	end
+	# The header lines are looked at before anything is done by one of
+	# them: a head that is not to be read is answered at once.
+	call httpframe httpdp httpdh as httpdr httpdk
+	ifslt httpdr 0
 		httpdv=400
 		jmp answer
 	end

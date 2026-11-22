@@ -472,8 +472,9 @@ fn jsonstr jsonb jsonp jsonn
 			jsonp+=6
 		end
 		# the character jsonv as one to four bytes, with room for all
-		# of them asked for first, so that none is left out
-		call byneed jsonb 4 as jsonok
+		# of them, and for no more, asked for first, so that none is
+		# left out
+		call byneed jsonb 1+(jsonv>=0x80)+(jsonv>=0x800)+(jsonv>=0x10000) as jsonok
 		ifz jsonok
 			ret 0
 		end

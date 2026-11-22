@@ -135,6 +135,41 @@ Content-Length: 0
 Connection: close
 
 
+# a transfer coding and two lengths that differ
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a transfer coding and a length
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a blank before the colon of a length
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a header line without a colon
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a blank before a colon and Expect: no 100 Continue first
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
 # Expect: 100-continue, answered before the body is read
 HTTP/1.1 100 Continue
 

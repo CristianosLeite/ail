@@ -1,6 +1,7 @@
 # the writers of the library when a buffer cannot grow, the memory of
 # the process limited to 64 MiB and then taken whole: jsonstr of a
-# character of two bytes, with room for one, adds no half of it, and
+# character of two bytes, with room for one, adds no half of it, while
+# an escape of one byte is added to that room, and
 # jsonaddi of a number below 0 adds no part of it. Both return 0 and
 # leave the buffer as long as it was; with room they add what they are
 # to add.
@@ -41,7 +42,14 @@ call print "jsonstr of two bytes, room for one: "
 call putn r
 call print ", bytes added "
 call putn now-before
-call byaddb b 120
+# an escape that says one byte needs the room of one
+load b+8 as before
+call jsonstr b "\"\\u0041\"" as r
+load b+8 as now
+call print "\njsonstr of an escape of one byte, room for one: "
+call putn r
+call print ", bytes added "
+call putn now-before
 load b+8 as before
 call jsonaddi b 0-5 as r
 load b+8 as now
