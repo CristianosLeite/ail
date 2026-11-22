@@ -12,6 +12,7 @@ const tlfcntl 72
 const tlflock 73
 const tlgetcwd 79
 const tlchdir 80
+const tlfchdir 81
 const tlrename 82
 const tlreadlink 89
 const tlfchmod 91
@@ -210,6 +211,33 @@ fn tlfind
 	end
 	call byfree tlb
 	ret tlr
+end
+
+# Add to the buffer tlb the path of the directory of tln bytes at tlp as
+# the kernel names it, from the root and with no link and no ".." in
+# it, so that two paths of one directory give the same bytes: 1, or 0 if
+# it is no directory that can be entered. The current directory is
+# entered again.
+fn tlreal tlb tlp tln
+	local tlz 4096
+	call fileopen "." 0x10000 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	call filepath tlp tln tlz as tlr
+	ifz tlr
+		sys tlchdir tlz as tlr
+	end
+	tlok=0
+	ifz tlr
+		sys tlgetcwd tlz 4096 as tlr
+		ifsgt tlr 0
+			call byadd tlb tlz tlr-1 as tlok
+		end
+		sys tlfchdir tlfd
+	end
+	sys close tlfd
+	ret tlok
 end
 
 # Make the directory of the package the current one: the nearest of this

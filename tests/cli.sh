@@ -524,6 +524,24 @@ is cli_path_from_below_runs 0 "mid
 base 1.0.0" "" $ail run
 $ail remove mid > /dev/null
 
+# one directory under two paths is one package: shared is named by app
+# as ../shared and by user, a package beside it, as ../shared from there
+mkdir -p "$r/shared/src" "$r/user/src"
+printf 'name shared\nversion 1.0.0\n' > "$r/shared/ail.pkg"
+printf 'fn sharedhi\n\tcall print "shared\\n"\nend\n' > "$r/shared/src/hi.aiw"
+printf 'name user\nversion 1.0.0\ndep shared ../shared\n' > "$r/user/ail.pkg"
+printf 'use "lib/std/io.aiw"\nuse "shared:src/hi.aiw"\nfn userhi\n\tcall sharedhi\nend\n' > "$r/user/src/hi.aiw"
+$ail add --path ../shared > /dev/null
+is cli_path_same_directory 0 "added user from ../user" "" $ail add --path ../user
+printf 'use "lib/std/io.aiw"\nuse "user:src/hi.aiw"\nuse "shared:src/hi.aiw"\ncall userhi\ncall sharedhi\n' > src/main.aiw
+is cli_path_same_directory_runs 0 "shared
+shared" "" $ail run
+# another directory under the same name is still refused
+mkdir "$r/elsewhere" && cp -r "$r/shared" "$r/elsewhere/shared"
+sed -i 's|^dep shared .*|dep shared ../elsewhere/shared|' ail.pkg
+is cli_path_other_directory 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
+sed -i '/^dep /d' ail.pkg
+
 # a manifest written by hand, with no lock, is enough
 printf 'dep base 1.1.0 %s\n' "$r/base" >> ail.pkg
 printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\ncall basehi\n' > src/main.aiw

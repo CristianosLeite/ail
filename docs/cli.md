@@ -112,8 +112,8 @@ the manifest names, and those that these name in their own manifests.
 - A package in a directory is read where it is. Its directory is taken
   from that of the package that names it.
 - Each package has one version in a build. Two that ask for the same
-  package ask for the same version, or for the same directory; else the
-  build is refused.
+  package ask for the same version, or for the same directory, by
+  whatever path each names it; else the build is refused.
 - A dependency has the name its manifest gives it, and one from a
   repository the version of its tag; it is refused if it asks for an AIL
   that this one is not.
