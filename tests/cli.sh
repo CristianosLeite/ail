@@ -173,6 +173,13 @@ ok   status
 2 tests, 0 failed" "" $ail test status refused
 is cli_test_named_missing 1 "FAIL nope
 1 test, 1 failed" "ail: there is no test tests/nope.aiw" $ail test nope
+# a name that is a path is no name of a test: nothing outside tests/
+# is read, and nothing outside build/tests/ written or removed
+mkdir -p victim.tmp && printf 'sys exit_group 0\n' > outside.aiw
+is cli_test_name_path 2 "" "ail: the name of a test is that of its file in tests/, without a /: not ../outside" $ail test ../outside
+is cli_test_name_empty 2 "" "ail: the name of a test is that of its file in tests/, without a /: not " $ail test ""
+yes cli_test_name_path_removed_nothing [ -d victim.tmp ] && yes cli_test_name_path_wrote_nothing [ ! -e build/outside ]
+rm -r victim.tmp outside.aiw
 # fmt: the lines that are not indented, then the files written again; a
 # file below a directory with a dot, in build/ or in deps/ is not looked at
 printf 'fn f\ncall g\nend\n' > src/x.aiw

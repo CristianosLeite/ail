@@ -748,6 +748,11 @@ fn cmdtest
 		i=2
 		while i<c
 			call argv i as p n
+			# a name of a test is a name of a file in tests/, not a path
+			call tlfind47 p n as r
+			if r|(n==0)
+				call fail stusage "the name of a test is that of its file in tests/, without a /: not " p n
+			end
 			call byadd names p n
 			call byaddb names 0
 			k+=1
