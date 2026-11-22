@@ -120,8 +120,19 @@ call putn r
 # the directory is build/tests/tmp.tmp of the package
 call print p+n-20 20
 call print "\n"
+# and AIL_HOME names the directory of AIL, which has its manifest
+call procvar "AIL_HOME" as p n
+call bycut b 0
+call byadd b p n
+call byadd b "/ail.pkg"
+load b as q
+load b+8 as m
+buf t 24
+call fileread q m t as r
+call putn r>0
+call print "\n"
 END
-echo "00/build/tests/tmp.tmp" > tests/tmp.out
+printf '00/build/tests/tmp.tmp\n1\n' > tests/tmp.out
 mkdir tests/lib && printf '# no test: a file that tests use\nfrob\n' > tests/lib/part.aiw
 is cli_test_all 1 "ok   hello
 FAIL no_compile

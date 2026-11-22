@@ -313,8 +313,8 @@ end
 
 # Start the program at the path that is the first string in the buffer
 # tls, with the strings as its arguments as tlrun takes them, and wait
-# for its end as tlrun does. The tlen bytes at tlep, "NAME=value" and a
-# NUL byte, are put before its environment, unless tlen is 0. A program
+# for its end as tlrun does. The tlen bytes at tlep, strings "NAME=value"
+# with a NUL byte after each, are put before its environment. A program
 # that still runs after tlms milliseconds is killed, and the result is
 # then -1000; tlms 0 waits without limit.
 fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
@@ -341,10 +341,13 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 	store tlw 0
 	call byadd tlv tlw 8 as tlr
 	tlok=tlok&tlr
-	if tlen
-		store tlw tlep
+	tlq=tlep
+	while tlq<tlep+tlen
+		store tlw tlq
 		call byadd tle tlw 8 as tlr
 		tlok=tlok&tlr
+		call strlen tlq as tln
+		tlq+=tln+1
 	end
 	call procenv as tlq
 	tlgo=1

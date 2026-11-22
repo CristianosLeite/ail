@@ -160,8 +160,9 @@ is for the files that tests name with `use`.
 A test runs in the top of the package, with `/dev/null` as its stdin. It
 finds in the variable `AIL_TMP` of the environment a directory that is
 its own and empty, for the files it makes, which is removed when the
-test has ended. A test that still runs after 10 seconds is killed and
-has failed.
+test has ended, and in `AIL_HOME` the directory of the AIL that runs
+it ([Where AIL is](#where-ail-is)), for a test that reads a file of AIL.
+A test that still runs after 10 seconds is killed and has failed.
 
 For each test a line `ok   <name>` or `FAIL <name>` is written to
 stdout, then the number of tests and of those that failed; a line on

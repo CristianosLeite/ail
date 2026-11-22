@@ -807,3 +807,6 @@ it; `TODO.md` has what is decided and what is left.
   formatter, the manifest, the licence and the library.
   `tests/install.sh` works on a package with nothing but what was
   installed.
+- [x] A test finds the directory of AIL in `AIL_HOME`, which `ail test`
+  sets beside `AIL_TMP`: aildb has a test that reads the licence of the
+  AIL it is built with.

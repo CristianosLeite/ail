@@ -549,7 +549,7 @@ end
 buf ta 24           # paths of the files of a test
 buf tb 24
 buf tc 24
-buf tenv 24         # "AIL_TMP=" and the directory of a test
+buf tenv 24         # "AIL_TMP=" and the directory of a test, "AIL_HOME=" and that of AIL
 
 # Run the test of the n bytes at p: 1 if it does what its files expect,
 # or 0, with a line on stderr that says in what it does not. What the
@@ -604,7 +604,8 @@ fn testone p n
 		call eprint "\n"
 		ret 0
 	end
-	# a directory of its own for the files it makes, named in AIL_TMP
+	# a directory of its own for the files it makes, named in AIL_TMP,
+	# and the directory of AIL in AIL_HOME
 	call tpath ta "build/tests/" p n ".tmp"
 	load ta as q
 	load ta+8 as m
@@ -617,6 +618,10 @@ fn testone p n
 	call byadd tenv s l
 	call byaddb tenv 47
 	call byadd tenv q m
+	call byadd tenv "\0AIL_HOME="
+	load tlhome as s
+	load tlhome+8 as l
+	call byadd tenv s l
 	call byaddb tenv 0
 	# the program: its path with a slash, so that it is not searched for
 	call bycut gargs 0
