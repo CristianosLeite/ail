@@ -50,7 +50,7 @@ $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw
 
 # The command ail (docs/cli.md), compiled like a tool: cli/ail.aiw is the
 # source the recipe compiles and names the others with use.
-$(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw $(TL) lib/std/proc.aiw $(B)/ailc
+$(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/proc.aiw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed

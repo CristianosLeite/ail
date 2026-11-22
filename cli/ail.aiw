@@ -1,19 +1,20 @@
 # cli/ail.aiw -- the command ail: a package made, built, run, tested,
-# formatted and cleaned.
+# formatted and cleaned, and its dependencies added, removed and updated.
 # docs/cli.md says what each command does and docs/packages.md what a
 # manifest holds. This file is the only one of the command that prints
 # and ends the process; the files it uses return what went wrong.
 #
 # The status is 0, or 1 if a source did not compile, a test failed or a
 # source is not formatted, 2 for wrong usage,
-# 3 for a manifest that is missing or wrong, and 4 if a file or a
-# directory could not be read, written or run.
+# 3 for a manifest or a lock that is missing or wrong, and 4 if a file
+# or a directory could not be read, written or run, or git failed.
 use "lib/std/io.aiw"
 use "lib/std/bytes.aiw"
 use "lib/std/file.aiw"
 use "lib/std/proc.aiw"
 use "cli/manifest.aiw"
 use "cli/tool.aiw"
+use "cli/deps.aiw"
 
 const stfail 1
 const stusage 2
@@ -26,6 +27,10 @@ buf gmsg 24         # a line that is being put together
 buf gout 24         # the path of an executable
 buf gtmp 24         # the path of the file it is compiled into
 buf gargs 24        # the arguments of a program that is started
+buf gsaid 24        # what a command prints when it is done
+buf uman 24         # the manifest and the lock as a command found them,
+buf ulock 24        # written back if undo is 1 and its packages cannot be
+var undo ulocked    # found; ulocked is 1 if there was a lock
 
 # end with the status st and a line on stderr: the two texts
 fn fail st p n q m
@@ -48,6 +53,10 @@ fn help fd
 	call fdwrite fd "  init [NAME]                 make this directory a package\n"
 	call fdwrite fd "  build [BIN]                 compile the executables of the package into build/\n"
 	call fdwrite fd "  run [BIN] [-- ARGUMENT...]  build an executable and run it\n"
+	call fdwrite fd "  add URL [VERSION]           use the package of a git repository, at its tag v<VERSION>\n"
+	call fdwrite fd "  add --path DIRECTORY        use the package in a directory\n"
+	call fdwrite fd "  remove NAME                 use the package NAME no longer\n"
+	call fdwrite fd "  update [NAME]               move the dependencies to their latest versions\n"
 	call fdwrite fd "  test [NAME...]              build everything and run the tests of tests/\n"
 	call fdwrite fd "  fmt [--check]               indent the sources, or say which lines are not\n"
 	call fdwrite fd "  clean                       remove build/\n"
@@ -103,6 +112,32 @@ fn project
 	end
 end
 
+# Find the packages this one is built with, fetch those that are missing
+# and bring the lock up to date; the process ends if that cannot be done.
+fn depsfail
+	if undo
+		load uman as p
+		load uman+8 as n
+		call filewrite "ail.pkg" p n
+		if ulocked
+			load ulock as p
+			load ulock+8 as n
+			call filewrite "ail.lock" p n
+		else
+			call fileunlink "ail.lock"
+		end
+	end
+	load dpmsg as p
+	load dpmsg+8 as n
+	call fail dpst p n ""
+end
+fn deps
+	call dpresolve gman as r
+	ifz r
+		call depsfail
+	end
+end
+
 # Run the compiler on the source at the path of sn bytes at sp, with the
 # file at the path of tn bytes at tp as its output, made anew and to be
 # run, and err as its stderr, -1 for that of this process: the status of
@@ -116,7 +151,8 @@ fn cc sp sn tp tn err
 	ifslt out 0
 		call fail stio "cannot write " tp tn
 	end
-	# the compiler, the library of AIL as the package ail
+	# the compiler, the library of AIL as the package ail, and every
+	# package that deps found, this one included
 	call bycut gargs 0
 	load tlailc as p
 	load tlailc+8 as n
@@ -126,6 +162,17 @@ fn cc sp sn tp tn err
 	load tlhome+8 as n
 	call byadd gargs p n
 	call byaddb gargs 0
+	call dpcount as k
+	i=0
+	while i<k
+		call dpname i as p n
+		call byadd gargs p n
+		call byaddb gargs 61
+		call dpdir i as p n
+		call byadd gargs p n
+		call byaddb gargs 0
+		i+=1
+	end
 	call tlrun gargs in out err as st
 	sys close in
 	sys close out
@@ -223,6 +270,7 @@ fn cmdbuild
 	end
 	call argv 2 as p n
 	call project
+	call deps
 	call build mfbin p n as e
 	ifz e
 		call eprint "ail: ail.pkg names no executable to build\n"
@@ -277,6 +325,7 @@ fn cmdrun
 			call fail stmanifest "ail.pkg names no executable to run" ""
 		end
 	end
+	call deps
 	call build 0 p n as e
 	# its path from the root, the arguments, and back to where we were
 	call bycut gout 0
@@ -674,6 +723,7 @@ fn cmdtest
 		i+=8
 	end
 	call project
+	call deps
 	call build mfbin|mftestbin 0 0
 	call dir "build"
 	call dir "build/tests"
@@ -785,6 +835,323 @@ fn cmdfmt
 	end
 end
 
+# Note the manifest and the lock as they are, before a command changes
+# them: from here on a failure to find the packages writes them back.
+fn keep
+	call bycut uman 0
+	load gtext as p
+	load gtext+8 as n
+	call byadd uman p n
+	call bycut ulock 0
+	call fileread "ail.lock" ulock as r
+	ulocked=0
+	ifsge r 0
+		ulocked=1
+	end
+	undo=1
+end
+# write the bytes of the buffer b as the file at the path
+fn save p n b
+	load b as q
+	load b+8 as m
+	call filewrite p n q m as r
+	if r
+		call fail stio "cannot write " p n
+	end
+end
+# the text of the buffer from without the lines of the dependency named
+# by the n bytes at p, into the buffer to, which loses what it had; lk
+# is 1 for the text of a lock
+fn without to from p n lk
+	call bycut to 0
+	load from as q
+	load from+8 as m
+	call mfdrop to q m p n lk as r
+	if r==-1
+		call fail stio "out of memory" ""
+	end
+	ret r
+end
+
+buf xa 24           # a manifest or a lock that is being changed
+buf xb 24
+buf xt 24           # the manifest of a dependency
+buf xd 72           # and what it holds
+buf xdir 24         # its directory
+
+# "ail add URL [VERSION]" and "ail add --path DIRECTORY": the package is
+# read first, for its name, and then written into the manifest
+fn cmdadd
+	call argc as c
+	call argv 2 as up un
+	call argv 3 as vp vn
+	call mfeq up un "--path" as path
+	if (c<3)|(c>4)|(path&(c!=4))
+		call usage
+	end
+	loadb up as x
+	if (path==0)&(x==45)
+		call usage
+	end
+	call project
+	call bycut xdir 0
+	if path
+		# a directory is read from where the command was started
+		loadb vp as x
+		load tlcwd as p
+		load tlcwd+8 as n
+		load tlroot as q
+		load tlroot+8 as m
+		call mfeq p n q m as r
+		if (x!=47)&(r==0)
+			call byadd xdir p n
+			call byaddb xdir 47
+		end
+		call byadd xdir vp vn
+	else
+		if vn
+			call mfver vp vn as x r
+			ifz r
+				call fail stusage "a version is three numbers with dots between, as 1.2.3: not " vp vn
+			end
+			call bycut dpver 0
+			call byadd dpver vp vn
+		else
+			call dpnewest up un as r
+			ifz r
+				call depsfail
+			end
+		end
+		load dpver as vp
+		load dpver+8 as vn
+		call dptag up un vp vn as r
+		ifz r
+			call depsfail
+		end
+		call byadd xdir "deps/.new"
+		call dpfetch "deps/.new" up un 1 as r
+		ifz r
+			call depsfail
+		end
+	end
+	load xdir as dp
+	load xdir+8 as dn
+	call dpmanifest dp dn xt xd as r
+	ifz r
+		ifz path
+			call tlremove "deps/.new"
+		end
+		call depsfail
+	end
+	load xd as np
+	load xd+8 as nn
+	load gman as p
+	load gman+8 as n
+	call mfeq np nn p n as r
+	if r
+		ifz path
+			call tlremove "deps/.new"
+		end
+		call fail stmanifest "a package does not use itself: " np nn
+	end
+	ifz path
+		# the tag is to name the version that the manifest behind it has
+		load xd+16 as p
+		load xd+24 as n
+		call mfeq vp vn p n as r
+		ifz r
+			call tlremove "deps/.new"
+			call bycut gmsg 0
+			call byadd gmsg "the tag v"
+			call byadd gmsg vp vn
+			call byadd gmsg " of "
+			call byadd gmsg np nn
+			call byadd gmsg " has the version "
+			call byadd gmsg p n
+			call byadd gmsg " in its ail.pkg"
+			call failmsg stmanifest
+		end
+	end
+	# the manifest without a line of that name, and the new line
+	call keep
+	call without xa gtext np nn 0
+	call byadd xa "dep "
+	call byadd xa np nn
+	call byaddb xa 32
+	if path
+		call byadd xa dp dn
+	else
+		call byadd xa vp vn
+		call byaddb xa 32
+		call byadd xa up un
+	end
+	call byaddb xa 10
+	ifz path
+		# the clone gets the name of the package, and the lock its line,
+		# so that nothing is asked of the repository again
+		call bycut gout 0
+		call byadd gout "deps/"
+		call byadd gout np nn
+		load gout as q
+		load gout+8 as m
+		call tlremove q m
+		call tlmove "deps/.new" q m as r
+		if r
+			call fail stio "cannot write " q m
+		end
+		call bycut xb 0
+		call fileread "ail.lock" xb
+		call bycut gtmp 0
+		load xb as q
+		load xb+8 as m
+		call mfdrop gtmp q m np nn 1
+		call byadd gtmp np nn
+		call byaddb gtmp 32
+		call byadd gtmp vp vn
+		call byaddb gtmp 32
+		call byadd gtmp dprev 40
+		call byaddb gtmp 32
+		call byadd gtmp up un
+		call byaddb gtmp 10
+		call save "ail.lock" gtmp
+	end
+	# the name is printed from a copy: the manifest is read again
+	call bycut gsaid 0
+	call byadd gsaid "added "
+	call byadd gsaid np nn
+	if path
+		call byadd gsaid " from "
+		call byadd gsaid dp dn
+	else
+		call byaddb gsaid 32
+		call byadd gsaid vp vn
+	end
+	call byaddb gsaid 10
+	call save "ail.pkg" xa
+	call project
+	call deps
+	load gsaid as p
+	load gsaid+8 as n
+	call print p n
+end
+
+fn cmdremove
+	call argc as c
+	if c!=3
+		call usage
+	end
+	call argv 2 as p n
+	call project
+	call without xa gtext p n 0 as r
+	ifz r
+		call fail stmanifest "ail.pkg has no dependency " p n
+	end
+	call keep
+	call save "ail.pkg" xa
+	call project
+	call deps
+	call bycut gout 0
+	call byadd gout "deps/"
+	call byadd gout p n
+	load gout as q
+	load gout+8 as m
+	call tlremove q m
+	call print "removed "
+	call print p n
+	call print "\n"
+end
+
+# "ail update [NAME]": each dependency that comes from a repository, or
+# the one named, moved to the latest version its repository has a tag for
+fn cmdupdate
+	call argc as c
+	if c>3
+		call usage
+	end
+	call argv 2 as fp fl
+	call project
+	if fl
+		call mffind gman mfgit fp fl as i
+		if i==-1
+			call fail stmanifest "ail.pkg has no dependency from a repository called " fp fl
+		end
+	end
+	# xa has the manifest and xb the lock as they are to be
+	call bycut xa 0
+	load gtext as p
+	load gtext+8 as n
+	call byadd xa p n
+	call bycut xb 0
+	call fileread "ail.lock" xb
+	call bycut gsaid 0
+	changed=0
+	call mfcount gman as k
+	i=0
+	while i<k
+		call mfentry gman i as e
+		load e as kind
+		load e+8 as np
+		load e+16 as nn
+		load e+24 as vp
+		load e+32 as vn
+		load e+40 as up
+		load e+48 as un
+		hit=(kind==mfgit)
+		if hit&(fl>0)
+			call mfeq fp fl np nn as hit
+		end
+		if hit
+			call dpnewest up un as r
+			ifz r
+				call depsfail
+			end
+			load dpver as q
+			load dpver+8 as m
+			call mfver q m as new r
+			call mfver vp vn as old r
+			call byadd gsaid np nn
+			call byaddb gsaid 32
+			call byadd gsaid vp vn
+			if new>old
+				call byadd gsaid " -> "
+				call byadd gsaid q m
+				call without xt xa np nn 0
+				call byadd xt "dep "
+				call byadd xt np nn
+				call byaddb xt 32
+				call byadd xt q m
+				call byaddb xt 32
+				call byadd xt up un
+				call byaddb xt 10
+				call bycut xa 0
+				load xt as q
+				load xt+8 as m
+				call byadd xa q m
+				call without xt xb np nn 1
+				call bycut xb 0
+				load xt as q
+				load xt+8 as m
+				call byadd xb q m
+				changed=1
+			else
+				call byadd gsaid " is the latest"
+			end
+			call byaddb gsaid 10
+		end
+		i+=1
+	end
+	if changed
+		call keep
+		call save "ail.pkg" xa
+		call save "ail.lock" xb
+		call project
+		call deps
+	end
+	load gsaid as p
+	load gsaid+8 as n
+	call print p n
+end
+
 call argv 1 as p n
 ifz n
 	call usage
@@ -823,6 +1190,21 @@ end
 call mfeq p n "run" as r
 if r
 	call cmdrun
+end
+call mfeq p n "add" as r
+if r
+	call cmdadd
+	sys exit_group 0
+end
+call mfeq p n "remove" as r
+if r
+	call cmdremove
+	sys exit_group 0
+end
+call mfeq p n "update" as r
+if r
+	call cmdupdate
+	sys exit_group 0
 end
 call mfeq p n "test" as r
 if r

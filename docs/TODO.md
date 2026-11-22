@@ -21,8 +21,6 @@ number of the seed; a dependency is a git repository and a version, the
 tag `v<version>`, with a lock file that has the revision; one installed
 toolchain, the command, the compiler and the library.
 
-- [ ] Dependencies: `ail add`, `remove`, `update`, the fetch into `deps/`,
-  the lock, the dependencies of a dependency.
 - [ ] `make install` and `make dist`, and the documents of the command.
 - [ ] The repositories ail-bench and ail-extensions moved to `ail.pkg`
   (aildb has the step in its own TODO).

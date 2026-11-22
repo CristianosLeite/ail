@@ -1,6 +1,7 @@
 # The command `ail`
 
-`ail` makes a package, builds it, runs it and tests it. A package is a directory
+`ail` makes a package, builds it, runs it and tests it, and brings in
+the packages it uses. A package is a directory
 with a manifest, `ail.pkg` ([packages.md](packages.md)); the command
 reads it, finds the compiler and the library of AIL, and does what would
 otherwise be a Makefile and a script in each project.
@@ -15,9 +16,8 @@ prints `hello from hello`, and `ail test` runs the one test the package
 starts with.
 
 `make` builds the command as `build/ail`, from `cli/ail.aiw`;
-`tests/cli.sh` is its test. Dependencies and an installation are
-not written yet ([TODO.md](TODO.md)): a package is built with the `ail` of
-a checkout, and a line `dep` of its manifest is read and not yet used.
+`tests/cli.sh` is its test. An installation is not written yet
+([TODO.md](TODO.md)): a package is built with the `ail` of a checkout.
 
 ## Commands
 
@@ -25,6 +25,10 @@ a checkout, and a line `dep` of its manifest is read and not yet used.
 |---|---|
 | `ail new NAME` | makes the directory `NAME` with a new package in it |
 | `ail init [NAME]` | makes the current directory a package |
+| `ail add URL [VERSION]` | uses the package of a git repository, at its tag `v<VERSION>` |
+| `ail add --path DIRECTORY` | uses the package in a directory |
+| `ail remove NAME` | uses the package `NAME` no longer |
+| `ail update [NAME]` | moves the dependencies to their latest versions |
 | `ail build [BIN]` | compiles the executables of the package into `build/` |
 | `ail run [BIN] [-- ARGUMENT...]` | builds an executable and runs it |
 | `ail test [NAME...]` | builds everything and runs the tests of `tests/` |
@@ -33,7 +37,7 @@ a checkout, and a line `dep` of its manifest is read and not yet used.
 | `ail version` | prints `ail` and the version of AIL |
 | `ail help` | prints the commands |
 
-`build`, `run`, `test`, `fmt` and `clean` work on the package the current directory is
+All but `new`, `init`, `version` and `help` work on the package the current directory is
 in: the nearest directory, this one or one above it, that has an
 `ail.pkg`. Sources are compiled from that directory, so a `use` names a
 file of the package from its top, wherever the command was started.
@@ -55,6 +59,62 @@ is not installed. `ail init` writes the same files into the current
 directory and calls the package like the directory, or `NAME` if one is
 given. It refuses a directory that has an `ail.pkg`, and leaves a
 `src/main.aiw`, a test and a `.gitignore` that are there as they are.
+
+### `add`, `remove` and `update`
+
+```
+ail add https://github.com/CristianosLeite/aildb.git
+```
+
+`ail add URL` reads the tags of the repository, takes the latest that is
+a version, `v1.2.3`, fetches it into `deps/`, reads the name of the
+package from its manifest, and writes the line `dep` into `ail.pkg` and
+the revision into `ail.lock`; `ail add URL VERSION` takes that version.
+A source of the package then names a file of it as
+`use "name:path"` ([language.md](language.md#packages)).
+`ail add --path DIRECTORY` uses the package as it lies in a directory,
+for two packages that are worked on together: nothing is fetched and the
+lock has no line for it. A package that is a dependency already is
+replaced by what is added.
+
+`ail remove NAME` takes the line out of the manifest, the lines that are
+no longer needed out of the lock, and the clone out of `deps/`.
+
+`ail update` looks for a later version of every dependency that comes
+from a repository, `ail update NAME` of that one, and writes it into the
+manifest and the lock; it prints `name 1.0.0 -> 1.1.0` or
+`name 1.0.0 is the latest` for each. A version in a manifest is exact,
+so nothing but `update` and `add` moves a dependency.
+
+The three write the manifest and the lock back as they were if the
+packages cannot be found afterwards: a repository that does not answer,
+or a package that two others ask for in two versions.
+
+### Dependencies in a build
+
+`build`, `run` and `test` first find every package of the build: those
+the manifest names, and those that these name in their own manifests.
+
+- A package from a repository is in `deps/<name>`, a clone at the
+  revision that `ail.lock` has for it. A clone that is missing is made,
+  and one at another revision is moved; one that is at its revision is
+  not looked at again, so a build asks nothing of a network.
+- A package without a line in the lock, because the manifest was changed
+  by hand or the lock is not there, gets the revision its tag names now,
+  and the lock is written again. Only the lock of the package that is
+  built counts; those of its dependencies are not read.
+- A package in a directory is read where it is. Its directory is taken
+  from that of the package that names it.
+- Each package has one version in a build. Two that ask for the same
+  package ask for the same version, or for the same directory; else the
+  build is refused.
+- A dependency has the name its manifest gives it, and one from a
+  repository the version of its tag; it is refused if it asks for an AIL
+  that this one is not.
+
+Each of them is given to the compiler with its directory, this package
+under its own name too. `deps/` is not kept with the sources: `ail new`
+has git leave it out, and the lock is enough to make it again.
 
 ### `build`
 
@@ -145,8 +205,9 @@ in that `ail.pkg`, and a package that asks for an AIL this one is not
 | 0 | done; for `run`, the status of the program |
 | 1 | a source did not compile; a test failed; `fmt --check` found a line |
 | 2 | wrong usage: the commands are printed on stderr |
-| 3 | no manifest, a manifest that is wrong (with the line), an executable it does not name, an AIL it asks for and this one is not |
-| 4 | a file or a directory that cannot be read, written or run; AIL not found |
+| 3 | no manifest, a manifest or a lock that is wrong (with the line), an executable or a dependency it does not name, an AIL it asks for and this one is not, a package asked for in two versions |
+| 4 | a file or a directory that cannot be read, written or run; AIL not found; git failed, or a repository has no such tag |
 
 A message of the command is one line on stderr that starts with `ail: `;
-one of the compiler starts with `ailc: `.
+one of the compiler starts with `ailc: `, and git says in its own words
+why it failed, before the line of the command.

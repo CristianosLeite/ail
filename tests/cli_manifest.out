@@ -32,6 +32,8 @@ error 4 at line 3: a name that is not small letters, digits, - and _, at most 64
 error 5 at line 3: a version that is not three numbers with dots between, as 1.2.3
 error 8 at line 4: a name that an earlier line has
 error 11 at line 3: a byte that is no text
+error 13 at line 3: an address or a directory that starts with -
+error 13 at line 3: an address or a directory that starts with -
 # a lock
 16 [other] [1.2.0] [0123456789abcdef0123456789abcdef01234567] [https://example.org/other.git]
 16 [third] [0.0.1] [ffffffffffffffffffffffffffffffffffffffff] [../third]

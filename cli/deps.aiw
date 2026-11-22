@@ -1,0 +1,557 @@
+# cli/deps.aiw -- the packages that a package is built with: those its
+# manifest names with "dep" and those they name in turn, each in a
+# directory, the ones that come from a git repository fetched into deps/
+# at the revision the lock has. Needs lib/std/io.aiw, lib/std/bytes.aiw,
+# lib/std/file.aiw, lib/std/proc.aiw, cli/manifest.aiw and cli/tool.aiw,
+# and runs in the top of the package. The functions print nothing and end
+# nothing: one that fails returns 0 and leaves a line in dpmsg and the
+# status for it in dpst, 3 for what a manifest or the lock says and 4
+# for what git or a file did.
+#
+# Every name of this file starts with "dp"; a program has no var of such
+# a name (see lib/std/io.aiw).
+
+buf dpset 24        # the packages found, 56 bytes each: where its name, its
+# directory and its version are in dpstr, each a place and a
+# length, and its kind, mfgit or mfpath
+buf dpstr 24        # their texts
+buf dplock 24       # the lock as it is to be
+buf dpoldt 24       # the lock as it was read
+buf dpold 72        # and what it holds
+buf dpmsg 24        # what went wrong, a line without a line feed
+var dpst            # and the status for it
+buf dpargs 24       # the arguments of git
+buf dpcap 24        # what git wrote to stdout
+buf dprev 40        # a revision
+buf dpver 24        # a version
+
+# the line of a failure: the three texts, and the status dps
+fn dpfail dps dpp dpn dpq dpm dpr dpl
+	dpst=dps
+	call bycut dpmsg 0
+	call byadd dpmsg dpp dpn
+	call byadd dpmsg dpq dpm
+	call byadd dpmsg dpr dpl
+	ret 0
+end
+
+# the number of packages found, and the name and the directory of the
+# one numbered dpi, each an address and a length
+fn dpcount
+	load dpset+8 as dpn
+	ret dpn/56
+end
+fn dpname dpi
+	load dpset as dpe
+	load dpstr as dps
+	load dpe+dpi*56 as dpo
+	load dpe+dpi*56+8 as dpn
+	ret dps+dpo dpn
+end
+fn dpdir dpi
+	load dpset as dpe
+	load dpstr as dps
+	load dpe+dpi*56+16 as dpo
+	load dpe+dpi*56+24 as dpn
+	ret dps+dpo dpn
+end
+# the number of the package whose name is the dpn bytes at dpp, or -1
+fn dpfind dpp dpn
+	call dpcount as dpk
+	dpi=0
+	while dpi<dpk
+		call dpname dpi as dpq dpm
+		call mfeq dpp dpn dpq dpm as dpr
+		if dpr
+			ret dpi
+		end
+		dpi+=1
+	end
+	ret -1
+end
+# note a package: its name, its directory, its version and its kind
+fn dpadd dpp dpn dpq dpm dpv dpvn dpkind
+	local dpe 56
+	load dpstr+8 as dpo
+	store dpe dpo
+	store dpe+8 dpn
+	store dpe+16 dpo+dpn
+	store dpe+24 dpm
+	store dpe+32 dpo+dpn+dpm
+	store dpe+40 dpvn
+	store dpe+48 dpkind
+	call byadd dpstr dpp dpn
+	call byadd dpstr dpq dpm
+	call byadd dpstr dpv dpvn
+	call byadd dpset dpe 56 as dpr
+	ret dpr
+end
+
+# Run git with the arguments in dpargs, the strings after its name, and
+# keep in dpcap what it wrote to stdout: its status, or a negative
+# number if it did not run. Its stderr is that of this process, so that
+# it says itself why it failed, or /dev/null if dpquiet is 1.
+fn dpgit dpquiet
+	call filemkdir "deps" 493
+	call fileopen "deps/.git-said" 0x242 384 as dpout
+	ifslt dpout 0
+		ret -2000
+	end
+	dperr=-1
+	if dpquiet
+		call fileopen "/dev/null" 1 0 as dperr
+	end
+	call fileopen "/dev/null" 0 0 as dpin
+	call tlrun dpargs dpin dpout dperr as dps
+	sys close dpin
+	sys close dpout
+	if dpquiet
+		sys close dperr
+	end
+	call bycut dpcap 0
+	call fileread "deps/.git-said" dpcap
+	call fileunlink "deps/.git-said"
+	ret dps
+end
+# start the arguments of git in dpargs
+fn dpgitargs
+	call bycut dpargs 0
+	call byadd dpargs "git\0"
+end
+
+# The revision that the tag v<version> names in the repository at the
+# address of dpun bytes at dpu, into dprev: 1, or 0. A tag with a
+# message names a tag object, and the commit behind it is the line that
+# git marks with "^{}".
+fn dptag dpu dpun dpv dpvn
+	call dpgitargs
+	call byadd dpargs "ls-remote\0--\0"
+	call byadd dpargs dpu dpun
+	call byadd dpargs "\0refs/tags/v"
+	call byadd dpargs dpv dpvn
+	call byadd dpargs "\0refs/tags/v"
+	call byadd dpargs dpv dpvn
+	call byadd dpargs "^{}\0"
+	call dpgit 0 as dps
+	if dps
+		call dpfail 4 "cannot read the tags of " dpu dpun ""
+		ret 0
+	end
+	load dpcap as dpp
+	load dpcap+8 as dpn
+	dpgot=0
+	while dpn
+		call mfline dpp dpn as dpl dpnl
+		if dpl>41
+			loadb dpp+dpl-1 as dpc
+			if (dpgot==0)|(dpc==125)
+				call bycopy dprev dpp 40
+				dpgot=1
+			end
+		end
+		dpp+=dpl+dpnl
+		dpn-=dpl+dpnl
+	end
+	ifz dpgot
+		call bycut dpmsg 0
+		call byadd dpmsg dpu dpun
+		call byadd dpmsg " has no tag v"
+		call byadd dpmsg dpv dpvn
+		dpst=4
+		ret 0
+	end
+	ret 1
+end
+
+# The latest version among the tags v<version> of the repository at the
+# address, into dpver: 1, or 0.
+fn dpnewest dpu dpun
+	call dpgitargs
+	call byadd dpargs "ls-remote\0--tags\0--\0"
+	call byadd dpargs dpu dpun
+	call byaddb dpargs 0
+	call dpgit 0 as dps
+	if dps
+		call dpfail 4 "cannot read the tags of " dpu dpun ""
+		ret 0
+	end
+	call bycut dpver 0
+	load dpcap as dpp
+	load dpcap+8 as dpn
+	dpbest=0
+	dpgot=0
+	while dpn
+		call mfline dpp dpn as dpl dpnl
+		# forty digits, a tab, "refs/tags/v", the version, and "^{}" or not
+		if dpl>52
+			dpq=dpp+52
+			dpm=dpl-52
+			loadb dpq+dpm-1 as dpc
+			if dpc==125
+				dpm-=3
+			end
+			call mfeq dpp+41 11 "refs/tags/v" as dpr
+			if dpr
+				call mfver dpq dpm as dpx dpr
+				if dpr&((dpgot==0)|(dpx>dpbest))
+					dpbest=dpx
+					dpgot=1
+					call bycut dpver 0
+					call byadd dpver dpq dpm
+				end
+			end
+		end
+		dpp+=dpl+dpnl
+		dpn-=dpl+dpnl
+	end
+	ifz dpgot
+		call dpfail 4 "" dpu dpun " has no tag of the form v1.2.3"
+		ret 0
+	end
+	ret 1
+end
+
+# 1 if the directory of dpn bytes at dpp is a clone that stands at the
+# revision in dprev: its file .git/HEAD is those forty digits
+fn dpat dpp dpn
+	local dpb 24
+	store dpb 0
+	store dpb+8 0
+	store dpb+16 0
+	call byadd dpb dpp dpn
+	call byadd dpb "/.git/HEAD"
+	load dpb as dpq
+	load dpb+8 as dpm
+	call bycut dpcap 0
+	call fileread dpq dpm dpcap as dpr
+	call byfree dpb
+	ifslt dpr 40
+		ret 0
+	end
+	load dpcap as dpq
+	call mfeq dpq 40 dprev 40 as dpr
+	ret dpr
+end
+
+# Have the directory of dpn bytes at dpp be a clone of the repository at
+# the address, at the revision in dprev: 1, or 0. A clone that is there
+# is fetched into, unless dpanew is 1, which has it made again.
+fn dpfetch dpp dpn dpu dpun dpanew
+	call dpat dpp dpn as dpr
+	if dpr&(dpanew==0)
+		ret 1
+	end
+	# dpcap has what .git/HEAD held, if there is a clone
+	load dpcap+8 as dpr
+	if (dpr==0)|dpanew
+		call tlremove dpp dpn
+		call dpgitargs
+		call byadd dpargs "clone\0-q\0--\0"
+		call byadd dpargs dpu dpun
+		call byaddb dpargs 0
+		call byadd dpargs dpp dpn
+		call byaddb dpargs 0
+		call dpgit 0 as dps
+		if dps
+			call dpfail 4 "cannot clone " dpu dpun ""
+			ret 0
+		end
+	else
+		call dpgitargs
+		call byadd dpargs "-C\0"
+		call byadd dpargs dpp dpn
+		call byadd dpargs "\0fetch\0-q\0--tags\0origin\0"
+		call dpgit 0
+	end
+	call dpgitargs
+	call byadd dpargs "-C\0"
+	call byadd dpargs dpp dpn
+	call byadd dpargs "\0checkout\0-q\0--detach\0"
+	call byadd dpargs dprev 40
+	call byaddb dpargs 0
+	call dpgit 0 as dps
+	if dps
+		call bycut dpmsg 0
+		call byadd dpmsg dpu dpun
+		call byadd dpmsg " has no revision "
+		call byadd dpmsg dprev 40
+		dpst=4
+		ret 0
+	end
+	ret 1
+end
+
+# Read the manifest of the package in the directory of dpn bytes at dpp
+# into the buffer dpt and the descriptor dps: 1, or 0.
+fn dpmanifest dpp dpn dpt dps
+	local dpb 24
+	store dpb 0
+	store dpb+8 0
+	store dpb+16 0
+	call byadd dpb dpp dpn
+	call byadd dpb "/ail.pkg"
+	load dpb as dpq
+	load dpb+8 as dpm
+	call bycut dpt 0
+	call fileread dpq dpm dpt as dpr
+	ifslt dpr 0
+		call dpfail 4 "" dpp dpn " has no ail.pkg"
+		call byfree dpb
+		ret 0
+	end
+	load dpt as dpa
+	load dpt+8 as dpan
+	call mfread dps dpa dpan 0 as dpe dpl
+	if dpe
+		dpst=3
+		call bycut dpmsg 0
+		call byadd dpmsg dpq dpm
+		if dpl
+			call byaddb dpmsg 58
+			call byaddn dpmsg dpl
+		end
+		call byadd dpmsg ": "
+		call mfwhy dpmsg dpe
+		call byfree dpb
+		ret 0
+	end
+	call byfree dpb
+	ret 1
+end
+
+# One dependency, the entry dpe of the manifest of the package in the
+# directory of dpn bytes at dpp, no byte for the top: found, fetched if
+# it comes from a repository, and its own dependencies after it. dpt,
+# dps and dpd are a buffer for its manifest, a descriptor for it and a
+# buffer for its directory, which the caller owns. 1, or 0.
+fn dpone dpe dpp dpn dpt dps dpd
+	load dpe as dpkind
+	load dpe+8 as dpa
+	load dpe+16 as dpan
+	load dpe+24 as dpv
+	load dpe+32 as dpvn
+	load dpe+40 as dpu
+	load dpe+48 as dpun
+	call bycut dpd 0
+	if dpkind==mfpath
+		# its directory is read from that of the package that names it
+		loadb dpv as dpc
+		if (dpc!=47)&(dpn>0)
+			call byadd dpd dpp dpn
+			call byaddb dpd 47
+		end
+		call byadd dpd dpv dpvn
+		dpvn=0
+	else
+		call byadd dpd "deps/"
+		call byadd dpd dpa dpan
+	end
+	load dpd as dpq
+	load dpd+8 as dpm
+	call dpfind dpa dpan as dpi
+	if dpi!=-1
+		# named before: it is to be the same package
+		load dpset as dpx
+		dpx+=dpi*56
+		load dpx+48 as dpk
+		load dpstr as dps
+		load dpx+16 as dpo
+		load dpx+24 as dpl
+		if dpkind==mfgit
+			load dpx+32 as dpo
+			load dpx+40 as dpl
+			dpq=dpv
+			dpm=dpvn
+		end
+		call mfeq dpq dpm dps+dpo dpl as dpr
+		if (dpk!=dpkind)|(dpr==0)
+			call dpfail 3 "the package " dpa dpan " is asked for twice, and not as the same version or directory"
+			ret 0
+		end
+		ret 1
+	end
+	if dpkind==mfgit
+		# the revision: the one of the lock, if that has this version
+		# from this address, else what the tag names now
+		dpanew=1
+		call mffind dpold mflocked dpa dpan as dpi
+		if dpi!=-1
+			call mfentry dpold dpi as dpx
+			load dpx+24 as dpo
+			load dpx+32 as dpl
+			call mfeq dpv dpvn dpo dpl as dpr
+			load dpx+56 as dpo
+			load dpx+64 as dpl
+			call mfeq dpu dpun dpo dpl as dpk
+			if dpr&dpk
+				load dpx+40 as dpo
+				call bycopy dprev dpo 40
+				dpanew=0
+			end
+		end
+		if dpanew
+			call dptag dpu dpun dpv dpvn as dpr
+			ifz dpr
+				ret 0
+			end
+		end
+		call dpfetch dpq dpm dpu dpun dpanew as dpr
+		ifz dpr
+			ret 0
+		end
+		call byadd dplock dpa dpan
+		call byaddb dplock 32
+		call byadd dplock dpv dpvn
+		call byaddb dplock 32
+		call byadd dplock dprev 40
+		call byaddb dplock 32
+		call byadd dplock dpu dpun
+		call byaddb dplock 10
+	end
+	call dpadd dpa dpan dpq dpm dpv dpvn dpkind
+	call dpmanifest dpq dpm dpt dps as dpr
+	ifz dpr
+		ret 0
+	end
+	load dps as dpo
+	load dps+8 as dpl
+	call mfeq dpa dpan dpo dpl as dpr
+	ifz dpr
+		call bycut dpmsg 0
+		call byadd dpmsg "the package in "
+		call byadd dpmsg dpq dpm
+		call byadd dpmsg " is called "
+		call byadd dpmsg dpo dpl
+		call byadd dpmsg ", not "
+		call byadd dpmsg dpa dpan
+		dpst=3
+		ret 0
+	end
+	load dps+16 as dpo
+	load dps+24 as dpl
+	if dpkind==mfgit
+		call mfeq dpv dpvn dpo dpl as dpr
+		ifz dpr
+			call bycut dpmsg 0
+			call byadd dpmsg "the tag v"
+			call byadd dpmsg dpv dpvn
+			call byadd dpmsg " of "
+			call byadd dpmsg dpa dpan
+			call byadd dpmsg " has the version "
+			call byadd dpmsg dpo dpl
+			call byadd dpmsg " in its ail.pkg"
+			dpst=3
+			ret 0
+		end
+	end
+	load dps+32 as dpo
+	load dps+40 as dpl
+	if dpl
+		call mfver dpo dpl as dpneed dpr
+		call mfver tlvp tlvn as dphave dpr
+		call mfmeets dphave dpneed as dpr
+		ifz dpr
+			call bycut dpmsg 0
+			call byadd dpmsg "the package "
+			call byadd dpmsg dpa dpan
+			call byadd dpmsg " asks for AIL "
+			call byadd dpmsg dpo dpl
+			call byadd dpmsg ", which AIL "
+			call byadd dpmsg tlvp tlvn
+			call byadd dpmsg " is not"
+			dpst=3
+			ret 0
+		end
+	end
+	call dpwalk dps dpq dpm as dpr
+	ret dpr
+end
+
+# The dependencies of the manifest dpm, whose package is in the
+# directory of dpn bytes at dpp, no byte for the top: 1, or 0.
+fn dpwalk dpm dpp dpn
+	local dpt 24
+	local dps 72
+	local dpd 24
+	dpi=0
+	while dpi<24
+		store dpt+dpi 0
+		store dpd+dpi 0
+		dpi+=8
+	end
+	dpi=0
+	while dpi<72
+		store dps+dpi 0
+		dpi+=8
+	end
+	call mfcount dpm as dpk
+	dpok=1
+	dpi=0
+	while (dpi<dpk)&dpok
+		call mfentry dpm dpi as dpe
+		load dpe as dpkind
+		if dpkind&(mfgit|mfpath)
+			call dpone dpe dpp dpn dpt dps dpd as dpok
+		end
+		dpi+=1
+	end
+	call byfree dpt
+	call byfree dps+48
+	call byfree dpd
+	ret dpok
+end
+
+# Find every package that the package of the manifest dpm is built with,
+# fetch those that are not in deps/ at their revision, and write the
+# lock if it is not what these packages make it: 1, or 0. The package
+# itself is the first that dpcount counts, in the directory ".".
+fn dpresolve dpm
+	call bycut dpset 0
+	call bycut dpstr 0
+	call bycut dpoldt 0
+	call bycut dplock 0
+	call byadd dplock "# The revisions of the dependencies, written by ail; keep it with the sources.\n"
+	load dplock+8 as dphead
+	call fileread "ail.lock" dpoldt as dphad
+	load dpoldt as dpp
+	load dpoldt+8 as dpn
+	call mfread dpold dpp dpn 1 as dpe dpl
+	if dpe
+		dpst=3
+		call bycut dpmsg 0
+		call byadd dpmsg "ail.lock:"
+		call byaddn dpmsg dpl
+		call byadd dpmsg ": "
+		call mfwhy dpmsg dpe
+		ret 0
+	end
+	load dpm as dpp
+	load dpm+8 as dpn
+	load dpm+16 as dpv
+	load dpm+24 as dpvn
+	call dpadd dpp dpn "." dpv dpvn mfpath
+	call dpwalk dpm "" as dpr
+	ifz dpr
+		ret 0
+	end
+	load dplock as dpp
+	load dplock+8 as dpn
+	if dpn==dphead
+		# no package comes from a repository: there is no lock
+		ifsge dphad 0
+			call fileunlink "ail.lock"
+		end
+		ret 1
+	end
+	load dpoldt as dpq
+	load dpoldt+8 as dpm
+	call mfeq dpp dpn dpq dpm as dpr
+	ifz dpr
+		call filewrite "ail.lock" dpp dpn as dpr
+		if dpr
+			call dpfail 4 "cannot write ail.lock" "" ""
+			ret 0
+		end
+	end
+	ret 1
+end

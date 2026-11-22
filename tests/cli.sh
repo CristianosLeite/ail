@@ -43,7 +43,7 @@ is cli_version 0 "ail $version" "" $ail version
 is cli_no_command 2 "" "usage: ail COMMAND" $ail
 is cli_unknown_command 2 "" "usage: ail COMMAND" $ail frob
 $ail help > "$tmp/help"
-yes cli_help_names_every_command sh -c "for c in new init build run test fmt clean version help; do grep -q \"^  \$c\" '$tmp/help' || exit 1; done"
+yes cli_help_names_every_command sh -c "for c in new init add remove update build run test fmt clean version help; do grep -q \"^  \$c\" '$tmp/help' || exit 1; done"
 
 # ---- new
 is cli_new 0 "created the package demo in demo/" "" $ail new demo
@@ -271,4 +271,165 @@ cp "$top/build/ail" "$tmp/inst/bin/ail"
 cp "$top/build/ailc" "$top/ail.pkg" "$tmp/inst/lib/ail/"
 cp -r "$top/lib" "$tmp/inst/lib/ail/lib"
 is cli_home_installed 0 "hello from fresh" "" "$tmp/inst/bin/ail" run
+
+# ---- dependencies, from repositories of git made here: none of it
+# reaches a network
+if ! git --version > /dev/null 2>&1; then
+    echo "skip cli_deps (no git)"
+    exit $fail
+fi
+g="git -c user.name=test -c user.email=test@example.invalid -c init.defaultBranch=main -c advice.detachedHead=false"
+# lastis <name> <status> <last line of stderr> command...: for a command
+# whose first lines on stderr are those of git
+lastis() {
+    name=$1 st=$2 err=$3
+    shift 3
+    "$@" > "$tmp/out" 2> "$tmp/err"
+    rc=$?
+    if [ $rc -eq "$st" ] && [ "$(tail -n 1 "$tmp/err")" = "$err" ]
+    then echo "ok   $name"
+    else echo "FAIL $name"; fail=1
+    fi
+}
+mkdir "$tmp/d" && cd "$tmp/d" || exit 1
+r=$tmp/d
+# base: 1.0.0 at a plain tag, 1.1.0 at a tag with a message, and a tag
+# that is no version
+$ail new base > /dev/null && cd base || exit 1
+mkdir src/lib
+printf 'fn basehi\n\tcall print "base 1.0.0\\n"\nend\n' > src/lib/hi.aiw
+sed -i 's/^version .*/version 1.0.0/' ail.pkg
+$g add -A && $g commit -qm one && $g tag v1.0.0 && $g tag other
+sed -i 's/1\.0\.0/1.1.0/' src/lib/hi.aiw ail.pkg
+$g commit -qam two && $g tag -a v1.1.0 -m "with a message"
+base10=$($g rev-parse 'v1.0.0^{commit}') base11=$($g rev-parse 'v1.1.0^{commit}')
+# mid uses base 1.0.0 and is 0.3.0
+cd "$r" && $ail new mid > /dev/null && cd mid || exit 1
+is cli_add_version 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+mkdir src/lib
+printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\nfn midhi\n\tcall print "mid\\n"\n\tcall basehi\nend\n' > src/lib/mid.aiw
+sed -i 's/^version .*/version 0.3.0/' ail.pkg
+$g add -A && $g commit -qm one && $g tag v0.3.0
+mid03=$($g rev-parse 'v0.3.0^{commit}')
+yes cli_add_ignores_deps_in_git [ -z "$($g status --porcelain)" ]
+
+# app uses mid, and base through it
+cd "$r" && $ail new app > /dev/null && cd app || exit 1
+is cli_add_latest 0 "added mid 0.3.0" "" $ail add "$r/mid"
+yes cli_add_manifest_line [ "$(tail -n 1 ail.pkg)" = "dep mid 0.3.0 $r/mid" ]
+yes cli_add_lock [ "$(cat ail.lock)" = "# The revisions of the dependencies, written by ail; keep it with the sources.
+mid 0.3.0 $mid03 $r/mid
+base 1.0.0 $base10 $r/base" ]
+yes cli_add_fetched [ -f deps/mid/ail.pkg ] && yes cli_add_fetched_its_dependency [ -f deps/base/ail.pkg ]
+yes cli_add_left_no_other_file [ "$(ls -A deps | tr '\n' ' ')" = "base mid " ]
+printf 'use "lib/std/io.aiw"\nuse "mid:src/lib/mid.aiw"\ncall midhi\n' > src/main.aiw
+is cli_deps_run 0 "mid
+base 1.0.0" "" $ail run
+# a file of a dependency is not named without it, and a test has them too
+printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\ncall basehi\n' > tests/dep.aiw
+echo "base 1.0.0" > tests/dep.out
+is cli_deps_test 0 "ok   dep
+ok   hello
+2 tests, 0 failed" "" $ail test
+rm tests/dep.*
+# built again without git: what is in deps/ at its revision is not asked for
+is cli_deps_no_git_needed 0 "mid
+base 1.0.0" "" timeout --signal=KILL 60 env PATH=/nonexistent "$top/build/ail" run
+# the lock decides, not the tag: the tag moved, the clones gone
+$g -C "$r/base" tag -f v1.0.0 "$base11" > /dev/null
+rm -rf deps
+is cli_deps_lock_decides 0 "mid
+base 1.0.0" "" $ail run
+yes cli_deps_lock_unchanged grep -q "^base 1.0.0 $base10 " ail.lock
+$g -C "$r/base" tag -f v1.0.0 "$base10" > /dev/null
+# a clone at another revision is brought to that of the lock
+$g -C deps/base checkout -q "$base11"
+is cli_deps_clone_moved 0 "mid
+base 1.0.0" "" $ail run
+# without a lock it is written again from the tags
+rm ail.lock
+is cli_deps_lock_rewritten 0 "" "" $ail build
+yes cli_deps_lock_same grep -q "^base 1.0.0 $base10 $r/base$" ail.lock
+# the same package in two versions: refused, and nothing is changed
+cp ail.pkg "$tmp/pkg" && cp ail.lock "$tmp/lock"
+is cli_add_conflict 3 "" "ail: the package base is asked for twice, and not as the same version or directory" $ail add "$r/base"
+yes cli_add_conflict_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_add_conflict_lock cmp -s ail.lock "$tmp/lock"
+is cli_add_same_version 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+is cli_update_conflict 3 "" "ail: the package base is asked for twice, and not as the same version or directory" $ail update base
+yes cli_update_conflict_manifest grep -q "^dep base 1.0.0 " ail.pkg
+is cli_remove 0 "removed base" "" $ail remove base
+yes cli_remove_manifest [ "$(grep -c '^dep ' ail.pkg)" = 1 ]
+is cli_remove_still_runs 0 "mid
+base 1.0.0" "" $ail run
+is cli_remove_unknown 3 "" "ail: ail.pkg has no dependency base" $ail remove base
+is cli_remove_last 0 "removed mid" "" $ail remove mid
+yes cli_remove_no_lock [ ! -e ail.lock ] && yes cli_remove_clone [ ! -e deps/mid ]
+is cli_remove_no_name 2 "" "usage: ail COMMAND" $ail remove
+
+# update: to the latest tag, in the manifest and in the lock
+is cli_update_setup 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
+printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\ncall basehi\n' > src/main.aiw
+is cli_update_before 0 "base 1.0.0" "" $ail run
+is cli_update 0 "base 1.0.0 -> 1.1.0" "" $ail update
+yes cli_update_manifest [ "$(tail -n 1 ail.pkg)" = "dep base 1.1.0 $r/base" ]
+yes cli_update_lock grep -q "^base 1.1.0 $base11 $r/base$" ail.lock
+is cli_update_after 0 "base 1.1.0" "" $ail run
+is cli_update_latest 0 "base 1.1.0 is the latest" "" $ail update base
+is cli_update_unknown 3 "" "ail: ail.pkg has no dependency from a repository called nope" $ail update nope
+$ail remove base > /dev/null
+
+# a package in a directory, with the one it fetches
+is cli_add_path 0 "added mid from ../mid" "" $ail add --path ../mid
+yes cli_add_path_manifest [ "$(tail -n 1 ail.pkg)" = "dep mid ../mid" ]
+printf 'use "lib/std/io.aiw"\nuse "mid:src/lib/mid.aiw"\ncall midhi\n' > src/main.aiw
+is cli_path_run 0 "mid
+base 1.0.0" "" $ail run
+yes cli_path_lock_has_only_git [ "$(grep -c . ail.lock)" = 2 ] && yes cli_path_not_copied [ ! -e deps/mid ]
+$ail remove mid > /dev/null
+cd src || exit 1
+is cli_add_path_from_below 0 "added mid from $r/app/src/../../mid" "" $ail add --path ../../mid
+cd .. || exit 1
+is cli_path_from_below_runs 0 "mid
+base 1.0.0" "" $ail run
+$ail remove mid > /dev/null
+
+# a manifest written by hand, with no lock, is enough
+printf 'dep base 1.1.0 %s\n' "$r/base" >> ail.pkg
+printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\ncall basehi\n' > src/main.aiw
+rm -rf deps ail.lock
+is cli_deps_by_hand 0 "base 1.1.0" "" $ail run
+yes cli_deps_by_hand_lock grep -q "^base 1.1.0 $base11 $r/base$" ail.lock
+$ail remove base > /dev/null
+
+# what is refused
+cp ail.pkg "$tmp/pkg"
+is cli_add_usage 2 "" "usage: ail COMMAND" $ail add
+is cli_add_option 2 "" "usage: ail COMMAND" $ail add --frob x
+is cli_add_bad_version 2 "" "ail: a version is three numbers with dots between, as 1.2.3: not 1.0" $ail add "$r/base" 1.0
+is cli_add_no_such_tag 4 "" "ail: $r/base has no tag v9.9.9" $ail add "$r/base" 9.9.9
+lastis cli_add_no_repository 4 "ail: cannot read the tags of $r/nothing" $ail add "$r/nothing"
+$g init -q "$r/untagged" && $g -C "$r/untagged" commit -q --allow-empty -m one
+is cli_add_no_tags 4 "" "ail: $r/untagged has no tag of the form v1.2.3" $ail add "$r/untagged"
+# a tag whose manifest has another version, and one without a manifest
+$g -C "$r/base" tag v2.0.0 "$base10" && $g -C "$r/untagged" tag v1.0.0
+is cli_add_tag_other_version 3 "" "ail: the tag v2.0.0 of base has the version 1.0.0 in its ail.pkg" $ail add "$r/base" 2.0.0
+$g -C "$r/base" tag -d v2.0.0 > /dev/null
+is cli_add_no_manifest 4 "" "ail: deps/.new has no ail.pkg" $ail add "$r/untagged"
+is cli_add_path_no_manifest 4 "" "ail: $r/untagged has no ail.pkg" $ail add --path "$r/untagged"
+is cli_add_itself 3 "" "ail: a package does not use itself: app" $ail add --path .
+yes cli_add_refused_changes_nothing cmp -s ail.pkg "$tmp/pkg" && yes cli_add_refused_leaves_no_clone [ ! -e deps/.new ] && yes cli_add_refused_no_lock [ ! -e ail.lock ]
+# a manifest by hand that names what is not there
+printf 'name app\nversion 0.1.0\nbin app src/main.aiw\ndep other ../mid\n' > ail.pkg
+is cli_deps_other_name 3 "" "ail: the package in ../mid is called mid, not other" $ail build
+printf 'name app\nversion 0.1.0\nbin app src/main.aiw\ndep gone ../gone\n' > ail.pkg
+is cli_deps_no_directory 4 "" "ail: ../gone has no ail.pkg" $ail build
+mkdir "$r/newer" && printf 'name newer\nversion 1.0.0\nail 999.0.0\n' > "$r/newer/ail.pkg"
+printf 'name app\nversion 0.1.0\nbin app src/main.aiw\ndep newer ../newer\n' > ail.pkg
+is cli_deps_newer_ail 3 "" "ail: the package newer asks for AIL 999.0.0, which AIL $version is not" $ail build
+mkdir "$r/broken" && printf 'name broken\nversion one\n' > "$r/broken/ail.pkg"
+printf 'name app\nversion 0.1.0\nbin app src/main.aiw\ndep broken ../broken\n' > ail.pkg
+is cli_deps_broken_manifest 3 "" "ail: ../broken/ail.pkg:2: a version that is not three numbers with dots between, as 1.2.3" $ail build
+printf 'name app\nversion 0.1.0\nbin app src/main.aiw\n' > ail.pkg
+echo "base 1.0.0 short url" > ail.lock
+is cli_lock_wrong 3 "" "ail: ail.lock:1: a revision that is not forty digits of base sixteen" $ail build
 exit $fail

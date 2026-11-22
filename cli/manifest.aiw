@@ -356,12 +356,19 @@ fn mfone mfd mfw mfk
 		ret 8
 	end
 	mfkind=mfpath
+	# the address or the directory, which is given to git and is no option
+	mfp=mfb
 	if mfk==4
 		call mfver mfb mfbn as mfv mfr
 		ifz mfr
 			ret 5
 		end
 		mfkind=mfgit
+		load mfw+48 as mfp
+	end
+	loadb mfp as mfv
+	if mfv==45
+		ret 13
 	end
 	call mfput mfd mfkind mfw 1 mfk-1 as mfr
 	ifz mfr
@@ -496,6 +503,9 @@ fn mfwhy mfb mfe
 	end
 	if mfe==12
 		tail byadd mfb "a revision that is not forty digits of base sixteen"
+	end
+	if mfe==13
+		tail byadd mfb "an address or a directory that starts with -"
 	end
 	tail byadd mfb "an error without a name"
 end

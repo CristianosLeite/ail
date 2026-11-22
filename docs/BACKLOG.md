@@ -797,3 +797,8 @@ it; `TODO.md` has what is decided and what is left.
   compiled and run against its `.out`, `.code` or `.err`, in a directory
   of its own named in `AIL_TMP`, for 10 seconds at most. `ail fmt` and
   `ail fmt --check`: the formatter of AIL over the sources of a package.
+- [x] Dependencies: `cli/deps.aiw` finds the packages of a build, those
+  of the manifest and those they name, fetches the ones from a
+  repository into `deps/` at the revision of the lock and writes the
+  lock; `ail add`, `ail remove` and `ail update` change the manifest and
+  put it back if the packages cannot be found.

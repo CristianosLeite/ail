@@ -113,7 +113,42 @@ The rest is the open section of `docs/TODO.md`.
 - **`ail fmt` starts the formatter**, `tools/indent.aiw` as it is built,
   and does not have it compiled in: one program does the indenting.
 
+## Dependencies (agent, 2026-11-22; for the user to review)
+- **`ail add URL` takes the name from the manifest of the package**, not
+  from the command line: the approved plan had `ail add NAME URL`, and
+  the name would have had to repeat what the package calls itself. The
+  clone is made first, as `deps/.new`, and given its name when the
+  manifest is read.
+- **A build asks nothing of a network** when `deps/` has each package at
+  the revision of the lock: that is read from `.git/HEAD` of the clone,
+  with no process started. A plan to check on each build that a tag
+  still names the locked revision was dropped for this.
+- **A missing line of the lock is written by the build**, from the tag,
+  as cargo writes `Cargo.lock`: a manifest changed by hand needs no
+  other command.
+- **Only the lock of the package that is built counts.** The lock of a
+  dependency was written for its own build.
+- **One version of a package in a build, and no solver.** Two requirers
+  of different versions are an error for the author to settle; with
+  exact versions there is nothing to choose.
+- **`update` writes the manifest**, which cargo's does not: there a
+  manifest has a range and the lock the version, here the manifest has
+  the version.
+- **`add`, `remove` and `update` put the manifest and the lock back**
+  when the packages cannot be found afterwards, so a refused command
+  leaves a package that still builds.
+- **git is started as a program** (`git ls-remote`, `clone`, `fetch`,
+  `checkout`), with `--` before an address; an address that starts with
+  `-` is refused in the manifest. Rejected: reading the protocol of git
+  in AIL.
+- A package may name files of a package it does not list, if another
+  package of the build lists it; the compiler is given all of them.
+
 ## Not checked
+- No test fetches from a network; `tests/cli.sh` uses repositories on
+  disk, by their paths.
+- A dependency whose clone has changes of its own is not noticed while
+  its `.git/HEAD` is the locked revision.
 - `ail test` kills a test that runs too long, but not the children that
   test started, where `tests/run.sh` kills the whole process group.
 - More than 256 packages and a path of package and file above 4095 bytes

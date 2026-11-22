@@ -9,10 +9,10 @@ means the same thing in each.
 
 How a source names a file of another package is in
 [language.md](language.md#packages). This page is the manifest and the
-lock. The command that works with them is `ail` ([cli.md](cli.md)), which
-does not fetch dependencies or write a lock yet ([TODO.md](TODO.md));
-`cli/manifest.aiw` reads, checks and changes both files, and
-`tests/cli_manifest.aiw` is its test.
+lock. The command that works with them is `ail` ([cli.md](cli.md)):
+`cli/manifest.aiw` reads, checks and changes both files, with
+`tests/cli_manifest.aiw` as its test, and `cli/deps.aiw` finds and
+fetches the packages they name.
 
 ## The manifest, `ail.pkg`
 
@@ -60,6 +60,8 @@ space, and none has a byte below 32 or the byte 127.
   the name of a file in `build/`.
 - **A dependency** is named once. The version of one is exact: the tag
   `v1.2.0`, and no later one is taken in its place.
+- An address or a directory does not start with `-`: it is given to git,
+  which would read it as an option.
 - Another key, a value too few or too many, and `name`, `version` or
   `ail` a second time are errors, with the number of the line.
 
@@ -75,7 +77,9 @@ version, the revision that the tag named when the package was added, in
 forty digits of base sixteen with small letters, and the address. It is
 written by the command and kept with the sources, so that a build of the
 same sources reads the same revisions; a tag that later names another
-revision does not change what is built. A dependency that is a directory
+revision does not change what is built. A line counts for a dependency
+while the manifest asks for that version from that address; when it
+asks for another, the tag is read again. A dependency that is a directory
 has no line. Comments and empty lines are as in the manifest.
 
 ## Versions of AIL
