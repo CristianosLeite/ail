@@ -1,0 +1,137 @@
+# jsonvalue takes the bytes that are one value of JSON and no others:
+# the three names, numbers, strings with their escapes and their UTF-8,
+# arrays and objects, blanks around a value, and nesting up to 128. Each
+# line is the bytes, a byte that is not printed as its two digits in
+# angle brackets, then the kind and the length of the value, or "no".
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/json.aiw"
+buf b 24
+buf hex 8
+fn kind p n
+	call jsonvalue p n as a an k
+	if k
+		call putn k
+		call print " "
+		call putn an
+		call print "\n"
+	else
+		call print "no\n"
+	end
+end
+fn show p n
+	i=0
+	while i<n
+		loadb p+i as c
+		if (c<32)|(c>126)
+			call print "<"
+			d=c>>4
+			if d>9
+				d+=39
+			end
+			storeb hex d+48
+			d=c&15
+			if d>9
+				d+=39
+			end
+			storeb hex+1 d+48
+			call print hex 2
+			call print ">"
+		else
+			call print p+i 1
+		end
+		i+=1
+	end
+	call print " : "
+	call kind p n
+end
+# n times the bytes at p pn, the bytes at q qn, n times those at r rn
+fn deep n p pn q qn r rn
+	call bycut b 0
+	i=0
+	while i<n
+		call byadd b p pn
+		i+=1
+	end
+	call byadd b q qn
+	i=0
+	while i<n
+		call byadd b r rn
+		i+=1
+	end
+	call putn n
+	call print " deep : "
+	load b as p
+	load b+8 as n
+	call kind p n
+end
+
+call show ""
+call show " "
+call show "null"
+call show " null\x0a"
+call show "nul"
+call show "nulll"
+call show "true"
+call show "false"
+call show "fals"
+call show "0"
+call show "-0"
+call show "01"
+call show "-"
+call show "1."
+call show ".1"
+call show "1e"
+call show "1e+"
+call show "1E-5"
+call show "1.0e10"
+call show "-1.5E+3"
+call show "+1"
+call show "0x1"
+call show "NaN"
+call show "Infinity"
+call show "\x22\x22"
+call show "\x22a"
+call show "\x22\x5cx\x22"
+call show "\x22\x5cu12\x22"
+call show "\x22\x5cu12G4\x22"
+call show "\x22\x5cud800\x22"
+call show "\x22\x5cud800\x5cu0041\x22"
+call show "\x22\x5cudc00\x22"
+call show "\x22\x5cud83d\x5cude00\x22"
+call show "\x22\x5cuD83D\x5cuDE00\x22"
+call show "\x22\xc3\xa9\x22"
+call show "\x22\xc3\x22"
+call show "\x22\xc0\x80\x22"
+call show "\x22\xed\xa0\x80\x22"
+call show "\x22\xf4\x90\x80\x80\x22"
+call show "\x22\xf4\x8f\xbf\xbf\x22"
+call show "\x22\xe0\x9f\xbf\x22"
+call show "\x22\x7f\x22"
+call show "\x22\x09\x22"
+call show "\x22\x5ct\x5c\x22\x5c\x5c\x5c/\x22"
+call show "[]"
+call show "[ ]"
+call show "[1,]"
+call show "[,1]"
+call show "[1 2]"
+call show "[1,2"
+call show "[1,[2,[3]]]"
+call show "{}"
+call show "{ }"
+call show "{\x22a\x22:1,}"
+call show "{\x22a\x22}"
+call show "{\x22a\x22:}"
+call show "{a:1}"
+call show "{\x22a\x22:1 \x22b\x22:2}"
+call show "{\x22a\x22:1,\x22a\x22:2}"
+call show "{\x22a\x22:{\x22b\x22:[true,null]}}"
+call show "[1]x"
+call show "[1] [2]"
+call show "\xef\xbb\xbf[]"
+call show "[]\x0c"
+call show "\x09\x0d\x0a [] \x09\x0d\x0a"
+call deep 128 "[" "" "]"
+call deep 129 "[" "" "]"
+call deep 128 "{\x22a\x22:" "1" "}"
+call deep 129 "{\x22a\x22:" "1" "}"

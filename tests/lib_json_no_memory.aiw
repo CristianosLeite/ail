@@ -1,0 +1,76 @@
+# the writers of the library when a buffer cannot grow, the memory of
+# the process limited to 64 MiB and then taken whole: jsonstr of a
+# character of two bytes, with room for one, adds no half of it, while
+# an escape of one byte is added to that room, and
+# jsonaddi of a number below 0 adds no part of it. Both return 0 and
+# leave the buffer as long as it was; with room they add what they are
+# to add.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/json.aiw"
+const setrlimit 160
+buf lim 16
+buf b 24
+store lim 0x4000000
+store lim+8 0x4000000
+sys setrlimit 9 lim as r
+if r
+	sys exit 1
+end
+# a buffer filled to one byte below its room
+call byadd b "x"
+load b+16 as room
+label fill
+load b+8 as n
+if n<room-1
+	call byaddb b 120
+	jmp fill
+end
+n=1048576
+while n>=4096
+	label take
+	alloc n-16 as p
+	if p
+		jmp take
+	end
+	n>>=4
+end
+load b+8 as before
+call jsonstr b "\"\\u00e9\"" as r
+load b+8 as now
+call print "jsonstr of two bytes, room for one: "
+call putn r
+call print ", bytes added "
+call putn now-before
+# an escape that says one byte needs the room of one
+load b+8 as before
+call jsonstr b "\"\\u0041\"" as r
+load b+8 as now
+call print "\njsonstr of an escape of one byte, room for one: "
+call putn r
+call print ", bytes added "
+call putn now-before
+load b+8 as before
+call jsonaddi b 0-5 as r
+load b+8 as now
+call print "\njsonaddi of -5, room for none: "
+call putn r
+call print ", bytes added "
+call putn now-before
+call bycut b 0
+call jsonstr b "\"\\u00e9\"" as r
+call jsonaddi b 0-5 as r2
+load b as p
+load b+8 as n
+call print "\nwith room: "
+call putn r
+call putn r2
+call print ", the bytes"
+i=0
+while i<n
+	loadb p+i as c
+	call print " "
+	call putn c
+	i+=1
+end
+call print "\n"

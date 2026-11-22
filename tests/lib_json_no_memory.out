@@ -1,0 +1,4 @@
+jsonstr of two bytes, room for one: 0, bytes added 0
+jsonstr of an escape of one byte, room for one: 1, bytes added 1
+jsonaddi of -5, room for none: 0, bytes added 0
+with room: 11, the bytes 195 169 45 53

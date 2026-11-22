@@ -1,0 +1,199 @@
+# a GET of /
+status 200, text/plain, body [GET / host is 127.0.0.1 and the port:1 body:7]
+# a GET of a target
+status 200, text/plain, body [GET /a/b?c=d host is 127.0.0.1 and the port:1 body:7]
+# a POST with a body and its type
+status 200, text/plain, body [POST /echo type:application/json host is 127.0.0.1 and the port:1 body:{"k":1}7]
+# a POST without a body
+status 200, text/plain, body [POST / host is 127.0.0.1 and the port:1 body:7]
+# a status and a type of the handler
+status 404, application/json, body [GET /missing host is 127.0.0.1 and the port:1 body:7]
+# a HEAD: the head and no body
+status 200, text/plain, body []
+# a request as bytes: the whole response
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 46
+Connection: close
+
+GET /x host is 127.0.0.1 and the port:0 body:7
+# a body in chunks
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 52
+Connection: close
+
+POST /c host is 127.0.0.1 and the port:0 body:abcde7
+# HTTP/1.0 and no header line
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 45
+Connection: close
+
+GET / host is 127.0.0.1 and the port:0 body:7
+# no request
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# no version
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a length that is no number
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a body above 16 MiB, by its length
+HTTP/1.1 413 Content Too Large
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a head above 64 KiB
+HTTP/1.1 431 Request Header Fields Too Large
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a head above 64 KiB that ends
+HTTP/1.1 431 Request Header Fields Too Large
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# an empty line and nothing else
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a version that is no digit
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# something after the version
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a 204 of the handler, which had added bytes
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Connection: close
+
+
+# a 304 of the handler
+HTTP/1.1 304 Not Modified
+Content-Type: text/plain
+Content-Length: 49
+Connection: close
+
+
+# two lengths that differ
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# two lengths that are the same
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 51
+Connection: close
+
+POST / host is 127.0.0.1 and the port:0 body:hello7
+# a transfer coding that is not chunked alone
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a second line of the transfer coding
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a transfer coding and two lengths that differ
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a transfer coding and a length
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a blank before the colon of a length
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a header line without a colon
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a blank before a colon and Expect: no 100 Continue first
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# Expect: 100-continue, answered before the body is read
+HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 49
+Connection: close
+
+POST /e host is 127.0.0.1 and the port:0 body:hi7
+# another expectation
+HTTP/1.1 417 Expectation Failed
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a method head, which is not HEAD: it gets the body
+HTTP/1.1 200 OK
+Content-Type: text/plain
+Content-Length: 47
+Connection: close
+
+head /h host is 127.0.0.1 and the port:0 body:7
+# a connection that ends in the head: nothing
+
+the server ended with -125
+tasks that are not done: 0

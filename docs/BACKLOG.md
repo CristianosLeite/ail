@@ -817,3 +817,37 @@ it; `TODO.md` has what is decided and what is left.
   paths, links not followed by `ail fmt`, one run of `ail test` at a
   time, one directory under two paths, a package called `ail`, and the
   tests that lost the status of what they ran.
+
+## Text formats and the network
+
+What a program needs to talk to another one: numbers and JSON read from
+text, and HTTP over the sockets of `lib/async/io.aiw` (user, 2026-11-22,
+for the MCP server of aildb: these are libraries of AIL, not of the
+program that first needs them).
+
+- [x] `lib/std/num.aiw`: `numint`, and `numdouble`, a decimal text as the
+  nearest binary64, a tie to even, for any number of digits. Compared
+  with `float` of Python on 303,627 texts made for it (doubles printed
+  with their shortest digits and with 17 and 25, the exact middles of
+  neighbours with a digit more and less, long runs of digits, every
+  exponent up to the edges): no difference. `tests/lib_num_*`.
+- [x] `lib/std/json.aiw`: JSON read in the bytes it is written in, a
+  value an address, a length and a kind, with no tree and no allocation
+  (`jsonvalue`, `jsonelem`, `jsonmember`, `jsonget`, `jsoneq`,
+  `jsonstr`), and written (`jsonadds`, `jsonaddi`). RFC 8259 with the
+  UTF-8 and the surrogate pairs of I-JSON, 128 deep. Compared with the
+  `json` module of Python on 80,066 texts, values it wrote and those with
+  a byte removed, changed or added, and on 30,005 values walked and
+  written again: no difference. `tests/lib_json_*`.
+- [x] `lib/net/http.aiw`: an HTTP/1.1 client on the sockets of
+  `lib/async/io.aiw`. `httpcall` sends a request of 128 bytes that the
+  caller owns and reads the response, a body by its length, in chunks or
+  up to the end of the connection, with a limit of time for each step
+  and of bytes; `httpfield`, `httphead`, `httpstatus`, `httpip` and
+  `httpurl` take a message and an address apart. One connection a
+  request, no TLS, no names. `tests/lib_http_*`.
+- [x] `lib/net/httpd.aiw`: an HTTP/1.1 server. `httpdserve` accepts the
+  connections of a listening socket, a task for each, reads one request
+  and calls the handler of the program, an async function, with a
+  request of 136 bytes to which it adds the body of the response;
+  400, 431 and 413 are the server's own. `tests/lib_httpd_*`.

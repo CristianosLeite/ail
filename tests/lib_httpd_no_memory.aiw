@@ -1,0 +1,116 @@
+# the server when a response cannot be made, the memory of the process
+# limited to 64 MiB. A handler that names a content type of 1 GiB: there
+# is no room for the response, and the connection is closed with nothing
+# written, not with a part of one. A connection that is cancelled while
+# its handler waits: the handler is told, and the connection is closed
+# with no response. And a server whose accept cannot be made, the memory
+# filled and every record of an event taken: it ends with -12.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+use "lib/net/httpd.aiw"
+const setrlimit 160
+buf lim 16
+buf b 24
+buf keep 8
+var told
+async fn handle x r
+	if x==1
+		# a content type that no memory holds
+		call byadd r+88 "body"
+		store r+72 r
+		store r+80 0x40000000
+		ret 0
+	end
+	await asyncsleep 5000 as v
+	told=v
+	ret 0
+end
+# send a request to the port and say what comes back before the end
+fn ask port
+	call asyncconnect 0x7f000001 port as h
+	await h as c
+	call asyncwriteall c "GET / HTTP/1.1\x0d\n\x0d\n" as h
+	await h as r
+	ret c
+end
+fn heard c
+	call bycut b 0
+	label more
+	call httpmore c b 2000 as h
+	await h as r
+	ifsgt r 0
+		jmp more
+	end
+	call asyncclose c
+	load b+8 as n
+	call putn n
+	call print " bytes, then the end: "
+	call putn r==0
+	call print "\n"
+end
+store lim 0x4000000
+store lim+8 0x4000000
+sys setrlimit 9 lim as r
+if r
+	sys exit 1
+end
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+ref handle as f
+call httpdserve l f 1 as sv
+call ask port as c
+call print "a response that has no room: "
+call heard c
+call asyncclose l
+await sv as r
+
+# a connection of its own task, cancelled while the handler sleeps
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call asyncaccept l as a
+call ask port as c
+await a as s
+call httpdconn s f 2 as t
+await asyncsleep 50
+call asynccancel t as was
+await t as r
+call print "cancelled: "
+call putn was
+call print ", the handler was told -"
+call putn 0-told
+call print ", the status sent "
+call putn r
+call print ", "
+call heard c
+call asyncclose l
+
+# an accept that cannot be made
+call asynclisten 0x7f000001 0 as l
+call httpdserve l f 1 as sv
+n=1048576
+while n>=4096
+	label take
+	alloc n-16 as p
+	if p
+		if n==65536
+			store keep p
+		end
+		jmp take
+	end
+	n>>=4
+end
+load keep as p
+free p
+label event
+call async 64 0 as e
+if e
+	jmp event
+end
+await sv as r
+call print "a server whose accept cannot be made ends with -"
+call putn 0-r
+call print "\n"

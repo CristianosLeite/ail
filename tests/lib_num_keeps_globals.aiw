@@ -1,0 +1,44 @@
+# a var of the program keeps its value: every variable of the library has
+# a name that starts with "num"
+var a any b c d dig dot e eneg f hi i j k l ln lo m more n nd neg p q r s sh sign t v w x y z
+use "lib/std/io.aiw"
+use "lib/std/num.aiw"
+a=1
+any=1
+b=1
+c=1
+d=1
+dig=1
+dot=1
+e=1
+eneg=1
+f=1
+hi=1
+i=1
+j=1
+k=1
+l=1
+ln=1
+lo=1
+m=1
+more=1
+n=1
+nd=1
+neg=1
+p=1
+q=1
+r=1
+s=1
+sh=1
+sign=1
+t=1
+v=1
+w=1
+x=1
+y=1
+z=1
+call numint "-12"
+call numdouble "0.5"
+call numdouble "123456789012345678901234567890e-40"
+call numdouble "1e400"
+sys exit a+any+b+c+d+dig+dot+e+eneg+f+hi+i+j+k+l+ln+lo+m+more+n+nd+neg+p+q+r+s+sh+sign+t+v+w+x+y+z

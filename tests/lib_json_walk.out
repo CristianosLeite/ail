@@ -1,0 +1,24 @@
+the text is an object of 169 of 169 bytes
+# its members
+"id" is the number 7
+"method" is the string "tools/call"
+"params" is the object {"name": "se\u0061rch", "k": -3,
+    "v": [0.5, 1e2, [], "a\tb\u00e9\ud83d\ude00", null, true, {"x": false}]}
+"id" is the number 8
+after the last, the place is the end: 1
+# by name
+id, the first of two: 7
+method is tools/call: 1, is tools/cal: 0
+a member that is not there has the kind 0
+name, written se\u0061rch, is search: 1
+k is below 0: 1, and is -3
+# the elements of v
+number, as a double and cut to a whole number: 0
+number, as a double and cut to a whole number: 100
+array
+string, 24 bytes that say 9: 97 9 98 195 169 240 159 152 128
+null
+true
+object whose x is false
+jsonget of an array has the kind 0
+jsoneq: 1 0 0 0 1 0 1 0 1 1

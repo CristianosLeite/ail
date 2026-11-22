@@ -1,0 +1,207 @@
+# the client against servers on this machine that send bytes as they
+# are: a response with a length, a body in chunks, a body that ends with
+# the connection, a "100 Continue" before the response, a 204, and what
+# is no response, ends early, is too long, comes too late or is not
+# there. The request that the client wrote is shown once.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+buf q 128
+buf b 24
+buf rb 4096
+buf many 24
+var port got
+
+# a server for one connection: it reads once, waits ms milliseconds,
+# writes the n bytes at p and closes
+async fn canned l p n ms
+	await asyncaccept l as c
+	await asyncread c rb 4096 as r
+	got=r
+	if ms
+		await asyncsleep ms
+	end
+	await asyncwriteall c p n as r
+	call asyncclose c
+	ret 0
+end
+
+# the same server, which writes the first k of the bytes, waits 50 ms
+# and writes the rest
+async fn halves l p n k
+	await asyncaccept l as c
+	await asyncread c rb 4096 as r
+	await asyncwriteall c p k as r
+	await asyncsleep 50
+	await asyncwriteall c p+k n-k as r
+	call asyncclose c
+	ret 0
+end
+
+# send the request of q and print the status, and the head and the body
+# apart
+fn texteq p n q m
+	if n!=m
+		ret 0
+	end
+	i=0
+	while i<n
+		loadb p+i as c
+		loadb q+i as d
+		if c!=d
+			ret 0
+		end
+		i+=1
+	end
+	ret 1
+end
+
+fn ask p n
+	call print "# "
+	call print p n
+	call print "\n"
+	store q 0x7f000001
+	store q+8 port
+	call httpcall q b as h
+	await h as st
+	ifslt st 0
+		call print "error -"
+		call putn 0-st
+		call print "\n"
+	else
+		call print "status "
+		call putn st
+		load q+112 as hn
+		load b as x
+		load b+8 as y
+		call print ", a head of "
+		call putn hn
+		call print " bytes, body ["
+		call print x+hn y-hn
+		call print "]\n"
+	end
+	# the request is all zero again for the next
+	i=0
+	while i<128
+		store q+i 0
+		i+=8
+	end
+end
+# the same against a server that sends the m bytes at r after ms
+fn against p n r m ms
+	call asynclisten 0x7f000001 0 as l
+	call asyncport l as port
+	call canned l r m ms as t
+	call ask p n
+	await t as x
+	call asyncclose l
+end
+
+store q+16 "POST"
+store q+24 4
+store q+32 "/api/embed"
+store q+40 10
+store q+48 "{\"k\":1}"
+store q+56 7
+store q+64 "application/json"
+store q+72 16
+store q+80 "example.test"
+store q+88 12
+call against "a response with a length" "HTTP/1.1 200 OK\x0d\nContent-Type: text/plain\x0d\nContent-Length: 5\x0d\n\x0d\nhello" 0
+call print "the request that was written:\n"
+call print rb got
+call print "\n"
+call against "a GET, with the address as the name of the server" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call texteq rb 32 "GET / HTTP/1.1\x0d\nHost: 127.0.0.1:" as same
+call print "it starts with the line GET, and Host with the address: "
+call putn same
+call print "\n"
+call against "a body in chunks, with an extension and a line after the last" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n5\x0d\nhello\x0d\n1;x=y\x0d\n \x0d\nA\x0d\nwide world\x0d\n0\x0d\nX-After: 1\x0d\n\x0d\n" 0
+call against "a body up to the end of the connection" "HTTP/1.0 200 OK\x0d\n\x0d\nall of it" 0
+call against "a 100 Continue first" "HTTP/1.1 100 Continue\x0d\n\x0d\nHTTP/1.1 201 Created\x0d\nContent-Length: 2\x0d\n\x0d\nokand more that is not the body" 0
+call against "a 204, which has no body" "HTTP/1.1 204 No Content\x0d\n\x0d\n" 0
+call against "no HTTP" "hello\x0d\n\x0d\n" 0
+call against "a head that does not end" "HTTP/1.1 200 OK\x0d\nContent-Le" 0
+call against "a body shorter than its length" "HTTP/1.1 200 OK\x0d\nContent-Length: 10\x0d\n\x0d\nshort" 0
+call against "a chunk that is cut" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n5\x0d\nhel" 0
+call against "a length that is no number" "HTTP/1.1 200 OK\x0d\nContent-Length: ten\x0d\n\x0d\n" 0
+call against "a version that is no digit" "HTTP/1.X 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call against "a status of four digits" "HTTP/1.1 2000 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call against "a status and no reason" "HTTP/1.1 200\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+call against "a chunk size that is only an extension" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n;x=y\x0d\n\x0d\n" 0
+call against "a chunk size of seventeen digits, which was read as 0" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n10000000000000000\x0d\n\x0d\n" 0
+# forty chunks of one byte: 240 bytes on the wire for a body of 40,
+# which a limit of the head and 64 bytes holds
+call bycut b 0
+call byadd b "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n"
+load b+8 as i
+store q+104 i+64
+i=0
+while i<40
+	call byadd b "1\x0d\nz\x0d\n"
+	i+=1
+end
+call byadd b "0\x0d\n\x0d\n"
+call bycut many 0
+load b as x
+load b+8 as y
+call byadd many x y
+load many as x
+load many+8 as y
+call against "forty chunks of a byte, within a limit that their lines would pass" x y 0
+store q+104 20
+call against "a head above the 20 bytes the response may have, with a 204" "HTTP/1.1 204 No Content\x0d\n\x0d\n" 0
+store q+104 64
+call against "a response above the 64 bytes it may have" "HTTP/1.1 200 OK\x0d\nContent-Length: 60\x0d\n\x0d\n123456789012345678901234567890123456789012345678901234567890" 0
+store q+96 100
+call against "a response after 400 ms, for a limit of 100" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 400
+# a port where nobody listens: one that was just closed
+call against "two lengths that are the same" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\ncontent-length: 2\x0d\n\x0d\nok" 0
+call against "two lengths that differ" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+call against "a second length that is no number" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\nContent-Length: x\x0d\n\x0d\nok" 0
+call against "a second line of the transfer coding" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\nTransfer-Encoding: gzip\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
+call against "a transfer coding and a length" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\nContent-Length: 2\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
+call against "a blank before the colon of a length" "HTTP/1.1 200 OK\x0d\nContent-Length : 2\x0d\n\x0d\nok" 0
+call against "a status above 599" "HTTP/1.1 700 Invalid\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call against "a transfer coding that is not chunked alone" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
+store q+16 "head"
+store q+24 4
+call against "a 204 with a header line that has no colon" "HTTP/1.1 204 No Content\x0d\nno colon here\x0d\n\x0d\n" 0
+store q+16 "HEAD"
+store q+24 4
+call against "the response to a HEAD with two lengths that differ" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\nContent-Length: 3\x0d\n\x0d\n" 0
+store q+16 "HEAD"
+store q+24 4
+call against "the response to a HEAD with one length" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\n\x0d\n" 0
+call against "a method head, which is not HEAD: its body is read" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+# the forty chunks again, cut before the last chunk and before the
+# empty line that ends them: the limit is of the body, wherever a read
+# ends
+load many as x
+load many+8 as y
+load b+8 as i
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call halves l x y y-5 as t
+store q+104 111
+call ask "the forty chunks, cut before the last chunk"
+await t as r
+call asyncclose l
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call halves l x y y-2 as t
+store q+104 111
+call ask "the forty chunks, cut before the empty line"
+await t as r
+call asyncclose l
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+call asyncclose l
+call ask "nobody listens"
+call asyncrun as left
+call print "tasks that are not done: "
+call putn left
+call print "\n"

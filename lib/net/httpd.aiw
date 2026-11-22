@@ -1,0 +1,333 @@
+# lib/net/httpd.aiw -- an HTTP/1.1 server over the sockets of
+# lib/async/io.aiw. A program that uses it uses lib/std/bytes.aiw,
+# lib/async/task.aiw, lib/async/time.aiw, lib/async/io.aiw and
+# lib/net/http.aiw first.
+#
+#     async fn handle x q
+#         call byadd q+88 "hello\n"
+#         ret 0
+#     end
+#     call asynclisten 0x7f000001 8080 as l
+#     ref handle as f
+#     await httpdserve l f 0
+#
+# httpdserve is an async function that accepts the connections of the
+# listening socket and, for each, reads one request, calls the handler
+# and writes its response. The handler is an async function of two
+# values: the value the program gave httpdserve, and the request, 136
+# bytes that are good until the handler is done:
+#
+#       0  the method, address and length, as it was sent ("GET")
+#      16  the target, address and length ("/search?q=1")
+#      32  the head of the request, address and length, for httpfield
+#      48  the body, address and length, a body in chunks put together
+#      64  the status of the response; 200 unless the handler stores
+#          another
+#      72  the content type of the response, address and length;
+#          "text/plain" unless the handler stores another, bytes that
+#          stay good after it is done
+#      88  a bytes buffer, empty, to which the handler adds the body of
+#          the response
+#     112  written by the server: the descriptor of the connection
+#
+# What the handler returns is not looked at, but for -125, which is what
+# a task that was cancelled while it waited returns: the connection is
+# then closed without a response. A response of the status 204 or 304,
+# and one to a HEAD, is sent without the body, whatever the handler
+# added. The server answers itself,
+# and calls no handler, for a request it cannot read: 400 for one that
+# is no HTTP, has a header line without a colon or with a blank before
+# it, a transfer coding other than "chunked", two lengths that differ or
+# a length and a transfer coding, 431 for a head above 64 KiB, 413 for a body above 16 MiB, 417
+# for an expectation other than "100-continue", which it answers with
+# "100 Continue" before it reads the body,
+# and nothing for a connection that ends or sends nothing for 30
+# seconds. It writes Content-Length and "Connection: close" and closes
+# the connection after each response: one request a connection, no TLS.
+#
+# httpdserve ends, with the error of the accept, when the listening
+# socket is closed (asyncclose) or it is cancelled, and with -12 when
+# there is no memory for an accept or for the task of a connection; the
+# connections that are open then are served to their end by their own
+# tasks. A handler whose task cannot be made is answered with 500.
+#
+# Every variable and parameter of this file has a name that starts with
+# "httpd"; a program has no var of such a name (see lib/std/io.aiw).
+
+const httpdwait 30000
+const httpdmost 16777216
+
+# add the status line of the status httpdv to the bytes buffer httpdb
+fn httpdline httpdb httpdv
+	call byadd httpdb "HTTP/1.1 "
+	call byaddn httpdb httpdv
+	if httpdv==200
+		tail byadd httpdb " OK\x0d\n"
+	end
+	if httpdv==204
+		tail byadd httpdb " No Content\x0d\n"
+	end
+	if httpdv==304
+		tail byadd httpdb " Not Modified\x0d\n"
+	end
+	if httpdv==400
+		tail byadd httpdb " Bad Request\x0d\n"
+	end
+	if httpdv==404
+		tail byadd httpdb " Not Found\x0d\n"
+	end
+	if httpdv==405
+		tail byadd httpdb " Method Not Allowed\x0d\n"
+	end
+	if httpdv==413
+		tail byadd httpdb " Content Too Large\x0d\n"
+	end
+	if httpdv==417
+		tail byadd httpdb " Expectation Failed\x0d\n"
+	end
+	if httpdv==431
+		tail byadd httpdb " Request Header Fields Too Large\x0d\n"
+	end
+	if httpdv==500
+		tail byadd httpdb " Internal Server Error\x0d\n"
+	end
+	tail byadd httpdb " Status\x0d\n"
+end
+
+# One connection, the descriptor httpdc: a request is read, the handler
+# httpdf is called with httpdx and the request, and the response is
+# written. The result is the status that was sent, or 0 if none was.
+async fn httpdconn httpdc httpdf httpdx
+	local httpdq 136
+	local httpdb 24
+	local httpdw 24
+	store httpdb 0
+	store httpdb+8 0
+	store httpdb+16 0
+	store httpdw 0
+	store httpdw+8 0
+	store httpdw+16 0
+	httpdi=0
+	while httpdi<136
+		store httpdq+httpdi 0
+		httpdi+=8
+	end
+	store httpdq+112 httpdc
+	httpdv=0
+	label head
+	load httpdb as httpdp
+	load httpdb+8 as httpdn
+	call httphead httpdp httpdn as httpdh
+	ifz httpdh
+		if httpdn>httpheadmax
+			httpdv=431
+			jmp answer
+		end
+		call httpmore httpdc httpdb httpdwait as httpdt
+		httpdr=0-12
+		if httpdt
+			await httpdt as httpdr
+		end
+		ifsgt httpdr 0
+			jmp head
+		end
+		jmp close
+	end
+	# a head that is whole is held to the limit too
+	if httpdh>httpheadmax
+		httpdv=431
+		jmp answer
+	end
+	# The first line, up to httpde: a method, a space, a target, a space,
+	# "HTTP/1." and a digit, and nothing else. Nothing is read past it.
+	httpde=0
+	label eol
+	load2 httpdp+httpde as httpdk
+	if httpdk!=0x0a0d
+		httpde+=1
+		jmp eol
+	end
+	httpdi=0
+	label method
+	if httpdi<httpde
+		loadb httpdp+httpdi as httpdk
+		if httpdk!=32
+			httpdi+=1
+			jmp method
+		end
+	end
+	httpdj=httpdi+1
+	label target
+	if httpdj<httpde
+		loadb httpdp+httpdj as httpdk
+		if httpdk!=32
+			httpdj+=1
+			jmp target
+		end
+	end
+	httpdr=0
+	if (httpdi>0)&(httpdj>httpdi+1)&(httpdj+9==httpde)
+		call httpsame httpdp+httpdj+1 7 "HTTP/1." as httpdr
+		loadb httpdp+httpdj+8 as httpdk
+		if httpdk-48>9
+			httpdr=0
+		end
+	end
+	ifz httpdr
+		httpdv=400
+		jmp answer
+	end
+	# The header lines are looked at before anything is done by one of
+	# them: a head that is not to be read is answered at once.
+	call httpframe httpdp httpdh as httpdr httpdk
+	ifslt httpdr 0
+		httpdv=400
+		jmp answer
+	end
+	# A client that says "Expect: 100-continue" waits to be told before
+	# it sends the body; any other expectation is one this server has
+	# not.
+	call httpfield httpdp httpdh "expect" as httpdg httpdk
+	if httpdg
+		call httpsame httpdg httpdk "100-continue" as httpdr
+		ifz httpdr
+			httpdv=417
+			jmp answer
+		end
+		call asyncwriteall httpdc "HTTP/1.1 100 Continue\x0d\n\x0d\n" as httpdt
+		call httplimit httpdt httpdwait as httpdt
+		httpdr=0-12
+		if httpdt
+			await httpdt as httpdr
+		end
+		ifslt httpdr 0
+			jmp close
+		end
+	end
+	call httpbody httpdc httpdb httpdwait httpdmost+httpdh 0 as httpdt
+	httpdr=0-12
+	if httpdt
+		await httpdt as httpdr
+	end
+	ifslt httpdr 0
+		if httpdr==0-90
+			httpdv=413
+			jmp answer
+		end
+		if httpdr==0-71
+			httpdv=400
+			jmp answer
+		end
+		jmp close
+	end
+	# the bytes may have moved while the body was read
+	load httpdb as httpdp
+	load httpdb+8 as httpdn
+	store httpdq httpdp
+	store httpdq+8 httpdi
+	store httpdq+16 httpdp+httpdi+1
+	store httpdq+24 httpdj-httpdi-1
+	store httpdq+32 httpdp
+	store httpdq+40 httpdh
+	store httpdq+48 httpdp+httpdh
+	store httpdq+56 httpdn-httpdh
+	store httpdq+64 200
+	callp httpdf httpdx httpdq as httpdt
+	ifz httpdt
+		# no task for the handler: it did not run
+		call bycut httpdq+88 0
+		store httpdq+72 0
+		store httpdq+80 0
+		httpdv=500
+		jmp answer
+	end
+	await httpdt as httpdr
+	if httpdr==0-125
+		# cancelled while it waited: nothing more is awaited here
+		jmp close
+	end
+	load httpdq+64 as httpdv
+	label answer
+	# Room for the whole response first, so that no line of it can be
+	# left out for want of memory while a later one is added.
+	load httpdq+80 as httpdn
+	load httpdq+96 as httpdk
+	call byneed httpdw httpdn+httpdk+256 as httpdr
+	ifz httpdr
+		httpdv=0
+		jmp close
+	end
+	call httpdline httpdw httpdv
+	load httpdq+72 as httpdp
+	call byadd httpdw "Content-Type: "
+	ifz httpdn
+		call byadd httpdw "text/plain"
+	else
+		call byadd httpdw httpdp httpdn
+	end
+	# The body is not sent with the statuses that have none, nor to a
+	# HEAD; a 204 and a 1xx have no length either.
+	load httpdq as httpde
+	load httpdq+8 as httpdk
+	call httpis httpde httpdk "HEAD" as httpde
+	httpdk=(httpdv==204)|(httpdv<200)
+	httpde|=httpdk|(httpdv==304)
+	load httpdq+88 as httpdp
+	load httpdq+96 as httpdn
+	ifz httpdk
+		call byadd httpdw "\x0d\nContent-Length: "
+		call byaddn httpdw httpdn
+	end
+	call byadd httpdw "\x0d\nConnection: close\x0d\n\x0d\n"
+	ifz httpde
+		call byadd httpdw httpdp httpdn
+	end
+	load httpdw as httpdp
+	load httpdw+8 as httpdn
+	# the bytes of the response are given back, below, only when the
+	# write is done or was never made
+	call asyncwriteall httpdc httpdp httpdn as httpdt
+	call httplimit httpdt httpdwait as httpdt
+	httpdr=0-12
+	if httpdt
+		await httpdt as httpdr
+	end
+	ifslt httpdr 0
+		httpdv=0
+	end
+	label close
+	call asyncclose httpdc
+	call byfree httpdb
+	call byfree httpdw
+	call byfree httpdq+88
+	ret httpdv
+end
+
+# Serve the connections of the listening socket httpdl with the handler
+# at the address httpdf, an async function that is called with httpdx
+# and a request: the error that ended the accepting.
+async fn httpdserve httpdl httpdf httpdx
+	label next
+	call asyncaccept httpdl as httpdt
+	ifz httpdt
+		ret 0-12
+	end
+	await httpdt as httpdc
+	ifslt httpdc 0
+		# closed or cancelled, or a descriptor that is none: the end. Any
+		# other error is of one connection, or passes
+		if (httpdc==0-125)|(httpdc==0-9)|(httpdc==0-22)
+			ret httpdc
+		end
+		await asyncsleep 10
+		jmp next
+	end
+	call httpdconn httpdc httpdf httpdx as httpdt
+	ifz httpdt
+		# no task for the connection: nobody else would close it
+		call asyncclose httpdc
+		ret 0-12
+	end
+	call asyncdetach httpdt
+	jmp next
+end

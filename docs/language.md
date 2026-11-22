@@ -1212,6 +1212,83 @@ call putn a+b
 - **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
 - **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
 
+## The num library
+
+`lib/std/num.aiw` reads numbers from decimal text. There are no float literals and no other way from text to a double; this is it.
+
+| Function | Does |
+|---|---|
+| `numint p n` | the whole number in the `n` bytes at `p`, with an optional `-` before it, as a signed 64-bit value and 1; 0 and 0 for text that is no such number or one that does not fit |
+| `numdouble p n` | the double nearest to the number in the `n` bytes at `p` and 1; 0 and 0 for text that is no number |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/num.aiw"
+call numdouble "0.1" as x ok       # 0x3fb999999999999a
+call numdouble "2.5e3" as y ok
+fadd x y as z
+ftoi z as n
+call putn n                        # 2500
+```
+
+- **What `numdouble` takes**: an optional `+` or `-`, digits with at most one `.` among them, of which at least one is a digit, and an optional exponent of ten, `e` or `E` with an optional sign and at least one digit. This is every number of JSON and what C and most programs print, and a little more (`.5`, `5.`, `+7`). No blank, no `inf` or `nan`, no hexadecimal form; nothing may stand before or after the number, so a caller cuts the text first.
+- **Rounding**: the result is the binary64 nearest to the exact value of the text, however many digits it has, and of two that are as near the one whose last bit is 0, as `strtod` of C gives it under round to nearest. So a double that was printed with 17 digits, or with the shortest digits that name it, is read back as the same bits.
+- **Too large, too small**: a value above every double is an infinity and one below half of the smallest a zero, each with the sign of the text, and the second result is 1: these are values, not errors. `-0` is the zero with the sign.
+- **How**: a number of at most 15 digits with a power of ten up to 22 is one multiplication or division of exact doubles. Any other is computed roughly in doubles and then compared, as whole numbers of any length, with the middle between that double and its neighbour, and moved until none is nearer. The whole numbers, limbs of 32 bits, are in the frame of the function (about 5 KiB); nothing is allocated and nothing is kept between calls, so tasks may call it at once. Up to 768 digits are kept; more are counted as one digit that is not 0, which rounds the same.
+- **A binary32** is `f8to4` of the result, which rounds a second time. A text that names the double a binary32 widens to, as a program prints one from that double, gives that binary32.
+- **Names**: the library owns every name that starts with `num`; a program has no `var` of such a name.
+
+## The JSON library
+
+`lib/std/json.aiw` (use `lib/std/bytes.aiw` first) reads JSON in the bytes it is written in and writes it to a bytes buffer. Reading makes no tree and allocates nothing: a value is an address, a length and a kind, and what a walk returns is again a value in the same bytes.
+
+| Kind | Is |
+|---:|---|
+| 1, 2, 3 | `null`, `false`, `true` |
+| 4 | a number, read with `numint` or `numdouble` of `lib/std/num.aiw` |
+| 5 | a string, with its quotes |
+| 6, 7 | an array, an object |
+| 0 | no value |
+
+| Function | Does |
+|---|---|
+| `jsonvalue p n` | checks that the `n` bytes at `p` are one value of JSON with nothing but blanks around it: its address, its length and its kind, or three zeros |
+| `jsonelem q e` | the next element of an array: its address, length and kind, and the place to ask for the one after it; `q` is that place, the address after the `[` for the first, and `e` the address after the array. After the last, the kind is 0 |
+| `jsonmember q e` | the next member of an object, the same way, from the address after the `{`: the address and length of its name (a string), the address, length and kind of its value, and the next place |
+| `jsonget p n q m` | the value of the member of the object at `p n` whose name says the `m` bytes at `q`: address, length, kind, or three zeros |
+| `jsoneq p n q m` | 1 if the string at `p n` says the `m` bytes at `q` |
+| `jsonstr b p n` | adds what the string at `p n` says to the bytes buffer `b`, as UTF-8: 1, or 0 without memory |
+| `jsonadds b p n` | adds the `n` bytes at `p` to `b` as a string, in quotes and with the escapes it needs: 1, or 0 without memory |
+| `jsonaddi b v` | adds the signed whole number `v` in decimal |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/num.aiw"
+use "lib/std/json.aiw"
+call jsonvalue "{\"name\":\"search\",\"k\":[3,5]}" as a n kind    # kind 7
+call jsonget a n "k" as v vn vk                                  # [3,5], kind 6
+q=v+1
+sum=0
+label next
+call jsonelem q v+vn as e en ek q
+if ek
+	call numint e en as x ok
+	sum+=x
+	jmp next
+end
+call putn sum                                                    # 8
+```
+
+- **Nothing is allocated** by the functions that read, `jsoneq` and `jsonget` with a name that is written with escapes included; `jsonstr` alone adds to a buffer of the caller.
+- **Checked once**: `jsonvalue` checks everything inside the value, so the walks do not fail on a value it accepted, and a value they return needs no second check. Given other bytes they return the kind 0.
+- **What is JSON here**: RFC 8259, and stricter in two things, as I-JSON (RFC 7493): a string is well-formed UTF-8, and an escape from `\uD800` to `\uDFFF` is half of a pair that must be whole, so every string can be written as UTF-8. A byte below 0x20 in a string, a number that starts with `0` and goes on, `+1`, `.5`, `NaN`, a comma before a `]` and a byte order mark are no JSON. Blanks are the space, the tab, the line feed and the carriage return.
+- **Depth**: arrays and objects may be nested 128 deep; a value nested deeper is no value. `jsonvalue` calls itself once a level, about 100 bytes of stack each.
+- **Names**: two members of one name are allowed, and `jsonget` returns the first. A name is compared by what it says, so `"\u0061"` is the name `a`.
+- **Numbers**: the bytes of a number are what `numdouble` takes, and `numint` if it has no fraction and no exponent; a number that fits neither a double nor 64 bits is still a value, and the program decides.
+- **Writing**: `jsonadds` writes a quote and a backslash with a backslash before them, a line feed, a carriage return and a tab as `\n`, `\r` and `\t`, any other byte below 0x20 as `\u00` and two digits, and every other byte as it is; the string is valid if the bytes are well-formed UTF-8, which it does not check. Braces, commas, `null` and a number the program has as text are added with `byadd`. There is no function that writes a double.
+- **Names of the library**: it owns every name that starts with `json`; a program has no `var` of such a name.
+
 ## The algo library
 
 The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: sorts, a binary search, a hash table of a fixed size and two walks over a graph. They allocate nothing and return no error, since nothing can fail in them; the caller gives every array, also the ones to work in. The algorithm programs of `examples/` are callers of them. Each file is used by itself and has its own prefix.
@@ -1577,6 +1654,114 @@ await s
 
 - While the first of several is awaited no other task awaits one of its handles. A handle of 0 counts as done. If several are done, the lowest index is the result. Cancelling it leaves the handles as they are.
 - **The costs**: a channel is 72 bytes and 8 for each value it can hold; a send or receive is an event of 128 bytes, also when it is done at once.
+
+## The HTTP library
+
+`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it; it brings `lib/async/chan.aiw` itself. [The server](#the-http-server) is a file of its own.
+
+| Function | Does |
+|---|---|
+| `httpcall q b` | an async function: sends the request of the 128 bytes at `q` and reads the response into the bytes buffer `b`; its result is the status, or a negative error |
+| `httpfield p n q m` | the value of the header line of the name `q m` in the head `p n`, whatever the case of the name and without the blanks around it: address and length, or 0 and 0 |
+| `httphead p n` | the length of the head at the start of the bytes, with the empty line that ends it; 0 if that line is not there |
+| `httpstatus p n` | the status of the response with this head, or 0 |
+| `httpurl p n` | reads `http://` an IPv4 address or `localhost`, a port or not, a path or not: the address as a number, the port (80), the address and length of the path, and 1; or zeros and 0 |
+| `httpip p n` | reads an IPv4 address written with dots, or `localhost`: the number and 1, or 0 and 0 |
+| `httpbody fd b ms max eof`, `httpmore fd b ms` | async functions that read the body after a head, and more bytes, into a bytes buffer; the server uses them too |
+| `httplimit h ms` | the handle to await in the place of `h` for it to take `ms` milliseconds at most; 0 if `h` is 0, which a caller looks at before it awaits |
+| `httpframe p n` | what the head says of the body, in one walk over its lines: 1 and the number of `Content-Length`, 2 and 0 for `Transfer-Encoding: chunked`, 0 and 0 with neither, or -71 and 0 for a head that is not to be read: a header line without a colon, a name of no bytes or with a blank or a byte that is no visible ASCII character (`Content-Length : 5`), a transfer coding that is not `chunked` alone or stands twice, a length that is no number, two lengths that differ, or a length and a transfer coding |
+
+The request is 128 bytes that the caller owns, all zero to start with:
+
+| At | Is |
+|---:|---|
+| 0, 8 | the IPv4 address of the server, a number, and the port |
+| 16 | the method, address and length; `GET` if the length is 0 |
+| 32 | the target, address and length; `/` if the length is 0 |
+| 48 | the body, address and length |
+| 64 | the content type of the body, address and length; no line is sent if the length is 0 |
+| 80 | the name for the line `Host`, address and length; the address and the port if the length is 0 |
+| 96 | the milliseconds that the connect, the write and each read may take; 0 for no limit |
+| 104 | the most bytes a response may have; 0 for 64 MiB |
+| 112 | written by `httpcall`: the length of the head of the response |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+buf q 128
+buf b 24
+call httpurl "http://127.0.0.1:11434/api/tags" as ip port p n ok
+store q ip
+store q+8 port
+store q+32 p
+store q+40 n
+store q+96 5000
+await httpcall q b as status        # 200, or below 0
+load b as x
+load b+8 as len
+load q+112 as h
+call print x+h len-h                # the body
+```
+
+- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. Two lines `Content-Length` that do not say the same number, a `Transfer-Encoding` other than `chunked` alone or on two lines, a `Content-Length` together with a `Transfer-Encoding`, a header line without a colon or with a blank before it (all of which `httpframe` finds in one walk over the head), and a status above 599, are -71: no other rule is taken in their place. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
+- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB, a response above the limit or a chunk whose size no body may have, -12 without memory. A limit of time that cannot be made cancels the step it was for, whose error is then -125.
+- **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
+- **Cancelling** `httpcall` (`asynccancel`, or a limit of the program around it) ends it with -125 and leaves no connection open: the connect is kept by the task and asked for what it has, also when it was done and not yet taken.
+- **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
+- **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
+
+### The HTTP server
+
+`lib/net/httpd.aiw`, used after `lib/net/http.aiw`, answers requests with an async function of the program.
+
+| Function | Does |
+|---|---|
+| `httpdserve l f x` | an async function: accepts the connections of the listening socket `l` and, for each, reads one request, calls the handler at the address `f` with `x` and the request, and writes the response; its result is the error that ended the accepting |
+
+The handler is an async function of two values, the `x` of the program and the request, 136 bytes that are good until the handler is done:
+
+| At | Is |
+|---:|---|
+| 0 | the method, address and length, as it was sent |
+| 16 | the target, address and length (`/search?q=1`) |
+| 32 | the head of the request, address and length, for `httpfield` |
+| 48 | the body, address and length, a body in chunks put together |
+| 64 | the status of the response: 200 unless the handler stores another |
+| 72 | the content type of the response, address and length: `text/plain` unless the handler stores another, bytes that stay good after it is done |
+| 88 | a bytes buffer, empty, to which the handler adds the body of the response |
+| 112 | the descriptor of the connection |
+
+```
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+use "lib/net/httpd.aiw"
+async fn handle x q
+	load q+16 as p              # the target
+	load q+24 as n
+	call byadd q+88 "you asked for "
+	call byadd q+88 p n
+	call byaddb q+88 10
+	ret 0
+end
+call asynclisten 0x7f000001 8080 as l
+ref handle as f
+await httpdserve l f 0          # until l is closed
+```
+
+- **One task a connection**, so a handler that waits, for a file, a timer or a request of its own, keeps no other connection waiting. What it returns is not looked at, but for -125, the result of a task that was cancelled while it waited: the connection is then closed without a response.
+- **The server answers itself**, and calls no handler: 400 for what is no request of HTTP/1 or has a head that `httpframe` does not read (a header line without a colon or with a blank before it, two lengths that differ, a transfer coding other than `chunked`, a length and a transfer coding), 417 for an expectation other than `100-continue` (which it answers with `100 Continue` before it reads the body), 431 for a head above 64 KiB, 413 for a body above 16 MiB. A connection that ends, or sends nothing for 30 seconds, gets no answer.
+- **The response** has the status line, `Content-Type`, `Content-Length` and `Connection: close`, and the connection is closed after it: one request a connection. The answer to a `HEAD` has the length and not the body; a response of the status 204 or 304 is sent without the body, whatever the handler added, and a 204 without a length.
+- **Without memory**: `httpdserve` ends with -12 when an accept or the task of a connection cannot be made, having closed the connection it had accepted; a handler whose task cannot be made is answered with 500. A response is written whole or not at all.
+- **Stopping**: `asyncclose l` ends `httpdserve` with -125. Connections that are open then are served to their end by their own tasks; `asyncrun` waits for them.
+- **What it is not**: no TLS, no connection that is kept, no routing: the handler looks at the method and the target.
+- **Names**: the server owns every name that starts with `httpd`.
 
 ## Comments
 

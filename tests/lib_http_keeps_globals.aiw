@@ -1,0 +1,64 @@
+# a var of the program keeps its value: every variable of the library has
+# a name that starts with "http"
+var a b c d e eof fd h i j k l m max ms n nobody ok p port q r v w g o t s
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+buf rb 4096
+buf rq 128
+buf bb 24
+data answer "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n"
+async fn canned ll
+	await asyncaccept ll as cc
+	await asyncread cc rb 4096 as rr
+	len answer as nn
+	await asyncwriteall cc answer nn as rr
+	call asyncclose cc
+	ret 0
+end
+a=1
+s=1
+t=1
+o=1
+g=1
+b=1
+c=1
+d=1
+e=1
+eof=1
+fd=1
+h=1
+i=1
+j=1
+k=1
+l=1
+m=1
+max=1
+ms=1
+n=1
+nobody=1
+ok=1
+p=1
+port=1
+q=1
+r=1
+v=1
+w=1
+call asynclisten 0x7f000001 0 as ll
+call asyncport ll as pp
+call canned ll as tt
+store rq 0x7f000001
+store rq+8 pp
+call httpcall rq bb as hh
+await hh as st
+await tt as zz
+call asyncclose ll
+load bb as xx
+load rq+112 as yy
+call httpfield xx yy "transfer-encoding"
+call httpurl "http://127.0.0.1:80/x"
+call httpstatus xx yy as st2
+sys exit a+b+c+d+e+eof+fd+h+i+j+k+l+m+max+ms+n+nobody+ok+p+port+q+r+v+w+g+o+t+s+st+st2-400

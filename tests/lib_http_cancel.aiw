@@ -1,0 +1,109 @@
+# a request that is cancelled gives back what it holds, wherever it
+# stands: the request is started against a server that never answers,
+# a number of tasks are polled, it is cancelled and awaited,
+# and the descriptors of the process are counted. Cancelled after 0 to
+# 200 polls of another task, with a limit of time and without one, it
+# leaves no descriptor open, also not the socket of a connect that was
+# done and not yet taken; its result is -125 each time.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+buf q 128
+buf b 24
+buf names 24
+var port
+# the number of descriptors this process has open
+fn open
+	call bycut names 0
+	call filenames "/proc/self/fd" names as r
+	load names as p
+	load names+8 as n
+	c=0
+	i=0
+	while i<n
+		loadb p+i as x
+		ifz x
+			c+=1
+		end
+		i+=1
+	end
+	ret c
+end
+# cancel the task h after k other polls: a task that is always ready
+# keeps the thread from sleeping, and the kernel is looked at every
+# 61st poll, which is when a connect is seen to be done
+async fn after h k
+	i=0
+	while i<k
+		await asyncyield
+		i+=1
+	end
+	call asynccancel h as r
+	ret r
+end
+data steps 0 1 2 3 5 20 60 61 62 63 64 65 70 122 123 124 130 200
+# a request for each number of steps, cancelled after them: how many did
+# not end with -125, and how many left a descriptor open
+fn round ms
+	leaks=0
+	other=0
+	j=0
+	while j<18
+		loadb steps+j as k
+		call open as before
+		i=0
+		while i<128
+			store q+i 0
+			i+=8
+		end
+		store q 0x7f000001
+		store q+8 port
+		store q+96 ms
+		call httpcall q b as h
+		call after h k as c
+		await h as st
+		await c as r
+		if st!=0-125
+			other+=1
+		end
+		call open as now
+		if now!=before
+			leaks+=1
+		end
+		j+=1
+	end
+	ret other leaks
+end
+# a server that nobody accepts for: a connect is done by the kernel, and
+# no answer comes
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+# the library opens what it keeps, for the sockets, before anything is
+# counted: a first request, cancelled
+store q 0x7f000001
+store q+8 port
+call httpcall q b as h
+call after h 3 as c
+await h as st
+await c as r
+call round 5000 as other leaks
+call print "with a limit of time: "
+call putn other
+call print " did not end with -125, "
+call putn leaks
+call print " left a descriptor open\n"
+call round 0 as other leaks
+call print "without one: "
+call putn other
+call print " did not end with -125, "
+call putn leaks
+call print " left a descriptor open\n"
+call asyncclose l
+call asyncrun as left
+call print "tasks that are not done: "
+call putn left
+call print "\n"

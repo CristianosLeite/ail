@@ -1,0 +1,928 @@
+# lib/net/http.aiw -- HTTP/1.1 over the sockets of lib/async/io.aiw: what
+# a message is made of, and a client. lib/net/httpd.aiw is the server.
+# A program that uses it uses lib/std/bytes.aiw, lib/async/task.aiw,
+# lib/async/time.aiw and lib/async/io.aiw first; it brings
+# lib/async/chan.aiw itself, for the first of two events.
+use "lib/async/chan.aiw"
+#
+# The client sends one request and reads its response:
+#
+#     buf q 128                  # the request, all zero to start with
+#     buf b 24                   # a bytes buffer for the response
+#     store q 0x7f000001         # the address, IPv4 as a number
+#     store q+8 8080             # the port
+#     ...
+#     await httpcall q b as status
+#
+# The request is 128 bytes that the caller owns:
+#
+#       0  the IPv4 address of the server, a number
+#       8  the port
+#      16  the method, address and length ("GET" if the length is 0)
+#      32  the target, address and length ("/" if the length is 0)
+#      48  the body, address and length
+#      64  the content type of the body, address and length; none is
+#          sent if the length is 0
+#      80  the name the server is asked by, address and length, for the
+#          line Host; the address and the port if the length is 0
+#      96  milliseconds that the connect, the write and each read may
+#          take; 0 for no limit
+#     104  the most bytes a response may have; 0 for 64 MiB
+#     112  written by httpcall: the length of the head of the response
+#
+# httpcall is an async function. Its result is the status of the
+# response, 200 to 599, and the buffer then holds the head of the
+# response, its status line and its header lines with the empty line,
+# and after it the body, whole and as the server meant it: a body sent
+# in chunks is put together. httpfield finds a header line in the head.
+# A negative result is an error and the buffer is not to be read: the
+# error of the kernel for the socket (-111 nobody listens, -104 reset),
+# -62 for a step that took too long, -71 (EPROTO) for an answer that is
+# no HTTP or ends early, -90 (EMSGSIZE) for one that is too long, -12
+# without memory.
+#
+# It is a small client for a program that asks a service it knows: one
+# connection a request ("Connection: close"), no TLS, no names (the
+# address is a number; httpurl reads "http://127.0.0.1:8080/path"), no
+# redirects, no compression. A response 1xx before the real one is
+# passed over.
+#
+# Every variable and parameter of this file has a name that starts with
+# "http"; a program has no var of such a name (see lib/std/io.aiw).
+
+# a head, the lines before the body, is at most this long
+const httpheadmax 65536
+
+# the length of the head at the start of the httpn bytes at httpp, with
+# the empty line that ends it, or 0 if that line is not there yet
+fn httphead httpp httpn
+	httpi=0
+	while httpi+4<=httpn
+		load4 httpp+httpi as httpv
+		if httpv==0x0a0d0a0d
+			ret httpi+4
+		end
+		httpi+=1
+	end
+	ret 0
+end
+
+# 1 if the httpn bytes at httpp are the httpm bytes at httpq, a small
+# letter and its capital taken as the same
+fn httpsame httpp httpn httpq httpm
+	if httpn!=httpm
+		ret 0
+	end
+	httpi=0
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		loadb httpq+httpi as httpd
+		if httpc-65<26
+			httpc+=32
+		end
+		if httpd-65<26
+			httpd+=32
+		end
+		if httpc!=httpd
+			ret 0
+		end
+		httpi+=1
+	end
+	ret 1
+end
+
+# 1 if the httpn bytes at httpp are the httpm bytes at httpq, as they
+# stand: the name of a method, which "head" is not for HEAD
+fn httpis httpp httpn httpq httpm
+	if httpn!=httpm
+		ret 0
+	end
+	httpi=0
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		loadb httpq+httpi as httpd
+		if httpc!=httpd
+			ret 0
+		end
+		httpi+=1
+	end
+	ret 1
+end
+
+# The value of the header line of the name httpq httpm in the head of
+# the httpn bytes at httpp: its address and its length, without the
+# blanks around it, or 0 and 0 if the head has no such line. The first
+# line of a head is no header line. Of two lines of the name it is the
+# first. httpframe is what says whether the lines of a head are header
+# lines at all.
+fn httpfield httpp httpn httpq httpm
+	httpe=httpp+httpn
+	# after the first line
+	label first
+	if httpp+1<httpe
+		load2 httpp as httpv
+		httpp+=1
+		if httpv!=0x0a0d
+			jmp first
+		end
+		httpp+=1
+	end
+	label line
+	# the end of this line
+	httpl=httpp
+	label eol
+	if httpl+1<httpe
+		load2 httpl as httpv
+		if httpv!=0x0a0d
+			httpl+=1
+			jmp eol
+		end
+	else
+		ret 0 0
+	end
+	if httpl==httpp
+		ret 0 0
+	end
+	httpk=httpp
+	label colon
+	if httpk<httpl
+		loadb httpk as httpc
+		if httpc!=58
+			httpk+=1
+			jmp colon
+		end
+		call httpsame httpp httpk-httpp httpq httpm as httpr
+		if httpr
+			httpk+=1
+			label lead
+			if httpk<httpl
+				loadb httpk as httpc
+				if (httpc==32)|(httpc==9)
+					httpk+=1
+					jmp lead
+				end
+			end
+			label trail
+			if httpl>httpk
+				loadb httpl-1 as httpc
+				if (httpc==32)|(httpc==9)
+					httpl-=1
+					jmp trail
+				end
+			end
+			ret httpk httpl-httpk
+		end
+	end
+	# the next line starts after the end of this one, which httpl may
+	# have left
+	label skip
+	load2 httpl as httpv
+	if httpv!=0x0a0d
+		httpl+=1
+		jmp skip
+	end
+	httpp=httpl+2
+	jmp line
+end
+
+# the whole number of the httpn digits at httpp and 1, or 0 and 0 for
+# bytes that are not digits or are more than 18
+fn httpnum httpp httpn
+	if (httpn==0)|(httpn>18)
+		ret 0 0
+	end
+	httpv=0
+	httpi=0
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		httpc-=48
+		if httpc>9
+			ret 0 0
+		end
+		httpv=httpv*10+httpc
+		httpi+=1
+	end
+	ret httpv 1
+end
+
+# What the head of the httpn bytes at httpp, with the empty line that
+# ends it, says of the body after it, in one walk over its lines: 1 and
+# the number of the line Content-Length, 2 and 0 for "Transfer-Encoding:
+# chunked", 0 and 0 with neither line, or -71 and 0 for a head that is
+# not to be read. That is one with a header line that has no colon, or a
+# name before it of no bytes or with a byte that is a blank or not a
+# visible ASCII character, so "Content-Length : 5" is no line of another
+# name; a transfer coding that is not "chunked" alone, or a second line
+# of it; a length that is no number, or two that differ; and both a
+# transfer coding and a length, which say two ends of one body. The
+# first line of a head is no header line.
+fn httpframe httpp httpn
+	httpe=httpp+httpn
+	httpte=0
+	httpcl=0
+	httpv=0
+	httpf=0
+	label line
+	# the end of this line
+	httpl=httpp
+	label eol
+	if httpl+1>=httpe
+		ret 0-71 0
+	end
+	load2 httpl as httpc
+	if httpc!=0x0a0d
+		httpl+=1
+		jmp eol
+	end
+	if httpf
+		if httpl==httpp
+			# the empty line
+			if httpte&httpcl
+				ret 0-71 0
+			end
+			if httpte
+				ret 2 0
+			end
+			ret httpcl httpv
+		end
+		# the name, up to the colon
+		httpk=httpp
+		label name
+		if httpk>=httpl
+			ret 0-71 0
+		end
+		loadb httpk as httpc
+		if httpc!=58
+			if httpc-33>93
+				ret 0-71 0
+			end
+			httpk+=1
+			jmp name
+		end
+		if httpk==httpp
+			ret 0-71 0
+		end
+		# the value, without the blanks around it
+		httpa=httpk+1
+		label lead
+		if httpa<httpl
+			loadb httpa as httpc
+			if (httpc==32)|(httpc==9)
+				httpa+=1
+				jmp lead
+			end
+		end
+		httpz=httpl
+		label trail
+		if httpz>httpa
+			loadb httpz-1 as httpc
+			if (httpc==32)|(httpc==9)
+				httpz-=1
+				jmp trail
+			end
+		end
+		call httpsame httpp httpk-httpp "transfer-encoding" as httpr
+		if httpr
+			call httpsame httpa httpz-httpa "chunked" as httpr
+			if (httpr==0)|httpte
+				ret 0-71 0
+			end
+			httpte=1
+		end
+		call httpsame httpp httpk-httpp "content-length" as httpr
+		if httpr
+			call httpnum httpa httpz-httpa as httpd httpr
+			if (httpr==0)|(httpcl&(httpd!=httpv))
+				ret 0-71 0
+			end
+			httpcl=1
+			httpv=httpd
+		end
+	end
+	httpf=1
+	httpp=httpl+2
+	jmp line
+end
+
+# the status of the response whose head is the httpn bytes at httpp, 100
+# to 999, or 0 if the first line does not start with "HTTP/1.", a digit,
+# a space and three digits that a space or the end of the line follows
+fn httpstatus httpp httpn
+	if httpn<14
+		ret 0
+	end
+	call httpsame httpp 7 "HTTP/1." as httpr
+	loadb httpp+7 as httpd
+	loadb httpp+8 as httpc
+	ifz httpr&(httpc==32)&(httpd-48<10)
+		ret 0
+	end
+	call httpnum httpp+9 3 as httpv httpr
+	loadb httpp+12 as httpc
+	if (httpr==0)|(httpv<100)|((httpc!=32)&(httpc!=13))
+		ret 0
+	end
+	ret httpv
+end
+
+# the IPv4 address that the httpn bytes at httpp say, four numbers with
+# dots between, as one number, and 1; "localhost" is 127.0.0.1; or 0 and
+# 0
+fn httpip httpp httpn
+	call httpsame httpp httpn "localhost" as httpr
+	if httpr
+		ret 0x7f000001 1
+	end
+	httpv=0
+	httpk=0
+	httpi=0
+	label part
+	httpd=0
+	httpj=httpi
+	label digit
+	if httpi<httpn
+		loadb httpp+httpi as httpc
+		httpc-=48
+		if httpc<10
+			httpd=httpd*10+httpc
+			if httpd>255
+				ret 0 0
+			end
+			httpi+=1
+			jmp digit
+		end
+	end
+	if httpi==httpj
+		ret 0 0
+	end
+	httpv=httpv<<8|httpd
+	httpk+=1
+	if httpk<4
+		if httpi>=httpn
+			ret 0 0
+		end
+		loadb httpp+httpi as httpc
+		if httpc!=46
+			ret 0 0
+		end
+		httpi+=1
+		jmp part
+	end
+	if httpi!=httpn
+		ret 0 0
+	end
+	ret httpv 1
+end
+
+# What the address of the httpn bytes at httpp says, "http://" an IPv4
+# address or "localhost", then ":" and a port or not (80), then a path
+# or not: the address as a number, the port, the address and the length
+# of the path, which is the rest and may be of no bytes, and 1; or four
+# zeros and 0.
+fn httpurl httpp httpn
+	if httpn<8
+		ret 0 0 0 0 0
+	end
+	call httpsame httpp 7 "http://" as httpr
+	ifz httpr
+		ret 0 0 0 0 0
+	end
+	httpp+=7
+	httpn-=7
+	# the host ends at a colon or a slash
+	httpi=0
+	label host
+	if httpi<httpn
+		loadb httpp+httpi as httpc
+		if (httpc!=58)&(httpc!=47)
+			httpi+=1
+			jmp host
+		end
+	end
+	call httpip httpp httpi as httpa httpr
+	ifz httpr
+		ret 0 0 0 0 0
+	end
+	httpport=80
+	if httpi<httpn
+		loadb httpp+httpi as httpc
+		if httpc==58
+			httpi+=1
+			httpj=httpi
+			label port
+			if httpi<httpn
+				loadb httpp+httpi as httpc
+				if httpc!=47
+					httpi+=1
+					jmp port
+				end
+			end
+			call httpnum httpp+httpj httpi-httpj as httpport httpr
+			if (httpr==0)|(httpport==0)|(httpport>65535)
+				ret 0 0 0 0 0
+			end
+		end
+	end
+	ret httpa httpport httpp+httpi httpn-httpi 1
+end
+
+# The handle to await in the place of httph, an event or a task, for it
+# to take httpms milliseconds at most (0: without a limit), after which
+# its result is -62. It is 0 if httph is 0, an operation that could not
+# be made; a caller looks at it before it awaits, since the await of 0
+# gives 0 as if that were a result. If the limit cannot be made, the
+# operation is cancelled and its own handle returned: its result is then
+# -125, or what it had if it was done.
+fn httplimit httph httpms
+	if (httph==0)|(httpms==0)
+		ret httph
+	end
+	call asynctimeout httph httpms as httpg
+	ifz httpg
+		call asynccancel httph
+		ret httph
+	end
+	ret httpg
+end
+
+# Read from the descriptor httpfd and add what comes to the bytes buffer
+# httpb, waiting httpms milliseconds at most (0: without a limit): the
+# number of bytes added, 0 at the end of what there is to read, or the
+# error.
+async fn httpmore httpfd httpb httpms
+	call byneed httpb 16384 as httpok
+	ifz httpok
+		ret 0-12
+	end
+	load httpb as httpp
+	load httpb+8 as httpn
+	call asyncread httpfd httpp+httpn 16384 as httph
+	call httplimit httph httpms as httph
+	ifz httph
+		ret 0-12
+	end
+	await httph as httpr
+	ifsgt httpr 0
+		store httpb+8 httpn+httpr
+	end
+	ret httpr
+end
+
+# Move the bytes of the buffer httpb from the offset httpq on down to
+# the offset httpw, the lowest first, and cut the buffer after them:
+# what was read of a body in chunks and is not yet taken, put after the
+# body so far, so that the lines between the chunks take no room.
+fn httppack httpb httpw httpq
+	if httpw==httpq
+		ret 0
+	end
+	load httpb as httpp
+	load httpb+8 as httpn
+	httpi=httpq
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		storeb httpp+httpw+httpi-httpq httpc
+		httpi+=1
+	end
+	store httpb+8 httpw+httpn-httpq
+	ret 0
+end
+
+# Read the body of the message whose head stands at the start of the
+# bytes buffer httpb, with what was read after it, from the descriptor
+# httpfd, until the buffer holds the head and the whole body: as many
+# bytes as the line Content-Length says, or the chunks of "Transfer-
+# Encoding: chunked" put together, or, with httpeof 1 and neither line,
+# everything up to the end of the connection; with httpeof 0 and neither
+# line there is no body. httpms is the limit of a read and httpmax the
+# most bytes the buffer may come to hold. The result is 0, or the error,
+# -71 also for a head that httpframe does not read.
+async fn httpbody httpfd httpb httpms httpmax httpeof
+	load httpb as httpp
+	load httpb+8 as httpn
+	call httphead httpp httpn as httph
+	# one walk over the head says which rule the body has, or that the
+	# head is not to be read; no other rule is taken in the place of
+	# one this library has not
+	call httpframe httpp httph as httpf httplen
+	ifslt httpf 0
+		ret httpf
+	end
+	if httpf==2
+		# httpw is where the body ends so far and httpq where what is
+		# not yet taken starts; both are offsets, since the bytes may
+		# move. Before more is read, what is not taken is moved down to
+		# the body, so the buffer is the head, the body and at most one
+		# line or chunk that is not whole.
+		httpw=httph
+		httpq=httph
+		label chunk
+		# the line with the size: hexadecimal digits, at least one, and
+		# after them nothing or a ";" and anything
+		load httpb as httpp
+		load httpb+8 as httpn
+		httpi=httpq
+		httpv=0
+		httpk=0
+		httpj=0
+		label size
+		if httpi+1<httpn
+			load2 httpp+httpi as httpc
+			if httpc!=0x0a0d
+				loadb httpp+httpi as httpc
+				ifz httpk
+					httpd=httpc-48
+					if httpd>9
+						httpd=(httpc|32)-87
+						if (httpd<10)|(httpd>15)
+							httpd=16
+						end
+					end
+					if httpd<16
+						# a size that the next digit would take past
+						# 2^44 is one no body may have
+						if httpv>>40
+							ret 0-90
+						end
+						httpv=httpv<<4|httpd
+						httpj+=1
+					else
+						if (httpc!=59)|(httpj==0)
+							ret 0-71
+						end
+						httpk=1
+					end
+				end
+				httpi+=1
+				jmp size
+			end
+		else
+			# what is not taken is moved down first, so that what is
+			# held is the body and a line that is not whole; such a
+			# line may be as long as a head
+			call httppack httpb httpw httpq
+			httpq=httpw
+			load httpb+8 as httpn
+			if httpn-httpw>httpheadmax
+				ret 0-90
+			end
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
+			ifsle httpr 0
+				ifz httpr
+					ret 0-71
+				end
+				ret httpr
+			end
+			jmp chunk
+		end
+		ifz httpj
+			ret 0-71
+		end
+		httpq=httpi+2
+		ifz httpv
+			# the last chunk: lines may follow, up to an empty one
+			label trailer
+			load httpb as httpp
+			load httpb+8 as httpn
+			httpi=httpq
+			label tline
+			if httpi+1<httpn
+				load2 httpp+httpi as httpc
+				if httpc!=0x0a0d
+					httpi+=1
+					jmp tline
+				end
+				if httpi!=httpq
+					httpq=httpi+2
+					jmp trailer
+				end
+				store httpb+8 httpw
+				ret 0
+			end
+			# what is not taken is moved down first, so that what is
+			# held is the body and a line that is not whole; such a
+			# line may be as long as a head
+			call httppack httpb httpw httpq
+			httpq=httpw
+			load httpb+8 as httpn
+			if httpn-httpw>httpheadmax
+				ret 0-90
+			end
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
+			ifsle httpr 0
+				ifz httpr
+					ret 0-71
+				end
+				ret httpr
+			end
+			jmp trailer
+		end
+		if httpw+httpv>httpmax
+			ret 0-90
+		end
+		# the bytes of the chunk and the line end after them
+		label data
+		load httpb+8 as httpn
+		if httpn<httpq+httpv+2
+			call httppack httpb httpw httpq
+			httpq=httpw
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
+			ifsle httpr 0
+				ifz httpr
+					ret 0-71
+				end
+				ret httpr
+			end
+			jmp data
+		end
+		load httpb as httpp
+		load2 httpp+httpq+httpv as httpc
+		if httpc!=0x0a0d
+			ret 0-71
+		end
+		# moved down to the end of the body, the lowest byte first
+		if httpq!=httpw
+			httpi=0
+			while httpi<httpv
+				loadb httpp+httpq+httpi as httpc
+				storeb httpp+httpw+httpi httpc
+				httpi+=1
+			end
+		end
+		httpw+=httpv
+		httpq+=httpv+2
+		jmp chunk
+	end
+	if httpf
+		httpv=httplen
+		if httph+httpv>httpmax
+			ret 0-90
+		end
+		label rest
+		load httpb+8 as httpn
+		if httpn<httph+httpv
+			call httpmore httpfd httpb httpms as httpt
+			httpr=0-12
+			if httpt
+				await httpt as httpr
+			end
+			ifsle httpr 0
+				ifz httpr
+					ret 0-71
+				end
+				ret httpr
+			end
+			jmp rest
+		end
+		store httpb+8 httph+httpv
+		ret 0
+	end
+	ifz httpeof
+		store httpb+8 httph
+		ret 0
+	end
+	label all
+	load httpb+8 as httpn
+	if httpn>httpmax
+		ret 0-90
+	end
+	call httpmore httpfd httpb httpms as httpt
+	httpr=0-12
+	if httpt
+		await httpt as httpr
+	end
+	ifsgt httpr 0
+		jmp all
+	end
+	ret httpr
+end
+
+# Send the request of the 128 bytes at httpq, as the head of this file
+# has them, and read the response into the bytes buffer httpb, which is
+# emptied first: the status, or a negative error.
+async fn httpcall httpq httpb
+	local httpw 24
+	load httpq+96 as httpms
+	load httpq+104 as httpmax
+	ifz httpmax
+		httpmax=67108864
+	end
+	store httpq+112 0
+	call bycut httpb 0
+	# The request, in a buffer of its own. Room for all of it is asked
+	# for first, so that no part of it can be left out for want of
+	# memory while a later, smaller part is added.
+	store httpw 0
+	store httpw+8 0
+	store httpw+16 0
+	load httpq+24 as httpn
+	load httpq+40 as httpl
+	httpn+=httpl
+	load httpq+56 as httpl
+	httpn+=httpl
+	load httpq+72 as httpl
+	httpn+=httpl
+	load httpq+88 as httpl
+	httpn+=httpl
+	call byneed httpw httpn+256 as httpok
+	ifz httpok
+		ret 0-12
+	end
+	load httpq+16 as httpp
+	load httpq+24 as httpn
+	ifz httpn
+		call byadd httpw "GET"
+	else
+		call byadd httpw httpp httpn
+	end
+	call httpis httpp httpn "HEAD" as httpnobody
+	call byaddb httpw 32
+	load httpq+32 as httpp
+	load httpq+40 as httpn
+	ifz httpn
+		call byaddb httpw 47
+	else
+		call byadd httpw httpp httpn
+	end
+	call byadd httpw " HTTP/1.1\x0d\nHost: "
+	load httpq+80 as httpp
+	load httpq+88 as httpn
+	if httpn
+		call byadd httpw httpp httpn
+	else
+		load httpq as httpa
+		call byaddn httpw httpa>>24&255
+		call byaddb httpw 46
+		call byaddn httpw httpa>>16&255
+		call byaddb httpw 46
+		call byaddn httpw httpa>>8&255
+		call byaddb httpw 46
+		call byaddn httpw httpa&255
+		call byaddb httpw 58
+		load httpq+8 as httpa
+		call byaddn httpw httpa
+	end
+	call byadd httpw "\x0d\nConnection: close\x0d\n"
+	load httpq+64 as httpp
+	load httpq+72 as httpn
+	if httpn
+		call byadd httpw "Content-Type: "
+		call byadd httpw httpp httpn
+		call byadd httpw "\x0d\n"
+	end
+	# a length for a request that has a body, and for a method that is
+	# to have one though it is of no bytes
+	load httpq+16 as httpp
+	load httpq+24 as httpl
+	call httpis httpp httpl "GET" as httpr
+	httpl=(httpl!=0)&(httpr==0)&(httpnobody==0)
+	load httpq+48 as httpp
+	load httpq+56 as httpn
+	if httpn|httpl
+		call byadd httpw "Content-Length: "
+		call byaddn httpw httpn
+		call byadd httpw "\x0d\n"
+	end
+	call byadd httpw "\x0d\n"
+	call byadd httpw httpp httpn
+	load httpq as httpa
+	load httpq+8 as httpl
+	# The connect is kept by this task and not given to a limit, since
+	# its result is a descriptor that only this task can close: the
+	# limit is a timer of its own, and whichever of the two is done
+	# first, and also when this task is cancelled while it waits, the
+	# connect is ended and asked for what it has.
+	call asyncconnect httpa httpl as httph
+	httpfd=0-12
+	if httph
+		httpr=0
+		if httpms
+			call asyncsleep httpms as https
+			httpr=0-12
+			if https
+				call asyncfirst httph https as httpg
+				if httpg
+					await httpg as httpr
+				end
+				call asynccancel https
+				await https as httpt
+			end
+			if httpr
+				call asynccancel httph
+			end
+		end
+		await httph as httpfd
+		if httpr
+			# the time ran out, this task was cancelled, or there was
+			# no memory: a connection that was made all the same is
+			# closed
+			ifsge httpfd 0
+				call asyncclose httpfd
+			end
+			httpfd=httpr
+			if httpr==1
+				httpfd=0-62
+			end
+		end
+	end
+	ifslt httpfd 0
+		call byfree httpw
+		ret httpfd
+	end
+	load httpw as httpp
+	load httpw+8 as httpn
+	# the bytes of the request are given back only when the write is
+	# done or was never made
+	call asyncwriteall httpfd httpp httpn as httph
+	call httplimit httph httpms as httph
+	httpr=0-12
+	if httph
+		await httph as httpr
+	end
+	call byfree httpw
+	ifslt httpr 0
+		call asyncclose httpfd
+		ret httpr
+	end
+	# the head, and again while it is one that only says "go on"
+	label head
+	load httpb as httpp
+	load httpb+8 as httpn
+	call httphead httpp httpn as httph
+	ifz httph
+		if (httpn>httpheadmax)|(httpn>httpmax)
+			call asyncclose httpfd
+			ret 0-90
+		end
+		call httpmore httpfd httpb httpms as httpt
+		httpr=0-12
+		if httpt
+			await httpt as httpr
+		end
+		ifsle httpr 0
+			call asyncclose httpfd
+			ifz httpr
+				ret 0-71
+			end
+			ret httpr
+		end
+		jmp head
+	end
+	# a head that is whole is held to the same two limits
+	if (httph>httpheadmax)|(httph>httpmax)
+		call asyncclose httpfd
+		ret 0-90
+	end
+	call httpstatus httpp httph as httpv
+	if (httpv==0)|(httpv>599)
+		call asyncclose httpfd
+		ret 0-71
+	end
+	if (httpv<200)&(httpv!=101)
+		# taken out of the buffer, with what came after it moved down
+		httpi=httph
+		while httpi<httpn
+			loadb httpp+httpi as httpc
+			storeb httpp+httpi-httph httpc
+			httpi+=1
+		end
+		store httpb+8 httpn-httph
+		jmp head
+	end
+	# The head is one that can be read, whether or not a body follows:
+	# the response to a HEAD, a 204 and a 304 have their lines looked
+	# at as any other has.
+	call httpframe httpp httph as httpf httpl
+	ifslt httpf 0
+		call asyncclose httpfd
+		ret httpf
+	end
+	store httpq+112 httph
+	if httpnobody|(httpv==204)|(httpv==304)|(httpv==101)
+		store httpb+8 httph
+		call asyncclose httpfd
+		ret httpv
+	end
+	call httpbody httpfd httpb httpms httpmax 1 as httpt
+	httpr=0-12
+	if httpt
+		await httpt as httpr
+	end
+	call asyncclose httpfd
+	ifslt httpr 0
+		ret httpr
+	end
+	ret httpv
+end

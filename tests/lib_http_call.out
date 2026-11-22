@@ -1,0 +1,80 @@
+# a response with a length
+status 200, a head of 64 bytes, body [hello]
+the request that was written:
+POST /api/embed HTTP/1.1
+Host: example.test
+Connection: close
+Content-Type: application/json
+Content-Length: 7
+
+{"k":1}
+# a GET, with the address as the name of the server
+status 200, a head of 38 bytes, body []
+it starts with the line GET, and Host with the address: 1
+# a body in chunks, with an extension and a line after the last
+status 200, a head of 47 bytes, body [hello wide world]
+# a body up to the end of the connection
+status 200, a head of 19 bytes, body [all of it]
+# a 100 Continue first
+status 201, a head of 43 bytes, body [ok]
+# a 204, which has no body
+status 204, a head of 27 bytes, body []
+# no HTTP
+error -71
+# a head that does not end
+error -71
+# a body shorter than its length
+error -71
+# a chunk that is cut
+error -71
+# a length that is no number
+error -71
+# a version that is no digit
+error -71
+# a status of four digits
+error -71
+# a status and no reason
+status 200, a head of 35 bytes, body [ok]
+# a chunk size that is only an extension
+error -71
+# a chunk size of seventeen digits, which was read as 0
+error -90
+# forty chunks of a byte, within a limit that their lines would pass
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
+# a head above the 20 bytes the response may have, with a 204
+error -90
+# a response above the 64 bytes it may have
+error -90
+# a response after 400 ms, for a limit of 100
+error -62
+# two lengths that are the same
+status 200, a head of 57 bytes, body [ok]
+# two lengths that differ
+error -71
+# a second length that is no number
+error -71
+# a second line of the transfer coding
+error -71
+# a transfer coding and a length
+error -71
+# a blank before the colon of a length
+error -71
+# a status above 599
+error -71
+# a transfer coding that is not chunked alone
+error -71
+# a 204 with a header line that has no colon
+error -71
+# the response to a HEAD with two lengths that differ
+error -71
+# the response to a HEAD with one length
+status 200, a head of 38 bytes, body []
+# a method head, which is not HEAD: its body is read
+status 200, a head of 38 bytes, body [ok]
+# the forty chunks, cut before the last chunk
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
+# the forty chunks, cut before the empty line
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
+# nobody listens
+error -111
+tasks that are not done: 0

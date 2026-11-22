@@ -21,7 +21,21 @@ number of the seed; a dependency is a git repository and a version, the
 tag `v<version>`, with a lock file that has the revision; one installed
 toolchain, the command, the compiler and the library.
 
-- [ ] The repositories ail-bench and ail-extensions moved to `Ailfile`
-  (aildb has the step in its own TODO).
+- [ ] The repository ail-bench moved to `Ailfile`. ail-extensions is a
+  package since its pull request 2 (2026-11-22), and aildb since the
+  packages.
 - [ ] Left for later: several installed toolchains, a registry of
   packages.
+
+## Text formats and the network
+
+`lib/std/num.aiw`, `lib/std/json.aiw`, `lib/net/http.aiw` and
+`lib/net/httpd.aiw` are written ([BACKLOG.md](BACKLOG.md)).
+
+- [ ] The version of AIL that has them (the user's to give): `Ailfile`
+  says 0.1.0, the tag before them, so a package that needs them cannot
+  ask for them with its line `ail`.
+- [ ] A double written as the shortest decimal that names it, for the
+  writer of JSON.
+- [ ] Left for later: a connection that is kept, TLS and names for the
+  client; the server measured under many connections.
