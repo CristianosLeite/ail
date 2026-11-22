@@ -181,6 +181,13 @@ ok   a.out
 2 tests, 0 failed" "" $ail test a a.out
 yes cli_test_names_overlap_kept [ "$(cat build/tests/a.out)" = first ]
 rm tests/a.*
+# a test that the compiler never comes back from: a file it uses is a
+# pipe that nothing writes to
+mkdir -p tests/lib && mkfifo tests/lib/pipe.aiw
+printf 'use "tests/lib/pipe.aiw"\n' > tests/hang.aiw
+is cli_test_compiler_deadline 1 "FAIL hang
+1 test, 1 failed" "ail: the compiler still ran after 10 seconds and was killed" $ail test hang
+rm tests/hang.aiw tests/lib/pipe.aiw
 # a package without tests/, and one whose tests/ cannot be read
 mv tests "$tmp/keep/moved"
 is cli_test_no_directory 0 "0 tests, 0 failed" "" $ail test

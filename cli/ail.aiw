@@ -140,9 +140,11 @@ end
 
 # Run the compiler on the source at the path of sn bytes at sp, with the
 # file at the path of tn bytes at tp as its output, made anew, never
-# through a link, and to be run, and err as its stderr, -1 for that of this process: the status of
-# the compiler, 0 if the source compiled and 1 if it was refused.
-fn cc sp sn tp tn err
+# through a link, and to be run, and err as its stderr, -1 for that of
+# this process: the status of the compiler, 0 if the source compiled and
+# 1 if it was refused. A compiler that still runs after ms milliseconds
+# is killed, and the result is -1000; ms 0 sets no limit.
+fn cc sp sn tp tn err ms
 	call fileopen sp sn 0 0 as in
 	ifslt in 0
 		call fail stio "cannot read " sp sn
@@ -178,9 +180,13 @@ fn cc sp sn tp tn err
 		call byaddb gargs 0
 		i+=1
 	end
-	call tlrun gargs in out err as st
+	call tlrunenv gargs in out err "" ms as st
 	sys close in
 	sys close out
+	if (st==-1000)&(ms>0)
+		call fileunlink tp tn
+		ret st
+	end
 	if (st!=0)&(st!=1)
 		call fileunlink tp tn
 		call fail stio "the compiler did not run to its end for " sp sn
@@ -216,7 +222,7 @@ fn compile e
 	call byaddn gtmp pid
 	load gtmp as tp
 	load gtmp+8 as tn
-	call cc sp sn tp tn -1 as st
+	call cc sp sn tp tn -1 0 as st
 	load gtmp as tp
 	load gtmp+8 as tn
 	if st
@@ -589,8 +595,12 @@ fn testone p n
 	end
 	load tb as tp
 	load tb+8 as tn
-	call cc sp sn tp tn err as st
+	call cc sp sn tp tn err 10000 as st
 	sys close err
+	if st==-1000
+		call eprint "ail: the compiler still ran after 10 seconds and was killed\n"
+		ret 0
+	end
 	# a test with a file .err: the compiler refuses it with those words
 	call tpath ta "tests/" p n ".err"
 	load ta as sp
