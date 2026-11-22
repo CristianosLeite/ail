@@ -63,6 +63,12 @@ error -71
 error -71
 # a transfer coding that is not chunked alone
 error -71
+# a 204 with a header line that has no colon
+error -71
+# the response to a HEAD with two lengths that differ
+error -71
+# the response to a HEAD with one length
+status 200, a head of 38 bytes, body []
 # a method head, which is not HEAD: its body is read
 status 200, a head of 38 bytes, body [ok]
 # the forty chunks, cut before the last chunk

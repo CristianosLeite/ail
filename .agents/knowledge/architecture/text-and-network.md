@@ -174,3 +174,11 @@ Four findings, all taken, each with cases that fail on the code before.
   `httpframe` has read, and about any by a program.
 - `jsonstr` asks for the room of the bytes the character has, not for four: an escape
   of one byte goes into a buffer with room for one and no memory.
+
+## The fifth review of the pull request 28 (Copilot, 2026-11-22)
+One finding, taken. `httpcall` returned the status of a response that has no body, to a
+HEAD, a 204 or a 304, before `httpframe` had looked at its head, since only `httpbody`
+called it: two lengths that differ, or a header line without a colon, were a response.
+`httpcall` calls `httpframe` on every final head. `tests/lib_http_call.aiw` has a 204 with
+a line that has no colon and a response to a HEAD with two lengths, -71 each, where the
+source before gave 204 and 200.

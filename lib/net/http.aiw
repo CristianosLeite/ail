@@ -901,6 +901,14 @@ async fn httpcall httpq httpb
 		store httpb+8 httpn-httph
 		jmp head
 	end
+	# The head is one that can be read, whether or not a body follows:
+	# the response to a HEAD, a 204 and a 304 have their lines looked
+	# at as any other has.
+	call httpframe httpp httph as httpf httpl
+	ifslt httpf 0
+		call asyncclose httpfd
+		ret httpf
+	end
 	store httpq+112 httph
 	if httpnobody|(httpv==204)|(httpv==304)|(httpv==101)
 		store httpb+8 httph

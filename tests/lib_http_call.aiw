@@ -169,6 +169,13 @@ call against "a status above 599" "HTTP/1.1 700 Invalid\x0d\nContent-Length: 0\x
 call against "a transfer coding that is not chunked alone" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: gzip, chunked\x0d\n\x0d\n2\x0d\nok\x0d\n0\x0d\n\x0d\n" 0
 store q+16 "head"
 store q+24 4
+call against "a 204 with a header line that has no colon" "HTTP/1.1 204 No Content\x0d\nno colon here\x0d\n\x0d\n" 0
+store q+16 "HEAD"
+store q+24 4
+call against "the response to a HEAD with two lengths that differ" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\nContent-Length: 3\x0d\n\x0d\n" 0
+store q+16 "HEAD"
+store q+24 4
+call against "the response to a HEAD with one length" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\n\x0d\n" 0
 call against "a method head, which is not HEAD: its body is read" "HTTP/1.1 200 OK\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
 # the forty chunks again, cut before the last chunk and before the
 # empty line that ends them: the limit is of the body, wherever a read
