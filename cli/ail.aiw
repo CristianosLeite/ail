@@ -1,0 +1,502 @@
+# cli/ail.aiw -- the command ail: a package made, built, run and cleaned.
+# docs/cli.md says what each command does and docs/packages.md what a
+# manifest holds. This file is the only one of the command that prints
+# and ends the process; the files it uses return what went wrong.
+#
+# The status is 0, or 1 if a source did not compile, 2 for wrong usage,
+# 3 for a manifest that is missing or wrong, and 4 if a file or a
+# directory could not be read, written or run.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+use "cli/manifest.aiw"
+use "cli/tool.aiw"
+
+const stfail 1
+const stusage 2
+const stmanifest 3
+const stio 4
+
+buf gtext 24        # ail.pkg of the package, as it was read
+buf gman 72         # and what it holds
+buf gmsg 24         # a line that is being put together
+buf gout 24         # the path of an executable
+buf gtmp 24         # the path of the file it is compiled into
+buf gargs 24        # the arguments of a program that is started
+
+# end with the status st and a line on stderr: the two texts
+fn fail st p n q m
+	call eprint "ail: "
+	call eprint p n
+	call eprint q m
+	call eprint "\n"
+	sys exit_group st
+end
+# the same with the line that is in gmsg
+fn failmsg st
+	load gmsg as p
+	load gmsg+8 as n
+	call fail st p n ""
+end
+
+fn help fd
+	call fdwrite fd "usage: ail COMMAND\n"
+	call fdwrite fd "  new NAME                    make the directory NAME with a new package in it\n"
+	call fdwrite fd "  init [NAME]                 make this directory a package\n"
+	call fdwrite fd "  build [BIN]                 compile the executables of the package into build/\n"
+	call fdwrite fd "  run [BIN] [-- ARGUMENT...]  build an executable and run it\n"
+	call fdwrite fd "  clean                       remove build/\n"
+	call fdwrite fd "  version                     print the version of AIL\n"
+	call fdwrite fd "  help                        print this\n"
+end
+fn usage
+	call help 2
+	sys exit_group stusage
+end
+
+# Enter the directory of the package and read its manifest into gman;
+# the process ends if there is none, if it is wrong, or if it asks for
+# an AIL that this one is not.
+fn project
+	call tlenter as r
+	ifz r
+		call fail stmanifest "no ail.pkg in this directory or in one above it" ""
+	end
+	call bycut gtext 0
+	call fileread "ail.pkg" gtext as r
+	ifslt r 0
+		call fail stio "cannot read ail.pkg" ""
+	end
+	load gtext as p
+	load gtext+8 as n
+	call mfread gman p n 0 as e l
+	call bycut gmsg 0
+	if e
+		call byadd gmsg "ail.pkg"
+		if l
+			call byaddb gmsg 58
+			call byaddn gmsg l
+		end
+		call byadd gmsg ": "
+		call mfwhy gmsg e
+		call failmsg stmanifest
+	end
+	load gman+32 as p
+	load gman+40 as n
+	if n
+		call mfver p n as need ok
+		call mfver tlvp tlvn as have ok
+		call mfmeets have need as r
+		ifz r
+			call byadd gmsg "ail.pkg asks for AIL "
+			call byadd gmsg p n
+			call byadd gmsg ", which AIL "
+			call byadd gmsg tlvp tlvn
+			call byadd gmsg " is not"
+			call failmsg stmanifest
+		end
+	end
+end
+
+# Compile the executable of the entry e of the manifest into build/: 0,
+# or 1 if the compiler refused the source, which it has said on stderr.
+# The file build/<name> is replaced only by one that compiled.
+fn compile e
+	load e+8 as np
+	load e+16 as nn
+	load e+24 as sp
+	load e+32 as sn
+	call filemkdir "build" 493 as r
+	if (r!=0)&(r!=-17)
+		call fail stio "cannot make the directory build" ""
+	end
+	call bycut gout 0
+	call byadd gout "build/"
+	call byadd gout np nn
+	call bycut gtmp 0
+	call byadd gtmp "build/"
+	call byadd gtmp np nn
+	call byadd gtmp ".tmp."
+	sys getpid as pid
+	call byaddn gtmp pid
+	call fileopen sp sn 0 0 as in
+	ifslt in 0
+		call fail stio "cannot read " sp sn
+	end
+	load gtmp as tp
+	load gtmp+8 as tn
+	call fileopen tp tn 0x241 493 as out
+	ifslt out 0
+		call fail stio "cannot write " tp tn
+	end
+	# the compiler, the library of AIL as the package ail
+	call bycut gargs 0
+	load tlailc as p
+	load tlailc+8 as n
+	call byadd gargs p n
+	call byadd gargs "ail="
+	load tlhome as p
+	load tlhome+8 as n
+	call byadd gargs p n
+	call byaddb gargs 0
+	call tlrun gargs in out -1 as st
+	sys close in
+	sys close out
+	load gtmp as tp
+	load gtmp+8 as tn
+	if st
+		call fileunlink tp tn
+		if st!=1
+			call fail stio "the compiler did not run to its end for " sp sn
+		end
+		ret 1
+	end
+	load gout as p
+	load gout+8 as n
+	call tlmove tp tn p n as r
+	if r
+		call fileunlink tp tn
+		call fail stio "cannot write " p n
+	end
+	ret 0
+end
+
+# Compile the executables of the manifest whose kind is among kinds, or
+# the one of any kind whose name is the n bytes at p if n is not 0: the
+# entry of the last one compiled, or 0 if there was none. The process
+# ends with the status 1 if one does not compile.
+fn build kinds p n
+	if n
+		call mffind gman mfbin|mftestbin p n as i
+		if i==-1
+			call fail stmanifest "ail.pkg has no executable " p n
+		end
+		call mfentry gman i as e
+		call compile e as r
+		if r
+			sys exit_group stfail
+		end
+		ret e
+	end
+	call mfcount gman as k
+	last=0
+	i=0
+	while i<k
+		call mfentry gman i as e
+		load e as kind
+		if kind&kinds
+			call compile e as r
+			if r
+				sys exit_group stfail
+			end
+			last=e
+		end
+		i+=1
+	end
+	ret last
+end
+
+fn cmdbuild
+	call argc as c
+	if c>3
+		call usage
+	end
+	call argv 2 as p n
+	call project
+	call build mfbin p n as e
+	ifz e
+		call eprint "ail: ail.pkg names no executable to build\n"
+	end
+end
+
+# "ail run [BIN] [-- ARGUMENT...]": the executable named, or the only one
+# of the manifest, built and then put in the place of this process, in
+# the directory the command was started in
+fn cmdrun
+	local w 8
+	local z 4096
+	call argc as c
+	call argv 2 as p n
+	# a = the number of the first argument for the program
+	a=2
+	call mfeq p n "--" as r
+	if r
+		n=0
+		a=3
+	else
+		if n
+			a=3
+			call argv 3 as q m
+			if m
+				call mfeq q m "--" as r
+				ifz r
+					call usage
+				end
+				a=4
+			end
+		end
+	end
+	call project
+	ifz n
+		# the only executable of the manifest
+		call mfcount gman as k
+		i=0
+		while i<k
+			call mfentry gman i as e
+			load e as kind
+			if kind==mfbin
+				if n
+					call fail stusage "ail.pkg has more than one executable; name the one to run" ""
+				end
+				load e+8 as p
+				load e+16 as n
+			end
+			i+=1
+		end
+		ifz n
+			call fail stmanifest "ail.pkg names no executable to run" ""
+		end
+	end
+	call build 0 p n as e
+	# its path from the root, the arguments, and back to where we were
+	call bycut gout 0
+	load tlroot as q
+	load tlroot+8 as m
+	call byadd gout q m
+	call byadd gout "/build/"
+	call byadd gout p n
+	call byaddb gout 0
+	call bycut gargs 0
+	load gout as q
+	store w q
+	call byadd gargs w 8
+	while a<c
+		call argv a as q m
+		store w q
+		call byadd gargs w 8
+		a+=1
+	end
+	store w 0
+	call byadd gargs w 8 as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+	load tlcwd as q
+	load tlcwd+8 as m
+	call filepath q m z
+	sys tlchdir z
+	load gout as q
+	load gargs as av
+	call procenv as env
+	sys execve q av env
+	call fail stio "cannot run build/" p n
+end
+
+fn cmdclean
+	call argc as c
+	if c!=2
+		call usage
+	end
+	call project
+	call tlremove "build" as r
+	if r
+		call fail stio "cannot remove build" ""
+	end
+end
+
+# write the file of the n bytes at p under the directory in gout, unless
+# keep is 1 and there is one: the text is in gmsg
+fn put p n keep
+	local b 24
+	store b 0
+	store b+8 0
+	store b+16 0
+	load gout as q
+	load gout+8 as m
+	call byadd b q m
+	call byaddb b 47
+	call byadd b p n
+	load b as q
+	load b+8 as m
+	r=0
+	if keep
+		call tlisfile q m as r
+	end
+	ifz r
+		load gmsg as s
+		load gmsg+8 as l
+		call filewrite q m s l as r
+		if r
+			call fail stio "cannot write " q m
+		end
+	end
+	call byfree b
+end
+# make the directory of the n bytes at p under the one in gout
+fn putdir p n
+	local b 24
+	store b 0
+	store b+8 0
+	store b+16 0
+	load gout as q
+	load gout+8 as m
+	call byadd b q m
+	call byaddb b 47
+	call byadd b p n
+	load b as q
+	load b+8 as m
+	call filemkdir q m 493 as r
+	if (r!=0)&(r!=-17)
+		call fail stio "cannot make the directory " q m
+	end
+	call byfree b
+end
+
+# The files of a new package, named by the n bytes at p, in the
+# directory in gout: the manifest, a source that prints a line, and what
+# git is to leave out. If keep is 1 a source or a .gitignore that is
+# there stays as it is.
+fn scaffold p n keep
+	call bycut gmsg 0
+	call byadd gmsg "name "
+	call byadd gmsg p n
+	call byadd gmsg "\nversion 0.1.0\nail "
+	call byadd gmsg tlvp tlvn
+	call byadd gmsg "\n\nbin "
+	call byadd gmsg p n
+	call byadd gmsg " src/main.aiw\n"
+	call put "ail.pkg" 0
+	call putdir "src"
+	call bycut gmsg 0
+	call byadd gmsg "use \"lib/std/io.aiw\"\ncall print \"hello from "
+	call byadd gmsg p n
+	call byadd gmsg "\\n\"\n"
+	call put "src/main.aiw" keep
+	call bycut gmsg 0
+	call byadd gmsg "build/\ndeps/\n"
+	call put ".gitignore" keep
+end
+
+fn cmdnew
+	call argc as c
+	if c!=3
+		call usage
+	end
+	call argv 2 as p n
+	call mfname p n as r
+	ifz r
+		call fail stusage "the name of a package is small letters, digits, - and _, at most 64: not " p n
+	end
+	call filemkdir p n 493 as r
+	if r==-17
+		call fail stio "there is something called that already: " p n
+	end
+	if r
+		call fail stio "cannot make the directory " p n
+	end
+	call bycut gout 0
+	call byadd gout p n
+	call scaffold p n 0
+	# a repository of git, if git is there; it may as well not be
+	call bycut gargs 0
+	call byadd gargs "git\0init\0-q\0"
+	call byadd gargs p n
+	call byaddb gargs 0
+	call fileopen "/dev/null" 2 0 as fd
+	ifsge fd 0
+		call tlrun gargs fd fd fd
+		sys close fd
+	end
+	call print "created the package "
+	call print p n
+	call print " in "
+	call print p n
+	call print "/\n"
+end
+
+fn cmdinit
+	call argc as c
+	if c>3
+		call usage
+	end
+	call tlisfile "ail.pkg" as r
+	if r
+		call fail stio "this directory has an ail.pkg already" ""
+	end
+	call argv 2 as p n
+	ifz n
+		# the last part of the path of this directory
+		load tlcwd as q
+		load tlcwd+8 as m
+		p=q+m
+		while p>q
+			loadb p-1 as x
+			if x==47
+				jmp cut
+			end
+			p-=1
+		end
+		label cut
+		n=q+m-p
+	end
+	call mfname p n as r
+	ifz r
+		call eprint "ail: the name of a package is small letters, digits, - and _, at most 64: not "
+		call eprint p n
+		call eprint "\n"
+		call fail stusage "give one: ail init NAME" ""
+	end
+	call bycut gout 0
+	call byadd gout "."
+	call scaffold p n 1
+	call print "created the package "
+	call print p n
+	call print " in this directory\n"
+end
+
+call argv 1 as p n
+ifz n
+	call usage
+end
+call mfeq p n "help" as r
+if r
+	call help 1
+	sys exit_group 0
+end
+call tlfind as r
+ifz r
+	call fail stio "AIL is not where this command looks for it; AIL_HOME names its directory" ""
+end
+call mfeq p n "version" as r
+if r
+	call print "ail "
+	call print tlvp tlvn
+	call print "\n"
+	sys exit_group 0
+end
+call mfeq p n "new" as r
+if r
+	call cmdnew
+	sys exit_group 0
+end
+call mfeq p n "init" as r
+if r
+	call cmdinit
+	sys exit_group 0
+end
+call mfeq p n "build" as r
+if r
+	call cmdbuild
+	sys exit_group 0
+end
+call mfeq p n "run" as r
+if r
+	call cmdrun
+end
+call mfeq p n "clean" as r
+if r
+	call cmdclean
+	sys exit_group 0
+end
+call usage

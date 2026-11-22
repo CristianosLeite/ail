@@ -9,9 +9,10 @@ means the same thing in each.
 
 How a source names a file of another package is in
 [language.md](language.md#packages). This page is the manifest and the
-lock. The command that works with them, `ail`, is not written yet
-([TODO.md](TODO.md)); `cli/manifest.aiw` reads, checks and changes both
-files, and `tests/cli_manifest.aiw` is its test.
+lock. The command that works with them is `ail` ([cli.md](cli.md)), which
+does not fetch dependencies or write a lock yet ([TODO.md](TODO.md));
+`cli/manifest.aiw` reads, checks and changes both files, and
+`tests/cli_manifest.aiw` is its test.
 
 ## The manifest, `ail.pkg`
 

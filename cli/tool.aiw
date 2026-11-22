@@ -1,0 +1,290 @@
+# cli/tool.aiw -- what the commands of ail share: where AIL is installed,
+# the directory of the package, a program run to its end, a directory
+# removed with all it has. Needs lib/std/io.aiw, lib/std/bytes.aiw,
+# lib/std/file.aiw, lib/std/proc.aiw and cli/manifest.aiw. The functions
+# print nothing and end nothing.
+#
+# Every name of this file starts with "tl"; a program has no var of such
+# a name (see lib/std/io.aiw).
+
+# syscalls without a name in the compiler
+const tlgetcwd 79
+const tlchdir 80
+const tlrename 82
+const tlreadlink 89
+
+buf tlhome 24       # the directory of AIL, as tlfind found it
+buf tlailc 24       # the path of its compiler, with a NUL byte
+buf tlvtext 24      # its manifest, and where its version is in it
+var tlvp tlvn
+buf tlcwd 24        # the directory the command was started in
+buf tlroot 24       # the directory of the package, once tlenter found it
+
+# 1 if the file at the path can be opened to be read
+fn tlisfile tlp tln
+	call fileopen tlp tln 0 0 as tlfd
+	ifslt tlfd 0
+		ret 0
+	end
+	sys close tlfd
+	ret 1
+end
+
+# add the directory this process is in to the buffer tlb: 1, or 0
+fn tlgetdir tlb
+	local tlz 4096
+	sys tlgetcwd tlz 4096 as tlr
+	ifsle tlr 0
+		ret 0
+	end
+	call byadd tlb tlz tlr-1 as tlr
+	ret tlr
+end
+
+# Try the directory of the tln bytes at tlp as that of AIL: it has the
+# manifest ail.pkg with a version, the compiler as ailc or as build/ailc,
+# which is how a checkout has it, and the library under lib/. 1 if it is
+# one, and tlhome, tlailc and the version are then set.
+fn tlhomeat tlp tln
+	local tld 72
+	call bycut tlvtext 0
+	call bycut tlailc 0
+	call byadd tlailc tlp tln
+	call byadd tlailc "/ail.pkg"
+	load tlailc as tlq
+	load tlailc+8 as tlm
+	call fileread tlq tlm tlvtext as tlr
+	ifslt tlr 0
+		ret 0
+	end
+	tli=0
+	while tli<72
+		store tld+tli 0
+		tli+=8
+	end
+	load tlvtext as tlq
+	load tlvtext+8 as tlm
+	call mfread tld tlq tlm 0 as tle tll
+	call byfree tld+48
+	if tle
+		ret 0
+	end
+	load tld+16 as tlvp
+	load tld+24 as tlvn
+	call bycut tlailc 0
+	call byadd tlailc tlp tln
+	call byadd tlailc "/ailc"
+	load tlailc as tlq
+	load tlailc+8 as tlm
+	call tlisfile tlq tlm as tlr
+	ifz tlr
+		call bycut tlailc 0
+		call byadd tlailc tlp tln
+		call byadd tlailc "/build/ailc"
+		load tlailc as tlq
+		load tlailc+8 as tlm
+		call tlisfile tlq tlm as tlr
+		ifz tlr
+			ret 0
+		end
+	end
+	call byaddb tlailc 0
+	call bycut tlhome 0
+	call byadd tlhome tlp tln as tlr
+	ret tlr
+end
+
+# Find AIL: the directory in the variable AIL_HOME of the environment, if
+# there is one; else, from the place of this executable, ../lib/ail, as
+# an installation has it, or .., as a checkout has it with the command in
+# build/. Notes the directory the command was started in. 1 if AIL was
+# found, 0 if not.
+fn tlfind
+	local tlz 4096
+	local tlb 24
+	call tlgetdir tlcwd as tlr
+	ifz tlr
+		ret 0
+	end
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	call procvar "AIL_HOME" as tlp tln
+	if tln
+		loadb tlp as tlc
+		if tlc!=47
+			load tlcwd as tlq
+			load tlcwd+8 as tlm
+			call byadd tlb tlq tlm
+			call byaddb tlb 47
+		end
+		call byadd tlb tlp tln
+		load tlb as tlq
+		load tlb+8 as tlm
+		call tlhomeat tlq tlm as tlr
+		call byfree tlb
+		ret tlr
+	end
+	set "/proc/self/exe\0" as tlq
+	sys tlreadlink tlq tlz 4096 as tln
+	ifsle tln 0
+		ret 0
+	end
+	# the directory of the executable
+	while tln
+		loadb tlz+tln-1 as tlc
+		if tlc==47
+			jmp cut
+		end
+		tln-=1
+	end
+	label cut
+	call byadd tlb tlz tln
+	call byadd tlb "../lib/ail"
+	load tlb as tlq
+	load tlb+8 as tlm
+	call tlhomeat tlq tlm as tlr
+	ifz tlr
+		call bycut tlb tln
+		call byadd tlb ".."
+		load tlb as tlq
+		load tlb+8 as tlm
+		call tlhomeat tlq tlm as tlr
+	end
+	call byfree tlb
+	ret tlr
+end
+
+# Make the directory of the package the current one: the nearest of this
+# directory and those above it that has a file ail.pkg. 1, with tlroot
+# set, or 0 if none has one.
+fn tlenter
+	local tlz 4096
+	label look
+	call tlisfile "ail.pkg" as tlr
+	if tlr
+		call bycut tlroot 0
+		call tlgetdir tlroot as tlr
+		ret tlr
+	end
+	sys tlgetcwd tlz 4096 as tlr
+	if tlr!=2
+		set "..\0" as tlq
+		sys tlchdir tlq as tlr
+		ifz tlr
+			jmp look
+		end
+	end
+	ret 0
+end
+
+# Start the program whose arguments are the strings in the buffer tls,
+# each with a NUL byte after it, the first its path or its name, and wait
+# for its end: what procwait gives, or -2000 if it could not be started.
+# tlin, tlout and tlerr are its descriptors 0, 1 and 2, -1 for those of
+# this process.
+fn tlrun tls tlin tlout tlerr
+	local tlv 24
+	local tlw 8
+	store tlv 0
+	store tlv+8 0
+	store tlv+16 0
+	load tls as tlp
+	load tls+8 as tln
+	tlp+=tln
+	tlq=tlp-tln
+	while tlq<tlp
+		store tlw tlq
+		call byadd tlv tlw 8 as tlr
+		ifz tlr
+			call byfree tlv
+			ret -2000
+		end
+		call strlen tlq as tln
+		tlq+=tln+1
+	end
+	store tlw 0
+	call byadd tlv tlw 8 as tlr
+	ifz tlr
+		call byfree tlv
+		ret -2000
+	end
+	load tlv as tlq
+	call procstart tlq tlin tlout tlerr as tlpid
+	call byfree tlv
+	ifslt tlpid 0
+		ret -2000
+	end
+	call procwait tlpid 0 as tlr
+	ret tlr
+end
+
+# give the file at the path of tln bytes at tlp the path of tlm bytes at
+# tlq, in place of a file that is there: 0, or the error
+fn tlmove tlp tln tlq tlm
+	local tla 4096
+	local tlb 4096
+	call filepath tlp tln tla as tlr
+	ifz tlr
+		call filepath tlq tlm tlb as tlr
+	end
+	ifz tlr
+		sys tlrename tla tlb as tlr
+	end
+	ret tlr
+end
+
+# Remove what is at the path, a file or a directory with all it has; a
+# link is removed and not followed. 0, also if nothing was there, or the
+# error. The path with the names below it stays under 4096 bytes, or the
+# error is -36.
+fn tlremove tlp tln
+	local tlb 24
+	local tlc 24
+	call fileunlink tlp tln as tlr
+	if (tlr==0)|(tlr==-2)
+		ret 0
+	end
+	if tlr!=-21
+		ret tlr
+	end
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	store tlc 0
+	store tlc+8 0
+	store tlc+16 0
+	call filenames tlp tln tlb as tlk
+	ifslt tlk 0
+		call byfree tlb
+		ret tlk
+	end
+	tli=0
+	tlr=0
+	while tlk
+		load tlb as tlq
+		tlq+=tli
+		call strlen tlq as tlm
+		call bycut tlc 0
+		call byadd tlc tlp tln
+		call byaddb tlc 47
+		call byadd tlc tlq tlm as tlr
+		ifz tlr
+			tlr=-12
+			jmp out
+		end
+		tli+=tlm+1
+		load tlc as tlq
+		load tlc+8 as tlm
+		call tlremove tlq tlm as tlr
+		if tlr
+			jmp out
+		end
+		tlk-=1
+	end
+	call filermdir tlp tln as tlr
+	label out
+	call byfree tlb
+	call byfree tlc
+	ret tlr
+end

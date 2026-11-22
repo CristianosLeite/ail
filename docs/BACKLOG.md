@@ -789,3 +789,7 @@ it; `TODO.md` has what is decided and what is left.
   reads and checks both, orders versions and takes the lines of a
   dependency out of a text. AIL has its manifest and its first version,
   0.1.0.
+- [x] The command `ail`, `cli/ail.aiw` with `cli/tool.aiw`, built as
+  `build/ail`: `new`, `init`, `build`, `run`, `clean`, `version`, `help`;
+  it finds AIL from `AIL_HOME` or from the place of its executable.
+  `docs/cli.md`, `tests/cli.sh`.

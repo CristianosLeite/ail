@@ -3,7 +3,7 @@ B := build
 SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw compiler/pkg.aiw \
        compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw
 
-all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc
+all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc $(B)/ail
 
 # The seed: the released compiler that seed/MANIFEST pins, from a local
 # copy or fetched, refused unless its checksum is the manifest's.
@@ -48,6 +48,11 @@ $(B)/tools/indent: $(TL) tools/lib/dent.aiw
 $(B)/tools/fuse $(B)/tools/infix: $(TL) tools/lib/scan.aiw tools/lib/flow.aiw tools/lib/dent.aiw
 $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw
 
+# The command ail (docs/cli.md), compiled like a tool: cli/ail.aiw is the
+# source the recipe compiles and names the others with use.
+$(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw $(TL) lib/std/proc.aiw $(B)/ailc
+	$(call compile,$(B)/ailc)
+
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -72,7 +77,7 @@ $(B)/ailc2: $(SRC) $(B)/ailc
 test: all $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
-	AILC=$(B)/ailc tests/pkg.sh || f=1; \
+	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; \
 	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \

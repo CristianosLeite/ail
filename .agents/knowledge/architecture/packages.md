@@ -82,6 +82,27 @@ The rest is the open section of `docs/TODO.md`.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 
+## The command (agent, 2026-11-22; for the user to review)
+- **The command is written in AIL**, `cli/`, with the libraries of
+  `lib/std`, as the tools are; it is built by `make` and needs no seed of
+  its own.
+- **It finds AIL from its own place** (`/proc/self/exe`): `../lib/ail` in
+  an installation, `..` in a checkout, and `AIL_HOME` before both. So a
+  checkout works with no step of installation, which is how the tests
+  run it.
+- **Every build compiles every source.** No list of the files a source
+  reads is kept, since the compiler takes milliseconds; a build that is
+  wrong because a file was not seen to change cannot happen.
+- **`build` prints nothing when it is done**, as the compiler does; what
+  it has to say is an error.
+- **`run` puts the program in the place of the command** (`execve`), so
+  its status, its signals and its input and output are its own, and it
+  starts in the directory the user is in, not at the top of the package.
+- **`new` runs `git init` and does not mind if it fails**: a package is
+  not required to be a repository.
+- The statuses: 1 a source did not compile, 2 usage, 3 the manifest,
+  4 files and AIL not found.
+
 ## Not checked
 - More than 256 packages and a path of package and file above 4095 bytes
   are refused in the code and have no test.

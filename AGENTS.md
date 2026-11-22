@@ -26,7 +26,8 @@ Requires x86-64 Linux and the seed: a local `seed/ailc-<version>`, or `curl` or 
 ```
 make            # build build/ailc (from the seed) and every example in examples/
 make test       # run every test in tests/, the I/O checks of tests/io.sh and
-                # the packages of use (tests/pkg.sh),
+                # the packages of use (tests/pkg.sh) and the command ail
+                # (tests/cli.sh),
                 # check a failed example build (tests/make.sh), the form of the
                 # tables (tests/tables.sh), instruction bytes (tests/insn.sh) and
                 # emitted files (tests/bytes.sh), compare the compiler with its
@@ -58,7 +59,7 @@ build/tools/randvars build/ailc 2000 4 asyncs # with few waits, so that variable
 build/tools/randvars dump dir 5 1   # write the programs of a seed to dir/<n>.txt, compiling nothing
 ```
 
-The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A package has a manifest, `ail.pkg`, and AIL has its own, with its version (`docs/packages.md`); `cli/manifest.aiw` reads it, and `cli/` is where the command `ail` of `docs/TODO.md` is being written. A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
+The compiler reads source on stdin and writes the executable on stdout; its only arguments are `name=directory`, each a package whose files a source names as `use "name:path"` (`docs/language.md`, Packages; `tests/pkg.sh` with the sources under `tests/pkg/`). A package has a manifest, `ail.pkg`, and AIL has its own, with its version (`docs/packages.md`); `cli/manifest.aiw` reads it. The command `ail` (`docs/cli.md`) is `cli/ail.aiw`, the only file of it that prints and exits, with `cli/tool.aiw`; `make` builds it as `build/ail` and `tests/cli.sh` runs it on packages it makes. Its tests, its dependencies and an installation are the open items of `docs/TODO.md`. A `use "path"` in the source is opened relative to the directory the compiler runs in, so run it from the top of the repository for sources that use repository paths (the compiler's own source and the tests do):
 
 ```
 build/ailc < prog.aiw > prog && chmod +x prog
