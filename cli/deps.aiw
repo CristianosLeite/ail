@@ -516,6 +516,14 @@ fn dpresolve dpm
 	call byadd dplock "# The revisions of the dependencies, written by ail; keep it with the sources.\n"
 	load dplock+8 as dphead
 	call fileread "ail.lock" dpoldt as dphad
+	# no lock is one thing, a lock that cannot be read another: its
+	# revisions are not to be replaced by what the tags name now
+	ifslt dphad 0
+		if dphad!=-2
+			call dpfail 4 "cannot read ail.lock" "" ""
+			ret 0
+		end
+	end
 	load dpoldt as dpp
 	load dpoldt+8 as dpn
 	call mfread dpold dpp dpn 1 as dpe dpl

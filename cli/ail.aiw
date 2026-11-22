@@ -923,6 +923,19 @@ fn cmdfmt
 	end
 end
 
+# Read the lock into the buffer b, which loses what it had: 1, or 0 if
+# there is none. One that is there and cannot be read ends the command.
+fn readlock b
+	call bycut b 0
+	call fileread "ail.lock" b as r
+	ifsge r 0
+		ret 1
+	end
+	if r!=-2
+		call fail stio "cannot read ail.lock" ""
+	end
+	ret 0
+end
 # Note the manifest and the lock as they are, before a command changes
 # them: from here on a command that fails writes them back.
 fn keep
@@ -930,12 +943,7 @@ fn keep
 	load gtext as p
 	load gtext+8 as n
 	call byadd uman p n
-	call bycut ulock 0
-	call fileread "ail.lock" ulock as r
-	ulocked=0
-	ifsge r 0
-		ulocked=1
-	end
+	call readlock ulock as ulocked
 	undo=1
 end
 # write the bytes of the buffer b as the file at the path, whole or not
@@ -1004,6 +1012,8 @@ fn cmdadd
 		call usage
 	end
 	call project
+	# before anything is fetched: a lock that cannot be read ends it
+	call readlock xb
 	call bycut xdir 0
 	ifz path
 		call onevalue up un
@@ -1115,8 +1125,7 @@ fn cmdadd
 		if r
 			call fail stio "cannot write " q m
 		end
-		call bycut xb 0
-		call fileread "ail.lock" xb
+		call readlock xb
 		call bycut gtmp 0
 		load xb as q
 		load xb+8 as m
@@ -1197,8 +1206,7 @@ fn cmdupdate
 	load gtext as p
 	load gtext+8 as n
 	call byadd xa p n
-	call bycut xb 0
-	call fileread "ail.lock" xb
+	call readlock xb
 	call bycut gsaid 0
 	changed=0
 	call mfcount gman as k

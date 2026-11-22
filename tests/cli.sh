@@ -544,6 +544,19 @@ is cli_git_output_link 0 "added base 1.0.0" "" $ail add "$r/base" 1.0.0
 yes cli_git_output_link_target [ "$(cat "$tmp/precious")" = precious ]
 $ail remove base > /dev/null
 
+# a lock that is there and cannot be read is not taken for none: the
+# revisions it has are not replaced by what the tags name now
+$ail add "$r/base" 1.0.0 > /dev/null
+cp ail.pkg "$tmp/pkg" && cp ail.lock "$tmp/lock" && chmod 000 ail.lock
+is cli_lock_unreadable_build 4 "" "ail: cannot read ail.lock" $ail build
+is cli_lock_unreadable_update 4 "" "ail: cannot read ail.lock" $ail update
+is cli_lock_unreadable_add 4 "" "ail: cannot read ail.lock" $ail add "$r/mid"
+is cli_lock_unreadable_remove 4 "" "ail: cannot read ail.lock" $ail remove base
+chmod 600 ail.lock
+yes cli_lock_unreadable_fetched_nothing [ ! -e deps/.new ] && [ ! -e deps/mid ]
+yes cli_lock_unreadable_manifest cmp -s ail.pkg "$tmp/pkg" && yes cli_lock_unreadable_lock cmp -s ail.lock "$tmp/lock"
+$ail remove base > /dev/null
+
 # what is refused
 cp ail.pkg "$tmp/pkg"
 is cli_add_usage 2 "" "usage: ail COMMAND" $ail add
