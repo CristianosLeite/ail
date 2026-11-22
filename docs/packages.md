@@ -55,8 +55,10 @@ space, and none has a byte below 32 or the byte 127.
 - **The line `ail`** is met by an AIL that is not earlier than the
   version and has the same first number: `ail 0.1.5` is met by 0.1.5 and
   0.2.0, not by 0.1.4 or 1.0.0.
-- **A source** is a path inside the package, not one from the root and
-  without a colon. The names of `bin` and `testbin` are one set: each is
+- **A source** is a path inside the package: not one from the root,
+  without a colon, and with no `..` that leads above the top of the
+  package (`src/../a.aiw` is one, `../a.aiw` and `src/../../a.aiw` are
+  none). The names of `bin` and `testbin` are one set: each is
   the name of a file in `build/`.
 - **A dependency** is named once. The version of one is exact: the tag
   `v1.2.0`, and no later one is taken in its place.

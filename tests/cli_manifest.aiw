@@ -110,6 +110,11 @@ call show "name a\nversion 1.0.0\nail one\n" 0
 call show "name a\nversion 1.0.0\nbin a\n" 0
 call show "name a\nversion 1.0.0\nbin a /src/a.aiw\n" 0
 call show "name a\nversion 1.0.0\nbin a b:src/a.aiw\n" 0
+call show "name a\nversion 1.0.0\nbin a ../outside.aiw\n" 0
+call show "name a\nversion 1.0.0\ntestbin a src/../../outside.aiw\n" 0
+call print "# a source that goes back and stays inside\n"
+call show "name a\nversion 1.0.0\nbin a src/../a.aiw\nbin b ./src//b.aiw\nbin c ..a/b..aiw\n" 0
+call print "# a manifest that is refused, on\n"
 call show "name a\nversion 1.0.0\nbin a src/a.aiw\ntestbin a src/b.aiw\n" 0
 call show "name a\nversion 1.0.0\ndep b\n" 0
 call show "name a\nversion 1.0.0\ndep b 1.0.0 url more\n" 0

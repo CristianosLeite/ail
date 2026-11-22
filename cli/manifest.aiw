@@ -242,7 +242,10 @@ fn mfput mfd mfkind mfw mff mfk
 end
 
 # 1 if the mfn bytes at mfp are a path of a source in its package: not
-# empty, not from the root, and with no ":" in it
+# empty, not from the root, with no ":" in it, and never above the
+# directory it starts in when its parts are followed from the left, an
+# empty part and "." changing nothing, ".." going one step back and any
+# other part one step down
 fn mfsource mfp mfn
 	ifz mfn
 		ret 0
@@ -251,11 +254,36 @@ fn mfsource mfp mfn
 	if mfc==47
 		ret 0
 	end
+	# mfd = the steps down so far, mfs = where the part began
+	mfd=0
+	mfs=0
 	mfi=0
-	while mfi<mfn
-		loadb mfp+mfi as mfc
+	while mfi<=mfn
+		mfc=47
+		if mfi<mfn
+			loadb mfp+mfi as mfc
+		end
 		if mfc==58
 			ret 0
+		end
+		if mfc==47
+			mfl=mfi-mfs
+			loadb mfp+mfs as mfa
+			mfb=0
+			if mfl==2
+				loadb mfp+mfs+1 as mfb
+			end
+			if (mfl==2)&(mfa==46)&(mfb==46)
+				ifz mfd
+					ret 0
+				end
+				mfd-=1
+			else
+				if (mfl>1)|((mfl==1)&(mfa!=46))
+					mfd+=1
+				end
+			end
+			mfs=mfi+1
 		end
 		mfi+=1
 	end

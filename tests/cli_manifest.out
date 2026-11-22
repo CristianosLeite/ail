@@ -25,6 +25,14 @@ error 5 at line 3: a version that is not three numbers with dots between, as 1.2
 error 2 at line 3: a line with too few or too many values
 error 9 at line 3: a source that is no path inside the package
 error 9 at line 3: a source that is no path inside the package
+error 9 at line 3: a source that is no path inside the package
+error 9 at line 3: a source that is no path inside the package
+# a source that goes back and stays inside
+name [a] version [1.0.0] ail []
+1 [a] [src/../a.aiw] [] []
+1 [b] [./src//b.aiw] [] []
+1 [c] [..a/b..aiw] [] []
+# a manifest that is refused, on
 error 8 at line 4: a name that an earlier line has
 error 2 at line 3: a line with too few or too many values
 error 2 at line 3: a line with too few or too many values
