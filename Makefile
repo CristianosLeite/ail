@@ -3,7 +3,7 @@ B := build
 SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw compiler/pkg.aiw \
        compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw
 
-all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc $(B)/ail
+all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc $(B)/ail $(B)/tools/indent
 
 # The seed: the released compiler that seed/MANIFEST pins, from a local
 # copy or fetched, refused unless its checksum is the manifest's.
@@ -101,7 +101,7 @@ fuzz: $(B)/ailc
 PREFIX ?= /usr/local
 VERSION := $(shell sed -n 's/^version //p' ail.pkg)
 
-install: all $(B)/tools/indent
+install: all
 	tools/install.sh $(B) "$(DESTDIR)$(PREFIX)"
 
 # The same files as one file to pass on, for x86-64 Linux:
@@ -109,7 +109,7 @@ install: all $(B)/tools/indent
 # directory of that name with bin/ and lib/ in it.
 DIST := ail-$(VERSION)-x86_64-linux
 
-dist: all $(B)/tools/indent
+dist: all
 	rm -rf $(B)/$(DIST)
 	tools/install.sh $(B) $(B)/$(DIST)
 	tar -C $(B) --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -czf $(B)/$(DIST).tar.gz $(DIST)

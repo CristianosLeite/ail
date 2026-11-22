@@ -15,7 +15,8 @@ ail run
 prints `hello from hello`, and `ail test` runs the one test the package
 starts with.
 
-`make` builds the command as `build/ail`, from `cli/ail.aiw`, and
+`make` builds the command as `build/ail`, from `cli/ail.aiw`, with the
+compiler and the formatter it looks for in a checkout, and
 `make install` puts it where a shell finds it ([Installing](#installing));
 `tests/cli.sh` and `tests/install.sh` are its tests.
 
