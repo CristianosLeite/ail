@@ -217,9 +217,11 @@ call print "\n"
 END
 echo 1 > tests/slow.out
 $ail test slow > "$tmp/one" 2>&1 &
+other=$!
 is cli_test_two_runs 0 "ok   slow
 1 test, 0 failed" "" $ail test slow
-wait
+wait $other
+yes cli_test_two_runs_other_status [ $? -eq 0 ]
 yes cli_test_two_runs_other [ "$(cat "$tmp/one")" = "ok   slow
 1 test, 0 failed" ]
 rm tests/slow.*
