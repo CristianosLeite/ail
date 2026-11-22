@@ -1212,6 +1212,32 @@ call putn a+b
 - **Ownership**: the caller owns the 32 bytes and ends the map with `mapfree`; the number of keys is read at 16 of them.
 - **Names**: the library owns every name that starts with `map`; a program has no `var` of such a name.
 
+## The num library
+
+`lib/std/num.aiw` reads numbers from decimal text. There are no float literals and no other way from text to a double; this is it.
+
+| Function | Does |
+|---|---|
+| `numint p n` | the whole number in the `n` bytes at `p`, with an optional `-` before it, as a signed 64-bit value and 1; 0 and 0 for text that is no such number or one that does not fit |
+| `numdouble p n` | the double nearest to the number in the `n` bytes at `p` and 1; 0 and 0 for text that is no number |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/num.aiw"
+call numdouble "0.1" as x ok       # 0x3fb999999999999a
+call numdouble "2.5e3" as y ok
+fadd x y as z
+ftoi z as n
+call putn n                        # 2500
+```
+
+- **What `numdouble` takes**: an optional `+` or `-`, digits with at most one `.` among them, of which at least one is a digit, and an optional exponent of ten, `e` or `E` with an optional sign and at least one digit. This is every number of JSON and what C and most programs print, and a little more (`.5`, `5.`, `+7`). No blank, no `inf` or `nan`, no hexadecimal form; nothing may stand before or after the number, so a caller cuts the text first.
+- **Rounding**: the result is the binary64 nearest to the exact value of the text, however many digits it has, and of two that are as near the one whose last bit is 0, as `strtod` of C gives it under round to nearest. So a double that was printed with 17 digits, or with the shortest digits that name it, is read back as the same bits.
+- **Too large, too small**: a value above every double is an infinity and one below half of the smallest a zero, each with the sign of the text, and the second result is 1: these are values, not errors. `-0` is the zero with the sign.
+- **How**: a number of at most 15 digits with a power of ten up to 22 is one multiplication or division of exact doubles. Any other is computed roughly in doubles and then compared, as whole numbers of any length, with the middle between that double and its neighbour, and moved until none is nearer. The whole numbers, limbs of 32 bits, are in the frame of the function (about 5 KiB); nothing is allocated and nothing is kept between calls, so tasks may call it at once. Up to 768 digits are kept; more are counted as one digit that is not 0, which rounds the same.
+- **A binary32** is `f8to4` of the result, which rounds a second time. A text that names the double a binary32 widens to, as a program prints one from that double, gives that binary32.
+- **Names**: the library owns every name that starts with `num`; a program has no `var` of such a name.
+
 ## The algo library
 
 The files of `lib/algo/` are algorithms on 64-bit words that the caller keeps: sorts, a binary search, a hash table of a fixed size and two walks over a graph. They allocate nothing and return no error, since nothing can fail in them; the caller gives every array, also the ones to work in. The algorithm programs of `examples/` are callers of them. Each file is used by itself and has its own prefix.

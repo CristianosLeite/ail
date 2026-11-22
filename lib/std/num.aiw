@@ -1,0 +1,479 @@
+# lib/std/num.aiw -- numbers read from decimal text.
+#
+# numint reads a whole number with an optional "-" before it into 64
+# bits: its value and 1, or 0 and 0 for text that is no such number or
+# for one that does not fit a signed 64-bit integer.
+#
+# numdouble reads a number as JSON, C and most programs write one: an
+# optional "+" or "-", digits with at most one "." among them, of which
+# at least one is a digit, and an optional exponent of ten, "e" or "E",
+# an optional sign and at least one digit. Nothing may stand before or
+# after it: no blank, no "inf" or "nan", no hexadecimal form. The results
+# are the double and 1, or 0 and 0 for text that is no such number.
+#
+# The double is the IEEE 754 binary64 nearest to the exact value of the
+# text, whatever its number of digits, and of two that are as near the
+# one whose last bit is 0: what strtod of C returns under round to
+# nearest. A value too large for a double is an infinity and one too
+# small a zero, each with the sign of the text; these are results, not
+# errors. "-0" is the zero with the sign.
+#
+# How: a number of at most 15 digits and a power of ten up to 22 is one
+# multiplication or division of two exact doubles. Any other is first
+# computed roughly in doubles and then compared, as whole numbers of any
+# length, with the middle between that double and its neighbour, and
+# moved until the text is nearest to it. The whole numbers are limbs of
+# 32 bits in 64-bit cells, in the frame of numdouble; nothing is
+# allocated, and no state is kept between calls.
+#
+# Every variable and parameter of this file has a name that starts with
+# "num"; a program has no var of such a name (see lib/std/io.aiw).
+
+# the digits that are kept: more are one digit that says whether any of
+# them was not 0, which rounds the same
+const numkeep 768
+# the limbs of a whole number: 8192 bits, of which 4800 are reached
+const numlimbs 256
+
+# the value of the numn bytes at nump as a signed whole number and 1, or
+# 0 and 0
+fn numint nump numn
+	numi=0
+	numneg=0
+	if numn
+		loadb nump as numc
+		if numc==45
+			numneg=1
+			numi=1
+		end
+	end
+	if numi==numn
+		ret 0 0
+	end
+	numv=0
+	while numi<numn
+		loadb nump+numi as numc
+		numc-=48
+		if numc>9
+			ret 0 0
+		end
+		# 2^63 is the largest magnitude, for the negative number alone
+		if numv>(0x8000000000000000-numc)/10
+			ret 0 0
+		end
+		numv=numv*10+numc
+		numi+=1
+	end
+	if numneg
+		ret 0-numv 1
+	end
+	if numv>>63
+		ret 0 0
+	end
+	ret numv 1
+end
+
+# ten to the numk, a double that is exact for numk up to 22
+fn numten numk
+	numt=1
+	numj=numk
+	if numj>11
+		numj=11
+	end
+	numi=0
+	while numi<numj
+		numt*=10
+		numi+=1
+	end
+	itof numt as numx
+	if numk>11
+		numt=1
+		numi=11
+		while numi<numk
+			numt*=10
+			numi+=1
+		end
+		itof numt as numy
+		fmul numx numy as numx
+	end
+	ret numx
+end
+
+# the whole number of numn limbs at numa times numm, a number below
+# 2^32, plus numc, a number below 2^32: its limbs are at numa, and the
+# result is how many
+fn nummul numa numn numm numc
+	numi=0
+	while numi<numn
+		load numa+numi*8 as numv
+		numv=numv*numm+numc
+		store numa+numi*8 numv&0xffffffff
+		numc=numv>>32
+		numi+=1
+	end
+	if numc
+		store numa+numn*8 numc
+		numn+=1
+	end
+	ret numn
+end
+
+# the whole number of numn limbs at numa times five to the numk
+fn numfive numa numn numk
+	# 5^13 is the largest power below 2^32
+	while numk>=13
+		call nummul numa numn 1220703125 0 as numn
+		numk-=13
+	end
+	numm=1
+	while numk
+		numm*=5
+		numk-=1
+	end
+	call nummul numa numn numm 0 as numn
+	ret numn
+end
+
+# the whole number of numn limbs at numa times two to the nums: its
+# limbs are at numa, and the result is how many
+fn numshl numa numn nums
+	ifz numn
+		ret 0
+	end
+	numw=nums>>5
+	numb=nums&31
+	if numb
+		numc=0
+		numi=0
+		while numi<numn
+			load numa+numi*8 as numv
+			numv=numv<<numb|numc
+			store numa+numi*8 numv&0xffffffff
+			numc=numv>>32
+			numi+=1
+		end
+		if numc
+			store numa+numn*8 numc
+			numn+=1
+		end
+	end
+	if numw
+		numi=numn
+		while numi
+			numi-=1
+			load numa+numi*8 as numv
+			store numa+(numi+numw)*8 numv
+		end
+		numi=0
+		while numi<numw
+			store numa+numi*8 0
+			numi+=1
+		end
+		numn+=numw
+	end
+	ret numn
+end
+
+# 1 if the whole number of numn limbs at numa is above the one of numm
+# limbs at numq, 2 if it is below, 0 if they are the same; neither has a
+# limb of 0 at its top
+fn numcmp numa numn numq numm
+	if numn>numm
+		ret 1
+	end
+	if numn<numm
+		ret 2
+	end
+	numi=numn
+	while numi
+		numi-=1
+		load numa+numi*8 as numv
+		load numq+numi*8 as numw
+		if numv>numw
+			ret 1
+		end
+		if numv<numw
+			ret 2
+		end
+	end
+	ret 0
+end
+
+# Compare the text with a number numv times two to the nume, where nume
+# is that power plus 1075 and so not below 0: the whole number at numl,
+# of numln limbs, is the text times five to the numf and a power of two,
+# and the one made at numr is numv times those. The result is as numcmp
+# gives it, for the text against the number.
+fn numside numl numln numr numv numf nume
+	numn=0
+	if numv&0xffffffff
+		numn=1
+	end
+	if numv>>32
+		numn=2
+	end
+	store numr numv&0xffffffff
+	store numr+8 numv>>32
+	call numfive numr numn numf as numn
+	call numshl numr numn nume as numn
+	call numcmp numl numln numr numn as numc
+	ret numc
+end
+
+# the number that the bits numb of a double above or equal to 0 are, as
+# a whole number and the power of two it is times, plus 1075; an
+# infinity is 2^1024
+fn numparts numb
+	nume=numb>>52
+	numf=numb&0xfffffffffffff
+	ifz nume
+		ret numf 1
+	end
+	ret numf|0x10000000000000 nume
+end
+
+# the double that the numn bytes at nump say, and 1; or 0 and 0
+fn numdouble nump numn
+	local numdig 776
+	local numl 2048
+	local numr 2048
+	numi=0
+	numsign=0
+	if numn
+		loadb nump as numc
+		if (numc==45)|(numc==43)
+			numsign=numc==45
+			numi=1
+		end
+	end
+	# the digits, without the zeros before the first that is none; numx is
+	# what the power of ten changes by for where the digits stand
+	numnd=0
+	numx=0
+	numany=0
+	nummore=0
+	numdot=0
+	label digit
+	if numi<numn
+		loadb nump+numi as numc
+		if (numc==46)&(numdot==0)
+			numdot=1
+			numi+=1
+			jmp digit
+		end
+		numc-=48
+		if numc<10
+			numany=1
+			if (numnd==0)&(numc==0)
+				numx-=numdot
+			else
+				if numnd<numkeep
+					storeb numdig+numnd numc
+					numnd+=1
+					numx-=numdot
+				else
+					nummore|=numc
+					numx+=1-numdot
+				end
+			end
+			numi+=1
+			jmp digit
+		end
+	end
+	ifz numany
+		ret 0 0
+	end
+	# the exponent, which is cut where no double is reached any more
+	nume=0
+	numeneg=0
+	if numi<numn
+		loadb nump+numi as numc
+		if (numc!=101)&(numc!=69)
+			ret 0 0
+		end
+		numi+=1
+		if numi<numn
+			loadb nump+numi as numc
+			if (numc==45)|(numc==43)
+				numeneg=numc==45
+				numi+=1
+			end
+		end
+		if numi==numn
+			ret 0 0
+		end
+		while numi<numn
+			loadb nump+numi as numc
+			numc-=48
+			if numc>9
+				ret 0 0
+			end
+			if nume<100000
+				nume=nume*10+numc
+			end
+			numi+=1
+		end
+	end
+	if numeneg
+		numx-=nume
+	else
+		numx+=nume
+	end
+	numsign<<=63
+	ifz numnd
+		ret numsign 1
+	end
+	if nummore
+		# the digits that were not kept, as one that is not 0
+		storeb numdig+numnd 1
+		numnd+=1
+		numx-=1
+	else
+		# zeros at the end are a power of ten
+		label zero
+		loadb numdig+numnd-1 as numc
+		ifz numc
+			numnd-=1
+			numx+=1
+			jmp zero
+		end
+	end
+	# The text is below ten to the numnd+numx and not below a tenth of
+	# that: above every double, or below half of the smallest.
+	ifsgt numnd+numx 310
+		ret numsign|0x7ff0000000000000 1
+	end
+	ifslt numnd+numx 0-326
+		ret numsign 1
+	end
+	# the first digits, at most 18, as a whole number
+	numt=numnd
+	if numt>18
+		numt=18
+	end
+	numv=0
+	numi=0
+	while numi<numt
+		loadb numdig+numi as numc
+		numv=numv*10+numc
+		numi+=1
+	end
+	itof numv as numz
+	numk=numx+numnd-numt
+	if numnd<=15
+		# exact: a whole number below 2^53 and a power of ten that is a
+		# double, so one rounding
+		ifsge numk 0
+			ifsle numk 22
+				call numten numk as numy
+				fmul numz numy as numz
+				ret numz|numsign 1
+			end
+		else
+			ifsge numk 0-22
+				call numten 0-numk as numy
+				fdiv numz numy as numz
+				ret numz|numsign 1
+			end
+		end
+	end
+	# roughly: a few roundings, which the comparison below puts right
+	label up
+	ifsgt numk 0
+		numj=numk
+		if numj>22
+			numj=22
+		end
+		call numten numj as numy
+		fmul numz numy as numz
+		numk-=numj
+		jmp up
+	end
+	label down
+	ifslt numk 0
+		numj=0-numk
+		if numj>22
+			numj=22
+		end
+		call numten numj as numy
+		fdiv numz numy as numz
+		numk+=numj
+		jmp down
+	end
+	# The text as a whole number: its digits, times five to the power of
+	# ten if that is above 0, times two to that power plus 1075 and, if
+	# that is below 0, to what makes it 0, which numsh is. The double it
+	# is compared with is then times five to the power below 0, numf.
+	numln=0
+	numi=0
+	while numi<numnd
+		# nine digits at a time
+		numv=0
+		numm=1
+		numj=0
+		while (numj<9)&(numi<numnd)
+			loadb numdig+numi as numc
+			numv=numv*10+numc
+			numm*=10
+			numi+=1
+			numj+=1
+		end
+		call nummul numl numln numm numv as numln
+	end
+	numf=0
+	numsh=0
+	ifsge numx 0
+		call numfive numl numln numx as numln
+		call numshl numl numln numx+1075 as numln
+	else
+		numf=0-numx
+		ifsge numx+1075 0
+			call numshl numl numln numx+1075 as numln
+		else
+			numsh=0-numx-1075
+		end
+	end
+	# numz is moved to the double nearest to the text: while the text is
+	# not it, the middle between it and its neighbour on the side of the
+	# text says which of the two is nearer, and the search goes on from
+	# the neighbour if that is the one. The bits of doubles above 0 are
+	# in the order of the doubles, and those of the infinity come last.
+	label near
+	call numparts numz as numv nume
+	call numside numl numln numr numv numf nume+numsh as numc
+	ifz numc
+		ret numz|numsign 1
+	end
+	if (numc==1)&(numz>=0x7ff0000000000000)
+		# above two to the 1024: no double is nearer than the infinity
+		ret numsign|0x7ff0000000000000 1
+	end
+	# numlo and numhi: the two doubles the text is between
+	numlo=numz
+	if numc==2
+		numlo=numz-1
+	end
+	numhi=numlo+1
+	# the middle is half the sum, so the sum times half the unit
+	call numparts numlo as numv nume
+	call numparts numhi as numw numj
+	numv+=numw<<(numj-nume)
+	call numside numl numln numr numv numf nume+numsh-1 as numd
+	ifz numd
+		# as near to both: the one whose last bit is 0
+		ret numlo+(numlo&1)|numsign 1
+	end
+	if numc==1
+		# above numz: nearer to it if below the middle
+		if numd==2
+			ret numz|numsign 1
+		end
+		numz=numhi
+	else
+		if numd==1
+			ret numz|numsign 1
+		end
+		numz=numlo
+	end
+	jmp near
+end

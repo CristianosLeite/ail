@@ -817,3 +817,17 @@ it; `TODO.md` has what is decided and what is left.
   paths, links not followed by `ail fmt`, one run of `ail test` at a
   time, one directory under two paths, a package called `ail`, and the
   tests that lost the status of what they ran.
+
+## Text formats and the network
+
+What a program needs to talk to another one: numbers and JSON read from
+text, and HTTP over the sockets of `lib/async/io.aiw` (user, 2026-11-22,
+for the MCP server of aildb: these are libraries of AIL, not of the
+program that first needs them).
+
+- [x] `lib/std/num.aiw`: `numint`, and `numdouble`, a decimal text as the
+  nearest binary64, a tie to even, for any number of digits. Compared
+  with `float` of Python on 303,627 texts made for it (doubles printed
+  with their shortest digits and with 17 and 25, the exact middles of
+  neighbours with a digit more and less, long runs of digits, every
+  exponent up to the edges): no difference. `tests/lib_num_*`.

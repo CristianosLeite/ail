@@ -1,0 +1,38 @@
+# numint reads a whole number with an optional "-" into a signed 64-bit
+# value, up to the two ends of that range and not beyond, and refuses
+# what is no such number
+use "lib/std/io.aiw"
+use "lib/std/num.aiw"
+fn show p n
+	call print "["
+	call print p n
+	call print "] "
+	call numint p n as v ok
+	ifz ok
+		call print "no number\n"
+	else
+		ifslt v 0
+			call print "-"
+			v=0-v
+		end
+		call putn v
+		call print "\n"
+	end
+end
+
+call show "0"
+call show "7"
+call show "-7"
+call show "9223372036854775807"
+call show "9223372036854775808"
+call show "-9223372036854775808"
+call show "-9223372036854775809"
+call show "18446744073709551616"
+call show "-0"
+call show "00012"
+call show ""
+call show "-"
+call show "+1"
+call show "1.0"
+call show "12a"
+call show " 1"
