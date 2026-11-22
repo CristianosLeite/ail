@@ -810,3 +810,10 @@ it; `TODO.md` has what is decided and what is left.
 - [x] A test finds the directory of AIL in `AIL_HOME`, which `ail test`
   sets beside `AIL_TMP`: aildb has a test that reads the licence of the
   AIL it is built with.
+- [x] The 30 findings of the review of the pull requests 17 to 24, each
+  fixed in its commit on the branch `packages-review`: what is not there
+  against what cannot be read, files made anew and written whole, the
+  manifest and the lock put back on any failure, names that are no
+  paths, links not followed by `ail fmt`, one run of `ail test` at a
+  time, one directory under two paths, a package called `ail`, and the
+  tests that lost the status of what they ran.

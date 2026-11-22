@@ -157,6 +157,33 @@ The rest is the open section of `docs/TODO.md`.
 - The seed and its manifest are no part of an installation: they build
   the compiler, which is installed as it was built.
 
+## After the review of the pull requests 17 to 24 (agent, 2026-11-22)
+The automatic review of GitHub left 30 findings on the seven pull requests; each was
+checked against the code and fixed in a commit of its own on the branch
+`packages-review`, with a test where one could be written. What they decided:
+- **"Not there" is one answer of the kernel, `ENOENT`, and no other.** A manifest, a
+  lock, a file of a test or a directory that is there and cannot be read is an error,
+  never the same as none: the search for a package does not go past it, a lock is not
+  written again from the tags, a test does not pass on an expectation it never read.
+- **A file the command writes is made anew or written whole.** The file a source is
+  compiled into, the one git's words are kept in and the files of `ail init` are opened
+  so that they are created or the open fails, never through a link; a manifest and a
+  lock are written beside themselves and renamed.
+- **Putting the manifest and the lock back is done where the command fails** (`fail`),
+  so it holds for every failure after the first change, not for the one that was thought
+  of.
+- **A name from the command line is not a path**: a test name has no `/`, an address or
+  a directory is one value of a manifest line.
+- **`ail fmt` follows no link**, and stops at a directory it cannot read.
+- **One run of `ail test` at a time in a package**, by a lock on `build/tests/.lock`;
+  the executable of a test is `<name>.exe`, and the compiler of a test has its deadline.
+- **Two paths of one directory are one package**, compared by what the kernel names the
+  directory.
+- **A package called `ail`** is built with the library as `ail` and without itself
+  under that name.
+- **The command keeps the descriptors 0 to 2 open**, so no file it opens is taken by a
+  program it starts for its input or output.
+
 ## Not checked
 - No test fetches from a network; `tests/cli.sh` uses repositories on
   disk, by their paths.
@@ -164,5 +191,7 @@ The rest is the open section of `docs/TODO.md`.
   its `.git/HEAD` is the locked revision.
 - `ail test` kills a test that runs too long, but not the children that
   test started, where `tests/run.sh` kills the whole process group.
+- That the file a source is compiled into is not opened through a link has
+  no test: its name has the number of the process in it.
 - More than 256 packages and a path of package and file above 4095 bytes
   are refused in the code and have no test.
