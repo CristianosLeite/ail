@@ -21,12 +21,13 @@ cd tests/pkg/app || exit 1
 fail=0
 
 # runs <name> <source> <output> [argument...]: the source compiles with
-# the arguments and the program prints the output
+# the arguments, and the program prints the output and ends with status 0
 runs() {
     name=$1 src=$2 want=$3
     shift 3
     if $ailc "$@" < "$src" > "$tmp/prog" 2> "$tmp/err" && [ ! -s "$tmp/err" ] &&
-        chmod +x "$tmp/prog" && [ "$(timeout --signal=KILL 10 "$tmp/prog")" = "$want" ]
+        chmod +x "$tmp/prog" && timeout --signal=KILL 10 "$tmp/prog" > "$tmp/got" &&
+        [ "$(cat "$tmp/got")" = "$want" ]
     then echo "ok   $name"
     else echo "FAIL $name"; fail=1
     fi
