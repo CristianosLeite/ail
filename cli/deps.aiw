@@ -575,7 +575,7 @@ fn dpresolve dpm
 	load dpoldt+8 as dpm
 	call mfeq dpp dpn dpq dpm as dpr
 	ifz dpr
-		call filewrite "ail.lock" dpp dpn as dpr
+		call tlwrite "ail.lock" dpp dpn as dpr
 		if dpr
 			call dpfail 4 "cannot write ail.lock" "" ""
 			ret 0

@@ -579,6 +579,14 @@ sed -i 's|^dep shared .*|dep shared ../elsewhere/shared|' ail.pkg
 is cli_path_other_directory 3 "" "ail: the package shared is asked for twice, and not as the same version or directory" $ail build
 sed -i '/^dep /d' ail.pkg
 
+# a build that has to write the lock and cannot leaves the lock whole:
+# the manifest asks for another version than the lock has
+$ail add "$r/base" 1.0.0 > /dev/null
+cp ail.lock "$tmp/lock" && sed -i 's|^dep base 1.0.0|dep base 1.1.0|' ail.pkg && mkdir ail.lock.new
+is cli_build_lock_unwritable 4 "" "ail: cannot write ail.lock" $ail build
+yes cli_build_lock_unwritable_whole cmp -s ail.lock "$tmp/lock"
+rmdir ail.lock.new && $ail remove base > /dev/null
+
 # a manifest written by hand, with no lock, is enough
 printf 'dep base 1.1.0 %s\n' "$r/base" >> ail.pkg
 printf 'use "lib/std/io.aiw"\nuse "base:src/lib/hi.aiw"\ncall basehi\n' > src/main.aiw
