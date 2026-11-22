@@ -1654,6 +1654,62 @@ await s
 - While the first of several is awaited no other task awaits one of its handles. A handle of 0 counts as done. If several are done, the lowest index is the result. Cancelling it leaves the handles as they are.
 - **The costs**: a channel is 72 bytes and 8 for each value it can hold; a send or receive is an event of 128 bytes, also when it is done at once.
 
+## The HTTP library
+
+`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it.
+
+| Function | Does |
+|---|---|
+| `httpcall q b` | an async function: sends the request of the 128 bytes at `q` and reads the response into the bytes buffer `b`; its result is the status, or a negative error |
+| `httpfield p n q m` | the value of the header line of the name `q m` in the head `p n`, whatever the case of the name and without the blanks around it: address and length, or 0 and 0 |
+| `httphead p n` | the length of the head at the start of the bytes, with the empty line that ends it; 0 if that line is not there |
+| `httpstatus p n` | the status of the response with this head, or 0 |
+| `httpurl p n` | reads `http://` an IPv4 address or `localhost`, a port or not, a path or not: the address as a number, the port (80), the address and length of the path, and 1; or zeros and 0 |
+| `httpip p n` | reads an IPv4 address written with dots, or `localhost`: the number and 1, or 0 and 0 |
+| `httpbody fd b ms max eof`, `httpmore fd b ms` | async functions that read the body after a head, and more bytes, into a bytes buffer |
+
+The request is 128 bytes that the caller owns, all zero to start with:
+
+| At | Is |
+|---:|---|
+| 0, 8 | the IPv4 address of the server, a number, and the port |
+| 16 | the method, address and length; `GET` if the length is 0 |
+| 32 | the target, address and length; `/` if the length is 0 |
+| 48 | the body, address and length |
+| 64 | the content type of the body, address and length; no line is sent if the length is 0 |
+| 80 | the name for the line `Host`, address and length; the address and the port if the length is 0 |
+| 96 | the milliseconds that the connect, the write and each read may take; 0 for no limit |
+| 104 | the most bytes a response may have; 0 for 64 MiB |
+| 112 | written by `httpcall`: the length of the head of the response |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+buf q 128
+buf b 24
+call httpurl "http://127.0.0.1:11434/api/tags" as ip port p n ok
+store q ip
+store q+8 port
+store q+32 p
+store q+40 n
+store q+96 5000
+await httpcall q b as status        # 200, or below 0
+load b as x
+load b+8 as len
+load q+112 as h
+call print x+h len-h                # the body
+```
+
+- **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
+- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB or a response above the limit, -12 without memory.
+- **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
+- **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
+- **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
+
 ## Comments
 
 `#` starts a comment that runs to the end of the line, either on its own line or after a statement. A `#` inside a string is part of the string. A comment may hold any byte except a CR that is not followed by LF, and it may end the source without a line end.

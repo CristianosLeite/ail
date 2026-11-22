@@ -1,0 +1,29 @@
+the head is 118 of 130 bytes; of the first 30 bytes it is 0, of one byte less than the head 0
+the status is 404, of HTTP/2 0, of HTTP/1.0 without a reason 200, of 20x 0
+Content-Type [text/plain]
+CONTENT-LENGTH [12]
+x-empty []
+X-Two [a]
+HTTP/1.1 404 Not Found none
+No colon here none
+Content none
+Absent none
+127.0.0.1 127 0 0 1
+localhost 127 0 0 1
+255.255.255.255 255 255 255 255
+256.1.1.1 no address
+1.2.3 no address
+1.2.3.4.5 no address
+1..3.4 no address
+a.b.c.d no address
+ no address
+http://127.0.0.1:11434 -> 2130706433 port 11434 path []
+http://127.0.0.1:11434/api/embed -> 2130706433 port 11434 path [/api/embed]
+http://localhost/x?y=1 -> 2130706433 port 80 path [/x?y=1]
+http://10.0.0.7 -> 167772167 port 80 path []
+https://127.0.0.1/ -> no address
+http://example.com/ -> no address
+http://127.0.0.1:0/ -> no address
+http://127.0.0.1:65536/ -> no address
+http://127.0.0.1:x/ -> no address
+http:// -> no address

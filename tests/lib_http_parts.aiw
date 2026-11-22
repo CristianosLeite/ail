@@ -1,0 +1,105 @@
+# the parts of a message: where a head ends, the value of a header line
+# whatever the case of its name and without the blanks around it, the
+# status of a response, an IPv4 address and an address with "http://"
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+data msg "HTTP/1.1 404 Not Found\x0d\nContent-Type:  text/plain \x0d\ncontent-length:12\x0d\nX-Empty:\x0d\nX-Two: a\x0d\nx-two: b\x0d\nNo colon here\x0d\n\x0d\nhello world!"
+fn field p n q m
+	call httpfield p n q m as v vn
+	call print q m
+	if v
+		call print " ["
+		call print v vn
+		call print "]\n"
+	else
+		call print " none\n"
+	end
+end
+fn ip p n
+	call httpip p n as a ok
+	call print p n
+	call print " "
+	if ok
+		call putn a>>24
+		call print " "
+		call putn a>>16&255
+		call print " "
+		call putn a>>8&255
+		call print " "
+		call putn a&255
+		call print "\n"
+	else
+		call print "no address\n"
+	end
+end
+fn url p n
+	call httpurl p n as a port q m ok
+	call print p n
+	if ok
+		call print " -> "
+		call putn a
+		call print " port "
+		call putn port
+		call print " path ["
+		call print q m
+		call print "]\n"
+	else
+		call print " -> no address\n"
+	end
+end
+len msg as n
+call httphead msg n as h
+call print "the head is "
+call putn h
+call print " of "
+call putn n
+call print " bytes; of the first 30 bytes it is "
+call httphead msg 30 as x
+call putn x
+call httphead msg h-1 as x
+call print ", of one byte less than the head "
+call putn x
+call httpstatus msg h as st
+call print "\nthe status is "
+call putn st
+call httpstatus "HTTP/2 200 OK\x0d\n\x0d\n" as st
+call print ", of HTTP/2 "
+call putn st
+call httpstatus "HTTP/1.0 200\x0d\n\x0d\n" as st
+call print ", of HTTP/1.0 without a reason "
+call putn st
+call httpstatus "HTTP/1.1 20x OK\x0d\n\x0d\n" as st
+call print ", of 20x "
+call putn st
+call print "\n"
+call field msg h "Content-Type"
+call field msg h "CONTENT-LENGTH"
+call field msg h "x-empty"
+call field msg h "X-Two"
+call field msg h "HTTP/1.1 404 Not Found"
+call field msg h "No colon here"
+call field msg h "Content"
+call field msg h "Absent"
+call ip "127.0.0.1"
+call ip "localhost"
+call ip "255.255.255.255"
+call ip "256.1.1.1"
+call ip "1.2.3"
+call ip "1.2.3.4.5"
+call ip "1..3.4"
+call ip "a.b.c.d"
+call ip ""
+call url "http://127.0.0.1:11434"
+call url "http://127.0.0.1:11434/api/embed"
+call url "http://localhost/x?y=1"
+call url "http://10.0.0.7"
+call url "https://127.0.0.1/"
+call url "http://example.com/"
+call url "http://127.0.0.1:0/"
+call url "http://127.0.0.1:65536/"
+call url "http://127.0.0.1:x/"
+call url "http://"

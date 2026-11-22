@@ -839,3 +839,10 @@ program that first needs them).
   `json` module of Python on 80,066 texts, values it wrote and those with
   a byte removed, changed or added, and on 30,005 values walked and
   written again: no difference. `tests/lib_json_*`.
+- [x] `lib/net/http.aiw`: an HTTP/1.1 client on the sockets of
+  `lib/async/io.aiw`. `httpcall` sends a request of 128 bytes that the
+  caller owns and reads the response, a body by its length, in chunks or
+  up to the end of the connection, with a limit of time for each step
+  and of bytes; `httpfield`, `httphead`, `httpstatus`, `httpip` and
+  `httpurl` take a message and an address apart. One connection a
+  request, no TLS, no names. `tests/lib_http_*`.
