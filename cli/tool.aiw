@@ -13,6 +13,7 @@ const tlgetcwd 79
 const tlchdir 80
 const tlrename 82
 const tlreadlink 89
+const tlfchmod 91
 
 buf tlhome 24       # the directory of AIL, as tlfind found it
 buf tlailc 24       # the path of its compiler, with a NUL byte

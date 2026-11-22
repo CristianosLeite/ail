@@ -139,18 +139,23 @@ fn deps
 end
 
 # Run the compiler on the source at the path of sn bytes at sp, with the
-# file at the path of tn bytes at tp as its output, made anew and to be
-# run, and err as its stderr, -1 for that of this process: the status of
+# file at the path of tn bytes at tp as its output, made anew, never
+# through a link, and to be run, and err as its stderr, -1 for that of this process: the status of
 # the compiler, 0 if the source compiled and 1 if it was refused.
 fn cc sp sn tp tn err
 	call fileopen sp sn 0 0 as in
 	ifslt in 0
 		call fail stio "cannot read " sp sn
 	end
-	call fileopen tp tn 0x241 493 as out
+	# a file of its own: what has that name is removed, a link as a link,
+	# and the file is made anew or not at all, and is to be run whatever
+	# the mask of the user takes from a new file
+	call fileunlink tp tn
+	call fileopen tp tn 0x200c1 493 as out
 	ifslt out 0
 		call fail stio "cannot write " tp tn
 	end
+	sys tlfchmod out 493
 	# the compiler, the library of AIL as the package ail, and every
 	# package that deps found, this one included
 	call bycut gargs 0

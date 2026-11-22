@@ -73,6 +73,10 @@ is cli_run_named 0 "hello from demo" "" $ail run demo
 is cli_run_unknown 3 "" "ail: ail.pkg has no executable other" $ail run other
 is cli_run_two_names 2 "" "usage: ail COMMAND" $ail run demo other
 is cli_build_unknown 3 "" "ail: ail.pkg has no executable other" $ail build other
+# an executable can be run whatever mask the user has for new files
+is cli_build_mask 0 "" "" sh -c "umask 0177; $ail build"
+yes cli_build_mask_executable [ -x build/demo ]
+is cli_run_mask 0 "hello from demo" "" sh -c "umask 0177; $ail run"
 # with its input closed, and its output: the files it opens do not take
 # their numbers
 $ail clean
