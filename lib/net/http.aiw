@@ -185,19 +185,21 @@ fn httpnum httpp httpn
 end
 
 # the status of the response whose head is the httpn bytes at httpp, 100
-# to 999, or 0 if the first line is not "HTTP/1." a digit, a space and
-# three digits
+# to 999, or 0 if the first line does not start with "HTTP/1.", a digit,
+# a space and three digits that a space or the end of the line follows
 fn httpstatus httpp httpn
-	if httpn<12
+	if httpn<14
 		ret 0
 	end
 	call httpsame httpp 7 "HTTP/1." as httpr
+	loadb httpp+7 as httpd
 	loadb httpp+8 as httpc
-	ifz httpr&(httpc==32)
+	ifz httpr&(httpc==32)&(httpd-48<10)
 		ret 0
 	end
 	call httpnum httpp+9 3 as httpv httpr
-	if (httpr==0)|(httpv<100)
+	loadb httpp+12 as httpc
+	if (httpr==0)|(httpv<100)|((httpc!=32)&(httpc!=13))
 		ret 0
 	end
 	ret httpv
@@ -304,6 +306,32 @@ fn httpurl httpp httpn
 	ret httpa httpport httpp+httpi httpn-httpi 1
 end
 
+# The result of the event or task httph, awaited for httpms milliseconds
+# at most (0: without a limit): its result, -62 after the time, or -12
+# if httph is 0, an operation that could not be made, or the limit could
+# not be made, in which case the operation is cancelled first and, had
+# it ended already, its result is the one returned.
+async fn httpwait httph httpms
+	ifz httph
+		ret 0-12
+	end
+	ifz httpms
+		await httph as httpr
+		ret httpr
+	end
+	call asynctimeout httph httpms as httpg
+	ifz httpg
+		call asynccancel httph as httpc
+		await httph as httpr
+		ifz httpc
+			ret httpr
+		end
+		ret 0-12
+	end
+	await httpg as httpr
+	ret httpr
+end
+
 # Read from the descriptor httpfd and add what comes to the bytes buffer
 # httpb, waiting httpms milliseconds at most (0: without a limit): the
 # number of bytes added, 0 at the end of what there is to read, or the
@@ -316,14 +344,27 @@ async fn httpmore httpfd httpb httpms
 	load httpb as httpp
 	load httpb+8 as httpn
 	call asyncread httpfd httpp+httpn 16384 as httph
-	if httpms
-		call asynctimeout httph httpms as httph
-	end
-	await httph as httpr
+	await httpwait httph httpms as httpr
 	ifsgt httpr 0
 		store httpb+8 httpn+httpr
 	end
 	ret httpr
+end
+
+# Move the bytes of the buffer httpb from the offset httpq on down to
+# the offset httpw, the lowest first, and cut the buffer after them:
+# what was read of a body in chunks and is not yet taken, put after the
+# body so far, so that the lines between the chunks take no room.
+fn httppack httpb httpw httpq
+	load httpb as httpp
+	load httpb+8 as httpn
+	httpi=httpq
+	while httpi<httpn
+		loadb httpp+httpi as httpc
+		storeb httpp+httpw+httpi-httpq httpc
+		httpi+=1
+	end
+	store httpb+8 httpw+httpn-httpq
 end
 
 # Read the body of the message whose head stands at the start of the
@@ -341,33 +382,49 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 	call httpfield httpp httph "transfer-encoding" as httpa httpl
 	call httpsame httpa httpl "chunked" as httpr
 	if httpr
-		# httpw is where the body ends so far and httpq where the next
-		# chunk starts; both are offsets, since the bytes may move
+		# httpw is where the body ends so far and httpq where what is
+		# not yet taken starts; both are offsets, since the bytes may
+		# move. Before more is read, what is not taken is moved down to
+		# the body, so the buffer is the head, the body and at most one
+		# line or chunk that is not whole.
 		httpw=httph
 		httpq=httph
 		label chunk
-		# the line with the size, in hexadecimal, up to a ";" at most
+		# the line with the size: hexadecimal digits, at least one, and
+		# after them nothing or a ";" and anything
 		load httpb as httpp
 		load httpb+8 as httpn
 		httpi=httpq
 		httpv=0
 		httpk=0
+		httpj=0
 		label size
 		if httpi+1<httpn
 			load2 httpp+httpi as httpc
 			if httpc!=0x0a0d
 				loadb httpp+httpi as httpc
-				if (httpk==0)&(httpc!=59)
+				ifz httpk
 					httpd=httpc-48
 					if httpd>9
 						httpd=(httpc|32)-87
-						if (httpd<10)|(httpd>15)|(httpv>>40!=0)
-							ret 0-71
+						if (httpd<10)|(httpd>15)
+							httpd=16
 						end
 					end
-					httpv=httpv<<4|httpd
-				else
-					httpk=1
+					if httpd<16
+						# a size that the next digit would take past
+						# 2^44 is one no body may have
+						if httpv>>40
+							ret 0-90
+						end
+						httpv=httpv<<4|httpd
+						httpj+=1
+					else
+						if (httpc!=59)|(httpj==0)
+							ret 0-71
+						end
+						httpk=1
+					end
 				end
 				httpi+=1
 				jmp size
@@ -376,6 +433,8 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 			if httpn>httpmax
 				ret 0-90
 			end
+			call httppack httpb httpw httpq
+			httpq=httpw
 			await httpmore httpfd httpb httpms as httpr
 			ifsle httpr 0
 				ifz httpr
@@ -385,7 +444,7 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 			end
 			jmp chunk
 		end
-		if httpi==httpq
+		ifz httpj
 			ret 0-71
 		end
 		httpq=httpi+2
@@ -412,6 +471,8 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 			if httpn>httpmax
 				ret 0-90
 			end
+			call httppack httpb httpw httpq
+			httpq=httpw
 			await httpmore httpfd httpb httpms as httpr
 			ifsle httpr 0
 				ifz httpr
@@ -428,6 +489,8 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 		label data
 		load httpb+8 as httpn
 		if httpn<httpq+httpv+2
+			call httppack httpb httpw httpq
+			httpq=httpw
 			await httpmore httpfd httpb httpms as httpr
 			ifsle httpr 0
 				ifz httpr
@@ -443,11 +506,13 @@ async fn httpbody httpfd httpb httpms httpmax httpeof
 			ret 0-71
 		end
 		# moved down to the end of the body, the lowest byte first
-		httpi=0
-		while httpi<httpv
-			loadb httpp+httpq+httpi as httpc
-			storeb httpp+httpw+httpi httpc
-			httpi+=1
+		if httpq!=httpw
+			httpi=0
+			while httpi<httpv
+				loadb httpp+httpq+httpi as httpc
+				storeb httpp+httpw+httpi httpc
+				httpi+=1
+			end
 		end
 		httpw+=httpv
 		httpq+=httpv+2
@@ -505,10 +570,25 @@ async fn httpcall httpq httpb
 	end
 	store httpq+112 0
 	call bycut httpb 0
-	# the request, in a buffer of its own
+	# The request, in a buffer of its own. Room for all of it is asked
+	# for first, so that no part of it can be left out for want of
+	# memory while a later, smaller part is added.
 	store httpw 0
 	store httpw+8 0
 	store httpw+16 0
+	load httpq+24 as httpn
+	load httpq+40 as httpl
+	httpn+=httpl
+	load httpq+56 as httpl
+	httpn+=httpl
+	load httpq+72 as httpl
+	httpn+=httpl
+	load httpq+88 as httpl
+	httpn+=httpl
+	call byneed httpw httpn+256 as httpok
+	ifz httpok
+		ret 0-12
+	end
 	load httpq+16 as httpp
 	load httpq+24 as httpn
 	ifz httpn
@@ -565,18 +645,11 @@ async fn httpcall httpq httpb
 		call byadd httpw "\x0d\n"
 	end
 	call byadd httpw "\x0d\n"
-	call byadd httpw httpp httpn as httpok
-	ifz httpok
-		call byfree httpw
-		ret 0-12
-	end
+	call byadd httpw httpp httpn
 	load httpq as httpa
 	load httpq+8 as httpl
 	call asyncconnect httpa httpl as httph
-	if httpms
-		call asynctimeout httph httpms as httph
-	end
-	await httph as httpfd
+	await httpwait httph httpms as httpfd
 	ifslt httpfd 0
 		call byfree httpw
 		ret httpfd
@@ -584,10 +657,7 @@ async fn httpcall httpq httpb
 	load httpw as httpp
 	load httpw+8 as httpn
 	call asyncwriteall httpfd httpp httpn as httph
-	if httpms
-		call asynctimeout httph httpms as httph
-	end
-	await httph as httpr
+	await httpwait httph httpms as httpr
 	call byfree httpw
 	ifslt httpr 0
 		call asyncclose httpfd
@@ -599,7 +669,7 @@ async fn httpcall httpq httpb
 	load httpb+8 as httpn
 	call httphead httpp httpn as httph
 	ifz httph
-		if httpn>httpheadmax
+		if (httpn>httpheadmax)|(httpn>httpmax)
 			call asyncclose httpfd
 			ret 0-90
 		end
@@ -612,6 +682,11 @@ async fn httpcall httpq httpb
 			ret httpr
 		end
 		jmp head
+	end
+	# a head that is whole is held to the same two limits
+	if (httph>httpheadmax)|(httph>httpmax)
+		call asyncclose httpfd
+		ret 0-90
 	end
 	call httpstatus httpp httph as httpv
 	ifz httpv

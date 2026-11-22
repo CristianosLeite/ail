@@ -66,6 +66,47 @@ Content-Length: 0
 Connection: close
 
 
+# a head above 64 KiB that ends
+HTTP/1.1 431 Request Header Fields Too Large
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# an empty line and nothing else
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a version that is no digit
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# something after the version
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+Content-Length: 0
+Connection: close
+
+
+# a 204 of the handler, which had added bytes
+HTTP/1.1 204 No Content
+Content-Type: text/plain
+Connection: close
+
+
+# a 304 of the handler
+HTTP/1.1 304 Not Modified
+Content-Type: text/plain
+Content-Length: 49
+Connection: close
+
+
 # a connection that ends in the head: nothing
 
 the server ended with -125

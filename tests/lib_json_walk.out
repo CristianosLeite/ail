@@ -21,3 +21,4 @@ null
 true
 object whose x is false
 jsonget of an array has the kind 0
+jsoneq: 1 0 0 0 1 0 1 0 1 1

@@ -4,6 +4,7 @@
 # largest double, texts of hundreds of digits, and texts that are no
 # number. Each line is the text, or how long it is, and the bits.
 use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
 use "lib/std/num.aiw"
 buf hex 16
 fn show p n
@@ -95,3 +96,23 @@ call show "inf"
 call show "nan"
 call show "1e5x"
 call show "1,5"
+# an exponent that the zeros of the text make up for: 0.000...01e150001
+# and 1000...0e-150000, 150,000 zeros each, are both 1
+buf long 150020
+storeb long 48
+storeb long+1 46
+i=0
+while i<150000
+	storeb long+2+i 48
+	i+=1
+end
+call bycopy long+150002 "1e150001"
+call show long 150010
+storeb long 49
+i=0
+while i<150000
+	storeb long+1+i 48
+	i+=1
+end
+call bycopy long+150001 "e-150000"
+call show long 150009

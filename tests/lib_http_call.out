@@ -10,7 +10,7 @@ Content-Length: 7
 {"k":1}
 # a GET, with the address as the name of the server
 status 200, a head of 38 bytes, body []
-it starts with the line GET, and Host with the address: 0
+it starts with the line GET, and Host with the address: 1
 # a body in chunks, with an extension and a line after the last
 status 200, a head of 47 bytes, body [hello wide world]
 # a body up to the end of the connection
@@ -29,6 +29,20 @@ error -71
 error -71
 # a length that is no number
 error -71
+# a version that is no digit
+error -71
+# a status of four digits
+error -71
+# a status and no reason
+status 200, a head of 35 bytes, body [ok]
+# a chunk size that is only an extension
+error -71
+# a chunk size of seventeen digits, which was read as 0
+error -90
+# forty chunks of a byte, within a limit that their lines would pass
+status 200, a head of 47 bytes, body [zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz]
+# a head above the 20 bytes the response may have, with a 204
+error -90
 # a response above the 64 bytes it may have
 error -90
 # a response after 400 ms, for a limit of 100

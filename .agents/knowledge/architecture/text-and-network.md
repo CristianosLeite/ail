@@ -66,3 +66,29 @@ ail-extensions.
 - `numdouble` against another `strtod` than that of Python (glibc).
 - The version of AIL: the libraries came after the tag `v0.1.0`, and `Ailfile` still
   says 0.1.0, so a package cannot yet ask for an AIL that has them.
+
+## The review of the pull request 28 (Copilot, 2026-11-22)
+Eighteen findings, all taken; each is a case of the tests unless said otherwise.
+- `numdouble` cut the exponent at 100000, so zeros before or after the digits that made
+  up for a larger one gave 0 or an infinity for a text that is 1. The cut is at 10^17
+  now, which no text has the digits to make up for.
+- `jsoneq` allocated for a string with an escape, against what the library says of
+  itself, and a failed allocation made a name that is there absent. It compares an
+  escape as the bytes it stands for.
+- HTTP, what a message is: a status line needs a digit as its version and an end after
+  three digits; a chunk size needs a digit, and one that would pass 2^44 is -90, where
+  the guard had held for letters only and seventeen digits were read as 0; a request
+  line is read up to its end and no further, with a digit as its version; a head that
+  is whole is held to the limits as one that is not.
+- HTTP, memory: room for a whole request or response is asked for before it is put
+  together, where only the last piece had been checked; a handle of 0, an event or a
+  task that could not be made, is -12 and never awaited as if it were a result
+  (`httpwait`, which also cancels the operation when its limit cannot be made); a
+  connection whose task cannot be made is closed; a handler that could not be started
+  is 500. None of these has a test: nothing here can make an allocation fail.
+- A body in chunks keeps no line of its chunks: what is not yet taken is moved down to
+  the body before more is read, so the buffer is bounded by the body and one read.
+- The server sends no body with 204 and 304 and no length with 204, and closes without
+  a response when the handler was cancelled (-125), which has no test either.
+- A test compared 33 bytes with 32 and so always printed 0, which its expected output
+  had.

@@ -1280,6 +1280,7 @@ end
 call putn sum                                                    # 8
 ```
 
+- **Nothing is allocated** by the functions that read, `jsoneq` and `jsonget` with a name that is written with escapes included; `jsonstr` alone adds to a buffer of the caller.
 - **Checked once**: `jsonvalue` checks everything inside the value, so the walks do not fail on a value it accepted, and a value they return needs no second check. Given other bytes they return the kind 0.
 - **What is JSON here**: RFC 8259, and stricter in two things, as I-JSON (RFC 7493): a string is well-formed UTF-8, and an escape from `\uD800` to `\uDFFF` is half of a pair that must be whole, so every string can be written as UTF-8. A byte below 0x20 in a string, a number that starts with `0` and goes on, `+1`, `.5`, `NaN`, a comma before a `]` and a byte order mark are no JSON. Blanks are the space, the tab, the line feed and the carriage return.
 - **Depth**: arrays and objects may be nested 128 deep; a value nested deeper is no value. `jsonvalue` calls itself once a level, about 100 bytes of stack each.
@@ -1705,7 +1706,7 @@ call print x+h len-h                # the body
 ```
 
 - **The response**: after a status of 200 to 599 the buffer holds the head, the status line and the header lines with the empty line, and after it the whole body as the server meant it: as many bytes as `Content-Length` says, the chunks of `Transfer-Encoding: chunked` put together, or everything up to the end of the connection. A response `1xx` before the real one is passed over. A `HEAD`, a 204 and a 304 have no body.
-- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB or a response above the limit, -12 without memory.
+- **Errors** are a negative result, after which the buffer is not to be read: the error of the kernel for the socket (-111 nobody listens, -104 reset), -62 for a step above the limit, -71 (`EPROTO`) for an answer that is no HTTP or ends before it is whole, -90 (`EMSGSIZE`) for a head above 64 KiB, a response above the limit or a chunk whose size no body may have, -12 without memory, also for a limit of time that cannot be made, after the step it was for was cancelled.
 - **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
 - **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
 - **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
@@ -1751,9 +1752,10 @@ ref handle as f
 await httpdserve l f 0          # until l is closed
 ```
 
-- **One task a connection**, so a handler that waits, for a file, a timer or a request of its own, keeps no other connection waiting. What it returns is not looked at.
+- **One task a connection**, so a handler that waits, for a file, a timer or a request of its own, keeps no other connection waiting. What it returns is not looked at, but for -125, the result of a task that was cancelled while it waited: the connection is then closed without a response.
 - **The server answers itself**, and calls no handler: 400 for what is no request of HTTP/1, 431 for a head above 64 KiB, 413 for a body above 16 MiB. A connection that ends, or sends nothing for 30 seconds, gets no answer.
-- **The response** has the status line, `Content-Type`, `Content-Length` and `Connection: close`, and the connection is closed after it: one request a connection. The answer to a `HEAD` has the length and not the body.
+- **The response** has the status line, `Content-Type`, `Content-Length` and `Connection: close`, and the connection is closed after it: one request a connection. The answer to a `HEAD` has the length and not the body; a response of the status 204 or 304 is sent without the body, whatever the handler added, and a 204 without a length.
+- **Without memory**: `httpdserve` ends with -12 when an accept or the task of a connection cannot be made, having closed the connection it had accepted; a handler whose task cannot be made is answered with 500. A response is written whole or not at all.
 - **Stopping**: `asyncclose l` ends `httpdserve` with -125. Connections that are open then are served to their end by their own tasks; `asyncrun` waits for them.
 - **What it is not**: no TLS, no connection that is kept, no routing: the handler looks at the method and the target.
 - **Names**: the server owns every name that starts with `httpd`.

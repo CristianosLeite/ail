@@ -283,7 +283,9 @@ fn numdouble nump numn
 	ifz numany
 		ret 0 0
 	end
-	# the exponent, which is cut where no double is reached any more
+	# The exponent, which is cut only where no text has the digits to
+	# make up for it: zeros before or after the digits may be as many as
+	# the exponent, and the number is then within the doubles.
 	nume=0
 	numeneg=0
 	if numi<numn
@@ -308,7 +310,7 @@ fn numdouble nump numn
 			if numc>9
 				ret 0 0
 			end
-			if nume<100000
+			if nume<100000000000000000
 				nume=nume*10+numc
 			end
 			numi+=1

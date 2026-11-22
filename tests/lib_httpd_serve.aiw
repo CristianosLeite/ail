@@ -26,6 +26,15 @@ async fn handle x r
 	load r+24 as n
 	call byadd r+88 p n
 	call texteq p n "/missing" as gone
+	call texteq p n "/nothing" as gone
+	if gone
+		store r+64 204
+	end
+	call texteq p n "/same" as gone
+	if gone
+		store r+64 304
+	end
+	call texteq p n "/missing" as gone
 	if gone
 		store r+64 404
 		store r+72 "application/json"
@@ -168,6 +177,16 @@ end
 load big as x
 load big+8 as y
 call raw "a head above 64 KiB" x y
+# the same head, ended: it is whole and still too long
+call byadd big "\x0d\n\x0d\n"
+load big as x
+load big+8 as y
+call raw "a head above 64 KiB that ends" x y
+call raw "an empty line and nothing else" "\x0d\n\x0d\n"
+call raw "a version that is no digit" "GET / HTTP/1.x\x0d\n\x0d\n"
+call raw "something after the version" "GET / HTTP/1.1 x\x0d\n\x0d\n"
+call raw "a 204 of the handler, which had added bytes" "GET /nothing HTTP/1.1\x0d\n\x0d\n"
+call raw "a 304 of the handler" "GET /same HTTP/1.1\x0d\n\x0d\n"
 call raw "a connection that ends in the head: nothing" "GET / HT"
 call asyncclose l
 await sv as r

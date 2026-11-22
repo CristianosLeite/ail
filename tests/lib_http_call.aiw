@@ -12,6 +12,7 @@ use "lib/net/http.aiw"
 buf q 128
 buf b 24
 buf rb 4096
+buf many 24
 var port got
 
 # a server for one connection: it reads once, waits ms milliseconds,
@@ -102,7 +103,7 @@ call print "the request that was written:\n"
 call print rb got
 call print "\n"
 call against "a GET, with the address as the name of the server" "HTTP/1.1 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
-call texteq rb 33 "GET / HTTP/1.1\x0d\nHost: 127.0.0.1:" as same
+call texteq rb 32 "GET / HTTP/1.1\x0d\nHost: 127.0.0.1:" as same
 call print "it starts with the line GET, and Host with the address: "
 call putn same
 call print "\n"
@@ -115,6 +116,32 @@ call against "a head that does not end" "HTTP/1.1 200 OK\x0d\nContent-Le" 0
 call against "a body shorter than its length" "HTTP/1.1 200 OK\x0d\nContent-Length: 10\x0d\n\x0d\nshort" 0
 call against "a chunk that is cut" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n5\x0d\nhel" 0
 call against "a length that is no number" "HTTP/1.1 200 OK\x0d\nContent-Length: ten\x0d\n\x0d\n" 0
+call against "a version that is no digit" "HTTP/1.X 200 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call against "a status of four digits" "HTTP/1.1 2000 OK\x0d\nContent-Length: 0\x0d\n\x0d\n" 0
+call against "a status and no reason" "HTTP/1.1 200\x0d\nContent-Length: 2\x0d\n\x0d\nok" 0
+call against "a chunk size that is only an extension" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n;x=y\x0d\n\x0d\n" 0
+call against "a chunk size of seventeen digits, which was read as 0" "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n10000000000000000\x0d\n\x0d\n" 0
+# forty chunks of one byte: 240 bytes on the wire for a body of 40,
+# which a limit of the head and 64 bytes holds
+call bycut b 0
+call byadd b "HTTP/1.1 200 OK\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n"
+load b+8 as i
+store q+104 i+64
+i=0
+while i<40
+	call byadd b "1\x0d\nz\x0d\n"
+	i+=1
+end
+call byadd b "0\x0d\n\x0d\n"
+call bycut many 0
+load b as x
+load b+8 as y
+call byadd many x y
+load many as x
+load many+8 as y
+call against "forty chunks of a byte, within a limit that their lines would pass" x y 0
+store q+104 20
+call against "a head above the 20 bytes the response may have, with a 204" "HTTP/1.1 204 No Content\x0d\n\x0d\n" 0
 store q+104 64
 call against "a response above the 64 bytes it may have" "HTTP/1.1 200 OK\x0d\nContent-Length: 60\x0d\n\x0d\n123456789012345678901234567890123456789012345678901234567890" 0
 store q+96 100

@@ -123,3 +123,22 @@ call jsonget v vn "x" as w wn wk
 call print "jsonget of an array has the kind "
 call putn wk
 call print "\n"
+# jsoneq compares what a string says, an escape as the bytes it stands
+# for, and allocates nothing
+fn eq p n q m
+	call jsoneq p n q m as r
+	call print " "
+	call putn r
+end
+call print "jsoneq:"
+call eq "\"a\\u00e9\\ud83d\\ude00\\n\\\"\\/\"" "a\xc3\xa9\xf0\x9f\x98\x80\n\"/"
+call eq "\"a\\u00e9\"" "a\xc3\xa9x"
+call eq "\"a\\u00e9x\"" "a\xc3\xa9"
+call eq "\"a\\u00e9\"" "a\xc3"
+call eq "\"\\u0041\"" "A"
+call eq "\"\\u0041\"" "B"
+call eq "\"\"" ""
+call eq "\"\"" "x"
+call eq "\"\\t\"" "\t"
+call eq "\"\\u20ac\"" "\xe2\x82\xac"
+call print "\n"

@@ -518,50 +518,110 @@ fn jsonstr jsonb jsonp jsonn
 end
 
 # 1 if the string of the jsonn bytes at jsonp, with its quotes, says the
-# jsonm bytes at jsonq
+# jsonm bytes at jsonq. Nothing is allocated: an escape is made the one
+# to four bytes it says and those are compared.
 fn jsoneq jsonp jsonn jsonq jsonm
-	local jsont 24
+	local jsont 8
 	if jsonn<2
 		ret 0
 	end
-	# without a backslash the bytes between the quotes are what it says
-	jsoni=1
-	label look
-	if jsoni<jsonn-1
-		loadb jsonp+jsoni as jsonc
-		if jsonc!=92
-			jsoni+=1
-			jmp look
-		end
+	jsone=jsonp+jsonn-1
+	jsonp+=1
+	jsoni=0
+	label more
+	if jsonp>=jsone
+		ret jsoni==jsonm
 	end
-	jsons=0
-	if jsoni==jsonn-1
-		jsona=jsonp+1
-		jsonk=jsonn-2
-	else
-		store jsont 0
-		store jsont+8 0
-		store jsont+16 0
-		call jsonstr jsont jsonp jsonn as jsons
-		load jsont as jsona
-		load jsont+8 as jsonk
-		ifz jsons
-			call byfree jsont
+	loadb jsonp as jsonc
+	if jsonc!=92
+		# a byte that stands for itself
+		if jsoni>=jsonm
 			ret 0
 		end
-	end
-	jsonr=jsonk==jsonm
-	jsoni=0
-	while jsonr&(jsoni<jsonm)
-		loadb jsona+jsoni as jsonc
 		loadb jsonq+jsoni as jsond
-		jsonr=jsonc==jsond
+		if jsonc!=jsond
+			ret 0
+		end
+		jsonp+=1
 		jsoni+=1
+		jmp more
 	end
-	if jsons
-		call byfree jsont
+	if jsonp+1>=jsone
+		ret 0
 	end
-	ret jsonr
+	loadb jsonp+1 as jsonc
+	jsonp+=2
+	jsonk=1
+	if jsonc==117
+		call jsonhex jsonp jsone as jsonv jsonok
+		ifz jsonok
+			ret 0
+		end
+		jsonp+=4
+		if (jsonv>=0xd800)&(jsonv<0xdc00)
+			call jsonhex jsonp+2 jsone as jsonw jsonok
+			if (jsonok==0)|(jsonw<0xdc00)|(jsonw>0xdfff)
+				ret 0
+			end
+			jsonv=0x10000+(jsonv-0xd800<<10)+jsonw-0xdc00
+			jsonp+=6
+		end
+		# the character jsonv as one to four bytes
+		if jsonv<0x80
+			storeb jsont jsonv
+		else
+			if jsonv<0x800
+				storeb jsont jsonv>>6|0xc0
+				storeb jsont+1 jsonv&0x3f|0x80
+				jsonk=2
+			else
+				if jsonv<0x10000
+					storeb jsont jsonv>>12|0xe0
+					storeb jsont+1 jsonv>>6&0x3f|0x80
+					storeb jsont+2 jsonv&0x3f|0x80
+					jsonk=3
+				else
+					storeb jsont jsonv>>18|0xf0
+					storeb jsont+1 jsonv>>12&0x3f|0x80
+					storeb jsont+2 jsonv>>6&0x3f|0x80
+					storeb jsont+3 jsonv&0x3f|0x80
+					jsonk=4
+				end
+			end
+		end
+	else
+		# the byte that the letter after the backslash names
+		if jsonc==98
+			jsonc=8
+		end
+		if jsonc==102
+			jsonc=12
+		end
+		if jsonc==110
+			jsonc=10
+		end
+		if jsonc==114
+			jsonc=13
+		end
+		if jsonc==116
+			jsonc=9
+		end
+		storeb jsont jsonc
+	end
+	if jsoni+jsonk>jsonm
+		ret 0
+	end
+	jsonj=0
+	while jsonj<jsonk
+		loadb jsont+jsonj as jsonc
+		loadb jsonq+jsoni+jsonj as jsond
+		if jsonc!=jsond
+			ret 0
+		end
+		jsonj+=1
+	end
+	jsoni+=jsonk
+	jmp more
 end
 
 # The value of the member whose name says the jsonm bytes at jsonq, in
