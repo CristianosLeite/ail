@@ -1,0 +1,181 @@
+# the server of lib/net/httpd.aiw, asked by the client of
+# lib/net/http.aiw and by requests written as bytes. Its handler says
+# what it was asked: a GET, a target, a POST with a body and its type, a
+# status and a content type of the handler's, a HEAD, a body sent in
+# chunks. The server answers itself what is no request, a head and a
+# body that are too long, and says nothing to a connection that ends.
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+use "lib/net/httpd.aiw"
+buf q 128
+buf b 24
+buf big 24
+var port
+
+# the handler: the request in words, and for /missing a 404 as JSON
+async fn handle x r
+	load r as p
+	load r+8 as n
+	call byadd r+88 p n
+	call byaddb r+88 32
+	load r+16 as p
+	load r+24 as n
+	call byadd r+88 p n
+	call texteq p n "/missing" as gone
+	if gone
+		store r+64 404
+		store r+72 "application/json"
+		store r+80 16
+	end
+	load r+32 as p
+	load r+40 as n
+	call httpfield p n "content-type" as v vn
+	if v
+		call byadd r+88 " type:"
+		call byadd r+88 v vn
+	end
+	call httpfield p n "host" as v vn
+	call byadd r+88 " host is 127.0.0.1 and the port:"
+	same=0
+	if vn>10
+		call texteq v 10 "127.0.0.1:" as same
+	end
+	call byaddn r+88 same
+	load r+48 as p
+	load r+56 as n
+	call byadd r+88 " body:"
+	call byadd r+88 p n
+	call byaddn r+88 x
+	ret 0
+end
+fn texteq p n q m
+	if n!=m
+		ret 0
+	end
+	i=0
+	while i<n
+		loadb p+i as c
+		loadb q+i as d
+		if c!=d
+			ret 0
+		end
+		i+=1
+	end
+	ret 1
+end
+
+# send the request of q and print the status, and the head and the body
+# apart
+fn ask p n
+	call print "# "
+	call print p n
+	call print "\n"
+	store q 0x7f000001
+	store q+8 port
+	call httpcall q b as h
+	await h as st
+	ifslt st 0
+		call print "error -"
+		call putn 0-st
+		call print "\n"
+	else
+		call print "status "
+		call putn st
+		load q+112 as hn
+		load b as x
+		load b+8 as y
+		call httpfield x hn "content-type" as v vn
+		call print ", "
+		call print v vn
+		call print ", body ["
+		call print x+hn y-hn
+		call print "]\n"
+	end
+	# the request is all zero again for the next
+	i=0
+	while i<128
+		store q+i 0
+		i+=8
+	end
+end
+# send the n bytes at p as they are and print what comes back, up to
+# the end of the connection
+fn raw tp tn p n
+	call print "# "
+	call print tp tn
+	call print "\n"
+	call asyncconnect 0x7f000001 port as h
+	await h as c
+	call asyncwriteall c p n as h
+	await h as r
+	call bycut b 0
+	label more
+	call httpmore c b 2000 as h
+	await h as r
+	ifsgt r 0
+		jmp more
+	end
+	call asyncclose c
+	load b as x
+	load b+8 as y
+	call print x y
+	call print "\n"
+end
+call asynclisten 0x7f000001 0 as l
+call asyncport l as port
+ref handle as f
+call httpdserve l f 7 as sv
+call ask "a GET of /"
+store q+32 "/a/b?c=d"
+store q+40 8
+call ask "a GET of a target"
+store q+16 "POST"
+store q+24 4
+store q+32 "/echo"
+store q+40 5
+store q+48 "{\"k\":1}"
+store q+56 7
+store q+64 "application/json"
+store q+72 16
+call ask "a POST with a body and its type"
+store q+16 "POST"
+store q+24 4
+call ask "a POST without a body"
+store q+32 "/missing"
+store q+40 8
+call ask "a status and a type of the handler"
+store q+16 "HEAD"
+store q+24 4
+call ask "a HEAD: the head and no body"
+call raw "a request as bytes: the whole response" "GET /x HTTP/1.1\x0d\nHost: a\x0d\n\x0d\n"
+call raw "a body in chunks" "POST /c HTTP/1.1\x0d\nTransfer-Encoding: chunked\x0d\n\x0d\n3\x0d\nabc\x0d\n2\x0d\nde\x0d\n0\x0d\n\x0d\n"
+call raw "HTTP/1.0 and no header line" "GET / HTTP/1.0\x0d\n\x0d\n"
+call raw "no request" "hello there\x0d\n\x0d\n"
+call raw "no version" "GET /\x0d\n\x0d\n"
+call raw "a length that is no number" "POST / HTTP/1.1\x0d\nContent-Length: x\x0d\n\x0d\n"
+call raw "a body above 16 MiB, by its length" "POST / HTTP/1.1\x0d\nContent-Length: 16777217\x0d\n\x0d\n"
+# a head of 70,000 bytes that does not end
+call byadd big "GET / HTTP/1.1\x0d\nX: "
+i=0
+while i<70000
+	call byaddb big 97
+	i+=1
+end
+load big as x
+load big+8 as y
+call raw "a head above 64 KiB" x y
+call raw "a connection that ends in the head: nothing" "GET / HT"
+call asyncclose l
+await sv as r
+call print "the server ended with -"
+call putn 0-r
+call print "\n"
+
+call asyncrun as left
+call print "tasks that are not done: "
+call putn left
+call print "\n"

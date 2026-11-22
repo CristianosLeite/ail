@@ -846,3 +846,8 @@ program that first needs them).
   and of bytes; `httpfield`, `httphead`, `httpstatus`, `httpip` and
   `httpurl` take a message and an address apart. One connection a
   request, no TLS, no names. `tests/lib_http_*`.
+- [x] `lib/net/httpd.aiw`: an HTTP/1.1 server. `httpdserve` accepts the
+  connections of a listening socket, a task for each, reads one request
+  and calls the handler of the program, an async function, with a
+  request of 136 bytes to which it adds the body of the response;
+  400, 431 and 413 are the server's own. `tests/lib_httpd_*`.

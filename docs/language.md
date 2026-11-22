@@ -1656,7 +1656,7 @@ await s
 
 ## The HTTP library
 
-`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it.
+`lib/net/http.aiw` is HTTP/1.1 over the sockets of the async library: what a message is made of, and a client. A program uses `lib/std/bytes.aiw` and the three files of the async library ([tasks](#the-async-library), timers, files and sockets) before it. [The server](#the-http-server) is a file of its own.
 
 | Function | Does |
 |---|---|
@@ -1666,7 +1666,7 @@ await s
 | `httpstatus p n` | the status of the response with this head, or 0 |
 | `httpurl p n` | reads `http://` an IPv4 address or `localhost`, a port or not, a path or not: the address as a number, the port (80), the address and length of the path, and 1; or zeros and 0 |
 | `httpip p n` | reads an IPv4 address written with dots, or `localhost`: the number and 1, or 0 and 0 |
-| `httpbody fd b ms max eof`, `httpmore fd b ms` | async functions that read the body after a head, and more bytes, into a bytes buffer |
+| `httpbody fd b ms max eof`, `httpmore fd b ms` | async functions that read the body after a head, and more bytes, into a bytes buffer; the server uses them too |
 
 The request is 128 bytes that the caller owns, all zero to start with:
 
@@ -1709,6 +1709,54 @@ call print x+h len-h                # the body
 - **What it is not**: one connection a request (`Connection: close`), no TLS, no names (the address is a number), no redirects, no compression, no cookies. It is the client of a program that asks a service it knows, on the same machine or network.
 - **Several at once**: `httpcall` is a task, so requests that are started and awaited later run together, each with its own request bytes and buffer.
 - **Names**: the library owns every name that starts with `http`; a program has no `var` of such a name.
+
+### The HTTP server
+
+`lib/net/httpd.aiw`, used after `lib/net/http.aiw`, answers requests with an async function of the program.
+
+| Function | Does |
+|---|---|
+| `httpdserve l f x` | an async function: accepts the connections of the listening socket `l` and, for each, reads one request, calls the handler at the address `f` with `x` and the request, and writes the response; its result is the error that ended the accepting |
+
+The handler is an async function of two values, the `x` of the program and the request, 136 bytes that are good until the handler is done:
+
+| At | Is |
+|---:|---|
+| 0 | the method, address and length, as it was sent |
+| 16 | the target, address and length (`/search?q=1`) |
+| 32 | the head of the request, address and length, for `httpfield` |
+| 48 | the body, address and length, a body in chunks put together |
+| 64 | the status of the response: 200 unless the handler stores another |
+| 72 | the content type of the response, address and length: `text/plain` unless the handler stores another, bytes that stay good after it is done |
+| 88 | a bytes buffer, empty, to which the handler adds the body of the response |
+| 112 | the descriptor of the connection |
+
+```
+use "lib/std/bytes.aiw"
+use "lib/async/task.aiw"
+use "lib/async/time.aiw"
+use "lib/async/io.aiw"
+use "lib/net/http.aiw"
+use "lib/net/httpd.aiw"
+async fn handle x q
+	load q+16 as p              # the target
+	load q+24 as n
+	call byadd q+88 "you asked for "
+	call byadd q+88 p n
+	call byaddb q+88 10
+	ret 0
+end
+call asynclisten 0x7f000001 8080 as l
+ref handle as f
+await httpdserve l f 0          # until l is closed
+```
+
+- **One task a connection**, so a handler that waits, for a file, a timer or a request of its own, keeps no other connection waiting. What it returns is not looked at.
+- **The server answers itself**, and calls no handler: 400 for what is no request of HTTP/1, 431 for a head above 64 KiB, 413 for a body above 16 MiB. A connection that ends, or sends nothing for 30 seconds, gets no answer.
+- **The response** has the status line, `Content-Type`, `Content-Length` and `Connection: close`, and the connection is closed after it: one request a connection. The answer to a `HEAD` has the length and not the body.
+- **Stopping**: `asyncclose l` ends `httpdserve` with -125. Connections that are open then are served to their end by their own tasks; `asyncrun` waits for them.
+- **What it is not**: no TLS, no connection that is kept, no routing: the handler looks at the method and the target.
+- **Names**: the server owns every name that starts with `httpd`.
 
 ## Comments
 
