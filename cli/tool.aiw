@@ -507,11 +507,13 @@ end
 # Add to the buffer tlb the paths of the sources of AIL in the directory
 # of the tln bytes at tlp and in those below it, each with a NUL byte
 # after it: the files whose names end in ".aiw". A name that starts with
-# a dot is passed over, and at the top, where tltop is 1, so are build
-# and deps. The result is the number of paths, or a negative error.
+# a dot is passed over, a link is not followed, and at the top, where
+# tltop is 1, build and deps are passed over. The result is the number of paths, or a negative error.
 fn tlsources tlb tlp tln tltop
 	local tlnames 24
 	local tlpath 24
+	local tlz 4096
+	local tllink 16
 	tli=0
 	while tli<24
 		store tlnames+tli 0
@@ -553,6 +555,15 @@ fn tlsources tlb tlp tln tltop
 			end
 			load tlpath as tlq
 			load tlpath+8 as tlm
+			# a link is not followed: what it names may lie outside the
+			# package, and is formatted where it is
+			call filepath tlq tlm tlz as tlr
+			ifz tlr
+				sys tlreadlink tlz tllink 16 as tlr
+			end
+			ifsgt tlr 0
+				jmp next
+			end
 			call tlsources tlb tlq tlm 0 as tlr
 			ifsge tlr 0
 				tlc+=tlr
@@ -574,6 +585,7 @@ fn tlsources tlb tlp tln tltop
 				end
 			end
 		end
+		label next
 	end
 	label out
 	call byfree tlnames

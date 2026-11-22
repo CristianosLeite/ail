@@ -190,12 +190,17 @@ rm -r victim.tmp outside.aiw
 # file below a directory with a dot, in build/ or in deps/ is not looked at
 printf 'fn f\ncall g\nend\n' > src/x.aiw
 mkdir -p .hidden deps/d build && cp src/x.aiw .hidden/ && cp src/x.aiw deps/d/ && cp src/x.aiw build/x.aiw
+# a link to a directory or to a source is not followed
+mkdir "$tmp/elsewhere" && cp src/x.aiw "$tmp/elsewhere/y.aiw"
+ln -s "$tmp/elsewhere" linked && ln -s "$tmp/elsewhere/y.aiw" src/z.aiw
 is cli_fmt_check 1 "src/x.aiw:2" "" $ail fmt --check
 is cli_fmt 0 "" "" $ail fmt
 yes cli_fmt_wrote [ "$(cat src/x.aiw)" = "fn f
 	call g
 end" ]
 yes cli_fmt_left_the_rest cmp -s .hidden/x.aiw deps/d/x.aiw
+yes cli_fmt_left_what_a_link_names cmp -s .hidden/x.aiw "$tmp/elsewhere/y.aiw"
+rm linked src/z.aiw
 is cli_fmt_check_after 0 "" "" $ail fmt --check
 is cli_fmt_usage 2 "" "usage: ail COMMAND" $ail fmt --all
 rm -rf tests src/x.aiw .hidden deps && cp -r "$tmp/keep/tests" tests

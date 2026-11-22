@@ -178,8 +178,9 @@ block, the [source style](language.md#source-style) of AIL, and changes
 no other byte; `ail fmt --check` changes nothing, prints `path:line` for
 each line that is not indented so, and ends with status 1 if there is
 one. The sources are the files whose names end in `.aiw`, in the
-package and the directories below it, without `build/`, `deps/` and
-what starts with a dot. The work is done by the formatter of AIL
+package and the directories below it, without `build/`, `deps/`, what
+starts with a dot and what is a link: a link may name a file of
+another project. The work is done by the formatter of AIL
 (`tools/indent.aiw`), which the command starts.
 
 ## Installing
