@@ -1,0 +1,24 @@
+# Every test of the repository, for a pull request to main: make test
+# builds the compiler from the seed that seed/MANIFEST pins, which
+# tools/seed.sh fetches from its release, and runs all that AGENTS.md
+# lists under "Commands".
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - run: make test
