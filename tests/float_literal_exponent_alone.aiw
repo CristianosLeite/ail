@@ -1,0 +1,2 @@
+# an exponent without a dot is no float literal
+x=1e5

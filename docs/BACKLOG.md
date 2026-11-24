@@ -855,3 +855,14 @@ program that first needs them).
 - [x] The version 0.1.1 of AIL (user, 2026-11-22), the first with the
   four libraries: `Ailfile` says it and the tag `v0.1.1` names the merge
   of it, so that a package asks for them with `ail 0.1.1`.
+
+## Float literals
+
+- [x] Float literals (user's proposal, from aildb, 2026-11-21; asked for
+  on 2026-11-24): `1.5`, `-0.25`, `2.5e-3`, digits on both sides of a
+  dot and an exponent or none, are the 64 bits of the nearest double
+  wherever a number is read, a `const` too. `rdflt` of
+  `compiler/lex.aiw` finds one and `numdouble` of `lib/std/num.aiw`,
+  which the compiler now uses, rounds it; one beyond every double is
+  `number too big`. No new seed. `tests/float_literal*`, the bits
+  against `float` of Python.

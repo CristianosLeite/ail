@@ -1,0 +1,2 @@
+# a float literal is its bits, also where a size is read
+buf b 1.5

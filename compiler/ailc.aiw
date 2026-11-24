@@ -231,6 +231,7 @@ buf refs 201326624    # 4194305 uses of a name not declared yet, and 2097152 mor
 
 # ---- the functions are files of their own, compiled here in this order:
 # errors, input, tables of names, expressions and their code, output
+use "lib/std/num.aiw"
 use "compiler/diag.aiw"
 use "compiler/lex.aiw"
 use "compiler/names.aiw"

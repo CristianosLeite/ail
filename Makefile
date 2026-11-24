@@ -1,7 +1,7 @@
 B := build
 
 SRC := compiler/ailc.aiw compiler/diag.aiw compiler/lex.aiw compiler/names.aiw compiler/pkg.aiw \
-       compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw
+       compiler/expr.aiw compiler/emit.aiw compiler/tables.aiw lib/std/num.aiw
 
 all: $(patsubst examples/%.aiw,$(B)/%,$(wildcard examples/*.aiw)) $(B)/ailc $(B)/ail $(B)/tools/indent
 
