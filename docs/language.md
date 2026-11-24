@@ -1238,6 +1238,35 @@ call putn n                        # 2500
 - **A binary32** is `f8to4` of the result, which rounds a second time. A text that names the double a binary32 widens to, as a program prints one from that double, gives that binary32.
 - **Names**: the library owns every name that starts with `num`; a program has no `var` of such a name.
 
+## The sha library
+
+`lib/std/sha.aiw` is SHA-256 (FIPS 180-4): 32 bytes that stand for any number of bytes. It needs `lib/std/bytes.aiw`, for `shahex` alone.
+
+| Function | Does |
+|---|---|
+| `sha256 p n out` | writes at `out` the 32 bytes of the sum of the `n` bytes at `p` |
+| `shainit s` | starts a sum of no bytes in the `shasize` bytes at `s` |
+| `shaadd s p n` | the `n` bytes at `p` follow the bytes the sum at `s` has |
+| `shaend s out` | ends the sum at `s` and writes its 32 bytes at `out` |
+| `shahex b p` | adds the 32 bytes at `p` to the bytes buffer `b` as 64 hexadecimal digits, the letters small; returns 1, or 0 without memory |
+
+```
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/sha.aiw"
+buf out 32
+buf hex 24
+call sha256 "abc" out
+call shahex hex out
+load hex as p
+load hex+8 as n
+call print p n                     # ba7816bf8f01cfea...
+```
+
+- **In pieces**: `shainit`, any number of `shaadd` and one `shaend` give the sum of the bytes of all the pieces in their order, the same as `sha256` of them at once, however they are cut. After `shaend` the sum is not added to again before another `shainit`.
+- **Ownership**: a sum in progress is `shasize` bytes, 112, that the caller owns, and the result is 32 bytes of the caller; nothing is allocated and nothing fails, but `shahex`, which writes to a bytes buffer.
+- **Names**: the library owns every name that starts with `sha`; a program has no `var` of such a name.
+
 ## The JSON library
 
 `lib/std/json.aiw` (use `lib/std/bytes.aiw` first) reads JSON in the bytes it is written in and writes it to a bytes buffer. Reading makes no tree and allocates nothing: a value is an address, a length and a kind, and what a walk returns is again a value in the same bytes.
