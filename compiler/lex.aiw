@@ -111,9 +111,85 @@ fn rdname
 		call enam
 	end
 end
+# The float literal at the cursor, if there is one: digits, a dot and
+# digits, then an "e" or "E" with digits after an optional sign or no
+# exponent, all after an optional "-". The results are the bits of the
+# double nearest to what it says, as numdouble of lib/std/num.aiw finds
+# it, and 1, with the cursor after the literal; or 0 and 0 with the
+# cursor where it was. A literal beyond every double is too big.
+fn rdflt
+	p=ip
+	jge p ie no
+	loadb p as c
+	if c==45
+		p+=1
+	end
+	q=p
+	label a
+	jge p ie no
+	loadb p as c
+	call dig c as d
+	if d
+		p+=1
+		jmp a
+	end
+	jeq p q no
+	jne c 46 no
+	p+=1
+	q=p
+	label b
+	if p<ie
+		loadb p as c
+		call dig c as d
+		if d
+			p+=1
+			jmp b
+		end
+	end
+	jeq p q no
+	# an exponent, if digits follow it
+	if p<ie
+		loadb p as c
+		if (c|32)==101
+			t=p+1
+			if t<ie
+				loadb t as c
+				if (c==43)|(c==45)
+					t+=1
+				end
+			end
+			q=t
+			label e
+			if t<ie
+				loadb t as c
+				call dig c as d
+				if d
+					t+=1
+					jmp e
+				end
+			end
+			if t>q
+				p=t
+			end
+		end
+	end
+	call numdouble ip p-ip as r k
+	if (k==0)|((r>>52&0x7ff)==0x7ff)
+		call enum
+	end
+	ip=p
+	ret r 1
+	label no
+	ret 0 0
+end
 # the number at the cursor: decimal, or hexadecimal after "0x", either one
-# after an optional "-"; it must fit 64 bits
+# after an optional "-"; it must fit 64 bits. A float literal is a number
+# too: the 64 bits of its double.
 fn rdnum
+	call rdflt as r c
+	if c
+		ret r
+	end
 	call pk as c
 	n=c==45
 	if n

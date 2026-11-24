@@ -237,7 +237,7 @@ A floating-point number is an IEEE 754 double, and a variable holds its 64 bits 
 | `fsqrt a` | square root |
 | `flt a b`, `fle a b`, `feq a b` | `1` if `a` is below, below or equal to, equal to `b`, else `0` |
 
-A comparison with a value that is not a number is `0`, also `feq` of it with itself. For "above", swap the values. There are no floating-point literals: make a constant from integers (`itof 1` and `itof 3`, then `fdiv`), or write its bits (`0x3ff8000000000000` is 1.5). The integer statements work on the bits: `add` of two doubles is not their sum, and `lt` orders negative doubles the wrong way round.
+A comparison with a value that is not a number is `0`, also `feq` of it with itself. For "above", swap the values. A double is written as a [float literal](#float-literals), `1.5`, which is its bits; one that has no short decimal form is made from integers (`itof 1` and `itof 3`, then `fdiv`). The integer statements work on the bits: `add` of two doubles is not their sum, and `lt` orders negative doubles the wrong way round.
 
 ```
 itof 2 as two
@@ -844,6 +844,21 @@ A decimal integer from 0 to 18446744073709551615, or `0x` followed by one to six
 
 A literal that does not fit 64 bits is the error `number too big`; nothing wraps silently. Arithmetic still wraps.
 
+### Float literals
+
+```
+1.5
+-0.25
+2.5e-3
+6.02214076E23
+```
+
+Digits, a dot and digits, then an exponent or none: an `e` or `E`, an optional `+` or `-`, and digits. A `-` directly before it makes it negative. It is the 64 bits of a [double](#floating-point): the IEEE binary64 nearest to the exact value of the text, however many digits it has, a tie going to the one whose last bit is 0, which is what `strtod` of C and `float` of Python give for the same text. So `1.5` and `0x3ff8000000000000` are one value, and a float literal stands wherever an [integer](#integers) does, the value of a [`const`](#const) too. `-0.0` is the zero with the sign.
+
+There is a digit on each side of the dot: `1.` and `.5` are no literals, and neither is `1e5`, which has no dot (`1.0e5` is one). A hexadecimal number has no fraction. A literal below the least double is a zero; one beyond the largest is the error `number too big`, since no literal is an infinity.
+
+The compiler changes nothing else about doubles: a float literal is a number, and the statements decide what its bits mean. `add 1.5 2.5` adds two bit patterns and is not 4.0; `fadd 1.5 2.5` is.
+
 ### Strings
 
 ```
@@ -1214,7 +1229,7 @@ call putn a+b
 
 ## The num library
 
-`lib/std/num.aiw` reads numbers from decimal text. There are no float literals and no other way from text to a double; this is it.
+`lib/std/num.aiw` reads numbers from decimal text. A [float literal](#float-literals) of a source is read by the compiler, with `numdouble` of this file; for text that a program has when it runs, this file is the way to a double.
 
 | Function | Does |
 |---|---|

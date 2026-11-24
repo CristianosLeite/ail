@@ -1,0 +1,2 @@
+# a dot with no digit after it is no float literal
+x=1.
