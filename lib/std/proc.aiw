@@ -12,6 +12,8 @@ const procfcntl 72
 const procpoll 7
 const procpidfd 434
 const procsetaff 203
+const procprctl 157
+const procgetppid 110
 
 # the environment of this process as the kernel passed it: the address of
 # the addresses of its strings, "NAME=value" with a NUL byte at the end,
@@ -138,13 +140,41 @@ end
 # whose descriptors cannot be put in place. The three may be given in any
 # order: 2 as procout and 1 as procerr swaps them.
 fn procstart procargv procin procout procerr
-	local procz 4096
-	call procenv as proce
 	sys fork as procpid
 	if procpid
 		ret procpid
 	end
-	# the child: nothing here returns
+	tail procchild procargv procin procout procerr
+end
+
+# Start a program as procstart does, held to this process: the kernel
+# kills the child (SIGKILL) when the thread that started it ends, however
+# it ends, so a program that is itself killed leaves no child of this
+# kind behind. What the child starts is not held by this; a child that
+# holds its own children the same way takes them with it. A program that
+# changes its user or group when it starts (set-user-ID) is not held.
+fn procheld procargv procin procout procerr
+	sys getpid as procme
+	sys fork as procpid
+	if procpid
+		ret procpid
+	end
+	# PR_SET_PDEATHSIG and SIGKILL
+	sys procprctl 1 9
+	# a parent that ended before that line sends nothing: its number is
+	# no longer the one of the parent
+	sys procgetppid as procr
+	if procr!=procme
+		sys exit 127
+	end
+	tail procchild procargv procin procout procerr
+end
+
+# in the child: put the three descriptors in place and become the
+# program of procargv, as procstart says; nothing here returns
+fn procchild procargv procin procout procerr
+	local procz 4096
+	call procenv as proce
 	call procopen procin
 	call procopen procout
 	call procopen procerr

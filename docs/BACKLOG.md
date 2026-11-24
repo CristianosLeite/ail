@@ -200,6 +200,15 @@ command arguments, exit statuses and output formats where callers rely on
 them. Update the documented commands and retire each Python entry point after
 its AIL replacement passes the corresponding checks.
 
+- [x] `procheld` of `lib/std/proc.aiw` (2026-11-24, for aildb, whose
+  command is killed by `procwait` of the program that started it and
+  left the embedding provider it had started running): a child started
+  as `procstart` starts one and killed by the kernel when the thread
+  that started it ends (`PR_SET_PDEATHSIG`). `procstart` and `procheld`
+  share what the child does, `procchild`. Test `lib_proc_held`: a
+  process in the middle is killed, the child of `procheld` is gone and
+  the child of `procstart` goes on.
+
 ## Source style and editor tooling
 
 - [x] Document the indentation convention. Use one tab per syntactic block
