@@ -88,7 +88,11 @@ The rest is the open section of `docs/TODO.md`.
   the tag of a release are the user's. **0.1.1** (user, 2026-11-22) is the
   first with `lib/std/num.aiw`, `lib/std/json.aiw` and `lib/net/`: a third
   number for libraries that were added and nothing that was changed, which
-  `ail 0.1.1` of a package asks for and 0.1.0 does not meet.
+  `ail 0.1.1` of a package asks for and 0.1.0 does not meet. **0.1.2**
+  (user, 2026-11-24) is the first with `lib/std/sha.aiw`, `procheld` of
+  `lib/std/proc.aiw` and float literals (the pull requests 32, 33 and
+  34), which aildb asked for: a third number again, since what was
+  written before it compiles and runs as it did.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 

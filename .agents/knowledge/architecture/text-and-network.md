@@ -25,8 +25,8 @@ ail-extensions.
   comment. The state is bytes of the caller and nothing is allocated, as in the other
   files of `lib/std`; `shahex` alone needs `lib/std/bytes.aiw`. Its test prints what
   `hashlib.sha256` of Python 3 gives. A library that a program first needs is asked of
-  the user before it is written in the program. It is in no version of AIL until the
-  user gives one, so a package cannot ask for it with its line `ail` yet.
+  the user before it is written in the program. The version 0.1.2 of AIL (user,
+  2026-11-24) is the first that has it, so a package asks for it with `ail 0.1.2`.
 - **`numdouble` is correctly rounded for every text** (agent). A model returns a vector
   as decimals, and the test of the program that reads them is that it stores the bytes
   another language stores; a parser that is right for most texts cannot be tested that
