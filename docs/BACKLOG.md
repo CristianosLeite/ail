@@ -874,8 +874,12 @@ program that first needs them).
   `shahex`. Compared with `hashlib.sha256` of Python 3 for known texts,
   a million bytes, every length from 0 to 130 and 1000 bytes cut into
   pieces of every length from 1 to 130: no difference.
-  `tests/lib_sha_sums`. It is in no version of AIL yet; the version
-  that gets it is the user's to give.
+  `tests/lib_sha_sums`.
+- [x] The version 0.1.2 of AIL (user, 2026-11-24), the first with
+  `lib/std/sha.aiw`, `procheld` of `lib/std/proc.aiw` and float
+  literals, the pull requests 32, 33 and 34: `Ailfile` says it and the
+  tag `v0.1.2` names the merge of it, so that a package asks for them
+  with `ail 0.1.2`.
 
 ## Float literals
 
