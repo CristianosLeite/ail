@@ -22,7 +22,7 @@ The VS Code extension is in the repository ail-extensions (https://github.com/Cr
 - [Source extension](architecture/source-extension.md) — `.aiw` since 2026-11-21: `.aw` is PHP in GitHub Linguist, the names looked at, what Linguist asks before it takes a language
 - [Review fixes of 2026-11-20](architecture/review-fixes-2026-11.md) — `tail` with a local, result count through `tail`, names of a `while` value, limit of locals, and why
 - [Packages, the manifest and the ail command](architecture/packages.md) — one mechanism of versions and dependencies; `use "name:path"`, `lib/` as the package of AIL, packages from the compiler's arguments
-- [Numbers from text, JSON and HTTP](architecture/text-and-network.md) — `lib/std/num.aiw`, a decimal as the nearest double for every text; `lib/std/json.aiw`, read in place with no tree, I-JSON strict; `lib/net/http.aiw` and `httpd.aiw`, a client and a server on the async sockets; libraries of AIL at the user's word, checked against Python, Ollama and curl
+- [Numbers from text, JSON and HTTP](architecture/text-and-network.md) — `lib/std/num.aiw`, a decimal as the nearest double for every text; `lib/std/json.aiw`, read in place with no tree, I-JSON strict; `lib/net/http.aiw` and `httpd.aiw`, a client and a server on the async sockets; `lib/std/sha.aiw`, SHA-256, moved from aildb (user, 2026-11-24); libraries of AIL at the user's word, checked against Python, Ollama and curl
 
 ## testing
 - [Stage0 test suite](testing/stage0-test-suite.md) — runner deadline, fixtures that must execute what they generate, mutation checks, what goes unchecked

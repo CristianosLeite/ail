@@ -867,6 +867,15 @@ program that first needs them).
 - [x] The version 0.1.1 of AIL (user, 2026-11-22), the first with the
   four libraries: `Ailfile` says it and the tag `v0.1.1` names the merge
   of it, so that a package asks for them with `ail 0.1.1`.
+- [x] `lib/std/sha.aiw`: SHA-256 (user, 2026-11-24: it was written in
+  aildb, for the identity of an embedding provider and the keys of the
+  vectors an index keeps, and belongs here). `sha256` of bytes given at
+  once, `shainit`, `shaadd` and `shaend` for bytes given in pieces, and
+  `shahex`. Compared with `hashlib.sha256` of Python 3 for known texts,
+  a million bytes, every length from 0 to 130 and 1000 bytes cut into
+  pieces of every length from 1 to 130: no difference.
+  `tests/lib_sha_sums`. It is in no version of AIL yet; the version
+  that gets it is the user's to give.
 
 ## Float literals
 
