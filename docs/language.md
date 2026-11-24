@@ -237,7 +237,7 @@ A floating-point number is an IEEE 754 double, and a variable holds its 64 bits 
 | `fsqrt a` | square root |
 | `flt a b`, `fle a b`, `feq a b` | `1` if `a` is below, below or equal to, equal to `b`, else `0` |
 
-A comparison with a value that is not a number is `0`, also `feq` of it with itself. For "above", swap the values. There are no floating-point literals: make a constant from integers (`itof 1` and `itof 3`, then `fdiv`), or write its bits (`0x3ff8000000000000` is 1.5). The integer statements work on the bits: `add` of two doubles is not their sum, and `lt` orders negative doubles the wrong way round.
+A comparison with a value that is not a number is `0`, also `feq` of it with itself. For "above", swap the values. A double is written as a [float literal](#float-literals), `1.5`, which is its bits; one that has no short decimal form is made from integers (`itof 1` and `itof 3`, then `fdiv`). The integer statements work on the bits: `add` of two doubles is not their sum, and `lt` orders negative doubles the wrong way round.
 
 ```
 itof 2 as two
@@ -844,6 +844,21 @@ A decimal integer from 0 to 18446744073709551615, or `0x` followed by one to six
 
 A literal that does not fit 64 bits is the error `number too big`; nothing wraps silently. Arithmetic still wraps.
 
+### Float literals
+
+```
+1.5
+-0.25
+2.5e-3
+6.02214076E23
+```
+
+Digits, a dot and digits, then an exponent or none: an `e` or `E`, an optional `+` or `-`, and digits. A `-` directly before it makes it negative. It is the 64 bits of a [double](#floating-point): the IEEE binary64 nearest to the exact value of the text, however many digits it has, a tie going to the one whose last bit is 0, which is what `strtod` of C and `float` of Python give for the same text. So `1.5` and `0x3ff8000000000000` are one value, and a float literal stands wherever an [integer](#integers) does, the value of a [`const`](#const) too. `-0.0` is the zero with the sign.
+
+There is a digit on each side of the dot: `1.` and `.5` are no literals, and neither is `1e5`, which has no dot (`1.0e5` is one). A hexadecimal number has no fraction. A literal below the least double is a zero; one beyond the largest is the error `number too big`, since no literal is an infinity.
+
+The compiler changes nothing else about doubles: a float literal is a number, and the statements decide what its bits mean. `add 1.5 2.5` adds two bit patterns and is not 4.0; `fadd 1.5 2.5` is.
+
 ### Strings
 
 ```
@@ -1065,6 +1080,7 @@ call filewrite "copy" q r
 | Function | Does |
 |---|---|
 | `procstart argv in out err` | starts the program `argv` names, with the descriptors `in`, `out` and `err` as its 0, 1 and 2; returns the number of the child |
+| `procheld argv in out err` | the same, with a child that the kernel kills when this process ends |
 | `procwait pid ms` | waits until the child has ended, at most `ms` milliseconds (0: without limit), and returns how it ended |
 | `procenv` | the environment of this process: the address of the addresses of its `NAME=value` strings, with a 0 after the last |
 | `procvar p n` | two results, the address and length of the value of the variable named by the `n` bytes at `p`, or 0 and 0 |
@@ -1092,6 +1108,7 @@ call procwait p 10000 as r
 - **Arguments**: `argv` is the address of the addresses of the arguments, strings with a NUL byte at the end, with a 0 after the last: what the kernel takes, and what `data` lines and a `buf` build. The first is the program: a path if it has a slash, else a name that is looked for in the directories of `PATH` (`/usr/bin:/bin` without one).
 - **Descriptors**: -1 for `in`, `out` or `err` leaves the child the descriptor of this process. The three may be one another's: 2 as `out` and 1 as `err` swaps the two outputs. A child whose descriptors cannot be put in place, one of them not being open for instance, ends with status 127 and starts no program. Any other descriptor stays open in this process, whose business it is to close it; one opened by `fileopen` is closed in the child by itself. A child whose output goes to a pipe that nobody reads stops when the pipe is full, so send output that is wanted to a file and read the file after `procwait`.
 - **The child** has the environment of this process. It is another process (`fork`): it shares no memory with this one, and of a program with tasks only the thread that called is in it.
+- **A child that is held**: `procheld` starts a child as `procstart` does and tells the kernel to kill it (`SIGKILL`) when the thread that started it ends, however it ends. A program that is itself killed, by `procwait` of its parent when its time is up for instance, then leaves no such child running. What the child starts is not held by this: a chain is held when each program in it starts its children this way. A program that changes its user or group as it starts is not held. Where the kernel refuses the request (a filter of system calls that denies `prctl`), the program is not started: the child ends with status 127.
 - **Errors**: `procstart` returns a negative number when the kernel refuses a process (the error of `fork`, negated). A program that cannot be started is a child that ends with status 127.
 - **The result of `procwait`** is the exit status, 0 to 255; or the number of the signal that ended the child, negated (-9, -11); or -1000 if the child still ran when the time was up, in which case it was killed (`SIGKILL`) before the return; or -1001 if there is no such child. Every child is waited for exactly once, which takes it from the kernel; after that its number means nothing. Only the child itself is killed, not what it started. The limit holds also when the kernel gives no descriptor for the child (`pidfd_open` fails at the limit of open files): the child is then asked about every millisecond.
 - **Names**: the library owns every name that starts with `proc`; a program has no `var` of such a name.
@@ -1214,7 +1231,7 @@ call putn a+b
 
 ## The num library
 
-`lib/std/num.aiw` reads numbers from decimal text. There are no float literals and no other way from text to a double; this is it.
+`lib/std/num.aiw` reads numbers from decimal text. A [float literal](#float-literals) of a source is read by the compiler, with `numdouble` of this file; for text that a program has when it runs, this file is the way to a double.
 
 | Function | Does |
 |---|---|

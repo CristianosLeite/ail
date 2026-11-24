@@ -1,6 +1,6 @@
 ---
 title: Tools in AIL
-last-verified: 2026-11-20
+last-verified: 2026-11-24
 sources: [PR #4, PR #5, conversation 2026-11-20, tools/, tests/tools.sh, tests/infix.sh, docs/BACKLOG.md]
 status: current
 ---
@@ -48,6 +48,16 @@ output and differ from them in a few stated places.
   that overwrites none still to be read; only descriptors that read one another in a ring
   need a copy (`F_DUPFD_CLOEXEC`). Any failure is a child that ends with 127.
 - `procwait` keeps its limit when `pidfd_open` fails: `wait4` with `WNOHANG` every millisecond.
+- `procheld` (2026-11-24) is `procstart` with a child the kernel kills when the thread that
+  started it ends: `prctl(PR_SET_PDEATHSIG, SIGKILL)` in the child, and a look at `getppid`
+  after it for a parent that ended before the call. A `prctl` that fails (reviewed the same
+  day: its result was not looked at, and under a seccomp filter the program ran unheld) is a
+  child that ends with 127, as every other failure before the exec. `procwait` kills the child alone at the
+  limit, so a program that may be killed that way starts its own children with `procheld`.
+  It is the thread, not the process: a task that starts a child and ends takes the child
+  with it, so a program with tasks starts held children from a thread that stays. Not chosen:
+  a process group that `procwait` kills, which takes the children out of the group of the
+  terminal and so out of reach of an interrupt from the keyboard.
 
 ## Why
 - **Ports instead of keeping Python:** the tools are the largest programs written in the

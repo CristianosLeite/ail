@@ -200,6 +200,18 @@ command arguments, exit statuses and output formats where callers rely on
 them. Update the documented commands and retire each Python entry point after
 its AIL replacement passes the corresponding checks.
 
+- [x] `procheld` of `lib/std/proc.aiw` (2026-11-24, for aildb, whose
+  command is killed by `procwait` of the program that started it and
+  left the embedding provider it had started running): a child started
+  as `procstart` starts one and killed by the kernel when the thread
+  that started it ends (`PR_SET_PDEATHSIG`). `procstart` and `procheld`
+  share what the child does, `procchild`. Test `lib_proc_held`: a
+  process in the middle is killed, the child of `procheld` is gone and
+  the child of `procstart` goes on. After a review of it the same day,
+  a child whose `prctl` the kernel refuses ends with status 127 and
+  starts no program; the test denies the request with a filter of
+  system calls.
+
 ## Source style and editor tooling
 
 - [x] Document the indentation convention. Use one tab per syntactic block
@@ -864,3 +876,14 @@ program that first needs them).
   pieces of every length from 1 to 130: no difference.
   `tests/lib_sha_sums`. It is in no version of AIL yet; the version
   that gets it is the user's to give.
+
+## Float literals
+
+- [x] Float literals (user's proposal, from aildb, 2026-11-21; asked for
+  on 2026-11-24): `1.5`, `-0.25`, `2.5e-3`, digits on both sides of a
+  dot and an exponent or none, are the 64 bits of the nearest double
+  wherever a number is read, a `const` too. `rdflt` of
+  `compiler/lex.aiw` finds one and `numdouble` of `lib/std/num.aiw`,
+  which the compiler now uses, rounds it; one beyond every double is
+  `number too big`. No new seed. `tests/float_literal*`, the bits
+  against `float` of Python.
