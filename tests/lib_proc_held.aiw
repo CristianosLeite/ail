@@ -4,11 +4,17 @@
 # number of that child to the pipe and waits to be killed; this one
 # reads the number, kills the middle and then reads the pipe, which
 # ends only when the child is gone, the last to hold its writing end.
+# Then a process that has denied itself that request of prctl, with a
+# filter of system calls, starts the program with procheld: the child
+# ends with status 127 and the program did not run.
 use "lib/std/io.aiw"
 use "lib/std/proc.aiw"
 const pipe2 293
 const pause 34
 const poll 7
+const prctl 157
+buf filt 48
+buf prog 16
 data sleep "/bin/sleep" 0
 data t30 "30" 0
 buf av 32
@@ -58,6 +64,46 @@ fn try held ms
 	sys close rd
 	ret st ended
 end
+# deny: in a process of its own, make prctl(PR_SET_PDEATHSIG) fail with
+# EPERM and start the program with procheld; what procwait says of the
+# child, or -2000 when the filter could not be put in place
+fn deny
+	sys fork as mid
+	ifz mid
+		# the number of the call; if it is prctl, its first argument; if
+		# that is 1, the error 1, and else the call goes on
+		store4 filt 32
+		store4 filt+4 0
+		store4 filt+8 21+3*16777216
+		store4 filt+12 prctl
+		store4 filt+16 32
+		store4 filt+20 16
+		store4 filt+24 21+16777216
+		store4 filt+28 1
+		store4 filt+32 6
+		store4 filt+36 327681
+		store4 filt+40 6
+		store4 filt+44 2147418112
+		store prog 6
+		store prog+8 filt
+		# PR_SET_NO_NEW_PRIVS, then PR_SET_SECCOMP with a filter
+		sys prctl 38 1 0 0 0 as r
+		ifz r
+			sys prctl 22 2 prog 0 0 as r
+		end
+		if r
+			sys exit 99
+		end
+		call procheld av -1 -1 -1 as p
+		call procwait p 5000 as st
+		if st==127
+			sys exit 0
+		end
+		sys exit 1
+	end
+	call procwait mid 8000 as st
+	ret st
+end
 store av sleep
 store av+8 t30
 call try 1 5000 as st ended
@@ -73,3 +119,14 @@ call putn 0-st
 call print ", the child with it "
 call putn ended
 call print "\n"
+call deny as st
+call print "prctl denied: "
+if st==0
+	call print "the child ended with status 127\n"
+else
+	if st==99
+		call print "the filter could not be put in place\n"
+	else
+		call print "the program was started\n"
+	end
+end

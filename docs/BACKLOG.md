@@ -207,7 +207,10 @@ its AIL replacement passes the corresponding checks.
   that started it ends (`PR_SET_PDEATHSIG`). `procstart` and `procheld`
   share what the child does, `procchild`. Test `lib_proc_held`: a
   process in the middle is killed, the child of `procheld` is gone and
-  the child of `procstart` goes on.
+  the child of `procstart` goes on. After a review of it the same day,
+  a child whose `prctl` the kernel refuses ends with status 127 and
+  starts no program; the test denies the request with a filter of
+  system calls.
 
 ## Source style and editor tooling
 

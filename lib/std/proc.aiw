@@ -153,14 +153,21 @@ end
 # kind behind. What the child starts is not held by this; a child that
 # holds its own children the same way takes them with it. A program that
 # changes its user or group when it starts (set-user-ID) is not held.
+# Where the kernel refuses to hold the child (a filter of system calls
+# that denies prctl), the program is not started and the child ends with
+# status 127, as one whose program cannot be started.
 fn procheld procargv procin procout procerr
 	sys getpid as procme
 	sys fork as procpid
 	if procpid
 		ret procpid
 	end
-	# PR_SET_PDEATHSIG and SIGKILL
-	sys procprctl 1 9
+	# PR_SET_PDEATHSIG and SIGKILL; a kernel that refuses it would leave
+	# a child nothing holds, so the program is not started
+	sys procprctl 1 9 0 0 0 as procr
+	if procr
+		sys exit 127
+	end
 	# a parent that ended before that line sends nothing: its number is
 	# no longer the one of the parent
 	sys procgetppid as procr

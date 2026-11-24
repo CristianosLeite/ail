@@ -50,7 +50,9 @@ output and differ from them in a few stated places.
 - `procwait` keeps its limit when `pidfd_open` fails: `wait4` with `WNOHANG` every millisecond.
 - `procheld` (2026-11-24) is `procstart` with a child the kernel kills when the thread that
   started it ends: `prctl(PR_SET_PDEATHSIG, SIGKILL)` in the child, and a look at `getppid`
-  after it for a parent that ended before the call. `procwait` kills the child alone at the
+  after it for a parent that ended before the call. A `prctl` that fails (reviewed the same
+  day: its result was not looked at, and under a seccomp filter the program ran unheld) is a
+  child that ends with 127, as every other failure before the exec. `procwait` kills the child alone at the
   limit, so a program that may be killed that way starts its own children with `procheld`.
   It is the thread, not the process: a task that starts a child and ends takes the child
   with it, so a program with tasks starts held children from a thread that stays. Not chosen:
