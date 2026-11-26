@@ -198,6 +198,15 @@ that have no `sys`, 579 give their output and status there, the tasks,
 the async library with its sockets and the HTTP client and server among
 them; 21 are of Linux alone and say why in `tests/win.skip`.
 
+Microsoft Defender takes a program for malware now and then, by its
+model and not by a signature: in November 2026 two of the 628 programs
+of the tests, `tests/win/stale.aiw` and `tests/rt_open_threads.aiw`
+(`Sabsik`, `Wacatac`), and it does not let them start. Nothing in the
+header decides it: one byte changed there, a time of linking for one,
+clears a program or does not, by the value of the byte. Such a program
+is reported to Microsoft as a false positive, or signed, or its
+directory is excluded from the scan.
+
 Where a service cannot be on Windows what it is on Linux:
 
 - A directory is opened for its names only, and is no handle of
