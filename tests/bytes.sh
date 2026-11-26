@@ -4,11 +4,9 @@
 # displacement and the whole ELF header. Each program is one line repeated
 # until the source has its 8 MiB, so its code is one record for each of the
 # K lines, between a prefix and the implicit exit, and the expected file is
-# a formula, which awk writes out byte for byte. Between the header and
-# the code stands the image of the runtime, build/rt/image as the C
-# compiler wrote it, with the distance to its state filled in; the header
-# names its first entry as the start and the program ends with a jump to
-# its second. A second compiler, if given, must produce the same file.
+# a formula, which awk writes out byte for byte: the header, and the code
+# from where the runtime ends up to the jump that ends the program. A
+# second compiler, if given, must produce the same file.
 # Usage: AILC=<compiler> [AILC2=<compiler>] tests/bytes.sh   (default build/ailc)
 set -u
 cd "$(dirname "$0")/.."
@@ -19,10 +17,18 @@ out=$(mktemp -d build/tests/bytes.XXXXXX) || exit 1
 trap 'rm -rf "$out"' EXIT
 trap 'exit 1' HUP INT TERM
 fail=0
-img=build/rt/image
-u4() { od -An -tu4 -j"$1" -N4 $img | tr -d ' '; }
-isz=$(wc -c < $img)
-base=$((176 + isz))
+# The runtime stands between the header and the program, and its bytes
+# are not computed here: tests/rt.sh checks them. What the expected file
+# needs of it is taken from the empty program, which is the header, the
+# runtime and seven bytes: where the code of a program starts, where the
+# process starts, how much the runtime keeps in the writable segment,
+# and where the end of a program jumps to.
+: | "$ailc" > "$out/empty" 2> /dev/null
+u() { od -An -tu$1 -j"$2" -N$1 "$out/empty" | tr -d ' '; }
+base=$(( $(wc -c < "$out/empty") - 7 ))
+start=$(u 8 24)
+state=$(u 8 160)
+xit=$(( base + 7 + $(od -An -td4 -j$((base + 3)) -N4 "$out/empty" | tr -d ' ') ))
 
 # check <name> <awk program>: the awk program defines K, the number of
 # lines; source(), which prints the source; and code(), which prints the
@@ -48,17 +54,12 @@ check() {
         echo "FAIL $1 (compile)"; fail=1; return
     fi
     size=$(wc -c < "$out/bin")
-    v="-v size=$size -v base=$base -v start=$((176 + $(u4 32))) -v state=$(u4 12) -v xit=$((176 + $(u4 36)))"
+    v="-v size=$size -v base=$base -v start=$start -v state=$state -v xit=$xit"
     rw='rw = int((size + 4095) / 4096) * 4096'
-    {
-        LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; header(MEM + state) }"
-        head -c 24 $img
-        LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; le(rw + MEM - 176, 8) }"
-        tail -c +33 $img
-        LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; code(); b(\"49 192 233\"); r4(xit - size) }"
-    } > "$out/want"
-    ok=1
-    cmp -s "$out/want" "$out/bin" || ok=0
+    LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; header(MEM + state) }" > "$out/want"
+    LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; code(); b(\"49 192 233\"); r4(xit - size) }" > "$out/wantcode"
+    cmp -s -n 176 "$out/want" "$out/bin" && tail -c +$((base + 1)) "$out/bin" | cmp -s - "$out/wantcode"
+    ok=$((1 - $?))
     if [ -n "${AILC2:-}" ]; then
         timeout --signal=KILL $limit "$AILC2" < "$out/src" 2> /dev/null | cmp -s - "$out/bin" || ok=0
     fi

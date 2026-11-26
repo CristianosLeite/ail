@@ -10,14 +10,15 @@
 #
 # with " ; " for a line end in the source. The source is compiled, by the
 # compiler named by AILC (default build/ailc), and the bytes between the
-# image of the runtime, which stands behind the 176-byte header, and the
-# end of every program, xor eax, eax and a jump to the service exit, must
-# be the hex. A call of a service is in the cases as "call" and four
+# runtime, which stands behind the 176-byte header (its image and the
+# code of its part in AIL: what the empty program has before its end),
+# and the end of every program, xor eax, eax and a jump to the service
+# exit, must be the hex. A call of a service is in the cases as "call" and four
 # bytes that are not compared, written as "........". Four bytes between
 # "<" and ">" are a distance to the writable segment, as the assembler
-# wrote it for a file of the header and that code alone; the image moves
-# the code and with it the segment, and the distance is moved as far
-# before it is compared.
+# wrote it for a file of the header and that code alone; the runtime
+# moves the code and with it the segment, and the distance is moved as
+# far before it is compared.
 # The hex was written by GNU as from the instructions, Intel syntax; the
 # second form checks that it still is, and the third prints it for a new
 # case. Those two need as and objcopy; the first, which make test runs,
@@ -30,8 +31,9 @@ tmp=$(mktemp -d build/tests/insn.XXXXXX) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
 exit0=31c0e9                  # xor eax, eax ; jmp rel32
-# the size of the image: the four bytes at 8 of it
-isz=$(od -An -tu4 -j184 -N4 "$ailc" | tr -d ' ')
+# the size of the runtime in an executable: all that the empty program is
+# but the header and the seven bytes of its end
+isz=$(( $(: | "$ailc" 2> /dev/null | wc -c) - 183 ))
 
 hexof() {
     od -An -v -tx1 "$@" | tr -d ' \n'

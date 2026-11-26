@@ -79,6 +79,19 @@ endif
 $(RTIMG): $(B)/rt/image rt/image.sh
 	rt/image.sh $< > $@.tmp && mv $@.tmp $@
 
+# The part of the runtime that is written in AIL: source that the compiler
+# has as data and compiles with every program, rt.aiw in front of it and
+# state.aiw behind it. A service without a function there is an entry of
+# the image. RTAIL=/dev/null leaves it out, so that every service is the
+# one written in C: the way to run the tests against that one.
+RTAIL ?= $(RTDIR)/rt.aiw
+RTTAIL := $(if $(filter /dev/null,$(RTAIL)),/dev/null,$(RTDIR)/state.aiw)
+RTSRC := $(B)/rt/source.aiw
+
+$(RTSRC): $(RTAIL) $(RTTAIL) rt/source.sh
+	@mkdir -p $(@D)
+	{ rt/source.sh rtsrc $(RTAIL) && rt/source.sh rttail $(RTTAIL); } > $@.tmp && mv $@.tmp $@
+
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -89,13 +102,13 @@ $(RTIMG): $(B)/rt/image rt/image.sh
 # compiler/ailc.aiw names the other files with use "compiler/<name>.aiw",
 # paths that the compiler opens from the directory make runs in. It is
 # the first of SRC because the recipes compile $<.
-$(B)/ailc1: $(SRC) $(RTIMG) $(B)/ailc0
+$(B)/ailc1: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc0
 	$(call compile,$(B)/ailc0)
 
-$(B)/ailc: $(SRC) $(RTIMG) $(B)/ailc1
+$(B)/ailc: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc1
 	$(call compile,$(B)/ailc1)
 
-$(B)/ailc2: $(SRC) $(RTIMG) $(B)/ailc
+$(B)/ailc2: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc
 	$(call compile,$(B)/ailc)
 
 # Each run names its compiler, so an AILC in the environment of make

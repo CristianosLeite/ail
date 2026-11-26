@@ -44,6 +44,7 @@ data 3 "sle" 2 1 0 9 72 57 248 15 158 192 15 182 192
 data 3 "sgt" 2 1 0 9 72 57 248 15 159 192 15 182 192
 data 3 "sge" 2 1 0 9 72 57 248 15 157 192 15 182 192
 data 4 "args" 0 1 128 1 2
+data 5 "stack" 1 2 16 3 72 137 32
 data 3 "len" 1 65 0 0
 data 4 "load" 1 129 0 3 72 139 0
 data 5 "loadb" 1 129 0 3 15 182 0
@@ -212,6 +213,8 @@ data 5 "start" 35 4 1
 data 4 "reap" 36 2 1
 data 3 "pin" 37 1 1
 data 0
+# the keyword of the row that a service written in AIL is compiled by
+data callkw "call"
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195
 # function entry: six pushes

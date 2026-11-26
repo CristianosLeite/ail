@@ -341,8 +341,12 @@ fn f a ; ret a+1 ; end ; fn g a ; call f a as b ; ret b ; end ; fn h a ; call g 
 # goes back to, and not for l in the body.
 fn f a ; jz a l ; a+=1 ; label l ; ret a ; end ; fn g b ; call f b as c ; label m ; c-=1 ; jnz c m ; end | e91a000000534889c34885db0f84040000004883c3014889d85bc331c05bc3e93b00000053554889c34889d84889c54885ed0f84040000004883c5014889e84889c3660f1f8400000000000f1f4400004883eb010f85f6ffffff31c05d5bc3 | {disp32} jmp 1f ; push rbx ; mov rbx,rax ; test rbx,rbx ; {disp32} je 2f ; add rbx,0x1 ; 2: mov rax,rbx ; pop rbx ; ret ; xor eax,eax ; pop rbx ; ret ; 1: {disp32} jmp 3f ; push rbx ; push rbp ; mov rbx,rax ; mov rax,rbx ; mov rbp,rax ; test rbp,rbp ; {disp32} je 4f ; add rbp,0x1 ; 4: mov rax,rbp ; mov rbx,rax ; {disp32} nop WORD PTR [rax+rax*1] ; {disp8} nop DWORD PTR [rax+rax*1] ; 5: sub rbx,0x1 ; {disp32} jne 5b ; xor eax,eax ; pop rbp ; pop rbx ; ret ; 3:
 
-# rt: the values where a call has them and a call of the entry; the end of
-# a program is the same call as a jump
+# rt: the values where a call has them and a call of the entry or of the
+# function of the runtime; the end of a program is the same call as a
+# jump. In a function a service that is a short function of the runtime
+# is compiled in place: close is its system call. stack keeps the stack
+# pointer at an address, for the first line of the runtime.
 rt write 1 2 3 as x | b801000000bf02000000be03000000e8........4889c3 | mov eax, 1 ; mov edi, 2 ; mov esi, 3 ; call 0 ; mov rbx, rax
 rt exit 7 | b807000000e8........ | mov eax, 7 ; call 0
-fn f ; rt close 1 as x ; ret x ; end | e91700000053b801000000e8........4889c34889d85bc331c05bc3 | {disp32} jmp 1f ; push rbx ; mov eax, 1 ; call 0 ; mov rbx, rax ; mov rax, rbx ; pop rbx ; ret ; xor eax, eax ; pop rbx ; ret ; 1:
+fn f ; rt close 1 as x ; ret x ; end | e92e00000053554154b8010000004889c5b8030000004889ef0f054989c44c89e04889c34889d8415c5d5bc331c0415c5d5bc3 | {disp32} jmp 1f ; push rbx ; push rbp ; push r12 ; mov eax, 1 ; mov rbp, rax ; mov eax, 3 ; mov rdi, rbp ; syscall ; mov r12, rax ; mov rax, r12 ; mov rbx, rax ; mov rax, rbx ; pop r12 ; pop rbp ; pop rbx ; ret ; xor eax, eax ; pop r12 ; pop rbp ; pop rbx ; ret ; 1:
+buf b 8 ; stack b | 488d05<490f0000>488920 | lea rax, [rip + 3913] ; mov [rax], rsp

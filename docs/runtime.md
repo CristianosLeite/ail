@@ -8,9 +8,13 @@ into each executable and the statement [`rt`](language.md#rt) calls it;
 [RUNTIME.md](RUNTIME.md) is the plan this follows. What a program wants
 of x86-64 Linux alone it still asks with [`sys`](language.md#sys).
 
-There is one runtime now, for x86-64 Linux, written in C in
-`rt/linux-x86_64/`. `make` compiles it with `cc`, without a C library;
-`make RT=<file>` takes an image built elsewhere.
+There is one runtime now, for x86-64 Linux, in `rt/linux-x86_64/`. It is
+being moved from C to AIL, a service at a time: `rt.aiw` has the
+services that are written in AIL, and `rt.c` all of them, of which the
+compiler calls those that `rt.aiw` does not have. `make` compiles the C
+part with `cc`, without a C library; `make RT=<file>` takes an image
+built elsewhere, and `make RTAIL=/dev/null` leaves the AIL part out, so
+that every service is the one in C and the tests can be run against it.
 
 ## Services
 
@@ -143,9 +147,38 @@ number the table above gives it; the compiler knows the services by the
 table `rtnames` of `compiler/tables.aiw`, and `tests/tables.sh` holds
 the two together.
 
+## The part in AIL
+
+`rt/linux-x86_64/rt.aiw` is AIL source that the compiler has as data
+(`build/rt/source.aiw`, written by `rt/source.sh` without its comments)
+and compiles in front of every program, as if the program began with
+it. A function `rt_<name>` there is the service `name`: it takes the
+values of the service and returns its results, and a statement that
+calls the service is a call of that function, with all that a call has.
+In a function, a short one is compiled in place of its call, so `rt
+write` in a function is the system call and nothing around it. The
+first line of the file is the first that a process runs: `stack
+rt_state` keeps the stack the process starts with. `state.aiw` is
+compiled behind the program and declares what the runtime keeps, so
+that its bytes are behind the buffers of the program.
+
+Every name of the two files starts with `rt_`, variables and labels too,
+and a program has no name that does: a function of the runtime that is
+compiled in place is read where the program's names are known, and `as`
+on the name of a `var` of the program would write that `var`.
+
+The statement `stack p` is for that first line: it stores the stack
+pointer at the address `p`, and is allowed at top level only.
+
+While both parts are there, the image written in C stands in every
+executable with all of its entries, and the process starts at its first
+one, which goes on at the first line of `rt.aiw`.
+
 ## A new service
 
 A function in `rt/linux-x86_64/rt.c` with its line in `rt.h`, an entry
 at the end of the table and of the entries in `entry.S`, a row in
 `rtnames` with the number of that entry, a line in the tables here and
-in [language.md](language.md#rt), and tests `tests/rt_*`.
+in [language.md](language.md#rt), and tests `tests/rt_*`. Or a function
+`rt_<name>` in `rt.aiw`, with the row and the lines, and until the C
+part is gone an entry all the same, which may be one that does nothing.

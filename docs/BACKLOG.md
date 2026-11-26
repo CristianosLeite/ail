@@ -969,3 +969,17 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `iocopy` and `iosmall`, take 0.89 and 0.99 of the time of C, and a
   program starts 2 microseconds later than without the runtime, 50
   against 48.
+- [x] A runtime written in AIL as source the compiler compiles with
+  every program (2026-11-26), in place of the image as a second form of
+  output that the plan had: a service is then a function of the program,
+  with no table between, and a short one is compiled in place of its
+  call, which an image could not be. `rt/linux-x86_64/rt.aiw` is
+  compiled in front of the program and `state.aiw` behind it; the
+  compiler has both as data. A service with a function `rt_<name>`
+  there is a call of it, and any other an entry of the C image, so the
+  two parts run side by side while services move. `exit`, `args`,
+  `close`, `read` and `write` are in AIL: `rt write` in a function is
+  the system call alone. The statement `stack` is for the first line of
+  the runtime. `make test` passes with the AIL part and, but for the
+  one case that expects a service in place, with
+  `make RTAIL=/dev/null`.

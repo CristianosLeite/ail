@@ -39,11 +39,13 @@ done
 [ "$n" -gt 1 ] || r=1
 say rt_image_header $r
 
-# an executable is the header, the image with the distance filled in, and
+# an executable is the header, the image with the distance filled in,
+# the code of the runtime written in AIL, a multiple of 64 bytes, and
 # the program: the empty program is two instructions
 : | "$ailc" > "$tmp/empty" 2> /dev/null
 r=0
-[ "$(wc -c < "$tmp/empty")" -eq $((176 + size + 7)) ] || r=1
+all=$(wc -c < "$tmp/empty")
+[ "$all" -ge $((176 + size + 7)) ] && [ $(( (all - 183) % 64 )) -eq 0 ] || r=1
 head -c 200 "$tmp/empty" | tail -c 24 > "$tmp/a"; head -c 24 "$img" > "$tmp/b"
 cmp -s "$tmp/a" "$tmp/b" || r=1
 head -c $((176 + size)) "$tmp/empty" | tail -c +209 > "$tmp/a"; tail -c +33 "$img" > "$tmp/b"

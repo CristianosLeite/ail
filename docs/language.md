@@ -233,7 +233,7 @@ rt write 1 "hello\n" as n
 rt exit n!=6
 ```
 
-A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable.
+A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable. Names that start with `rt_` are those of the runtime, part of which is AIL source compiled with every program ([runtime.md](runtime.md)): a program defines no function, global name or variable with such a name. The statement `stack p`, which stores the stack pointer at an address and is allowed at top level only, is for the first line of that source.
 
 ### `set` and arithmetic
 
@@ -1846,7 +1846,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn` or `use` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `stack` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |

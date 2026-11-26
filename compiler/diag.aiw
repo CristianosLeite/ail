@@ -38,6 +38,10 @@ fn die m n s
 		c=(u-1)*16+uses
 		load c as pp
 		load c+8 as pl
+		ifz pl
+			# a source of the runtime, which the compiler has in it
+			call ew "runtime"
+		end
 		call ew pp pl
 		call ew ":"
 	end

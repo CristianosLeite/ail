@@ -58,8 +58,10 @@ version 0.2.0 after it.
   meant and not how Linux does it: a program started in a group that
   ends with it, a lock of a directory, the directory of the process and
   of the executable, a program in place of the process.
-- [ ] An image as a form of output, for a runtime written in AIL.
-- [ ] The services in AIL one group at a time, tested against both.
+- [ ] The services in AIL one group at a time, tested against both
+  (`make RTAIL=/dev/null` for the C ones). Done: `exit`, `args`,
+  `close`, `read`, `write`. To do: memory, `open` and the services of
+  directories, time, threads, the poller and sockets, processes.
 - [ ] The C runtime removed, and seed 8.
 - [ ] A second platform: the compiler split into shared and target
   files, a second backend and its runtime, the test suite there.
