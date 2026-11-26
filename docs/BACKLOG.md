@@ -1164,3 +1164,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   counted from the start, says so if Windows refuses to end the child,
   and takes one that has ended with what it ended with.
   `tests/win/stale.aiw`, `tests/rt_watch_close`, `tests/rt_reap_long`.
+- [x] `reap` on Windows gives a child to one thread (2026-11-26): two
+  threads that reaped one child both waited for its handle, and the
+  first to finish closed it under the other, which then read a status
+  of 0 from a call that had failed, or asked about whatever the handle
+  had become. `start` now puts each child in a list of the runtime,
+  `reap` takes one that is there and that no other `reap` has, -1001
+  otherwise, and takes it out of the list before the handle is closed;
+  a status that Windows does not give is its error. The source of the
+  services may be 48 KiB, since that of Windows passed 32.
+  `tests/rt_reap_many`, which `tests/win.sh` always runs: eight
+  threads, of which five or four got 0 before.

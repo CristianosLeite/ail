@@ -32,6 +32,7 @@
 # 4736  per descriptor, 8 bytes: the record of the poller that it is or
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
+# 6784  the children that were started and not yet taken (see rt_reap)
 # Every name of this file starts with "rt_".
 #
 # The first line goes to the last, past every function.
@@ -889,6 +890,8 @@ end
 # inherits those and no other handle of this process, whatever another
 # thread starts meanwhile. A held child is put in the job by the same
 # list (Windows 10), so it never runs outside it.
+# What is returned is the handle of Windows of the child, which is put
+# in the list of the children for reap.
 fn rt_start rt_argv rt_env rt_fds rt_flags
 	local rt_a 80
 	local rt_si 112
@@ -953,6 +956,12 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	end
 	call rt_alloc rt_n+rt_m as rt_line
 	ifz rt_line
+		call rt_shut3 rt_dup
+		ret -12
+	end
+	call rt_alloc 24 as rt_kid
+	ifz rt_kid
+		call rt_free rt_line
 		call rt_shut3 rt_dup
 		ret -12
 	end
@@ -1079,12 +1088,20 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	call rt_shut3 rt_dup
 	call rt_free rt_line
 	ifz rt_ok
+		call rt_free rt_kid
 		ret 1
 	end
 	load rt_pi+8 as rt_h
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1
 	load rt_pi as rt_p
+	store rt_kid+8 rt_p
+	store rt_kid+16 0
+	call rt_lock
+	load rt_state+6784 as rt_h
+	store rt_kid rt_h
+	store rt_state+6784 rt_kid
+	call rt_unlock
 	ret rt_p
 end
 
@@ -1094,15 +1111,68 @@ end
 # milliseconds, in which case it was ended and taken; or -1001 if there
 # is no such child; or, if Windows refuses to end a child whose time is
 # over, its error, the child being left as it is. rt_ms 0 waits without
-# limit. Windows counts the time of a wait in 32 bits, of which the
-# largest value means no limit, so a long time is waited for in pieces,
-# and what is left is counted from the start.
+# limit.
+# A child is a handle of Windows, which is closed when the child is
+# taken and may then be the number of another thing, and a wait for a
+# handle that is closed meanwhile is not defined. So one thread alone
+# has a child: start puts each in a list (the cell at 6784 of the state;
+# 24 bytes each: the next, the handle, 1 while a reap has it), reap
+# takes one that is there and that no other reap has, and takes it out
+# of the list before it closes the handle. Anything else is no child.
 fn rt_reap rt_p rt_ms
 	local rt_a 32
-	local rt_c 8
 	if rt_p==1
 		ret 127
 	end
+	call rt_lock
+	load rt_state+6784 as rt_k
+	label rt_find
+	ifz rt_k
+		call rt_unlock
+		ret -1001
+	end
+	load rt_k+8 as rt_h
+	if rt_h!=rt_p
+		load rt_k as rt_k
+		jmp rt_find
+	end
+	load rt_k+16 as rt_h
+	if rt_h
+		call rt_unlock
+		ret -1001
+	end
+	store rt_k+16 1
+	call rt_unlock
+	call rt_reaping rt_p rt_ms as rt_r rt_took
+	ifz rt_took
+		store rt_k+16 0
+		ret rt_r
+	end
+	call rt_lock
+	rt_q=rt_state+6784
+	label rt_next
+	load rt_q as rt_h
+	if rt_h!=rt_k
+		rt_q=rt_h
+		jmp rt_next
+	end
+	load rt_k as rt_h
+	store rt_q rt_h
+	call rt_unlock
+	call rt_free rt_k
+	store rt_a rt_p
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
+end
+
+# reap for the thread that alone has the child rt_p: what reap gives,
+# and 1 if the child is taken, 0 if it is left. Windows counts the time
+# of a wait in 32 bits, of which the largest value means no limit, so a
+# long time is waited for in pieces, and what is left is counted from
+# the start.
+fn rt_reaping rt_p rt_ms
+	local rt_a 32
+	local rt_c 8
 	call rt_clock as rt_t
 	label rt_again
 	rt_n=0xffffffff
@@ -1138,41 +1208,43 @@ fn rt_reap rt_p rt_ms
 			call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
 			rt_r&=0xffffffff
 			jz rt_r rt_took
-			ret rt_x
+			ret rt_x 0
 		end
 		store rt_a rt_p
 		store rt_a+8 0xffffffff
 		call rt_api rt_i_waitforsingleobject rt_a 2
-		store rt_a rt_p
-		call rt_api rt_i_closehandle rt_a 1
-		ret -1000
+		ret -1000 1
 	end
 	if rt_r
-		ret -1001
+		# a wait that Windows refuses
+		call rt_error as rt_x
+		ret rt_x 0
 	end
 	label rt_took
 	store rt_c 0
 	store rt_a rt_p
 	store rt_a+8 rt_c
-	call rt_api rt_i_getexitcodeprocess rt_a 2
-	store rt_a rt_p
-	call rt_api rt_i_closehandle rt_a 1
+	call rt_api rt_i_getexitcodeprocess rt_a 2 as rt_x
+	ifz rt_x&0xffffffff
+		call rt_error as rt_x
+		ret rt_x 1
+	end
 	load4 rt_c as rt_r
 	if rt_r>=0xc0000000
 		# a fault: a place of memory that is none, a division by zero, an
 		# instruction that is none, any other
 		if rt_r==0xc0000005
-			ret -11
+			ret -11 1
 		end
 		if (rt_r==0xc0000094)|(rt_r==0xc0000095)
-			ret -8
+			ret -8 1
 		end
 		if rt_r==0xc000001d
-			ret -4
+			ret -4 1
 		end
-		ret -6
+		ret -6 1
 	end
-	ret rt_r&255
+	ret rt_r&255 1
 end
 
 # Let this thread run only on the processor rt_cpu, or on the lowest one
