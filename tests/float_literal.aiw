@@ -1,0 +1,45 @@
+# a float literal is the 64 bits of the double nearest to what it says:
+# digits, a dot and digits, with an exponent or not and a "-" or not. The
+# bits are those that float of Python 3 gives for the same text: a value
+# between two doubles goes to the nearer, a tie to the one whose last
+# bit is 0, one below the least double to a zero, and digits before the
+# dot may be more than 64 bits hold. It stands wherever a number does:
+# as a value, as a const, in an expression and after "as" of nothing.
+use "lib/std/io.aiw"
+fn show x
+	call putn x
+	call print "\n"
+end
+call show 1.5
+call show 0.5
+call show 0.1
+call show -0.0
+call show 0.0
+call show 3.141592653589793
+call show 2.5e-3
+call show 2.5E3
+call show 1.0e+2
+call show 1.7976931348623157e308
+call show 4.9e-324
+call show 2.4e-324
+call show 0.30000000000000004
+call show 123456789012345678901234567890.5
+call show 9007199254740993.0
+call show -1.25
+call show 000.250
+call show 18446744073709551616.0
+call show 1.0e-400
+const half 0.5
+fadd 1.5 half as x
+ftoi x as i
+call show i
+y=2.5
+fmul y 4.0 as z
+ftoi z as i
+call show i
+flt 0.1 0.2 as c
+call show c
+# a number that is no float literal is the number it was
+call show 15
+call show -15
+call show 0x10

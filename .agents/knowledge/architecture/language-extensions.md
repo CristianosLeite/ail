@@ -1,6 +1,6 @@
 ---
 title: Language extensions
-last-verified: 2026-11-19
+last-verified: 2026-11-24
 sources: [conversation 2026-11-19, docs/BACKLOG.md, stage0/ailc.s, compiler/ailc.aiw]
 status: current
 ---
@@ -319,7 +319,21 @@ both compilers. Each section says what was chosen, why, and what to keep in mind
   `add` on two doubles; the reference says so.
 - **No float literals:** converting a decimal fraction to the nearest double correctly is a
   large algorithm to write twice, in assembly and in AIL; `itof` and `fdiv`, or the bits in hex,
-  cover constants.
+  cover constants. *Superseded on 2026-11-24, below: the assembly compiler is gone since
+  2026-11-20 and the algorithm is in `lib/std/num.aiw` since the MCP server needed it.*
+- **Float literals, 2026-11-24** (user's proposal, recorded in aildb on 2026-11-21 as "the
+  compiler could turn `1.5` into `0x3ff8000000000000`"; asked for with every open item of
+  aildb on 2026-11-24; the form by the agent, for the user to review). A literal is digits,
+  a dot, digits and an exponent or none, after a `-` or not, and is the bits of the nearest
+  double, wherever a number is read. `rdflt` of `compiler/lex.aiw` looks for one before
+  `rdnum` reads an integer, and gives the text to `numdouble`, which the compiler now uses
+  from the library: one implementation of the rounding, the one that was checked against
+  Python on 303,627 texts. Before this, such text was a syntax error, so no program that
+  compiled means something else. Rejected: `1e5` and `1.` and `.5` as literals, which
+  would make a number of text that today is a number and a name or an error with a clear
+  place; a literal that is an infinity; a second kind of token or value for doubles, since
+  variables hold bits and the statements say what they are. No new seed: the compiler's
+  own source has no float literal, and the library file is in what seed 6 understands.
 - **No vector operations:** they need values wider than a variable, so a register class and a
   memory layout of their own; nothing measured asks for them.
 - **Only `flt`, `fle`, `feq`:** the other orderings are the same statement with the values

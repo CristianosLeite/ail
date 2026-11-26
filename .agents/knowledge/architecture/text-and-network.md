@@ -1,7 +1,7 @@
 ---
 title: Numbers from text, JSON and HTTP
-last-verified: 2026-11-22
-sources: [conversation 2026-11-22 (in the aildb repository), lib/std/num.aiw, lib/std/json.aiw, lib/net/http.aiw, lib/net/httpd.aiw, docs/language.md, tests/lib_num_*, tests/lib_json_*, tests/lib_http_*, tests/lib_httpd_*]
+last-verified: 2026-11-24
+sources: [conversation 2026-11-22 (in the aildb repository), lib/std/num.aiw, lib/std/json.aiw, lib/net/http.aiw, lib/net/httpd.aiw, docs/language.md, tests/lib_num_*, tests/lib_json_*, tests/lib_http_*, tests/lib_httpd_*, conversation 2026-11-24 (in the aildb repository), lib/std/sha.aiw, tests/lib_sha_sums.aiw]
 status: current
 ---
 # Numbers from text, JSON and HTTP
@@ -18,6 +18,15 @@ ail-extensions.
   the MCP SDK is a module of ail-extensions". Asked where an SDK written in AIL should
   live, of three choices (a package inside aildb, a repository of its own, the library
   of AIL), the user gave this split.
+- **SHA-256 is a library of AIL too, `lib/std/sha.aiw`** (user, 2026-11-24: "SHA256
+  should live on AIL not in aildb"). The agent had written it in aildb, as
+  `src/lib/sha.aiw`, for the identity of an embedding provider and the keys of kept
+  vectors, against the decision above; it was moved here unchanged but for its
+  comment. The state is bytes of the caller and nothing is allocated, as in the other
+  files of `lib/std`; `shahex` alone needs `lib/std/bytes.aiw`. Its test prints what
+  `hashlib.sha256` of Python 3 gives. A library that a program first needs is asked of
+  the user before it is written in the program. The version 0.1.2 of AIL (user,
+  2026-11-24) is the first that has it, so a package asks for it with `ail 0.1.2`.
 - **`numdouble` is correctly rounded for every text** (agent). A model returns a vector
   as decimals, and the test of the program that reads them is that it stores the bytes
   another language stores; a parser that is right for most texts cannot be tested that

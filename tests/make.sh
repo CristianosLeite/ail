@@ -24,10 +24,12 @@ toolleftovers() {
     ls "$d/build/tools" 2> /dev/null | grep -v -e '^t$' | wc -l
 }
 
-mkdir "$d/compiler" "$d/seed" "$d/tools" "$d/examples" "$d/build"
+mkdir -p "$d/compiler" "$d/seed" "$d/tools" "$d/examples" "$d/build" "$d/lib/std"
 cp -p Makefile "$d/"
 cp -p compiler/*.aiw "$d/compiler/"
 cp -pr compiler/linux-x86_64 "$d/compiler/"
+# the file of the library that the compiler uses, for its float literals
+cp -p lib/std/num.aiw "$d/lib/std/"
 cp -p seed/MANIFEST "$d/seed/"
 cp -p tools/seed.sh "$d/tools/"
 # the seed and the compilers built from it, each newer than what it is
