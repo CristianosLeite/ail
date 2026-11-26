@@ -24,7 +24,7 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
-	SYS_poll = 7, SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rt_sigprocmask = 14,
+	SYS_poll = 7, SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rt_sigprocmask = 14, SYS_sched_yield = 24,
 	SYS_dup2 = 33, SYS_nanosleep = 35, SYS_getpid = 39, SYS_socket = 41, SYS_connect = 42, SYS_sendto = 44, SYS_bind = 49,
 	SYS_listen = 50, SYS_getsockname = 51, SYS_setsockopt = 54, SYS_getsockopt = 55,
 	SYS_fork = 57, SYS_execve = 59, SYS_exit = 60, SYS_wait4 = 61, SYS_kill = 62, SYS_fcntl = 72, SYS_rename = 82, SYS_mkdir = 83,
@@ -48,28 +48,138 @@ long rt_args(struct rt *rt)
 	return rt->sp;
 }
 
-/* n bytes of zeros at a multiple of 16, or 0: one mapping a call, with
- * its length in the 16 bytes before the address */
+/* Memory. A block has 16 bytes before the address a program gets, the
+ * first 8 of them saying what it is: the number of its class for a
+ * small block, the length of its mapping for a large one, which is
+ * always more. A small block is one of 39 sizes, from 32 bytes to 32
+ * KiB with the 16 in them, four sizes for each doubling above 128, so
+ * that at most a fifth of a block is not asked for. Small blocks are
+ * cut from chunks of 256 KiB that the kernel maps and that are never
+ * given back; a block that is freed is the first of the list of its
+ * class and the next to be given out, zeroed then. A large block is a
+ * mapping of its own, as every block was before.
+ *
+ * The lists are shared by the threads, and are only locked once the
+ * runtime has started one: a program with one thread pays nothing for
+ * the others. */
+#define CHUNK 262144UL
+#define SMALL 32768UL
+
+/* the class of a block of t bytes in all, 32 to SMALL, and its size */
+static unsigned class_of(unsigned long t)
+{
+	unsigned s;
+
+	if (t <= 128)
+		return (t + 15) / 16 - 2;
+	s = 63 - __builtin_clzl(t - 1);
+	return 7 + (s - 7) * 4 + ((t - 1) >> (s - 2) & 3);
+}
+
+static unsigned long class_size(unsigned c)
+{
+	unsigned s;
+
+	if (c < 7)
+		return (c + 2) * 16;
+	c -= 7;
+	s = 7 + c / 4;
+	return (1UL << s) + (c % 4 + 1) * (1UL << (s - 2));
+}
+
+static void lock(struct rt *rt)
+{
+	int i;
+
+	if (!rt->threads)
+		return;
+	while (__atomic_exchange_n(&rt->lock, 1, __ATOMIC_ACQUIRE))
+		for (i = 0; __atomic_load_n(&rt->lock, __ATOMIC_RELAXED); i++) {
+			if (i < 200)
+				__builtin_ia32_pause();
+			else
+				sys1(SYS_sched_yield, 0);
+		}
+}
+
+static void unlock(struct rt *rt)
+{
+	if (rt->threads)
+		__atomic_store_n(&rt->lock, 0, __ATOMIC_RELEASE);
+}
+
+/* zeros over n words at p: the string instruction, which is the
+ * fastest for the sizes of most blocks; its start costs more than a
+ * small block takes in a loop */
+static void zero(unsigned long *p, unsigned long n)
+{
+	if (n > 12) {
+		__asm__ volatile("rep stosq" : "+D"(p), "+c"(n) : "a"(0L) : "memory");
+		return;
+	}
+	while (n--)
+		*p++ = 0;
+}
+
+/* n bytes of zeros at a multiple of 16, or 0 */
 long rt_alloc(struct rt *rt, unsigned long n)
 {
-	unsigned long p;
+	unsigned long p, t = n + 16, size;
+	unsigned c;
 
-	(void)rt;
+	if (t < 32)
+		t = 32;
 	if (n >= -4096UL)
 		return 0;
-	p = sys6(SYS_mmap, 0, n + 16, 3, 0x22, -1, 0);
-	if (p > -4096UL)
-		return 0;
-	*(unsigned long *)p = n + 16;
+	if (t > SMALL) {
+		p = sys6(SYS_mmap, 0, t, 3, 0x22, -1, 0);
+		if (p > -4096UL)
+			return 0;
+		*(unsigned long *)p = t;
+		return p + 16;
+	}
+	c = class_of(t);
+	size = class_size(c);
+	lock(rt);
+	p = (unsigned long)rt->freed[c];
+	if (p) {
+		rt->freed[c] = *(unsigned long **)p;
+		unlock(rt);
+		zero((unsigned long *)p, size / 8 - 2);
+		return p;
+	}
+	if (rt->end - rt->next < size) {
+		p = sys6(SYS_mmap, 0, CHUNK, 3, 0x22, -1, 0);
+		if (p > -4096UL) {
+			unlock(rt);
+			return 0;
+		}
+		rt->next = p;
+		rt->end = p + CHUNK;
+	}
+	p = rt->next;
+	rt->next = p + size;
+	unlock(rt);
+	*(unsigned long *)p = c;
 	return p + 16;
 }
 
 /* give back what rt_alloc returned; 0 is nothing */
 long rt_free(struct rt *rt, unsigned long p)
 {
-	(void)rt;
-	if (p)
-		sys2(SYS_munmap, p - 16, *(unsigned long *)(p - 16));
+	unsigned long c;
+
+	if (!p)
+		return 0;
+	c = *(unsigned long *)(p - 16);
+	if (c >= RT_CLASSES) {
+		sys2(SYS_munmap, p - 16, c);
+		return 0;
+	}
+	lock(rt);
+	*(unsigned long **)p = rt->freed[c];
+	rt->freed[c] = (unsigned long *)p;
+	unlock(rt);
 	return 0;
 }
 

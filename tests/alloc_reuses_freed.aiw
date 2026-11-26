@@ -1,0 +1,41 @@
+# a small block that was freed is the next of its size to be given out,
+# zeros again; another size has another block; blocks of every size are
+# zeros at a multiple of 16 and apart from each other
+alloc 40 as p
+store p 7
+store p+32 9
+free p
+alloc 33 as q
+load q as a
+load q+32 as b
+alloc 100 as r
+ok=(q==p)+(a==0)*2+(b==0)*4+(r!=q)*8
+n=1
+prev=0
+bad=0
+while n<70000
+	alloc n as p
+	bad+=(p%16!=0)+(p==prev)+(p==0)
+	loadb p as a
+	loadb p+n-1 as b
+	bad+=a+b
+	storeb p 255
+	storeb p+n-1 255
+	prev=p
+	n=n*3/2+1
+end
+# the same sizes again after they were freed: zeros again
+n=1
+while n<70000
+	alloc n as p
+	storeb p 255
+	storeb p+n-1 255
+	free p
+	alloc n as q
+	loadb q as a
+	loadb q+n-1 as b
+	bad+=a+b
+	free q
+	n=n*3/2+1
+end
+rt exit ok+(bad==0)*16

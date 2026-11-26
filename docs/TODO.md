@@ -65,5 +65,11 @@ version 0.2.0 after it.
   files, a second backend and its runtime, the test suite there.
 - [ ] Workloads for startup, I/O and allocation in ail-bench against C
   at `-O3`, measured before the runtime, with the C one and the AIL one.
-- [ ] The gaps to C closed, each change measured first.
+- [ ] The gaps to C closed, each change measured first. Known: a
+  program starts 2 microseconds later with the runtime, whose image is
+  9 KiB in every executable and whose state makes a writable segment
+  where there was none (only the entries a program reaches, and a state
+  only for those that need one); a division by a constant is a division
+  where C multiplies (`allocs` lost 13% to that before its sizes were a
+  mask).
 - [ ] Version 0.2.0.

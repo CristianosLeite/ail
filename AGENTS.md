@@ -107,7 +107,7 @@ A tool written in AIL is `tools/<name>.aiw`, compiled by `build/ailc` after the 
 - `sdiv smod sar` and `slt sle sgt sge`: the signed forms of `div mod shr` and of the four orderings. Nothing is checked: overflow wraps, a zero divisor is `SIGFPE`.
 - `buf name size`: reserves zero-filled writable bytes (rounded up to 8); the name is a constant address. The size is a number or a `const` and may be 0.
 - `local name size`: bytes in the frame of the function it stands in, not zero-filled, gone at return; the name is one of the function's variables but cannot be assigned.
-- `alloc n as p`, `free p`: run-time storage, services of the runtime: on Linux one `mmap` per call with a 16-byte length header; zero-filled, 16-byte aligned, `p` is 0 if the kernel refuses.
+- `alloc n as p`, `free p`: run-time storage, services of the runtime: blocks of 39 sizes up to 32 KiB cut from chunks and used again when freed, a larger one a mapping of its own, 16 bytes in front of each; zero-filled, 16-byte aligned, `p` is 0 if the kernel refuses; safe among the threads of the runtime.
 - `var a b c`: global 64-bit cells, zero at start, read as a value and written by `as`, visible in every function.
 - `const name number`: a named number, usable as any value, as the `sys` number and as a `buf` size.
 - `data name item ...`: read-only bytes from strings and byte values 0 to 255; the name is a constant address and is optional. Consecutive `data` lines are contiguous, so a table is one row a line. No limit on their number.

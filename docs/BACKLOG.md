@@ -955,3 +955,17 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   functions that put the descriptors of a child in place are in
   `cli/tool.aiw` now, for the children it forks itself.
   `tests/rt_start`; the `lib_proc_*` tests as they were.
+- [x] `alloc` and `free` at the cost of C (2026-11-26). Measured first:
+  the program `allocs` of ail-bench took 79 times as long as its C twin,
+  each block being a mapping. The runtime now cuts blocks of 39 sizes
+  from chunks of 256 KiB and gives a freed block out again, cleared
+  with the string instruction (a loop of 16-byte stores was measured
+  and was slower); a block of 32 KiB or more is a mapping as before.
+  The lists are locked only once the runtime has started a thread.
+  1.03 times C. A block that is freed no longer faults when it is used,
+  unless it is a large one: `tests/free_then_use_faults` is a large
+  block now, `tests/alloc_reuses_freed` and `tests/alloc_in_threads`
+  are new. The two other programs of the runtime measured there,
+  `iocopy` and `iosmall`, take 0.89 and 0.99 of the time of C, and a
+  program starts 2 microseconds later than without the runtime, 50
+  against 48.

@@ -7,7 +7,11 @@
 #define AIL_RT_H
 
 /* the bytes of state, which the header of the image names */
-#define RT_STATE 16
+#define RT_STATE 360
+/* where in it the entry thread notes that the process has threads */
+#define RT_THREADS 16
+/* the classes of small blocks */
+#define RT_CLASSES 39
 
 #ifndef __ASSEMBLER__
 
@@ -15,6 +19,10 @@
 struct rt {
 	long sp;	/* the stack at the start: argc, the arguments, the environment */
 	long clock;	/* clock_gettime of the kernel's page of code, 1 if it has none, 0 before the first use */
+	long threads;	/* not 0 once the runtime has started a thread */
+	int lock, pad;	/* 1 while a thread is in the lists below */
+	unsigned long next, end;	/* the memory of the chunk at hand that no block has had */
+	unsigned long *freed[RT_CLASSES];	/* per class: the blocks given back, each with the next in its first 8 bytes */
 };
 
 /* two results: the first in rax, the second in rdx, which the entry

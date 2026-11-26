@@ -22,7 +22,7 @@ result is a value.
 |---|---|---|---|
 | 1 | `exit` | status | none: the process ends, with every thread |
 | 2 | `args` | | the address of the number of arguments; behind it the address of each argument, a zero, the address of each string of the environment, a zero. Each ends with a NUL |
-| 3 | `alloc` | size | the address of that many bytes of zeros, a multiple of 16, or 0 |
+| 3 | `alloc` | size | the address of that many bytes of zeros, a multiple of 16, or 0. Threads that `thread` started may call it and `free` at the same time |
 | 4 | `free` | address | none. The address is one `alloc` gave, or 0, which does nothing |
 | 5 | `open` | address and length of a path, flags, mode | a descriptor, or an error |
 | 6 | `close` | descriptor | 0, or an error |
@@ -90,6 +90,21 @@ them; a runtime for another platform gives the same numbers:
 | -111 | nobody listens there |
 | -115 | it goes on |
 | -39 | the directory is not empty |
+
+## Memory on Linux
+
+A block has 16 bytes before its address, which say what it is. Up to 32
+KiB with those 16 it is one of 39 sizes, four for each doubling above 128
+bytes, cut from chunks of 256 KiB that are mapped as they are needed and
+never given back. `free` puts such a block first in the list of its size,
+and `alloc` takes the first of the list, clears it, and only cuts a new
+block when the list is empty; what is cut from a chunk is zeros already.
+A larger block is a mapping of its own, which `free` gives back to the
+kernel. The lists are in the state and are locked, by a few instructions
+that spin, only once `thread` has started a thread. On the program
+`allocs` of ail-bench, 200000 blocks of 16 to 1039 bytes with 64 alive,
+this takes 1.03 times as long as `calloc` and `free` of the C library; a
+mapping for every block took 79 times as long.
 
 ## How a program calls it
 

@@ -138,6 +138,9 @@ e_thread:
 	push %rbx
 	push %r12
 	push %r13
+	lea rt_image(%rip), %rbx
+	add rt_state(%rip), %rbx
+	movq $1, RT_THREADS(%rbx)
 	mov %rax, %rbx
 	mov %rdi, %r12
 	xor %edi, %edi

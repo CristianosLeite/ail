@@ -1,3 +1,5 @@
-alloc 8 as p
+# a large block is a mapping of its own, which free gives back: a use of
+# it afterwards faults
+alloc 65536 as p
 free p
 loadb p as x
