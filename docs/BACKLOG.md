@@ -1141,3 +1141,16 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   that ends its wait, and `wakeup` notes the waker in every poller
   that watches it. `tests/rt_poll_shared`, which `tests/win.sh` always
   runs.
+- [x] `reap` on Linux keeps a child for the thread that waits for it
+  (2026-11-26): where the wait was by the number, another thread could
+  take the child between two questions and the number go to a new
+  child, which was then taken or killed; and a signal the kernel
+  refused was not noticed, so the child was waited for without limit
+  and said to have been killed whatever it ended with. Each `reap`
+  now puts its number in a list of the runtime for as long as it
+  lasts, and a number in the list is no child to another thread, so
+  what has the number is one child from the first question to the
+  signal; nothing is taken under a lock any more. A refused signal is
+  the result, with the child left, and a child that ended by itself
+  before the signal gives what it ended with. `tests/rt_reap_two`,
+  `tests/rt_reap_denied`.

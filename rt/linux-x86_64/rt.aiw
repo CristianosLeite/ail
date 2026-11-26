@@ -16,6 +16,7 @@
 #   40  its end
 #   48  per class of small blocks, 8 bytes: the blocks given back, each
 #       with the next in its first 8 bytes
+#  360  the children that a reap waits for (see rt_reap)
 # Every name of this file starts with "rt_", and a program has no name
 # that does.
 #
@@ -1013,43 +1014,51 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	sys exit 127
 end
 
-# Take a child that has ended from the kernel, by its number (rt_which 1)
-# or by a descriptor of it (3): what waitid returns, with the bytes at
-# rt_info saying which child and how it ended, or 0 at 16 of them if it
-# still runs and rt_block is 0. The kernel gives the number of a child to
-# another process once the child is taken, so nothing is taken but
-# under the lock, which a thread holds while it sends a signal to a
-# number: the waiting is done before, leaving the child where it is.
-fn rt_take rt_which rt_id rt_info rt_block
+# Ask the kernel about a child, by its number (rt_which 1) or by a
+# descriptor of it (3), with the options rt_opt of waitid (4 one that has
+# ended, 1 without waiting, 0x1000000 leaving it where it is): what
+# waitid returns, with the bytes at rt_info saying which child and how
+# it ended, or 0 at 16 of them if it still runs and nothing waited.
+fn rt_take rt_which rt_id rt_info rt_opt
 	label rt_again
-	if rt_block
-		sys rt_waitid rt_which rt_id rt_info 0x1000004 0 as rt_r
-		jeq rt_r -4 rt_again
-		ifslt rt_r 0
-			ret rt_r
-		end
-	end
-	call rt_lock
 	store rt_info+16 0
-	sys rt_waitid rt_which rt_id rt_info 5 0 as rt_r
-	call rt_unlock
+	sys rt_waitid rt_which rt_id rt_info rt_opt 0 as rt_r
 	jeq rt_r -4 rt_again
-	if rt_block
-		# taken by another thread since, and its number given to a child
-		# that runs
-		load4 rt_info+16 as rt_n
-		jz rt_r|rt_n rt_again
-	end
 	ret rt_r
+end
+
+# what reap gives for a child that was taken, from the bytes waitid wrote
+# at rt_info: how it ended is 1 for an exit, with its status, and else a
+# signal. One that the signal 9 ended after its time was over (rt_late)
+# is -1000; one that ended by itself just before is what it ended with.
+fn rt_ended rt_info rt_late
+	load4 rt_info+8 as rt_r
+	load4 rt_info+24 as rt_n
+	if rt_r==1
+		ret rt_n&255
+	end
+	rt_n&=127
+	if rt_late&(rt_n==9)
+		ret -1000
+	end
+	ret 0-rt_n
 end
 
 # Wait for the child to end and take it from the kernel: its exit status,
 # 0 to 255; or the signal that ended it, negated; or -1000 if it still
 # ran after rt_ms milliseconds, in which case it was killed and taken; or
-# -1001 if there is no such child. rt_ms 0 waits without limit.
+# -1001 if there is no such child; or, if the kernel refuses the signal
+# to a child whose time is over, its error, the child being left as it
+# is. rt_ms 0 waits without limit.
+# The kernel gives the number of a child to another process once the
+# child is taken, so a thread that waits for a number must be the only
+# one that takes it: each reap puts its number in a list (the cell at 360
+# of the state, 16 bytes of the thread each: the next, the number) for
+# as long as it lasts, and a number that is in the list is no child to
+# another thread. What has the number is then one child from the first
+# question to the last, the signal included.
 fn rt_reap rt_pid rt_ms
-	local rt_info 128
-	local rt_pf 8
+	local rt_me 16
 	# a number that is no process is no child: 0 and the negative ones
 	# would mean a group of processes to the kernel, which reads the low
 	# 32 bits alone, so a larger one would be another number to it
@@ -1059,24 +1068,66 @@ fn rt_reap rt_pid rt_ms
 	if rt_pid>0x7fffffff
 		ret -1001
 	end
+	call rt_lock
+	load rt_state+360 as rt_p
+	while rt_p
+		load rt_p+8 as rt_n
+		if rt_n==rt_pid
+			call rt_unlock
+			ret -1001
+		end
+		load rt_p as rt_p
+	end
+	load rt_state+360 as rt_p
+	store rt_me rt_p
+	store rt_me+8 rt_pid
+	store rt_state+360 rt_me
+	call rt_unlock
+	call rt_reaping rt_pid rt_ms as rt_r
+	call rt_lock
+	rt_p=rt_state+360
+	label rt_next
+	load rt_p as rt_n
+	if rt_n!=rt_me
+		rt_p=rt_n
+		jmp rt_next
+	end
+	load rt_me as rt_n
+	store rt_p rt_n
+	call rt_unlock
+	ret rt_r
+end
+
+# reap for the thread that alone takes the child rt_pid
+fn rt_reaping rt_pid rt_ms
+	local rt_info 128
+	local rt_pf 8
 	ifz rt_ms
-		call rt_take 1 rt_pid rt_info 1 as rt_r
-		jmp rt_took
+		call rt_take 1 rt_pid rt_info 4 as rt_r
+		ifslt rt_r 0
+			ret -1001
+		end
+		tail rt_ended rt_info 0
 	end
 	call rt_clock as rt_t
-	# a descriptor of the process that has the number now: whether it is
-	# a child, whether it has ended and the signal at the end of the time
-	# are all asked of the descriptor, so of one and the same process,
-	# whoever takes the child and gets its number meanwhile
+	# what the child is asked by: its number (1), or a descriptor of it
+	# (3), with which the kernel says when it ends and the signal goes to
+	# what the descriptor is of, whoever takes children outside the
+	# runtime
+	rt_w=1
+	rt_id=rt_pid
 	sys rt_pidfdopen rt_pid 0 as rt_fd
 	ifsge rt_fd 0
-		call rt_take 3 rt_fd rt_info 0 as rt_r
-		jeq rt_r -22 rt_nofd
-		load4 rt_info+16 as rt_n
-		if rt_r|rt_n
+		call rt_take 3 rt_fd rt_info 5 as rt_r
+		if rt_r==-22
+			# a kernel that takes no child by a descriptor
 			sys close rt_fd
-			jmp rt_took
+			jmp rt_ask
 		end
+		rt_w=3
+		rt_id=rt_fd
+		load4 rt_info+16 as rt_n
+		jnz rt_r|rt_n rt_took
 		store4 rt_pf rt_fd
 		store4 rt_pf+4 1
 		label rt_again
@@ -1094,23 +1145,16 @@ fn rt_reap rt_pid rt_ms
 			jsle rt_r 0 rt_again
 		end
 		ifz rt_r
-			sys rt_pidfdsignal rt_fd 9 0 0
-			call rt_take 3 rt_fd rt_info 1 as rt_r
-			sys close rt_fd
+			sys rt_pidfdsignal rt_fd 9 0 0 as rt_s
 			jmp rt_late
 		end
-		call rt_take 3 rt_fd rt_info 1 as rt_r
-		sys close rt_fd
+		call rt_take 3 rt_fd rt_info 4 as rt_r
 		jmp rt_took
 	end
-	jmp rt_ask
-	label rt_nofd
-	# a kernel that takes no child by a descriptor
-	sys close rt_fd
 	# no descriptor to be had for the child: ask every millisecond
 	# whether it has ended
 	label rt_ask
-	call rt_take 1 rt_pid rt_info 0 as rt_r
+	call rt_take 1 rt_pid rt_info 5 as rt_r
 	load4 rt_info+16 as rt_n
 	jnz rt_r|rt_n rt_took
 	call rt_clock as rt_n
@@ -1118,33 +1162,39 @@ fn rt_reap rt_pid rt_ms
 		call rt_sleep 1000000
 		jmp rt_ask
 	end
-	# the signal goes to a number, which is the child for as long as
-	# nothing takes it: the lock keeps the threads of the runtime from
-	# that between the question and the signal
-	call rt_lock
-	sys rt_waitid 1 rt_pid rt_info 0x1000005 0 as rt_r
-	ifz rt_r
-		sys kill rt_pid 9
-	end
-	call rt_unlock
-	call rt_take 1 rt_pid rt_info 1 as rt_r
+	# it is a child that runs and that no other thread takes, so the
+	# number is still its own
+	sys kill rt_pid 9 as rt_s
 	label rt_late
-	ifslt rt_r 0
-		# another thread took it meanwhile
-		ret -1001
+	ifz rt_s
+		# the signal is one that nothing keeps from ending it
+		call rt_take rt_w rt_id rt_info 4 as rt_r
+		ifsge rt_r 0
+			call rt_ended rt_info 1 as rt_r
+			jmp rt_out
+		end
+		rt_r=-1001
+		jmp rt_out
 	end
-	ret -1000
+	# the signal was refused: the child is taken if it has ended since,
+	# and else left
+	call rt_take rt_w rt_id rt_info 5 as rt_r
+	load4 rt_info+16 as rt_n
+	ifz rt_r|rt_n
+		rt_r=rt_s
+		jmp rt_out
+	end
 	label rt_took
 	ifslt rt_r 0
-		ret -1001
+		rt_r=-1001
+		jmp rt_out
 	end
-	# how it ended is 1 for an exit, with its status, and else a signal
-	load4 rt_info+8 as rt_r
-	load4 rt_info+24 as rt_n
-	if rt_r!=1
-		ret 0-(rt_n&127)
+	call rt_ended rt_info 0 as rt_r
+	label rt_out
+	if rt_w==3
+		sys close rt_id
 	end
-	ret rt_n&255
+	ret rt_r
 end
 
 # Let this thread, and the children it starts from now on, run only on

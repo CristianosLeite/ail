@@ -1,0 +1,30 @@
+# a child that one thread waits for is no child to another meanwhile:
+# the second reap, with a time that is over long before the child ends,
+# neither ends the child nor takes it, and the first gets its status
+buf ts 16
+buf res 8
+buf done 8
+fn work v
+	rt reap v 0 as r
+	store res r
+	store done 1
+	rt wake done 1
+end
+store ts+8 300000000
+sys fork as c
+ifz c
+	sys nanosleep ts 0
+	rt exit 42
+end
+ref work as f
+rt thread f c
+rt sleep 50000000
+rt reap c 20 as a
+d=0
+while d==0
+	rt wait done 0 -1
+	load done as d
+end
+load res as b
+rt reap c 0 as e
+rt exit (a==-1001)+(b==42)*2+(e==-1001)*4
