@@ -12,6 +12,9 @@ const talign 48
 # process starts with: fin makes them do nothing in a program that calls
 # no service that reads it. 0 for a runtime without such a line.
 const tbootn 10
+# what every program needs of the state of the runtime whatever it
+# calls, as the table rtnames says it of a service: nothing
+const tstate 0
 # 1 if the statement sys means something here
 const tsys 1
 # The statement ccall as a row of the statement table without its name:
@@ -35,6 +38,11 @@ data 0 16 0 0 0 0 0 0 1 0 0 0 6 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
+
+# write the header into the output: the code starts behind it
+fn tstart
+	call cp thdr thdrn
+end
 
 # The code and the layout are complete: write into the header the bytes
 # of the file, q, where the writable segment starts, rw, and its bytes,

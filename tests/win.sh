@@ -1,0 +1,84 @@
+#!/bin/sh
+# usage: tests/win.sh [all]
+#
+# Check the compiler for Windows on x86-64, build/ailc-windows-x86_64,
+# and the runtime of that platform, by running what it writes under
+# Wine. Without wine it prints "skip" and succeeds.
+# - hello must run, write its line and end with 0.
+# - The compiler compiled for Windows, run under Wine, must write the
+#   same hello as the compiler that runs here, report an error of a
+#   source with its message and the status 1, and compile its own source
+#   to the file it is itself: the fixed point of the port.
+# - The row of ccall in the target file must be the bytes the assembler
+#   wrote for its instructions (kept here as hex).
+# - The tests of tests/ that have no sys statement, that the compiler for
+#   Windows compiles and that tests/win.skip does not name must give
+#   their output and status there too: one in twenty of them, or with
+#   "all" every one, which takes a few minutes.
+set -u
+cd "$(dirname "$0")/.." || exit 1
+wc=build/ailc-windows-x86_64
+pk="target=build/target/windows-x86_64 rt=build/rt/windows-x86_64"
+if ! command -v wine > /dev/null 2>&1; then echo "skip win (no wine)"; exit 0; fi
+[ -x $wc ] || { echo "FAIL win: no $wc (make $wc)"; exit 1; }
+export WINEDEBUG=-all
+mkdir -p build/tests
+tmp=$(mktemp -d build/tests/win.XXXXXX) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+fail=0
+limit=20
+
+say() {
+    if [ "$2" -eq 0 ]; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi
+}
+
+$wc < examples/hello.aiw > $tmp/hello.exe
+[ "$(timeout $limit wine $tmp/hello.exe 2> /dev/null)" = "hello world" ]
+say win_hello $?
+
+$wc $pk < compiler/ailc.aiw > $tmp/ailc.exe
+r=0
+timeout $limit wine $tmp/ailc.exe < examples/hello.aiw > $tmp/hello2.exe 2> /dev/null || r=1
+cmp -s $tmp/hello.exe $tmp/hello2.exe || r=1
+say win_compiler_runs $r
+
+echo frob | timeout $limit wine $tmp/ailc.exe > /dev/null 2> $tmp/err
+[ $? -eq 1 ] && [ "$(tr -d '\r' < $tmp/err)" = "ailc: 1: unknown statement" ]
+say win_compiler_reports $?
+
+r=0
+timeout 120 wine $tmp/ailc.exe $pk < compiler/ailc.aiw > $tmp/ailc2.exe 2> /dev/null || r=1
+cmp -s $tmp/ailc.exe $tmp/ailc2.exe || r=1
+say win_fixed_point $r
+
+# mov r11, rax / mov r10, rdi / mov rcx, rsi / push rbp / mov rbp, rsp /
+# mov eax, 4 / cmp rcx, rax / cmovb rcx, rax / lea rax, [rcx*8+15] /
+# and rax, -16 / and rsp, -16 / sub rsp, rax / mov rcx, rsi /
+# mov rsi, r10 / mov rdi, rsp / rep movsq / mov rcx, [rsp] /
+# mov rdx, [rsp+8] / mov r8, [rsp+16] / mov r9, [rsp+24] / call r11 / leave
+want=4989c34989fa4889f1554889e5b8040000004839c1480f42c8488d04cd0f0000004883e0f04883e4f04829c44889f14c89d64889e7f348a5488b0c24488b5424084c8b4424104c8b4c241841ffd3c9
+got=$(sed -n 's/^data tccrow 3 0 0 [0-9]* //p' compiler/windows-x86_64/target.aiw | tr ' ' '\n' | while read b; do printf '%02x' "$b"; done)
+[ "$got" = "$want" ]
+say win_ccall_row $?
+
+n=0
+ran=0
+for f in tests/*.out; do
+    t=$(basename $f .out)
+    [ -f tests/$t.aiw ] || continue
+    grep -q '^[[:space:]]*sys ' tests/$t.aiw && continue
+    grep -q "^$t\$" tests/win.skip && continue
+    n=$((n + 1))
+    [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue
+    $wc < tests/$t.aiw > $tmp/t.exe 2> /dev/null || continue
+    want=0
+    [ -f tests/$t.code ] && want=$(cat tests/$t.code)
+    timeout $limit wine $tmp/t.exe < /dev/null > $tmp/got 2> /dev/null
+    got=$?
+    ran=$((ran + 1))
+    if [ "$got" != "$want" ] || ! cmp -s $tmp/got tests/$t.out; then echo "FAIL win $t"; fail=1; fi
+done
+[ $ran -gt 0 ]
+say "win_tests ($ran run)" $?
+exit $fail

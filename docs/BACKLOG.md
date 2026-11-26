@@ -1033,3 +1033,16 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   its values at an address and the stack at a multiple of 16, which is
   how the clock of the kernel's page is called now, and `base` is the
   address an executable is loaded at.
+- [x] Windows on x86-64, the second platform, as far as the compiler
+  itself (2026-11-26). `build/ailc-windows-x86_64` runs on Linux and
+  writes executables of Windows: a header and import tables in two
+  pages, the code behind them, the memory of the program a section
+  without bytes, every byte of the file at the same place in memory.
+  `rt/windows-x86_64/rt.aiw` has `exit`, `args`, `alloc`, `free`,
+  `open`, `close`, `read`, `write` and `pipeerr`, each by functions of
+  Windows called with `ccall`. Under Wine `hello.exe` writes its line,
+  and the compiler compiled for Windows compiles its own source to the
+  file it is. 522 tests of the suite give their output and status
+  there. `tests/win.sh` is in `make test` and is skipped without wine.
+  The interface held: no service changed its values, its results or
+  its errors for Windows.

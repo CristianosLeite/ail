@@ -287,7 +287,7 @@ srcend=p
 mainend=p
 ip=in
 op=out
-call cp thdr thdrn
+call tstart
 # the runtime is compiled first, behind the header, the program behind it
 call rtinit
 load4 rtsrcn as r
@@ -438,6 +438,10 @@ if d&128
 	jmp tokend
 end
 jz f&4 arg
+# sys on a platform that has no system calls
+ifz tsys
+	call estmt
+end
 call pk as c
 call low c as d
 jz d num
@@ -1740,7 +1744,7 @@ ifz rtuse&1
 		call mv r*(r-1)/2+nops p r
 	end
 end
-ifz rtuse
+ifz rtuse|tstate
 	if rtt
 		c=ngv*8+rtbss
 	end

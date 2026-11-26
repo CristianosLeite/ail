@@ -1,0 +1,524 @@
+# The runtime of AIL for x86-64 Windows: the services that docs/runtime.md
+# lists, each a function rt_<name>, as in rt/linux-x86_64/rt.aiw. Windows
+# has no system calls for a program to make: every service calls
+# functions of its libraries, whose addresses the loader writes into the
+# import tables of the executable. In front of this text the build puts
+# a const rt_i_<function> for each (compiler/windows-x86_64/imports.sh):
+# the place of that address, counted from the start of the executable,
+# which base gives. The functions are called with ccall, their values
+# in a local.
+#
+# The state is the buffer rt_state, which state.aiw declares:
+#    0  what args gives, made at its first call
+#   16  not 0 once the runtime has started a thread
+#   24  the lock of the memory
+#   32  the memory of the chunk at hand that no block has had, and
+#   40  its end
+#   48  per class of small blocks, 8 bytes: the blocks given back
+#  360  per descriptor, 256 of them, 8 bytes: 1 + the handle of Windows
+#       that it is, or 0 for none. 0, 1 and 2 are the input, the output
+#       and the error output, asked of Windows when they are first used.
+# Every name of this file starts with "rt_".
+#
+# The first line goes to the last, past every function.
+jmp rt_go
+
+# call the function whose address is rt_slot from the start of the
+# executable, with the rt_n values at rt_a
+fn rt_api rt_slot rt_a rt_n
+	base as rt_b
+	load rt_b+rt_slot as rt_f
+	ccall rt_f rt_a rt_n as rt_r
+	ret rt_r
+end
+
+# the error that Windows has for the call that just failed, as the
+# number of the runtime: -2 no such file, -13 not allowed, -17 it is
+# there, -9 no such descriptor, -32 the other end is closed, -12 no
+# memory, -39 not empty, -28 no room, and -5 for any other
+fn rt_error
+	local rt_a 32
+	call rt_api rt_i_getlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if (rt_e==2)|(rt_e==3)|(rt_e==123)
+		ret -2
+	end
+	if (rt_e==5)|(rt_e==32)
+		ret -13
+	end
+	if (rt_e==80)|(rt_e==183)
+		ret -17
+	end
+	if rt_e==6
+		ret -9
+	end
+	if (rt_e==109)|(rt_e==232)
+		ret -32
+	end
+	if (rt_e==8)|(rt_e==14)
+		ret -12
+	end
+	if rt_e==145
+		ret -39
+	end
+	if (rt_e==39)|(rt_e==112)
+		ret -28
+	end
+	ret -5
+end
+
+# end the process, every thread of it
+fn rt_exit rt_c
+	local rt_a 32
+	store rt_a rt_c
+	label rt_again
+	call rt_api rt_i_exitprocess rt_a 1
+	jmp rt_again
+end
+
+# the handle of the descriptor rt_fd, or -1 if it is none
+fn rt_handle rt_fd
+	local rt_a 32
+	if rt_fd>255
+		ret -1
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	ifz rt_h
+		if rt_fd>2
+			ret -1
+		end
+		# the input is the handle -10, the output -11, the error output -12
+		store rt_a -10-rt_fd
+		call rt_api rt_i_getstdhandle rt_a 1 as rt_h
+		rt_h+=1
+		store rt_state+360+rt_fd*8 rt_h
+	end
+	ret rt_h-1
+end
+
+# up to rt_n bytes: how many were written, or an error
+fn rt_write rt_fd rt_p rt_n
+	local rt_a 40
+	local rt_got 8
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_got 0
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 rt_got
+	store rt_a+32 0
+	call rt_api rt_i_writefile rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load4 rt_got as rt_r
+	ret rt_r
+end
+
+# up to rt_n bytes: how many were read, 0 at the end, or an error. The
+# end of a pipe whose writer is gone is an error of Windows and an end
+# here.
+fn rt_read rt_fd rt_p rt_n
+	local rt_a 40
+	local rt_got 8
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_got 0
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 rt_got
+	store rt_a+32 0
+	call rt_api rt_i_readfile rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		if rt_r==-32
+			ret 0
+		end
+		ret rt_r
+	end
+	load4 rt_got as rt_r
+	ret rt_r
+end
+
+fn rt_close rt_fd
+	local rt_a 32
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	store rt_state+360+rt_fd*8 0
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
+# the rt_n bytes of a path with a zero behind them into the 4096 bytes at
+# rt_z: 0, or the error of a path too long
+fn rt_path rt_p rt_n rt_z
+	if rt_n>4095
+		ret -36
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		storeb rt_z+rt_i rt_c
+		rt_i+=1
+	end
+	storeb rt_z+rt_n 0
+	ret 0
+end
+
+# Open the file whose path is the rt_n bytes at rt_p: a descriptor, the
+# lowest that is free from 3 on, or an error. The flags are those of
+# docs/runtime.md: 0 to read, 1 to write, 2 for both, 64 to make the
+# file, 128 only if it is not there, 512 to cut it, 1024 to write at its
+# end, 0x10000 for a directory. The mode means nothing here.
+fn rt_open rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	local rt_a 56
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	rt_fd=3
+	label rt_slot
+	if rt_fd>255
+		ret -24
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	if rt_h
+		rt_fd+=1
+		jmp rt_slot
+	end
+	# what may be done with it: read, write, or append alone
+	rt_acc=0x80000000
+	if rt_flags&3==1
+		rt_acc=0x40000000
+	end
+	if rt_flags&3==2
+		rt_acc=0xc0000000
+	end
+	if rt_flags&1024
+		rt_acc=rt_acc&0x80000000|4
+	end
+	# what to do if it is there or not: open it, 3
+	rt_how=3
+	if rt_flags&512
+		rt_how=5
+	end
+	if rt_flags&64
+		rt_how=4
+		if rt_flags&512
+			rt_how=2
+		end
+		if rt_flags&128
+			rt_how=1
+		end
+	end
+	rt_attr=0x80
+	if rt_flags&0x10000
+		rt_attr=0x02000000
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_acc
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 rt_how
+	store rt_a+40 rt_attr
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		tail rt_error
+	end
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
+# there is no signal for a closed pipe to keep away
+fn rt_pipeerr
+	ret 0
+end
+
+# ---- the arguments
+# What args gives is made at its first call: the address of the count of
+# arguments; behind it their addresses, a zero, the addresses of the
+# strings of the environment and a zero. Windows has the arguments as
+# one line, which is cut as its C library cuts it: blanks part the
+# arguments but in quotes; before a quote 2n backslashes are n and the
+# quote is a quote of the line, 2n+1 are n and the quote is a character;
+# other backslashes are themselves. The environment is strings one
+# behind the other, each with a zero and the last with two; those that
+# start with "=" are Windows' own and are left out.
+fn rt_args
+	local rt_a 32
+	load rt_state as rt_r
+	if rt_r
+		ret rt_r
+	end
+	call rt_api rt_i_getcommandlinea rt_a 0 as rt_l
+	call rt_api rt_i_getenvironmentstringsa rt_a 0 as rt_e
+	rt_n=0
+	label rt_len
+	loadb rt_l+rt_n as rt_c
+	if rt_c
+		rt_n+=1
+		jmp rt_len
+	end
+	# the environment: how many strings
+	rt_m=0
+	rt_q=rt_e
+	label rt_count
+	loadb rt_q as rt_c
+	if rt_c
+		rt_m+=1
+		label rt_skip
+		loadb rt_q as rt_c
+		rt_q+=1
+		jnz rt_c rt_skip
+		jmp rt_count
+	end
+	# room: at most half as many arguments as the line has bytes, and one;
+	# their bytes are no more than the line's
+	rt_room=(rt_n/2+rt_m+4)*8+rt_n+1
+	store rt_a 0
+	store rt_a+8 rt_room
+	store rt_a+16 0x3000
+	store rt_a+24 4
+	call rt_api rt_i_virtualalloc rt_a 4 as rt_b
+	ifz rt_b
+		ret 0
+	end
+	rt_v=rt_b+8
+	rt_s=rt_b+(rt_n/2+rt_m+4)*8
+	rt_argc=0
+	label rt_arg
+	loadb rt_l as rt_c
+	if (rt_c==32)|(rt_c==9)
+		rt_l+=1
+		jmp rt_arg
+	end
+	if rt_c
+		store rt_v rt_s
+		rt_v+=8
+		rt_argc+=1
+		rt_inq=0
+		label rt_char
+		loadb rt_l as rt_c
+		ifz rt_c
+			jmp rt_endarg
+		end
+		ifz rt_inq
+			if (rt_c==32)|(rt_c==9)
+				jmp rt_endarg
+			end
+		end
+		if rt_c==92
+			# backslashes: count them and look at what follows
+			rt_k=0
+			label rt_bs
+			loadb rt_l as rt_c
+			if rt_c==92
+				rt_k+=1
+				rt_l+=1
+				jmp rt_bs
+			end
+			if rt_c==34
+				rt_j=rt_k/2
+				while rt_j
+					storeb rt_s 92
+					rt_s+=1
+					rt_j-=1
+				end
+				if rt_k&1
+					storeb rt_s 34
+					rt_s+=1
+					rt_l+=1
+				end
+			else
+				while rt_k
+					storeb rt_s 92
+					rt_s+=1
+					rt_k-=1
+				end
+			end
+			jmp rt_char
+		end
+		if rt_c==34
+			rt_inq^=1
+			rt_l+=1
+			jmp rt_char
+		end
+		storeb rt_s rt_c
+		rt_s+=1
+		rt_l+=1
+		jmp rt_char
+		label rt_endarg
+		storeb rt_s 0
+		rt_s+=1
+		jmp rt_arg
+	end
+	store rt_b rt_argc
+	store rt_v 0
+	rt_v+=8
+	label rt_envs
+	loadb rt_e as rt_c
+	if rt_c
+		if rt_c!=61
+			store rt_v rt_e
+			rt_v+=8
+		end
+		label rt_over
+		loadb rt_e as rt_c
+		rt_e+=1
+		jnz rt_c rt_over
+		jmp rt_envs
+	end
+	store rt_v 0
+	store rt_state rt_b
+	ret rt_b
+end
+
+# ---- memory
+# As in rt/linux-x86_64/rt.aiw: blocks of 39 sizes cut from chunks of 256
+# KiB that Windows gives, a freed block the next of its size to be given
+# out, a larger block memory of its own. The 16 bytes before a block say
+# its class; for a large block the bytes asked of Windows, which is
+# always more.
+data rt_cls 0 0 1 2 3 4 5 6 7 7 8 8 9 9 10 10
+data 11 11 11 11 12 12 12 12 13 13 13 13 14 14 14 14
+data 15 15 15 15 15 15 15 15 16 16 16 16 16 16 16 16
+data 17 17 17 17 17 17 17 17 18 18 18 18 18 18 18 18
+data rt_csz 32 0 48 0 64 0 80 0 96 0 112 0 128 0 160 0
+data 192 0 224 0 0 1 64 1 128 1 192 1 0 2 128 2
+data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
+data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
+data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
+
+fn rt_lock
+	load rt_state+16 as rt_t
+	ifz rt_t
+		ret 0
+	end
+	label rt_again
+	cas rt_state+24 0 1 as rt_k
+	jz rt_k rt_again
+end
+fn rt_unlock
+	load rt_state+16 as rt_t
+	if rt_t
+		store rt_state+24 0
+	end
+end
+
+# rt_n bytes that can be read and written, zeros, from Windows, or 0
+fn rt_pages rt_n
+	local rt_a 32
+	store rt_a 0
+	store rt_a+8 rt_n
+	store rt_a+16 0x3000
+	store rt_a+24 4
+	call rt_api rt_i_virtualalloc rt_a 4 as rt_p
+	ret rt_p
+end
+
+# rt_n bytes of zeros at a multiple of 16, or 0
+fn rt_alloc rt_n
+	rt_t=rt_n+16
+	if rt_n>=-4096
+		ret 0
+	end
+	if rt_t>32768
+		call rt_pages rt_t as rt_p
+		ifz rt_p
+			ret 0
+		end
+		store rt_p rt_t
+		ret rt_p+16
+	end
+	if rt_t<32
+		rt_t=32
+	end
+	if rt_t<=1024
+		loadb rt_cls+(rt_t-1>>4) as rt_c
+	else
+		rt_s=10
+		while rt_t-1>>rt_s+1
+			rt_s+=1
+		end
+		rt_c=7+(rt_s-7)*4+(rt_t-1>>rt_s-2&3)
+	end
+	load2 rt_csz+rt_c*2 as rt_z
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_p
+	if rt_p
+		load rt_p as rt_x
+		store rt_q rt_x
+		call rt_unlock
+		rt_z-=16
+		if rt_z>96
+			zero rt_p rt_z
+		else
+			rt_i=0
+			while rt_i<rt_z
+				store rt_p+rt_i 0
+				rt_i+=8
+			end
+		end
+		ret rt_p
+	end
+	load rt_state+32 as rt_p
+	load rt_state+40 as rt_e
+	if rt_e-rt_p<rt_z
+		call rt_pages 262144 as rt_p
+		ifz rt_p
+			call rt_unlock
+			ret 0
+		end
+		store rt_state+40 rt_p+262144
+	end
+	store rt_state+32 rt_p+rt_z
+	call rt_unlock
+	store rt_p rt_c
+	ret rt_p+16
+end
+
+# give back what rt_alloc returned; 0 is nothing
+fn rt_free rt_p
+	local rt_a 32
+	ifz rt_p
+		ret 0
+	end
+	load rt_p-16 as rt_c
+	if rt_c>=39
+		store rt_a rt_p-16
+		store rt_a+8 0
+		store rt_a+16 0x8000
+		call rt_api rt_i_virtualfree rt_a 3
+		ret 0
+	end
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_x
+	store rt_p rt_x
+	store rt_q rt_p
+	call rt_unlock
+	ret 0
+end
+
+label rt_go

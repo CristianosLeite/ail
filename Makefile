@@ -71,6 +71,38 @@ $(RTSRC): $(RTDIR)/rt.aiw $(RTDIR)/state.aiw rt/source.sh
 	@mkdir -p $(@D)
 	{ rt/source.sh rtsrc $(RTDIR)/rt.aiw && rt/source.sh rttail $(RTDIR)/state.aiw; } > $@.tmp && mv $@.tmp $@
 
+# The compiler for another platform than the one it runs on: Windows on
+# x86-64. build/ailc-windows-x86_64 runs here and writes executables of
+# Windows, with the runtime of rt/windows-x86_64 in them. Its target is
+# a directory of the build: the file of compiler/windows-x86_64 and the
+# import tables, which imports.sh writes from the list of the functions
+# of Windows that the runtime calls; the runtime is told where the
+# address of each is by consts in front of its source.
+WT := windows-x86_64
+WTDIR := $(B)/target/$(WT)
+WPKGS := target=$(WTDIR) rt=$(B)/rt/$(WT)
+
+$(WTDIR)/target.aiw: compiler/$(WT)/target.aiw
+	@mkdir -p $(@D)
+	cp $< $@
+
+$(WTDIR)/imports.aiw: compiler/$(WT)/imports.list compiler/$(WT)/imports.sh
+	@mkdir -p $(@D)
+	compiler/$(WT)/imports.sh data < $< > $@.tmp && mv $@.tmp $@
+
+$(B)/rt/$(WT)/source.aiw: rt/$(WT)/rt.aiw rt/$(WT)/state.aiw compiler/$(WT)/imports.list compiler/$(WT)/imports.sh rt/source.sh
+	@mkdir -p $(@D)
+	{ compiler/$(WT)/imports.sh consts < compiler/$(WT)/imports.list && cat rt/$(WT)/rt.aiw; } > $(@D)/rt.aiw
+	{ rt/source.sh rtsrc $(@D)/rt.aiw && rt/source.sh rttail rt/$(WT)/state.aiw; } > $@.tmp && mv $@.tmp $@
+
+$(B)/ailc-$(WT): $(SRC) $(WTDIR)/target.aiw $(WTDIR)/imports.aiw $(B)/rt/$(WT)/source.aiw $(B)/ailc
+	$(call compile,$(B)/ailc $(WPKGS))
+
+# an example for Windows: build/windows-x86_64/<name>.exe
+$(B)/$(WT)/%.exe: examples/%.aiw $(B)/ailc-$(WT)
+	@mkdir -p $(@D)
+	$(call compile,$(B)/ailc-$(WT))
+
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -92,11 +124,11 @@ $(B)/ailc2: $(SRC) $(TSRC) $(RTSRC) $(B)/ailc
 
 # Each run names its compiler, so an AILC in the environment of make
 # changes nothing.
-test: all $(B)/ailc2 $(TOOLS)
+test: all $(B)/ailc2 $(TOOLS) $(B)/ailc-$(WT)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
 	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; tests/install.sh || f=1; \
-	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/rt.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
+	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/rt.sh || f=1; tests/win.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
 	tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; \

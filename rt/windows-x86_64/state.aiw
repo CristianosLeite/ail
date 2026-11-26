@@ -1,0 +1,4 @@
+# The state of the runtime for x86-64 Windows, rt.aiw, which the compiler
+# compiles behind every program, so that these bytes are behind the
+# buffers of the program.
+buf rt_state 2408

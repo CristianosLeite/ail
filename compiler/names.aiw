@@ -298,7 +298,10 @@ end
 # says of "as" (k: 1 it must have one, 2 it may not) kept for its end.
 fn rtcall k
 	load rtfn+rte*8 as i
-	call ok i
+	# a service that the runtime of this platform does not have
+	ifz i
+		call esvc
+	end
 	p=i*40+funs-40
 	load p as cn
 	load p+8 as cl

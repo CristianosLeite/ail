@@ -162,6 +162,41 @@ its results and what it needs of the state, a line in the tables here
 and in [language.md](language.md#rt), and tests `tests/rt_*`. The
 source of the compiler may call it once a seed that has it is pinned.
 
+## Windows on x86-64
+
+The second platform, to see whether the services can be had where
+nothing is as on Linux: `rt/windows-x86_64/rt.aiw`, and a compiler for
+it, `build/ailc-windows-x86_64`, which runs on Linux and writes
+executables of Windows (`make build/ailc-windows-x86_64`; `make
+build/windows-x86_64/hello.exe` for an example). They are run under
+Wine, by `tests/win.sh`.
+
+Windows has no system calls for a program to make. Every service calls
+functions of its libraries, whose addresses the loader writes into the
+import tables of the executable; `compiler/windows-x86_64/imports.list`
+names them, and `imports.sh` makes the tables of that list and tells
+the runtime where each address is, as a `const` in front of its source.
+A service puts the values of such a function into a `local` and calls
+it with [`ccall`](language.md#ccall-and-base), which passes them as
+Windows wants them, at the place that [`base`](language.md#ccall-and-base)
+and the `const` give.
+
+What differs behind the same services: a descriptor is a number of the
+runtime, which keeps the handle of Windows for each of 256 in its
+state, 0, 1 and 2 being the input and the outputs it asks Windows for
+when they are first used; `args` cuts the one line that Windows has for
+the arguments, as its C library does, at its first call; memory comes
+from `VirtualAlloc`, in the same blocks; an error of Windows becomes
+the number of this page. The statement `sys` is no statement there.
+
+The runtime has `exit`, `args`, `alloc`, `free`, `open`, `close`,
+`read`, `write` and `pipeerr` so far, which is what the compiler needs:
+compiled for Windows it runs under Wine, and compiles its own source to
+the file it is. Of the tests that have no `sys`, 522 give their output
+and status there; 64 call a service that is still to be written, and 14
+are of Linux alone (`tests/win.skip`).
+
+## Another platform
 ## Another platform
 
 A directory `rt/<platform>/` with the same two files, written for that
