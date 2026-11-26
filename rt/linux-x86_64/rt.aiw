@@ -828,6 +828,9 @@ fn rt_place rt_in rt_out rt_err
 	while rt_i<3
 		load rt_m+rt_i*8 as rt_s
 		if rt_s==rt_i
+			# it is where it belongs, and must stay open when the
+			# program starts, however it was opened
+			sys rt_fcntl rt_s 2 0
 			store rt_m+rt_i*8 -1
 		end
 		rt_i+=1

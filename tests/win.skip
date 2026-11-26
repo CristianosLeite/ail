@@ -32,3 +32,5 @@ lib_proc_status
 async_tcp_echo
 # it counts the open descriptors of the process in /proc
 lib_http_cancel
+# it opens /dev/null with a flag of Linux
+rt_start_cloexec

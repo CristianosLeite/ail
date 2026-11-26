@@ -1,0 +1,26 @@
+# a descriptor given to a child as the number it already has stays open
+# in the child, also when it was opened to be closed at the start of a
+# program (O_CLOEXEC): the input is closed, /dev/null opened in its
+# place so, and this program, started again with an argument and that
+# as its input, reads the end, where a closed input would be an error
+data mark "child" 0
+buf argv 24
+buf io 24
+buf b 8
+args as p
+load p as n
+load p+8 as me
+if n>1
+	rt read 0 b 1 as r
+	rt exit 7+r
+end
+rt close 0
+rt open "/dev/null" 0x80000 0 as fd
+store argv me
+store argv+8 mark
+store io fd
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 5000 as s
+rt exit (fd==0)+(s==7)*2

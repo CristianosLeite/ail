@@ -1098,3 +1098,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   whether the number is a child that runs, kills through the
   descriptor, which is that child whatever got its number since, and
   takes no number below 1. `tests/rt_reap_not_child`.
+- [x] `start` on Linux keeps a descriptor given as its own number
+  (2026-11-26): one opened to be closed at the start of a program was
+  closed in the child when it already had the number it was given as,
+  since nothing was copied. The mark is taken away there.
+  `tests/rt_start_cloexec`.
