@@ -1,0 +1,19 @@
+# the names of the runtime start with "rt_": a program that has a function
+# of a service's name, or variables named like those of the runtime
+# without the prefix, is not touched by it
+var r p n fd
+fn write a b c
+	ret a+b+c
+end
+fn show
+	rt write 1 "in a function\n" as k
+	ret k
+end
+r=1
+p=2
+n=3
+fd=4
+call show as k
+call write 1 2 3 as w
+rt write 1 "at top level\n" as t
+rt exit r+p+n+fd+k+w+t

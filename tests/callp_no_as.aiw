@@ -4,4 +4,4 @@ fn f a
 end
 ref f as p
 callp p 9
-sys 60 out
+rt exit out

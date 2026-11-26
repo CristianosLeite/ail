@@ -56,4 +56,4 @@ call print " "
 call putn n
 call print "\n"
 call mapfree m
-sys exit a+b+d+e+(u==t)
+rt exit a+b+d+e+(u==t)

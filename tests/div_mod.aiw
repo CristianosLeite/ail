@@ -4,4 +4,4 @@ div n 5 as q
 mod n 5 as r
 mul q 10 as q
 add q r as q
-sys 60 q
+rt exit q

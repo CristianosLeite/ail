@@ -21,4 +21,4 @@ call putn x
 call vecpop v as x g
 call print "\n"
 call vecfree v
-sys exit a+g+p+n+c+b+d+e+f
+rt exit a+g+p+n+c+b+d+e+f

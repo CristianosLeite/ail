@@ -22,4 +22,4 @@ fn g p q r s t u
 end
 call g "A" "B" "C" as y
 add x y as x
-sys exit x
+rt exit x

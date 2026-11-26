@@ -1,0 +1,7 @@
+# the clock goes forward and a sleep takes at least its time: 20
+# milliseconds, and not a second
+rt clock as a
+rt clock as b
+rt sleep 20000000 as s
+rt clock as c
+rt exit (b>=a)+(c-b>=20000000)*2+(c-b<1000000000)*4+(s==0)*8+(a!=0)*16

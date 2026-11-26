@@ -29,4 +29,4 @@ add u q as u
 add u r as u
 add u s as u
 add u t as u
-sys 60 u
+rt exit u

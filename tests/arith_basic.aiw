@@ -5,4 +5,4 @@ mul a 5 as a
 and a 60 as b
 or b 3 as b
 xor b 1 as b
-sys 60 b
+rt exit b

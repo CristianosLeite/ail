@@ -1,0 +1,7 @@
+# stack keeps the stack pointer at an address: at the first line of a
+# program that is the address that args gives
+buf b 8
+stack b
+args as p
+load b as q
+rt exit p==q

@@ -14,4 +14,4 @@ end
 set 5 as keep
 call f 1 0 0 0 0 0 30 4 as r
 add r keep as r
-sys 60 r
+rt exit r

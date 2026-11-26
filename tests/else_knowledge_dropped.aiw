@@ -9,4 +9,4 @@ if k
 else
 	loadb p as x
 end
-sys 60 0
+rt exit 0

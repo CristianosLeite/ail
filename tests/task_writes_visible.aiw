@@ -25,4 +25,4 @@ while i<1000
 	s+=x
 	i+=1
 end
-sys exit_group s==5500
+rt exit s==5500

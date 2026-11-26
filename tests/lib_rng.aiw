@@ -27,7 +27,7 @@ while i<100000
 		ok=0
 	end
 	ifz ok
-		sys exit 1
+		rt exit 1
 	end
 	storeb seen+x 1
 	i+=1

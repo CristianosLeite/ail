@@ -1,5 +1,5 @@
 fn hi
-	sys 1 1 "hi\n"
+	rt write 1 "hi\n"
 	ret 5
 end
 call hi

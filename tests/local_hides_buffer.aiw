@@ -9,4 +9,4 @@ store b 4
 call f as r
 load b as y
 add r y as r
-sys 60 r
+rt exit r

@@ -13,4 +13,4 @@ add s n as s
 sub n 1 as n
 label test
 jnz n body
-sys 60 s
+rt exit s

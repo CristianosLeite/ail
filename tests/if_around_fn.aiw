@@ -9,4 +9,4 @@ if 1
 	end
 	call f 1 as r
 end
-sys 60 r
+rt exit r

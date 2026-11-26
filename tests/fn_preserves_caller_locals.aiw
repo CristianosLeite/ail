@@ -52,7 +52,7 @@ jz a bad
 call inner as a
 eq a 654321 as a
 jz a bad
-sys 1 1 "ok\n"
-sys 60 0
+rt write 1 "ok\n"
+rt exit 0
 label bad
-sys 60 1
+rt exit 1

@@ -19,4 +19,4 @@ call asyncfinish e 7 as a
 call asyncfinish e 9 as b
 call asyncrun as m
 call await h 0 as x
-sys exit_group n*100+m*50+a*20+b*10+x
+rt exit n*100+m*50+a*20+b*10+x

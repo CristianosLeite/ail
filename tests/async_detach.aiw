@@ -36,4 +36,4 @@ call asyncrun as m
 call async 64 0 as e
 r+=d==e
 call asyncdetach 0
-sys exit_group r*10+n+m+ran
+rt exit r*10+n+m+ran

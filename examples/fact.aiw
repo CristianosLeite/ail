@@ -7,4 +7,4 @@ fn fact n
 	ret n*r
 end
 call fact 5 as x
-sys 60 x
+rt exit x

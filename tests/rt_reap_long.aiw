@@ -1,0 +1,24 @@
+# the time of reap is a whole 64-bit value: one beyond 32 bits is no
+# time of 0, so a child that ends by itself after a quarter of a second
+# is waited for and gives its status. This program, started again with
+# an argument, is that child
+data mark "child" 0
+buf argv 24
+buf io 24
+args as p
+load p as n
+load p+8 as me
+if n>1
+	rt sleep 250000000
+	rt exit 42
+end
+store argv me
+store argv+8 mark
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0x100000000 as s
+rt start argv 0 io 0 as c
+rt reap c 0x100000001 as t
+rt exit (s==42)+(t==42)*2

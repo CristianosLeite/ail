@@ -14,4 +14,4 @@ set 8 as y
 add g h as r
 add r x as r
 add r y as r
-sys 60 r
+rt exit r

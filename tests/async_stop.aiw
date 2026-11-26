@@ -67,7 +67,7 @@ call putn closed
 call putn (t1-t0)/1000000>100
 call print " "
 # again, from nothing
-sys close c
+rt close c
 call asynclisten 0x7f000001 0 as l
 call asyncport l as port
 call asyncaccept l as ha

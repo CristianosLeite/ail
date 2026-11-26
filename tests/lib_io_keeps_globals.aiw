@@ -21,4 +21,4 @@ call strlen z as a
 call argc as b
 call argv 0 as d e
 call eprint ""
-sys exit fd+p+n+w+q+c+digits+r+i+s+l+a+b
+rt exit fd+p+n+w+q+c+digits+r+i+s+l+a+b

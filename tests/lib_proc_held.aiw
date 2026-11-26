@@ -29,21 +29,21 @@ fn try held ms
 	load4 pp+4 as wr
 	sys fork as mid
 	ifz mid
-		sys close rd
+		rt close rd
 		if held
 			call procheld av -1 wr -1 as p
 		else
 			call procstart av -1 wr -1 as p
 		end
 		store num p
-		sys write wr num 8
-		sys close wr
+		rt write wr num 8
+		rt close wr
 		while 1
 			sys pause
 		end
 	end
-	sys close wr
-	sys read rd num 8 as r
+	rt close wr
+	rt read rd num 8 as r
 	load num as child
 	sys kill mid 9
 	call procwait mid 0 as st
@@ -52,7 +52,7 @@ fn try held ms
 	sys poll pf 1 ms as r
 	ended=0
 	if r
-		sys read rd num 8 as k
+		rt read rd num 8 as k
 		ended=k==0
 	end
 	ifz ended
@@ -61,7 +61,7 @@ fn try held ms
 		call putn 0-k
 		call print " for the kill of the child that went on; "
 	end
-	sys close rd
+	rt close rd
 	ret st ended
 end
 # deny: in a process of its own, make prctl(PR_SET_PDEATHSIG) fail with
@@ -92,14 +92,14 @@ fn deny
 			sys prctl 22 2 prog 0 0 as r
 		end
 		if r
-			sys exit 99
+			rt exit 99
 		end
 		call procheld av -1 -1 -1 as p
 		call procwait p 5000 as st
 		if st==127
-			sys exit 0
+			rt exit 0
 		end
-		sys exit 1
+		rt exit 1
 	end
 	call procwait mid 8000 as st
 	ret st

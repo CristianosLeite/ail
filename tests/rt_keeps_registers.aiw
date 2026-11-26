@@ -1,0 +1,14 @@
+# a service leaves every variable as it was, those in registers and
+# those in memory
+a=1
+b=2
+c=3
+d=4
+e=5
+f=6
+g=7
+h=8
+rt write 1 "x\n" as n
+rt alloc 64 as p
+rt free p
+rt exit a+b+c+d+e+f+g+h+n

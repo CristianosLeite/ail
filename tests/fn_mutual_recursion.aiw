@@ -22,4 +22,4 @@ shl a 2 as a
 shl b 1 as b
 or a b as a
 or a c as a
-sys 60 a
+rt exit a

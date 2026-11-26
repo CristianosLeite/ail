@@ -48,4 +48,4 @@ call ndmeanax o b 0 as f
 call alike o fxsm0 4
 call print "\n"
 call ndfree o
-sys exit r+s+t+u+v+c+d+e+f
+rt exit r+s+t+u+v+c+d+e+f

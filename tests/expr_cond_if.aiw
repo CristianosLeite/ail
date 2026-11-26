@@ -3,157 +3,157 @@
 a=3
 b=5
 if a==b
-	sys exit 1
+	rt exit 1
 else
 end
 if a!=b
 else
-	sys exit 2
+	rt exit 2
 end
 if a<b
 else
-	sys exit 3
+	rt exit 3
 end
 if a<=b
 else
-	sys exit 4
+	rt exit 4
 end
 if a>b
-	sys exit 5
+	rt exit 5
 else
 end
 if a>=b
-	sys exit 6
+	rt exit 6
 else
 end
 a=5
 b=5
 if a==b
 else
-	sys exit 7
+	rt exit 7
 end
 if a!=b
-	sys exit 8
+	rt exit 8
 else
 end
 if a<b
-	sys exit 9
+	rt exit 9
 else
 end
 if a<=b
 else
-	sys exit 10
+	rt exit 10
 end
 if a>b
-	sys exit 11
+	rt exit 11
 else
 end
 if a>=b
 else
-	sys exit 12
+	rt exit 12
 end
 a=7
 b=5
 if a==b
-	sys exit 13
+	rt exit 13
 else
 end
 if a!=b
 else
-	sys exit 14
+	rt exit 14
 end
 if a<b
-	sys exit 15
+	rt exit 15
 else
 end
 if a<=b
-	sys exit 16
+	rt exit 16
 else
 end
 if a>b
 else
-	sys exit 17
+	rt exit 17
 end
 if a>=b
 else
-	sys exit 18
+	rt exit 18
 end
 a=0
 b=0xffffffffffffffff
 if a==b
-	sys exit 19
+	rt exit 19
 else
 end
 if a!=b
 else
-	sys exit 20
+	rt exit 20
 end
 if a<b
 else
-	sys exit 21
+	rt exit 21
 end
 if a<=b
 else
-	sys exit 22
+	rt exit 22
 end
 if a>b
-	sys exit 23
+	rt exit 23
 else
 end
 if a>=b
-	sys exit 24
+	rt exit 24
 else
 end
 a=0xffffffffffffffff
 b=0
 if a==b
-	sys exit 25
+	rt exit 25
 else
 end
 if a!=b
 else
-	sys exit 26
+	rt exit 26
 end
 if a<b
-	sys exit 27
+	rt exit 27
 else
 end
 if a<=b
-	sys exit 28
+	rt exit 28
 else
 end
 if a>b
 else
-	sys exit 29
+	rt exit 29
 end
 if a>=b
 else
-	sys exit 30
+	rt exit 30
 end
 a=0xffffffffffffffff
 b=0xffffffffffffffff
 if a==b
 else
-	sys exit 31
+	rt exit 31
 end
 if a!=b
-	sys exit 32
+	rt exit 32
 else
 end
 if a<b
-	sys exit 33
+	rt exit 33
 else
 end
 if a<=b
 else
-	sys exit 34
+	rt exit 34
 end
 if a>b
-	sys exit 35
+	rt exit 35
 else
 end
 if a>=b
 else
-	sys exit 36
+	rt exit 36
 end
-sys exit 0
+rt exit 0

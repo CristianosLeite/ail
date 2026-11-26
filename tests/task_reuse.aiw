@@ -24,4 +24,4 @@ while r<40
 	r+=1
 end
 load taskq+48 as w
-sys exit_group (s==1440)+(w<=2)*2
+rt exit (s==1440)+(w<=2)*2

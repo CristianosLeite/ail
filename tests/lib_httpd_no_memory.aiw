@@ -56,7 +56,7 @@ store lim 0x4000000
 store lim+8 0x4000000
 sys setrlimit 9 lim as r
 if r
-	sys exit 1
+	rt exit 1
 end
 call asynclisten 0x7f000001 0 as l
 call asyncport l as port

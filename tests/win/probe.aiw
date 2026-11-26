@@ -1,0 +1,16 @@
+# a program that writes a byte to every handle it may have, whatever it
+# was given: what it inherited and was not meant to have shows in the
+# file behind it. It calls Windows as the runtime does.
+buf a 40
+buf got 8
+h=4
+while h<4096
+	store a h
+	store a+8 "x"
+	store a+16 1
+	store a+24 got
+	store a+32 0
+	call rt_api rt_i_writefile a 5
+	h+=4
+end
+rt exit 0

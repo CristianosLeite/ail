@@ -72,4 +72,4 @@ fn f v0 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11
 	ret 23
 end
 call f 2 3 4 20 6 7 1 16 5 0 64 100 as r
-sys exit r
+rt exit r

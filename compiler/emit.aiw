@@ -23,6 +23,16 @@ fn cp a n
 	end
 	op=p
 end
+# copy n bytes from a to b
+fn mv a b n
+	while n
+		loadb a as c
+		storeb b c
+		a+=1
+		b+=1
+		n-=1
+	end
+end
 # the value of the hexadecimal digit at the cursor, which is consumed
 fn hexd
 	call pk as c
@@ -1122,6 +1132,11 @@ fn inlopen i e
 	ilip=ip
 	ilie=ie
 	ie=srcend
+	# a function of the runtime, whose text is behind the room of the source
+	load i*48+finl as z
+	if z>=srcend
+		ie=in+insz
+	end
 	ilpos=e
 	ilcap=ncap
 	call cp4 caps ilcaps

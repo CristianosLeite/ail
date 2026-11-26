@@ -2,4 +2,4 @@ set 0x2a as a
 set 0xFF as b
 shr b 4 as b
 add a b as a
-sys 60 a
+rt exit a

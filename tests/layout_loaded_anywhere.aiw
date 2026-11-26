@@ -20,4 +20,4 @@ ne w 0 as w
 add t u as t
 add t v as t
 add t w as t
-sys exit t
+rt exit t

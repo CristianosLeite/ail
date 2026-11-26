@@ -9,4 +9,4 @@ end
 jnz 1==1 l
 c+=4
 label l
-sys exit c
+rt exit c

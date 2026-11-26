@@ -9,4 +9,4 @@ fn find n
 	end
 end
 call find 50 as r
-sys exit r
+rt exit r

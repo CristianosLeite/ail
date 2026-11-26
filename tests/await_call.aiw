@@ -23,4 +23,4 @@ async fn all
 end
 await all as r
 await inc
-sys exit_group r+n
+rt exit r+n

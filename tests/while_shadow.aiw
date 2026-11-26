@@ -37,4 +37,4 @@ end
 call run as r
 call count as c
 call nest as a
-sys exit r+c+a
+rt exit r+c+a

@@ -160,4 +160,4 @@ fn f
 	ret 0
 end
 call f as r
-sys exit r
+rt exit r

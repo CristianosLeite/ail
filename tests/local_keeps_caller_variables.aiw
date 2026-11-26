@@ -23,4 +23,4 @@ add p s as p
 add p t as p
 add p u as p
 add p x as p
-sys 60 p
+rt exit p

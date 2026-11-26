@@ -1,9 +1,9 @@
 jz 0 a
-sys 60 1
+rt exit 1
 label a
 jnz 0 b
 jnz 7 c
 label b
-sys 60 2
+rt exit 2
 label c
-sys 1 1 "ok\n"
+rt write 1 "ok\n"

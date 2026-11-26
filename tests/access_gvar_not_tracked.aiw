@@ -3,4 +3,4 @@ buf b 8
 add b 8 as v
 sub v 8 as p
 loadb p as x
-sys 60 x
+rt exit x

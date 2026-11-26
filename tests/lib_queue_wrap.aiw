@@ -15,7 +15,7 @@ while i<100000
 	call queuepush q i as a
 	call queuepop q as x b
 	ifz a&b&(x==i-3)
-		sys exit 1
+		rt exit 1
 	end
 	s+=x
 	i+=1
@@ -30,4 +30,4 @@ call print " "
 call putn n
 call print "\n"
 call queuefree q
-sys exit r+(p==o)
+rt exit r+(p==o)

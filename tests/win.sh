@@ -1,0 +1,174 @@
+#!/bin/sh
+# usage: tests/win.sh [all]
+#
+# Check the compiler for Windows on x86-64, build/ailc-windows-x86_64,
+# and the runtime of that platform, by running what it writes under
+# Wine. Without wine it prints "skip" and succeeds.
+# - hello must run, write its line and end with 0.
+# - The compiler compiled for Windows, run under Wine, must write the
+#   same hello as the compiler that runs here, report an error of a
+#   source with its message and the status 1, and compile its own source
+#   to the file it is itself: the fixed point of the port. Its image must
+#   be one that Windows loads, which is not for Wine to say.
+# - A program whose image is the largest Windows loads must compile, and
+#   one a page larger must be refused.
+# - tests/win/start.aiw must start programs of Windows, with their output
+#   in a file, a limit of time and an argument that has to be quoted.
+# - tests/win/inherit.aiw must find that a child got the descriptors it
+#   was given and no other handle, and tests/win/holder.aiw that a held
+#   child ends with the process that started it.
+# - tests/win/stale.aiw must find that a watch which waited while its
+#   socket was closed watches nothing.
+# - The row of ccall in the target file must be the bytes the assembler
+#   wrote for its instructions (kept here as hex).
+# - The tests of tests/ that have no sys statement, that the compiler for
+#   Windows compiles and that tests/win.skip does not name must give
+#   their output and status there too: one in twenty of them, or with
+#   "all" every one, which takes a few minutes.
+set -u
+cd "$(dirname "$0")/.." || exit 1
+wc=build/ailc-windows-x86_64
+pk="target=build/target/windows-x86_64 rt=build/rt/windows-x86_64"
+if ! command -v wine > /dev/null 2>&1; then echo "skip win (no wine)"; exit 0; fi
+[ -x $wc ] || { echo "FAIL win: no $wc (make $wc)"; exit 1; }
+export WINEDEBUG=-all
+mkdir -p build/tests
+tmp=$(mktemp -d build/tests/win.XXXXXX) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+fail=0
+limit=20
+
+say() {
+    if [ "$2" -eq 0 ]; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi
+}
+
+$wc < examples/hello.aiw > $tmp/hello.exe
+[ "$(timeout $limit wine $tmp/hello.exe 2> /dev/null)" = "hello world" ]
+say win_hello $?
+
+$wc $pk < compiler/ailc.aiw > $tmp/ailc.exe
+r=0
+timeout $limit wine $tmp/ailc.exe < examples/hello.aiw > $tmp/hello2.exe 2> /dev/null || r=1
+cmp -s $tmp/hello.exe $tmp/hello2.exe || r=1
+say win_compiler_runs $r
+
+# the size of its image, at 144 of the file: Windows loads no image above
+# 0x77000000 bytes, and Wine loads any
+[ "$(od -An -tu4 -j144 -N4 $tmp/ailc.exe | tr -d ' ')" -le 1996488704 ]
+say win_compiler_loads $?
+
+# a program too: one whose buffers end at that size is compiled, with the
+# size in its header, and one a page above is refused
+r=0
+echo 'buf a 4096' | $wc > $tmp/small.exe || r=1
+s=$(od -An -tu4 -j144 -N4 $tmp/small.exe | tr -d ' ')
+n=$((1996488704 - s + 4096))
+echo "buf a $n" | $wc > $tmp/top.exe || r=1
+[ "$(od -An -tu4 -j144 -N4 $tmp/top.exe | tr -d ' ')" -eq 1996488704 ] || r=1
+echo "buf a $((n + 4096))" | $wc > $tmp/over.exe 2> $tmp/err
+[ $? -eq 1 ] && [ "$(cat $tmp/err)" = "ailc: buffers too big" ] && [ ! -s $tmp/over.exe ] || r=1
+say win_image_limit $r
+
+echo frob | timeout $limit wine $tmp/ailc.exe > /dev/null 2> $tmp/err
+[ $? -eq 1 ] && [ "$(tr -d '\r' < $tmp/err)" = "ailc: 1: unknown statement" ]
+say win_compiler_reports $?
+
+r=0
+timeout 120 wine $tmp/ailc.exe $pk < compiler/ailc.aiw > $tmp/ailc2.exe 2> /dev/null || r=1
+cmp -s $tmp/ailc.exe $tmp/ailc2.exe || r=1
+say win_fixed_point $r
+
+# mov r11, rax / mov r10, rdi / mov rcx, rsi / push rbp / mov rbp, rsp /
+# mov eax, 4 / cmp rcx, rax / cmovb rcx, rax / lea rax, [rcx*8+15] /
+# and rax, -16 / and rsp, -16 / sub rsp, rax / mov rcx, rsi /
+# mov rsi, r10 / mov rdi, rsp / rep movsq / mov rcx, [rsp] /
+# mov rdx, [rsp+8] / mov r8, [rsp+16] / mov r9, [rsp+24] / call r11 / leave
+want=4989c34989fa4889f1554889e5b8040000004839c1480f42c8488d04cd0f0000004883e0f04883e4f04829c44889f14c89d64889e7f348a5488b0c24488b5424084c8b4424104c8b4c241841ffd3c9
+got=$(sed -n 's/^data tccrow 3 0 0 [0-9]* //p' compiler/windows-x86_64/target.aiw | tr ' ' '\n' | while read b; do printf '%02x' "$b"; done)
+[ "$got" = "$want" ]
+say win_ccall_row $?
+
+# the services of processes, with programs of Windows to start
+r=0
+for t in sleeper echoarg start; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/start.exe $tmp/hello.exe $tmp/sleeper.exe $tmp/echoarg.exe $tmp/out.txt > /dev/null 2>&1
+[ $? -eq 63 ] || r=1
+say win_processes $r
+
+# a child inherits what it was given and nothing else
+r=0
+for t in probe inherit; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/inherit.exe $tmp/hello.exe $tmp/probe.exe $tmp/one.txt $tmp/two.txt > /dev/null 2>&1
+[ $? -eq 31 ] || r=1
+say win_inherits $r
+
+# a held child ends with the process that started it, and one that is
+# not held goes on
+r=0
+for t in late holder; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/holder.exe 1 $tmp/late.exe $tmp/held.txt > /dev/null 2>&1
+[ $? -eq 1 ] || r=1
+timeout 60 wine $tmp/holder.exe 0 $tmp/late.exe $tmp/free.txt > /dev/null 2>&1
+[ $? -eq 1 ] || r=1
+i=0
+while [ ! -f $tmp/free.txt ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+[ -f $tmp/free.txt ] || r=1
+[ ! -f $tmp/held.txt ] || r=1
+say win_held $r
+
+# a watch that waits for its poller while the socket is closed
+r=0
+$wc < tests/win/stale.aiw > $tmp/stale.exe || r=1
+timeout 60 wine $tmp/stale.exe > /dev/null 2>&1
+[ $? -eq 3 ] || r=1
+say win_stale_watch $r
+
+# tests that are run whatever the count: threads that open at once,
+# pollers that share nothing or a waker, a watch and a close at once,
+# a long time of reap, threads that reap one child, and the number of
+# a child that was taken. One of them that does not compile fails the
+# suite; any other test that does not compile is left out
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again"
+# each of them has to be a test the loop below finds and takes
+for t in $always; do
+    why=
+    [ -f tests/$t.out ] || why="no tests/$t.out"
+    [ -f tests/$t.aiw ] || why="no tests/$t.aiw"
+    [ -n "$why" ] || ! grep -q '^[[:space:]]*sys ' tests/$t.aiw || why="has a sys"
+    ! grep -q "^$t\$" tests/win.skip || why="named in tests/win.skip"
+    [ -z "$why" ] || { echo "FAIL win $t (not run: $why)"; fail=1; }
+done
+n=0
+ran=0
+for f in tests/*.out; do
+    t=$(basename $f .out)
+    [ -f tests/$t.aiw ] || continue
+    grep -q '^[[:space:]]*sys ' tests/$t.aiw && continue
+    grep -q "^$t\$" tests/win.skip && continue
+    n=$((n + 1))
+    must=0
+    case " $always " in *" $t "*) must=1 ;; *) [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue ;; esac
+    if ! $wc < tests/$t.aiw > $tmp/t.exe 2> $tmp/cerr; then
+        # a test of the list has to compile: what the compiler said is
+        # shown and the suite fails
+        [ $must -eq 1 ] || continue
+        cat $tmp/cerr
+        echo "FAIL win $t (does not compile)"; fail=1
+        continue
+    fi
+    want=0
+    [ -f tests/$t.code ] && want=$(cat tests/$t.code)
+    ran=$((ran + 1))
+    # twice before it has failed: under Wine a start now and then fails
+    # where the program is not at fault
+    for try in 1 2; do
+        timeout $limit wine $tmp/t.exe < /dev/null > $tmp/got 2> /dev/null
+        got=$?
+        [ "$got" = "$want" ] && cmp -s $tmp/got tests/$t.out && continue 2
+    done
+    echo "FAIL win $t"; fail=1
+done
+[ $ran -gt 0 ]
+say "win_tests ($ran run)" $?
+exit $fail

@@ -6,4 +6,4 @@ ifz p
 end
 data b 7
 loadb b as x
-sys 60 x
+rt exit x

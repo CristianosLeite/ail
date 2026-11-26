@@ -4,4 +4,4 @@ use "tests/lib/six.aiw"
 call quad 1 as a
 call six 1 as b
 add a b as a
-sys 60 a
+rt exit a

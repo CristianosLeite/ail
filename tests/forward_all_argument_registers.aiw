@@ -1,10 +1,10 @@
-sys 1 1 d 2
+rt write 1 d 2
 fn f a b c d e g
 	sub g a as a
 	ret a
 end
 call f x x x x x y as r
-sys 60 r
+rt exit r
 data d "k\n"
 buf x 24
 buf y 8

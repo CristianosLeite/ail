@@ -14,4 +14,4 @@ end
 if (a>b)|(b>a)
 	c+=8
 end
-sys exit c
+rt exit c

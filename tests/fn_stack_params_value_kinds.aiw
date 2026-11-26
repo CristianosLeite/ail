@@ -19,5 +19,5 @@ fn f a b c d e g n w v x y z p q
 end
 data dd 6
 call f 0 0 0 0 0 0 1 0x200000000 lv gv later dd "\x07abc" as r
-sys 60 r
+rt exit r
 buf later 8

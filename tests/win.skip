@@ -1,0 +1,38 @@
+# Tests that tests/win.sh does not run on Windows, with the reason. A
+# test that has a sys statement is left out without being named here,
+# and so is one that calls a service the runtime of Windows does not
+# have yet, which does not compile.
+#
+# the end by a signal of Linux, whose number is the status they expect
+access_unknown_after_label
+at_local_traps
+data_is_read_only
+expr_division_by_zero
+expr_remainder_by_zero
+free_then_use_faults
+recursion_big_frames_fault
+recursion_without_end_faults
+sdiv_by_zero
+sdiv_min_by_minus_one
+smod_min_by_minus_one
+# the first bytes of an executable of Linux
+base_address
+# bytes of code that take their values where C has them on Linux
+ccall_basic
+# the stack at the start of a process of Linux
+stack_keeps
+# programs of Linux that they start (sh, true, cat, a path with /bin)
+lib_proc_closed
+lib_proc_keeps_globals
+lib_proc_path
+lib_proc_redirect
+lib_proc_status
+# it expects a write to a socket to take fewer bytes than it was given,
+# as Linux does for 16 MiB; Windows takes them all
+async_tcp_echo
+# it counts the open descriptors of the process in /proc
+lib_http_cancel
+# it opens /dev/null with a flag of Linux
+rt_start_cloexec
+# the widths are those of the kernel of Linux
+rt_reap_wide

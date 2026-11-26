@@ -1,0 +1,2292 @@
+# The runtime of AIL for x86-64 Windows: the services that docs/runtime.md
+# lists, each a function rt_<name>, as in rt/linux-x86_64/rt.aiw. Windows
+# has no system calls for a program to make: every service calls
+# functions of its libraries, whose addresses the loader writes into the
+# import tables of the executable. In front of this text the build puts
+# a const rt_i_<function> for each (compiler/windows-x86_64/imports.sh):
+# the place of that address, counted from the start of the executable,
+# which base gives. The functions are called with ccall, their values
+# in a local.
+#
+# The state is the buffer rt_state, which state.aiw declares:
+#    0  what args gives, made at its first call
+#   16  not 0 once the runtime has started a thread
+#   24  the lock of the memory
+#   32  the memory of the chunk at hand that no block has had, and
+#   40  its end
+#   48  per class of small blocks, 8 bytes: the blocks given back
+#  360  per descriptor, 256 of them, 8 bytes: 1 + the handle of Windows
+#       that it is, or 0 for none, or 2 while it is taken and not yet,
+#       or no longer, anything: a number is taken with cas (rt_newfd),
+#       gets what is known of it and its handle last, and is given back
+#       last when it is closed. 0, 1 and 2 are the input, the output
+#       and the error output, asked of Windows when they are first used.
+# 2408  per descriptor, 8 bytes: for one that is a directory, the record
+#       of its names (see rt_names), else 0
+# 4456  the ticks a second of the clock of Windows (0 before the first
+#       use)
+# 4464  1 + the job of Windows that the children held to this process
+#       are in, or 0 before the first of them
+# 4472  1 once the sockets of Windows are started
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller
+# 4736  per descriptor, 8 bytes: the record of the poller that it is or
+#       was, which is kept for the next poller of that number (see
+#       rt_poller), or 0
+# 6784  the children that were started and not yet taken (see rt_reap)
+# 6792  how many children were started, of which the number of the next
+#       is made
+# Every name of this file starts with "rt_".
+#
+# The first line goes to the last, past every function.
+jmp rt_go
+
+# call the function whose address is rt_slot from the start of the
+# executable, with the rt_n values at rt_a
+fn rt_api rt_slot rt_a rt_n
+	base as rt_b
+	load rt_b+rt_slot as rt_f
+	ccall rt_f rt_a rt_n as rt_r
+	ret rt_r
+end
+
+# the error that Windows has for the call that just failed, as the
+# number of the runtime: -2 no such file, -13 not allowed, -17 it is
+# there, -9 no such descriptor, -32 the other end is closed, -12 no
+# memory, -39 not empty, -28 no room, -36 a path too long, -20 not a
+# directory, and -5 for any other
+fn rt_error
+	local rt_a 32
+	call rt_api rt_i_getlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if (rt_e==2)|(rt_e==3)|(rt_e==123)
+		ret -2
+	end
+	if (rt_e==5)|(rt_e==32)
+		ret -13
+	end
+	if (rt_e==80)|(rt_e==183)
+		ret -17
+	end
+	if rt_e==6
+		ret -9
+	end
+	if (rt_e==109)|(rt_e==232)
+		ret -32
+	end
+	if (rt_e==8)|(rt_e==14)
+		ret -12
+	end
+	if rt_e==145
+		ret -39
+	end
+	if rt_e==206
+		ret -36
+	end
+	if rt_e==267
+		ret -20
+	end
+	if (rt_e==39)|(rt_e==112)
+		ret -28
+	end
+	ret -5
+end
+
+# the error that the sockets of Windows have for the call that just
+# failed, as the number of the runtime: -11 nothing now, -115 it goes on,
+# -32 and -104 the other end is closed or broke the connection, -111
+# nobody listens, -98 the port is taken, -110 the time is over, -88 no
+# socket, and -5 for any other
+fn rt_sockerror
+	local rt_a 32
+	call rt_api rt_i_wsagetlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if rt_e==10035
+		ret -11
+	end
+	if (rt_e==10036)|(rt_e==10037)
+		ret -115
+	end
+	if (rt_e==10058)|(rt_e==10053)
+		ret -32
+	end
+	if rt_e==10054
+		ret -104
+	end
+	if rt_e==10061
+		ret -111
+	end
+	if rt_e==10048
+		ret -98
+	end
+	if rt_e==10060
+		ret -110
+	end
+	if rt_e==10038
+		ret -88
+	end
+	if rt_e==10024
+		ret -24
+	end
+	ret -5
+end
+
+# read from the socket rt_h, which is the descriptor rt_fd: the bytes, 0
+# at the end, or an error. One that has nothing now is no longer said to
+# be ready, so that the poller says when it is again.
+fn rt_recv rt_fd rt_h rt_p rt_n
+	local rt_a 32
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 0
+	call rt_api rt_i_recv rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			call rt_marks rt_fd 223
+		end
+		if rt_r==-32
+			ret 0
+		end
+	end
+	ret rt_r
+end
+
+# write to a socket; the error -32 if the other end is closed or broke
+# the connection, and -88 for a descriptor that is no socket
+fn rt_send rt_fd rt_p rt_n
+	local rt_a 32
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		load rt_state+360+rt_fd*8 as rt_h
+		ifz rt_h
+			if rt_fd>2
+				ret -9
+			end
+		end
+		ret -88
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_a rt_h-1
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 0
+	call rt_api rt_i_send rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			call rt_marks rt_fd 191
+		end
+		if rt_r==-104
+			ret -32
+		end
+	end
+	ret rt_r
+end
+
+# end the process, every thread of it
+fn rt_exit rt_c
+	local rt_a 32
+	store rt_a rt_c
+	label rt_again
+	call rt_api rt_i_exitprocess rt_a 1
+	jmp rt_again
+end
+
+# the handle of the descriptor rt_fd, or -1 if it is none
+fn rt_handle rt_fd
+	local rt_a 32
+	if rt_fd>255
+		ret -1
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	if rt_h==2
+		ret -1
+	end
+	ifz rt_h
+		if rt_fd>2
+			ret -1
+		end
+		# the input is the handle -10, the output -11, the error output -12
+		store rt_a -10-rt_fd
+		call rt_api rt_i_getstdhandle rt_a 1 as rt_h
+		rt_h+=1
+		store rt_state+360+rt_fd*8 rt_h
+	end
+	ret rt_h-1
+end
+
+# up to rt_n bytes: how many were written, or an error
+fn rt_write rt_fd rt_p rt_n
+	local rt_a 40
+	local rt_got 8
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&1
+		tail rt_send rt_fd rt_p rt_n
+	end
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_got 0
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 rt_got
+	store rt_a+32 0
+	call rt_api rt_i_writefile rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load4 rt_got as rt_r
+	ret rt_r
+end
+
+# up to rt_n bytes: how many were read, 0 at the end, or an error. The
+# end of a pipe whose writer is gone is an error of Windows and an end
+# here.
+fn rt_read rt_fd rt_p rt_n
+	local rt_a 40
+	local rt_got 8
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&1
+		tail rt_recv rt_fd rt_h rt_p rt_n
+	end
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_got 0
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 rt_got
+	store rt_a+32 0
+	call rt_api rt_i_readfile rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		if rt_r==-32
+			ret 0
+		end
+		ret rt_r
+	end
+	load4 rt_got as rt_r
+	ret rt_r
+end
+
+fn rt_close rt_fd
+	local rt_a 32
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	# one thread of those that close it does, and its number is not
+	# given out again before what is known of it is gone
+	cas rt_state+360+rt_fd*8 rt_h+1 2 as rt_r
+	ifz rt_r
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	storeb rt_state+4480+rt_fd 0
+	rt_r=0
+	if rt_k&4
+		# a poller is a descriptor of the runtime, with a socket of its
+		# own, and watches nothing from here on
+		load rt_state+4736+rt_fd*8 as rt_d
+		call rt_plock rt_d
+		load rt_d+2312 as rt_s
+		store rt_d+2312 0
+		zero rt_d 256
+		call rt_punlock rt_d
+		store rt_a rt_s
+		call rt_api rt_i_closesocket rt_a 1
+		jmp rt_done
+	end
+	if rt_k&3
+		# no poller watches it any more
+		call rt_marks rt_fd 0
+		store rt_a rt_h
+		call rt_api rt_i_closesocket rt_a 1 as rt_r
+		rt_r&=0xffffffff
+		if rt_r
+			call rt_sockerror as rt_r
+		end
+		jmp rt_done
+	end
+	load rt_state+2408+rt_fd*8 as rt_d
+	if rt_d
+		# a directory: the search of its names, if one was begun, and
+		# the record
+		store rt_state+2408+rt_fd*8 0
+		load rt_d as rt_h
+		load rt_d+8 as rt_s
+		if rt_s
+			store rt_a rt_h
+			call rt_api rt_i_findclose rt_a 1
+		end
+		call rt_free rt_d
+		jmp rt_done
+	end
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1 as rt_x
+	ifz rt_x&0xffffffff
+		call rt_error as rt_r
+	end
+	label rt_done
+	store rt_state+360+rt_fd*8 0
+	ret rt_r
+end
+
+# give back the descriptor rt_fd, which was taken and has become
+# nothing: rt_r
+fn rt_unfd rt_fd rt_r
+	store rt_state+360+rt_fd*8 0
+	ret rt_r
+end
+
+# the rt_n bytes of a path with a zero behind them into the 4096 bytes at
+# rt_z: 0, or the error of a path too long
+fn rt_path rt_p rt_n rt_z
+	if rt_n>4095
+		ret -36
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		storeb rt_z+rt_i rt_c
+		rt_i+=1
+	end
+	storeb rt_z+rt_n 0
+	ret 0
+end
+
+# The error rt_r of a call of Windows on the path at rt_z, or -36 in its
+# place: Windows says of a path too long for it, 260 bytes with the
+# directory the process is in, that there is no such path, and only the
+# function that makes a path whole says that it is too long.
+fn rt_long rt_z rt_r
+	local rt_a 32
+	if rt_r==-2
+		store rt_a rt_z
+		store rt_a+8 0
+		store rt_a+16 0
+		store rt_a+24 0
+		call rt_api rt_i_getfullpathnamea rt_a 4 as rt_n
+		ifz rt_n&0xffffffff
+			call rt_error as rt_n
+			if rt_n==-36
+				ret -36
+			end
+		end
+	end
+	ret rt_r
+end
+
+# Open the file whose path is the rt_n bytes at rt_p: a descriptor, the
+# lowest that is free from 3 on, or an error. The flags are those of
+# docs/runtime.md: 0 to read, 1 to write, 2 for both, 64 to make the
+# file, 128 only if it is not there, 512 to cut it, 1024 to write at its
+# end, 0x10000 for a directory. The mode means nothing here.
+fn rt_open rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	local rt_a 56
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	# what may be done with it: read, write, or append alone
+	rt_acc=0x80000000
+	if rt_flags&3==1
+		rt_acc=0x40000000
+	end
+	if rt_flags&3==2
+		rt_acc=0xc0000000
+	end
+	if rt_flags&1024
+		rt_acc=rt_acc&0x80000000|4
+	end
+	# what to do if it is there or not: open it, 3
+	rt_how=3
+	if rt_flags&512
+		rt_how=5
+	end
+	if rt_flags&64
+		rt_how=4
+		if rt_flags&512
+			rt_how=2
+		end
+		if rt_flags&128
+			rt_how=1
+		end
+	end
+	if rt_flags&0x10000
+		# a directory is opened for its names: a record with its path
+		# and "\*" behind it, which the search of Windows takes
+		store rt_a rt_z
+		call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+		rt_r&=0xffffffff
+		if rt_r==0xffffffff
+			call rt_error as rt_r
+			call rt_long rt_z rt_r as rt_r
+			tail rt_unfd rt_fd rt_r
+		end
+		ifz rt_r&16
+			tail rt_unfd rt_fd -20
+		end
+		call rt_alloc 336+rt_n+3 as rt_d
+		ifz rt_d
+			tail rt_unfd rt_fd -12
+		end
+		rt_i=0
+		while rt_i<rt_n
+			loadb rt_z+rt_i as rt_c
+			storeb rt_d+336+rt_i rt_c
+			rt_i+=1
+		end
+		storeb rt_d+336+rt_n 92
+		storeb rt_d+337+rt_n 42
+		store rt_state+2408+rt_fd*8 rt_d
+		store rt_state+360+rt_fd*8 1
+		ret rt_fd
+	end
+	rt_attr=0x80
+	store rt_a rt_z
+	store rt_a+8 rt_acc
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 rt_how
+	store rt_a+40 rt_attr
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		call rt_long rt_z rt_r as rt_r
+		if rt_r==-13
+			# Windows does not allow a directory to be opened as a file,
+			# which is the error -21 of a directory
+			store rt_a rt_z
+			call rt_api rt_i_getfileattributesa rt_a 1 as rt_c
+			rt_c&=0xffffffff
+			if rt_c!=0xffffffff
+				if rt_c&16
+					rt_r=-21
+				end
+			end
+		end
+		tail rt_unfd rt_fd rt_r
+	end
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
+# make a directory, remove a file, remove an empty directory; the mode
+# means nothing here
+fn rt_mkdir rt_p rt_n rt_mode
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	store rt_a+8 0
+	call rt_api rt_i_createdirectorya rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ret 0
+end
+fn rt_unlink rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_deletefilea rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ret 0
+end
+fn rt_rmdir rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_removedirectorya rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ret 0
+end
+
+# give a file another path, in place of a file that has it
+fn rt_rename rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_y 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		call rt_path rt_q rt_m rt_y as rt_r
+	end
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_y
+	store rt_a+16 1
+	call rt_api rt_i_movefileexa rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		call rt_long rt_z rt_r as rt_r
+		tail rt_long rt_y rt_r
+	end
+	ret 0
+end
+
+# The next names of the directory that rt_fd is open on, each with a zero
+# behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
+# least 512: the bytes written, 0 after the last name, or an error. The
+# record of the directory: 0 the search of Windows; 8 its state, 0 not
+# begun, 1 with a name that waits at 16, where Windows writes an entry of
+# 320 bytes with the name at 44, 2 at its end; 336 the path.
+fn rt_names rt_fd rt_p rt_n
+	local rt_a 32
+	if rt_n<512
+		ret -22
+	end
+	if rt_fd>255
+		ret -9
+	end
+	load rt_state+2408+rt_fd*8 as rt_d
+	ifz rt_d
+		ret -20
+	end
+	load rt_d+8 as rt_s
+	ifz rt_s
+		store rt_a rt_d+336
+		store rt_a+8 rt_d+16
+		call rt_api rt_i_findfirstfilea rt_a 2 as rt_h
+		if rt_h==-1
+			tail rt_error
+		end
+		store rt_d rt_h
+		rt_s=1
+		store rt_d+8 1
+	end
+	rt_o=0
+	label rt_more
+	if rt_s!=1
+		ret rt_o
+	end
+	rt_e=rt_d+60
+	load2 rt_e as rt_c
+	loadb rt_e+2 as rt_x
+	if (rt_c==46)|((rt_c==0x2e2e)&(rt_x==0))
+	else
+		rt_l=0
+		label rt_len
+		loadb rt_e+rt_l as rt_c
+		if rt_c
+			rt_l+=1
+			jmp rt_len
+		end
+		if rt_o+rt_l+1>rt_n
+			ret rt_o
+		end
+		rt_i=0
+		while rt_i<=rt_l
+			loadb rt_e+rt_i as rt_c
+			storeb rt_p+rt_o+rt_i rt_c
+			rt_i+=1
+		end
+		rt_o+=rt_l+1
+	end
+	load rt_d as rt_h
+	store rt_a rt_h
+	store rt_a+8 rt_d+16
+	call rt_api rt_i_findnextfilea rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		rt_s=2
+		store rt_d+8 2
+	end
+	jmp rt_more
+end
+
+# ---- time
+# The clock that only goes forward, in nanoseconds: the counter of
+# Windows, whose ticks a second it says once, as whole seconds and the
+# rest of a second, so that no product leaves 64 bits.
+fn rt_clock
+	local rt_a 32
+	local rt_t 8
+	load rt_state+4456 as rt_f
+	ifz rt_f
+		store rt_a rt_t
+		call rt_api rt_i_queryperformancefrequency rt_a 1
+		load rt_t as rt_f
+		store rt_state+4456 rt_f
+	end
+	store rt_a rt_t
+	call rt_api rt_i_queryperformancecounter rt_a 1
+	load rt_t as rt_c
+	ret rt_c/rt_f*1000000000+rt_c%rt_f*1000000000/rt_f
+end
+
+# wait that many nanoseconds, in whole milliseconds and not fewer
+fn rt_sleep rt_ns
+	local rt_a 32
+	store rt_a (rt_ns+999999)/1000000
+	call rt_api rt_i_sleep rt_a 1
+	ret 0
+end
+
+# ---- threads
+# the processors of the machine
+fn rt_cpus
+	local rt_a 32
+	local rt_i 64
+	store rt_a rt_i
+	call rt_api rt_i_getsysteminfo rt_a 1
+	load4 rt_i+32 as rt_n
+	ifz rt_n
+		rt_n=1
+	end
+	ret rt_n
+end
+
+# Sleep while the four bytes at rt_p are rt_v, until a wake of rt_p or
+# for rt_ns nanoseconds at most, -1 for no limit: 0 after a wake or for
+# no reason, -11 if the bytes were another value, -110 after the time.
+fn rt_wait rt_p rt_v rt_ns
+	local rt_a 32
+	local rt_c 8
+	load4 rt_p as rt_x
+	if rt_x!=rt_v&0xffffffff
+		ret -11
+	end
+	store rt_c rt_v
+	rt_ms=0xffffffff
+	ifsge rt_ns 0
+		rt_ms=(rt_ns+999999)/1000000
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_c
+	store rt_a+16 4
+	store rt_a+24 rt_ms
+	call rt_api rt_i_waitonaddress rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		ret -110
+	end
+	ret 0
+end
+
+# wake one thread that sleeps in a wait of rt_p, or with a larger rt_n
+# all of them; how many there were Windows does not say
+fn rt_wake rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	if rt_n==1
+		call rt_api rt_i_wakebyaddresssingle rt_a 1
+	else
+		call rt_api rt_i_wakebyaddressall rt_a 1
+	end
+	ret 0
+end
+
+# What a thread of Windows runs first, as bytes: Windows calls it with
+# its one value in rcx and wants rsi and rdi kept, which a function of
+# AIL does not keep. The value is the address of two cells, the function
+# of AIL to call, rt_run, and its value, the block that has the function
+# and the value the thread was started with behind them. push rsi / push rdi / push rbx /
+# mov rax, [rcx+8] / call [rcx] / pop rbx / pop rdi / pop rsi /
+# xor eax, eax / ret
+data rt_enter 86 87 83 72 139 65 8 255 17 91 95 94 49 192 195
+
+# what the thread runs in AIL: the function and its value from the two
+# cells, which are given back
+fn rt_run rt_b
+	load rt_b+16 as rt_f
+	load rt_b+24 as rt_v
+	call rt_free rt_b
+	callp rt_f rt_v
+end
+
+# Start a thread that calls the function at rt_f with the value rt_v and
+# ends when it returns: 0, or an error. Its stack is 8 MiB that Windows
+# keeps and gives back.
+fn rt_thread rt_f rt_v
+	local rt_a 48
+	store rt_state+16 1
+	call rt_alloc 32 as rt_b
+	ifz rt_b
+		ret -12
+	end
+	ref rt_run as rt_r
+	store rt_b rt_r
+	store rt_b+8 rt_b
+	store rt_b+16 rt_f
+	store rt_b+24 rt_v
+	store rt_a 0
+	store rt_a+8 8388608
+	store rt_a+16 rt_enter
+	store rt_a+24 rt_b
+	store rt_a+32 0x10000
+	store rt_a+40 0
+	call rt_api rt_i_createthread rt_a 6 as rt_h
+	ifz rt_h
+		call rt_free rt_b
+		tail rt_error
+	end
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	ret 0
+end
+
+# ---- processes
+# add the argument at rt_s, a string with a zero, to the line at rt_o as
+# Windows wants an argument that rt_args is to read as it is: in quotes
+# if it is empty or has a blank or a quote, a quote with a backslash
+# before it, and backslashes doubled before a quote. The end of what was
+# written.
+fn rt_quote rt_s rt_o
+	rt_q=0
+	rt_i=0
+	label rt_look
+	loadb rt_s+rt_i as rt_c
+	if rt_c
+		if (rt_c==32)|(rt_c==9)|(rt_c==34)
+			rt_q=1
+		end
+		rt_i+=1
+		jmp rt_look
+	end
+	ifz rt_i
+		rt_q=1
+	end
+	if rt_q
+		storeb rt_o 34
+		rt_o+=1
+	end
+	rt_k=0
+	label rt_next
+	loadb rt_s as rt_c
+	if rt_c
+		if rt_c==92
+			rt_k+=1
+		else
+			if rt_c==34
+				# the backslashes before a quote once more, and one for it
+				rt_k+=1
+				while rt_k
+					storeb rt_o 92
+					rt_o+=1
+					rt_k-=1
+				end
+			end
+			rt_k=0
+		end
+		storeb rt_o rt_c
+		rt_o+=1
+		rt_s+=1
+		jmp rt_next
+	end
+	if rt_q
+		# and those before the quote that ends the argument
+		while rt_k
+			storeb rt_o 92
+			rt_o+=1
+			rt_k-=1
+		end
+		storeb rt_o 34
+		rt_o+=1
+	end
+	ret rt_o
+end
+
+# the bytes that the strings at the addresses at rt_v take, a zero
+# counted with each, twice over and 3 more for each: enough for the line
+# of arguments, whatever has to be quoted
+fn rt_room rt_v
+	rt_n=0
+	label rt_next
+	load rt_v as rt_s
+	if rt_s
+		label rt_len
+		loadb rt_s as rt_c
+		rt_s+=1
+		rt_n+=2
+		jnz rt_c rt_len
+		rt_n+=3
+		rt_v+=8
+		jmp rt_next
+	end
+	ret rt_n+2
+end
+
+# 1 + the job of Windows that the children held to this process are in,
+# made at the first of them, or 0 if Windows gives none: a job whose
+# processes end when its last handle is closed, which is when this
+# process ends. The limits are 144 bytes, the flags of the limit at 16.
+# Of two threads that make it one keeps its job and the other takes
+# that.
+fn rt_heldjob
+	local rt_a 32
+	local rt_job 144
+	load rt_state+4464 as rt_j
+	if rt_j
+		ret rt_j
+	end
+	store rt_a 0
+	store rt_a+8 0
+	call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
+	ifz rt_j
+		ret 0
+	end
+	zero rt_job 144
+	store4 rt_job+16 0x2000
+	store rt_a rt_j
+	store rt_a+8 9
+	store rt_a+16 rt_job
+	store rt_a+24 144
+	call rt_api rt_i_setinformationjobobject rt_a 4 as rt_r
+	if rt_r&0xffffffff
+		cas rt_state+4464 0 rt_j+1 as rt_r
+		if rt_r
+			ret rt_j+1
+		end
+	end
+	store rt_a rt_j
+	call rt_api rt_i_closehandle rt_a 1
+	load rt_state+4464 as rt_j
+	ret rt_j
+end
+
+# close those of the three handles at rt_p that are not 0
+fn rt_shut3 rt_p
+	local rt_a 32
+	rt_i=0
+	while rt_i<3
+		load rt_p+rt_i*8 as rt_h
+		if rt_h
+			store rt_a rt_h
+			call rt_api rt_i_closehandle rt_a 1
+		end
+		rt_i+=1
+	end
+end
+
+# Start a program as a child process: its number, or an error. rt_argv is
+# the address of the addresses of its arguments, strings with a zero at
+# the end, with a 0 after the last; the first is the program, which
+# Windows looks for in the directories of PATH if it is a name. rt_env
+# is its environment in the same form, 0 for that of this process;
+# rt_fds the address of three descriptors that become its input, output
+# and error output, -1 for the one of this process. With the flag 1 the
+# child is held: Windows ends it when this process ends. A program that
+# cannot be started is the number 1, which reap takes as a child that
+# ended with status 127, and so is one whose descriptors are not open
+# or that Windows does not hold.
+# The child gets copies of the three handles, made for it alone and
+# closed here once it is started, and a list that names them: it
+# inherits those and no other handle of this process, whatever another
+# thread starts meanwhile. A held child is put in the job by the same
+# list (Windows 10), so it never runs outside it.
+# What is returned is a number of the runtime that no child had before,
+# from 2 on, under which the handle of Windows of the child is put in
+# the list of the children for reap.
+fn rt_start rt_argv rt_env rt_fds rt_flags
+	local rt_a 80
+	local rt_si 112
+	local rt_pi 24
+	local rt_al 256
+	local rt_dup 24
+	local rt_hl 24
+	local rt_jl 8
+	local rt_sz 8
+	rt_j=0
+	if rt_flags&1
+		call rt_heldjob as rt_j
+		ifz rt_j
+			ret 1
+		end
+	end
+	store rt_a 0
+	call rt_api rt_i_getcurrentprocess rt_a 0 as rt_me
+	rt_nh=0
+	rt_bad=0
+	rt_i=0
+	while rt_i<3
+		load rt_fds+rt_i*8 as rt_fd
+		rt_own=rt_fd!=-1
+		ifz rt_own
+			rt_fd=rt_i
+		end
+		call rt_handle rt_fd as rt_h
+		store rt_dup+rt_i*8 0
+		store rt_a rt_me
+		store rt_a+8 rt_h
+		store rt_a+16 rt_me
+		store rt_a+24 rt_dup+rt_i*8
+		store rt_a+32 0
+		store rt_a+40 1
+		store rt_a+48 2
+		rt_r=0
+		# no descriptor is -1, which Windows would take for this process
+		if rt_h<-4096
+			call rt_api rt_i_duplicatehandle rt_a 7 as rt_r
+		end
+		if rt_r&0xffffffff
+			load rt_dup+rt_i*8 as rt_h
+			store rt_hl+rt_nh*8 rt_h
+			rt_nh+=1
+		else
+			# one of this process that it has not is none in the child;
+			# one that was given and is no open file is an error
+			store rt_dup+rt_i*8 0
+			rt_bad|=rt_own
+		end
+		rt_i+=1
+	end
+	if rt_bad
+		call rt_shut3 rt_dup
+		ret 1
+	end
+	call rt_room rt_argv as rt_n
+	rt_m=0
+	if rt_env
+		call rt_room rt_env as rt_m
+	end
+	call rt_alloc rt_n+rt_m as rt_line
+	ifz rt_line
+		call rt_shut3 rt_dup
+		ret -12
+	end
+	call rt_alloc 32 as rt_kid
+	ifz rt_kid
+		call rt_free rt_line
+		call rt_shut3 rt_dup
+		ret -12
+	end
+	rt_o=rt_line
+	rt_v=rt_argv
+	label rt_arg
+	load rt_v as rt_s
+	if rt_s
+		if rt_v!=rt_argv
+			storeb rt_o 32
+			rt_o+=1
+		end
+		call rt_quote rt_s rt_o as rt_o
+		if rt_v==rt_argv
+			# the program: Windows finds it by a path with backslashes
+			rt_i=rt_line
+			while rt_i<rt_o
+				loadb rt_i as rt_c
+				if rt_c==47
+					storeb rt_i 92
+				end
+				rt_i+=1
+			end
+		end
+		rt_v+=8
+		jmp rt_arg
+	end
+	storeb rt_o 0
+	rt_o+=1
+	# the environment as Windows takes one: the strings one behind the
+	# other, each with its zero, and a zero more
+	rt_eb=0
+	if rt_env
+		rt_eb=rt_o
+		rt_v=rt_env
+		label rt_var
+		load rt_v as rt_s
+		if rt_s
+			label rt_copy
+			loadb rt_s as rt_c
+			storeb rt_o rt_c
+			rt_o+=1
+			rt_s+=1
+			jnz rt_c rt_copy
+			rt_v+=8
+			jmp rt_var
+		end
+		storeb rt_o 0
+		storeb rt_o+1 0
+	end
+	zero rt_si 112
+	store4 rt_si 104
+	store4 rt_si+60 0x100
+	load rt_dup as rt_h
+	store rt_si+80 rt_h
+	load rt_dup+8 as rt_h
+	store rt_si+88 rt_h
+	load rt_dup+16 as rt_h
+	store rt_si+96 rt_h
+	# the list of what the child gets: the handles, and the job
+	rt_ok=1
+	rt_cf=0
+	rt_list=0
+	if rt_nh|rt_j
+		store rt_sz 256
+		store rt_a rt_al
+		store rt_a+8 2
+		store rt_a+16 0
+		store rt_a+24 rt_sz
+		call rt_api rt_i_initializeprocthreadattributelist rt_a 4 as rt_ok
+		rt_ok&=0xffffffff
+		if rt_ok
+			rt_list=1
+			rt_cf=0x80000
+			store4 rt_si 112
+			store rt_si+104 rt_al
+		end
+	end
+	if rt_ok
+		if rt_nh
+			store rt_a rt_al
+			store rt_a+8 0
+			store rt_a+16 0x20002
+			store rt_a+24 rt_hl
+			store rt_a+32 rt_nh*8
+			store rt_a+40 0
+			store rt_a+48 0
+			call rt_api rt_i_updateprocthreadattribute rt_a 7 as rt_ok
+			rt_ok&=0xffffffff
+		end
+	end
+	if rt_ok
+		if rt_j
+			store rt_jl rt_j-1
+			store rt_a rt_al
+			store rt_a+8 0
+			store rt_a+16 0x2000d
+			store rt_a+24 rt_jl
+			store rt_a+32 8
+			store rt_a+40 0
+			store rt_a+48 0
+			call rt_api rt_i_updateprocthreadattribute rt_a 7 as rt_ok
+			rt_ok&=0xffffffff
+		end
+	end
+	if rt_ok
+		store rt_a 0
+		store rt_a+8 rt_line
+		store rt_a+16 0
+		store rt_a+24 0
+		store rt_a+32 rt_nh!=0
+		store rt_a+40 rt_cf
+		store rt_a+48 rt_eb
+		store rt_a+56 0
+		store rt_a+64 rt_si
+		store rt_a+72 rt_pi
+		call rt_api rt_i_createprocessa rt_a 10 as rt_ok
+		rt_ok&=0xffffffff
+	end
+	if rt_list
+		store rt_a rt_al
+		call rt_api rt_i_deleteprocthreadattributelist rt_a 1
+	end
+	call rt_shut3 rt_dup
+	call rt_free rt_line
+	ifz rt_ok
+		call rt_free rt_kid
+		ret 1
+	end
+	load rt_pi+8 as rt_h
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	load rt_pi as rt_p
+	store rt_kid+8 rt_p
+	store rt_kid+16 0
+	call rt_lock
+	load rt_state+6792 as rt_p
+	rt_p+=1
+	store rt_state+6792 rt_p
+	rt_p+=1
+	store rt_kid+24 rt_p
+	load rt_state+6784 as rt_h
+	store rt_kid rt_h
+	store rt_state+6784 rt_kid
+	call rt_unlock
+	ret rt_p
+end
+
+# Wait for the child to end and take it: its exit status, the low 8 bits
+# of what it ended with; or the fault that ended it as the signal Linux
+# has for it, negated; or -1000 if it still ran after rt_ms
+# milliseconds, in which case it was ended and taken; or -1001 if there
+# is no such child; or, if Windows refuses to end a child whose time is
+# over, its error, the child being left as it is. rt_ms 0 waits without
+# limit.
+# A child is a handle of Windows, which is closed when the child is
+# taken and may then be the number of another thing, a later child too,
+# and a wait for a handle that is closed meanwhile is not defined. So
+# the program never has the handle, and one thread alone has a child:
+# start puts each in a list (the cell at 6784 of the state; 32 bytes
+# each: the next, the handle, 1 while a reap has it, the number start
+# gave, which no other child gets), reap takes the one of a number if
+# it is there and no other reap has it, and takes it out of the list
+# before it closes the handle. Anything else is no child.
+fn rt_reap rt_p rt_ms
+	local rt_a 32
+	if rt_p==1
+		ret 127
+	end
+	call rt_lock
+	load rt_state+6784 as rt_k
+	label rt_find
+	ifz rt_k
+		call rt_unlock
+		ret -1001
+	end
+	load rt_k+24 as rt_h
+	if rt_h!=rt_p
+		load rt_k as rt_k
+		jmp rt_find
+	end
+	load rt_k+16 as rt_h
+	if rt_h
+		call rt_unlock
+		ret -1001
+	end
+	store rt_k+16 1
+	load rt_k+8 as rt_p
+	call rt_unlock
+	call rt_reaping rt_p rt_ms as rt_r rt_took
+	ifz rt_took
+		store rt_k+16 0
+		ret rt_r
+	end
+	call rt_lock
+	rt_q=rt_state+6784
+	label rt_next
+	load rt_q as rt_h
+	if rt_h!=rt_k
+		rt_q=rt_h
+		jmp rt_next
+	end
+	load rt_k as rt_h
+	store rt_q rt_h
+	call rt_unlock
+	call rt_free rt_k
+	store rt_a rt_p
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
+end
+
+# reap for the thread that alone has the child of the handle rt_p: what reap gives,
+# and 1 if the child is taken, 0 if it is left. Windows counts the time
+# of a wait in 32 bits, of which the largest value means no limit, so a
+# long time is waited for in pieces, and what is left is counted from
+# the start.
+fn rt_reaping rt_p rt_ms
+	local rt_a 32
+	local rt_c 8
+	call rt_clock as rt_t
+	label rt_again
+	rt_n=0xffffffff
+	if rt_ms
+		call rt_clock as rt_n
+		rt_n=(rt_n-rt_t)/1000000
+		if rt_n>=rt_ms
+			rt_n=0
+		else
+			rt_n=rt_ms-rt_n
+			if rt_n>0x40000000
+				rt_n=0x40000000
+			end
+		end
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_n
+	call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==258
+		# the piece is over: the time may not be
+		call rt_clock as rt_n
+		jlt (rt_n-rt_t)/1000000 rt_ms rt_again
+		store rt_a rt_p
+		store rt_a+8 1
+		call rt_api rt_i_terminateprocess rt_a 2 as rt_x
+		ifz rt_x&0xffffffff
+			# Windows ends no process that has ended, so it is taken with
+			# what it ended with if it has, and else left
+			call rt_error as rt_x
+			store rt_a rt_p
+			store rt_a+8 0
+			call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
+			rt_r&=0xffffffff
+			jz rt_r rt_took
+			ret rt_x 0
+		end
+		store rt_a rt_p
+		store rt_a+8 0xffffffff
+		call rt_api rt_i_waitforsingleobject rt_a 2
+		ret -1000 1
+	end
+	if rt_r
+		# a wait that Windows refuses
+		call rt_error as rt_x
+		ret rt_x 0
+	end
+	label rt_took
+	store rt_c 0
+	store rt_a rt_p
+	store rt_a+8 rt_c
+	call rt_api rt_i_getexitcodeprocess rt_a 2 as rt_x
+	ifz rt_x&0xffffffff
+		call rt_error as rt_x
+		ret rt_x 1
+	end
+	load4 rt_c as rt_r
+	if rt_r>=0xc0000000
+		# a fault: a place of memory that is none, a division by zero, an
+		# instruction that is none, any other
+		if rt_r==0xc0000005
+			ret -11 1
+		end
+		if (rt_r==0xc0000094)|(rt_r==0xc0000095)
+			ret -8 1
+		end
+		if rt_r==0xc000001d
+			ret -4 1
+		end
+		ret -6 1
+	end
+	ret rt_r&255 1
+end
+
+# Let this thread run only on the processor rt_cpu, or on the lowest one
+# if it may not run there: the processor it is now bound to, or an error
+fn rt_pin rt_cpu
+	local rt_a 32
+	call rt_api rt_i_getcurrentthread rt_a 0 as rt_t
+	if rt_cpu<64
+		store rt_a rt_t
+		store rt_a+8 1<<rt_cpu
+		call rt_api rt_i_setthreadaffinitymask rt_a 2 as rt_r
+		if rt_r
+			ret rt_cpu
+		end
+	end
+	store rt_a rt_t
+	store rt_a+8 1
+	call rt_api rt_i_setthreadaffinitymask rt_a 2 as rt_r
+	ifz rt_r
+		tail rt_error
+	end
+	ret 0
+end
+
+# ---- sockets and readiness
+# The lowest descriptor that is free, from 3 on, or -24. It is taken:
+# no other thread gets it, and it is no descriptor yet. Who took it
+# writes what is known of it and then 1 + its handle, or gives it back
+# (rt_unfd).
+fn rt_newfd
+	rt_fd=3
+	label rt_next
+	if rt_fd>255
+		ret -24
+	end
+	cas rt_state+360+rt_fd*8 0 2 as rt_r
+	ifz rt_r
+		rt_fd+=1
+		jmp rt_next
+	end
+	ret rt_fd
+end
+
+# the record of the poller rt_ep, or 0 if it is none
+fn rt_rec rt_ep
+	if rt_ep>255
+		ret 0
+	end
+	loadb rt_state+4480+rt_ep as rt_k
+	ifz rt_k&4
+		ret 0
+	end
+	load rt_state+4736+rt_ep*8 as rt_d
+	ret rt_d
+end
+
+# The record of a poller is shared by the threads: one at a time reads
+# and changes it, between these two, and makes no call of Windows that
+# waits meanwhile.
+fn rt_plock rt_d
+	label rt_again
+	cas rt_d+2304 0 1 as rt_k
+	jz rt_k rt_again
+end
+fn rt_punlock rt_d
+	store rt_d+2304 0
+end
+
+# end the wait of the poller whose record is rt_d, which the caller has
+# locked: a byte to its socket
+fn rt_pwake rt_d
+	local rt_a 32
+	local rt_one 8
+	load rt_d+2312 as rt_h
+	if rt_h
+		store rt_one 1
+		store rt_a rt_h
+		store rt_a+8 rt_one
+		store rt_a+16 1
+		store rt_a+24 0
+		call rt_api rt_i_send rt_a 4
+	end
+end
+
+# in every poller, keep of what it notes of the descriptor rt_fd the
+# bits of rt_mask: 223 and 191 when it was found not ready to read and
+# to write, 0 when it is closed
+fn rt_marks rt_fd rt_mask
+	rt_ep=3
+	while rt_ep<256
+		loadb rt_state+4480+rt_ep as rt_k
+		if rt_k&4
+			load rt_state+4736+rt_ep*8 as rt_d
+			loadb rt_d+rt_fd as rt_k
+			# a descriptor that is closed is looked for under the lock
+			# whatever is noted now: a watch that found it open may be
+			# about to note it (rt_watch)
+			if rt_k|(rt_mask==0)
+				# what it notes now, which may be nothing since
+				call rt_plock rt_d
+				loadb rt_d+rt_fd as rt_k
+				storeb rt_d+rt_fd rt_k&rt_mask
+				call rt_punlock rt_d
+			end
+		end
+		rt_ep+=1
+	end
+end
+
+# the sockets of Windows are started before the first
+fn rt_wsa
+	local rt_a 32
+	local rt_w 408
+	load rt_state+4472 as rt_r
+	ifz rt_r
+		store rt_a 0x202
+		store rt_a+8 rt_w
+		call rt_api rt_i_wsastartup rt_a 2
+		store rt_state+4472 1
+	end
+end
+
+# A socket for single messages that is connected to itself and does not
+# wait, as Windows has it, or an error: a byte sent to it makes it ready
+# to read.
+fn rt_selfsock
+	local rt_a 32
+	local rt_ad 24
+	call rt_wsa
+	store rt_a 2
+	store rt_a+8 2
+	store rt_a+16 0
+	call rt_api rt_i_socket rt_a 3 as rt_h
+	if rt_h==-1
+		tail rt_sockerror
+	end
+	call rt_nowait rt_h
+	call rt_inet rt_ad 0x7f000001 0
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_bind rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		store rt_ad+16 16
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 rt_ad+16
+		call rt_api rt_i_getsockname rt_a 3 as rt_r
+	end
+	ifz rt_r&0xffffffff
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 16
+		call rt_api rt_i_connect rt_a 3 as rt_r
+	end
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closesocket rt_a 1
+		ret rt_r
+	end
+	ret rt_h
+end
+
+# A socket of the kind rt_kind (1 a stream, 2 single messages) that does
+# not wait, as a descriptor with the mark rt_mark; the sockets of
+# Windows are started at the first.
+fn rt_sock rt_kind rt_mark
+	local rt_a 32
+	call rt_wsa
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 2
+	store rt_a+8 rt_kind
+	store rt_a+16 0
+	call rt_api rt_i_socket rt_a 3 as rt_h
+	if rt_h==-1
+		call rt_sockerror as rt_r
+		tail rt_unfd rt_fd rt_r
+	end
+	call rt_nowait rt_h
+	storeb rt_state+4480+rt_fd rt_mark
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
+# make the socket rt_h one that does not wait
+fn rt_nowait rt_h
+	local rt_a 32
+	local rt_one 8
+	store rt_one 1
+	store rt_a rt_h
+	store rt_a+8 0x8004667e
+	store rt_a+16 rt_one
+	call rt_api rt_i_ioctlsocket rt_a 3
+end
+
+# the address of a socket of the internet, version 4, at rt_a
+fn rt_inet rt_a rt_ip rt_port
+	store rt_a 0
+	store rt_a+8 0
+	store2 rt_a 2
+	storeb rt_a+2 rt_port>>8
+	storeb rt_a+3 rt_port
+	storeb rt_a+4 rt_ip>>24
+	storeb rt_a+5 rt_ip>>16
+	storeb rt_a+6 rt_ip>>8
+	storeb rt_a+7 rt_ip
+end
+
+fn rt_socket
+	tail rt_sock 1 1
+end
+
+# a socket that listens on the port of the address, which does not wait
+fn rt_listen rt_ip rt_port rt_backlog
+	local rt_a 32
+	local rt_ad 16
+	call rt_sock 1 1 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	rt_h-=1
+	call rt_inet rt_ad rt_ip rt_port
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_bind rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		store rt_a rt_h
+		store rt_a+8 rt_backlog
+		call rt_api rt_i_listen rt_a 2 as rt_r
+	end
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		call rt_close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
+end
+
+# the next connection to a socket that listens; -11 if there is none now
+fn rt_accept rt_fd
+	local rt_a 32
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		ret -88
+	end
+	call rt_newfd as rt_new
+	ifslt rt_new 0
+		ret rt_new
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	store rt_a rt_h-1
+	store rt_a+8 0
+	store rt_a+16 0
+	call rt_api rt_i_accept rt_a 3 as rt_s
+	if rt_s==-1
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			call rt_marks rt_fd 223
+		end
+		tail rt_unfd rt_new rt_r
+	end
+	call rt_nowait rt_s
+	storeb rt_state+4480+rt_new 1
+	store rt_state+360+rt_new*8 rt_s+1
+	ret rt_new
+end
+
+# connect it: 0, or -115 if that goes on
+fn rt_connect rt_fd rt_ip rt_port
+	local rt_a 32
+	local rt_ad 16
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		ret -88
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	call rt_inet rt_ad rt_ip rt_port
+	store rt_a rt_h-1
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_connect rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			ret -115
+		end
+	end
+	ret rt_r
+end
+
+# the error that a socket has to report, as a negative number, or 0
+fn rt_sockerr rt_fd
+	local rt_a 40
+	local rt_v 16
+	call rt_handle rt_fd as rt_h
+	store rt_v 0
+	store rt_v+8 4
+	store rt_a rt_h
+	store rt_a+8 0xffff
+	store rt_a+16 0x1007
+	store rt_a+24 rt_v
+	store rt_a+32 rt_v+8
+	call rt_api rt_i_getsockopt rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		tail rt_sockerror
+	end
+	load4 rt_v as rt_e
+	ifz rt_e
+		ret 0
+	end
+	if rt_e==10061
+		ret -111
+	end
+	if rt_e==10060
+		ret -110
+	end
+	if rt_e==10054
+		ret -104
+	end
+	ret -5
+end
+
+# the port of a socket
+fn rt_port rt_fd
+	local rt_a 32
+	local rt_ad 24
+	call rt_handle rt_fd as rt_h
+	store rt_ad+16 16
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 rt_ad+16
+	call rt_api rt_i_getsockname rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		tail rt_sockerror
+	end
+	loadb rt_ad+2 as rt_hi
+	loadb rt_ad+3 as rt_lo
+	ret rt_hi<<8|rt_lo
+end
+
+# there is no signal to keep away: a pipe is written as any file
+fn rt_writeq rt_fd rt_p rt_n
+	tail rt_write rt_fd rt_p rt_n
+end
+
+# A poller is a descriptor of the runtime with a record of its own:
+#    0  for each descriptor a byte: 128 if the poller watches it, 8 and
+#       16 for reading and for writing, 32 and 64 once it was said to be
+#       ready to read and to write, 1 for a waker that was woken and not
+#       yet said so
+#  256  for each descriptor 8 bytes, the tag it is watched with
+# 2304  the lock of the record (rt_plock)
+# 2312  the socket of the poller, as Windows has it, or 0 once it is
+#       closed: every wait of the poller asks about it too, so a byte
+#       sent to it ends the wait (rt_pwake)
+# 2320  how many times a descriptor was given to this record to watch
+# 2328  for each descriptor 8 bytes, that count when it was given: what
+#       tells a watch from a later one of the same number
+# Windows says of a socket whether it is ready, not when it becomes so,
+# where the libraries want to be told once. So a socket that a poller
+# said to be ready is not asked about again by it until a read, a write
+# or an accept found it not ready, which takes the mark of it away in
+# every poller (rt_recv, rt_send, rt_accept; rt_marks). A waker is not
+# asked about: wakeup notes it in every poller that watches it and ends
+# the wait of each, so each says it once, whichever looks first. The
+# record is not freed when the poller is closed, since another thread
+# may be at it: it stays with the number, lock and counts as they are,
+# for the next poller that gets it.
+fn rt_poller
+	local rt_a 32
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	call rt_selfsock as rt_h
+	if rt_h>-4096
+		tail rt_unfd rt_fd rt_h
+	end
+	load rt_state+4736+rt_fd*8 as rt_d
+	ifz rt_d
+		call rt_alloc 4384 as rt_d
+		ifz rt_d
+			store rt_a rt_h
+			call rt_api rt_i_closesocket rt_a 1
+			tail rt_unfd rt_fd -12
+		end
+		store rt_state+4736+rt_fd*8 rt_d
+	end
+	call rt_plock rt_d
+	zero rt_d 2304
+	store rt_d+2312 rt_h
+	call rt_punlock rt_d
+	storeb rt_state+4480+rt_fd 4
+	store rt_state+360+rt_fd*8 1
+	ret rt_fd
+end
+
+# let the poller rt_ep watch rt_fd for reading (rt_what 1), writing (2)
+# or both; -1 for a descriptor that is no socket, which is taken to be
+# ready always, and -17 for one that this poller watches already
+fn rt_watch rt_ep rt_fd rt_what rt_tag
+	local rt_a 32
+	local rt_p 16
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
+	if rt_fd>255
+		ret -9
+	end
+	# what the descriptor is, is asked under the lock of the record: a
+	# close makes it nothing first and then takes it out of every poller
+	# under that lock (rt_marks), before its number is given out again.
+	# So one that is a socket here is taken out by its close after this,
+	# and one that is being closed is no socket here.
+	call rt_plock rt_d
+	loadb rt_state+4480+rt_fd as rt_x
+	load rt_state+360+rt_fd*8 as rt_h
+	load rt_d+2312 as rt_s
+	if (rt_x&3==0)|(rt_h<3)|(rt_s==0)
+		call rt_punlock rt_d
+		if (rt_s==0)|(rt_h==2)
+			ret -9
+		end
+		ifz rt_h
+			if rt_fd>2
+				ret -9
+			end
+		end
+		if rt_x&3
+			ret -9
+		end
+		ret -1
+	end
+	loadb rt_d+rt_fd as rt_k
+	if rt_k
+		call rt_punlock rt_d
+		ret -17
+	end
+	load rt_d+2320 as rt_s
+	store rt_d+2320 rt_s+1
+	store rt_d+2328+rt_fd*8 rt_s+1
+	store rt_d+256+rt_fd*8 rt_tag
+	storeb rt_d+rt_fd 128|(rt_what&3)<<3
+	call rt_punlock rt_d
+	if rt_x>>1&rt_what&1
+		# a waker that was woken before it was watched is said so too.
+		# It is asked after it is noted, so that a wakeup of this moment
+		# finds the note or is found here
+		call rt_handle rt_fd as rt_h
+		store rt_p rt_h
+		store rt_p+8 0x100
+		store rt_a rt_p
+		store rt_a+8 1
+		store rt_a+16 0
+		call rt_api rt_i_wsapoll rt_a 3
+		load2 rt_p+10 as rt_r
+		if rt_r&0x100
+			call rt_woken rt_d rt_fd rt_s+1
+		end
+	end
+	ret 0
+end
+
+# note in the record rt_d that the waker rt_fd was woken, and end the
+# wait of its poller, if it watches the waker to read and has no such
+# note yet; rt_s is 0, or what the watch must be (see 2328)
+fn rt_woken rt_d rt_fd rt_s
+	call rt_plock rt_d
+	loadb rt_d+rt_fd as rt_k
+	if rt_s
+		load rt_d+2328+rt_fd*8 as rt_n
+		if rt_n!=rt_s
+			rt_k=0
+		end
+	end
+	if rt_k&9==8
+		storeb rt_d+rt_fd rt_k|1
+		call rt_pwake rt_d
+	end
+	call rt_punlock rt_d
+end
+
+# the poller rt_ep watches rt_fd no longer; -2 if it did not
+fn rt_unwatch rt_ep rt_fd
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
+	if rt_fd>255
+		ret -9
+	end
+	call rt_plock rt_d
+	loadb rt_d+rt_fd as rt_k
+	storeb rt_d+rt_fd 0
+	call rt_punlock rt_d
+	ifz rt_k
+		ret -2
+	end
+	ret 0
+end
+
+# take what was sent to the socket rt_h
+fn rt_drain rt_h
+	local rt_a 32
+	local rt_b 16
+	label rt_more
+	store rt_a rt_h
+	store rt_a+8 rt_b
+	store rt_a+16 16
+	store rt_a+24 0
+	call rt_api rt_i_recv rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	jne rt_r 0xffffffff rt_more
+end
+
+# Wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
+# events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
+# read, 2 for may be written or their sum, and the tag. How many there
+# are, or an error. Windows is asked about the socket of the poller and
+# about the sockets that the poller watches for something it has not yet
+# said them to be ready for, 16 bytes each: the socket, what is asked
+# (0x100 to read, 0x10 to write), and what it answers, with 1, 2 and 4
+# for an error or a closed end. What it answers of a socket counts for
+# the watch there was when it was asked (rt_q), not for one that took
+# the number since. A wait that the socket of the poller ended with
+# nothing to say goes on for the rest of the time.
+fn rt_poll rt_ep rt_out rt_max rt_ms
+	local rt_a 32
+	local rt_p 4112
+	local rt_f 256
+	local rt_q 2048
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
+	if rt_max>64
+		rt_max=64
+	end
+	call rt_clock as rt_t
+	label rt_round
+	call rt_plock rt_d
+	load rt_d+2312 as rt_s
+	rt_n=0
+	rt_now=0
+	rt_fd=3
+	while rt_fd<256
+		loadb rt_d+rt_fd as rt_k
+		if rt_k&1
+			rt_now=1
+		end
+		rt_w=0
+		if rt_k&8
+			ifz rt_k&32
+				rt_w|=0x100
+			end
+		end
+		if rt_k&16
+			ifz rt_k&64
+				rt_w|=0x10
+			end
+		end
+		if rt_w
+			loadb rt_state+4480+rt_fd as rt_x
+			load rt_state+360+rt_fd*8 as rt_h
+			ifz rt_x&2
+				if rt_h>2
+					load rt_d+2328+rt_fd*8 as rt_x
+					store rt_p+rt_n*16 rt_h-1
+					store rt_p+rt_n*16+8 rt_w
+					storeb rt_f+rt_n rt_fd
+					store rt_q+rt_n*8 rt_x
+					rt_n+=1
+				end
+			end
+		end
+		rt_fd+=1
+	end
+	call rt_punlock rt_d
+	ifz rt_s
+		ret -9
+	end
+	store rt_p+rt_n*16 rt_s
+	store rt_p+rt_n*16+8 0x100
+	rt_w=rt_ms
+	if rt_now
+		rt_w=0
+	else
+		ifsge rt_ms 0
+			call rt_clock as rt_x
+			rt_x=(rt_x-rt_t)/1000000
+			rt_w=0
+			if rt_x<rt_ms
+				rt_w=rt_ms-rt_x
+			end
+		end
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_n+1
+	store rt_a+16 rt_w
+	call rt_api rt_i_wsapoll rt_a 3 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		tail rt_sockerror
+	end
+	load2 rt_p+rt_n*16+10 as rt_w
+	if rt_w
+		# before the notes are read: a byte that is taken here was sent
+		# after its note was written
+		call rt_drain rt_s
+	end
+	rt_o=0
+	call rt_plock rt_d
+	rt_fd=3
+	while rt_fd<256
+		loadb rt_d+rt_fd as rt_k
+		if rt_k&1
+			if rt_o<rt_max
+				storeb rt_d+rt_fd rt_k&254
+				load rt_d+256+rt_fd*8 as rt_x
+				store rt_out+rt_o*16 1
+				store rt_out+rt_o*16+8 rt_x
+				rt_o+=1
+			end
+		end
+		rt_fd+=1
+	end
+	rt_i=0
+	while rt_i<rt_n
+		load2 rt_p+rt_i*16+10 as rt_w
+		loadb rt_f+rt_i as rt_fd
+		load rt_d+2328+rt_fd*8 as rt_x
+		load rt_q+rt_i*8 as rt_k
+		if rt_x!=rt_k
+			rt_w=0
+		end
+		if rt_w
+			loadb rt_d+rt_fd as rt_k
+			rt_e=0
+			if rt_k&8
+				if rt_w&0x107
+					ifz rt_k&32
+						rt_e|=1
+					end
+				end
+			end
+			if rt_k&16
+				if rt_w&0x17
+					ifz rt_k&64
+						rt_e|=2
+					end
+				end
+			end
+			if rt_e
+				if rt_o<rt_max
+					storeb rt_d+rt_fd rt_k|rt_e<<5
+					load rt_d+256+rt_fd*8 as rt_x
+					store rt_out+rt_o*16 rt_e
+					store rt_out+rt_o*16+8 rt_x
+					rt_o+=1
+				end
+			end
+		end
+		rt_i+=1
+	end
+	call rt_punlock rt_d
+	if rt_o
+		ret rt_o
+	end
+	jslt rt_ms 0 rt_round
+	call rt_clock as rt_x
+	jlt (rt_x-rt_t)/1000000 rt_ms rt_round
+	ret 0
+end
+
+# A waker is a socket for single messages that is connected to itself:
+# wakeup sends it a byte, which nothing takes, so that a poller that is
+# given it to watch later is told so, and notes it in every poller that
+# watches it now.
+fn rt_waker
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	call rt_selfsock as rt_h
+	if rt_h>-4096
+		tail rt_unfd rt_fd rt_h
+	end
+	storeb rt_state+4480+rt_fd 3
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+fn rt_wakeup rt_fd
+	local rt_one 8
+	store rt_one 1
+	call rt_send rt_fd rt_one 1 as rt_r
+	ifslt rt_r 0
+		# full of the bytes of earlier times, which say the same
+		if rt_r!=-11
+			ret rt_r
+		end
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&2
+		rt_ep=3
+		while rt_ep<256
+			loadb rt_state+4480+rt_ep as rt_k
+			if rt_k&4
+				load rt_state+4736+rt_ep*8 as rt_d
+				loadb rt_d+rt_fd as rt_k
+				if rt_k&9==8
+					call rt_woken rt_d rt_fd 0
+				end
+			end
+			rt_ep+=1
+		end
+	end
+	ret 8
+end
+
+# there is no signal for a closed pipe to keep away
+fn rt_pipeerr
+	ret 0
+end
+
+# ---- the arguments
+# What args gives is made at its first call: the address of the count of
+# arguments; behind it their addresses, a zero, the addresses of the
+# strings of the environment and a zero. Windows has the arguments as
+# one line, which is cut as its C library cuts it: blanks part the
+# arguments but in quotes; before a quote 2n backslashes are n and the
+# quote is a quote of the line, 2n+1 are n and the quote is a character;
+# other backslashes are themselves. The environment is strings one
+# behind the other, each with a zero and the last with two; those that
+# start with "=" are Windows' own and are left out.
+fn rt_args
+	local rt_a 32
+	load rt_state as rt_r
+	if rt_r
+		ret rt_r
+	end
+	call rt_api rt_i_getcommandlinea rt_a 0 as rt_l
+	call rt_api rt_i_getenvironmentstringsa rt_a 0 as rt_e
+	rt_n=0
+	label rt_len
+	loadb rt_l+rt_n as rt_c
+	if rt_c
+		rt_n+=1
+		jmp rt_len
+	end
+	# the environment: how many strings
+	rt_m=0
+	rt_q=rt_e
+	label rt_count
+	loadb rt_q as rt_c
+	if rt_c
+		rt_m+=1
+		label rt_skip
+		loadb rt_q as rt_c
+		rt_q+=1
+		jnz rt_c rt_skip
+		jmp rt_count
+	end
+	# room: at most half as many arguments as the line has bytes, and one;
+	# their bytes are no more than the line's
+	rt_room=(rt_n/2+rt_m+4)*8+rt_n+1
+	store rt_a 0
+	store rt_a+8 rt_room
+	store rt_a+16 0x3000
+	store rt_a+24 4
+	call rt_api rt_i_virtualalloc rt_a 4 as rt_b
+	ifz rt_b
+		ret 0
+	end
+	rt_v=rt_b+8
+	rt_s=rt_b+(rt_n/2+rt_m+4)*8
+	rt_argc=0
+	label rt_arg
+	loadb rt_l as rt_c
+	if (rt_c==32)|(rt_c==9)
+		rt_l+=1
+		jmp rt_arg
+	end
+	if rt_c
+		store rt_v rt_s
+		rt_v+=8
+		rt_argc+=1
+		rt_inq=0
+		label rt_char
+		loadb rt_l as rt_c
+		ifz rt_c
+			jmp rt_endarg
+		end
+		ifz rt_inq
+			if (rt_c==32)|(rt_c==9)
+				jmp rt_endarg
+			end
+		end
+		if rt_c==92
+			# backslashes: count them and look at what follows
+			rt_k=0
+			label rt_bs
+			loadb rt_l as rt_c
+			if rt_c==92
+				rt_k+=1
+				rt_l+=1
+				jmp rt_bs
+			end
+			if rt_c==34
+				rt_j=rt_k/2
+				while rt_j
+					storeb rt_s 92
+					rt_s+=1
+					rt_j-=1
+				end
+				if rt_k&1
+					storeb rt_s 34
+					rt_s+=1
+					rt_l+=1
+				end
+			else
+				while rt_k
+					storeb rt_s 92
+					rt_s+=1
+					rt_k-=1
+				end
+			end
+			jmp rt_char
+		end
+		if rt_c==34
+			rt_inq^=1
+			rt_l+=1
+			jmp rt_char
+		end
+		storeb rt_s rt_c
+		rt_s+=1
+		rt_l+=1
+		jmp rt_char
+		label rt_endarg
+		storeb rt_s 0
+		rt_s+=1
+		jmp rt_arg
+	end
+	store rt_b rt_argc
+	store rt_v 0
+	rt_v+=8
+	label rt_envs
+	loadb rt_e as rt_c
+	if rt_c
+		if rt_c!=61
+			store rt_v rt_e
+			rt_v+=8
+		end
+		label rt_over
+		loadb rt_e as rt_c
+		rt_e+=1
+		jnz rt_c rt_over
+		jmp rt_envs
+	end
+	store rt_v 0
+	store rt_state rt_b
+	ret rt_b
+end
+
+# ---- memory
+# As in rt/linux-x86_64/rt.aiw: blocks of 39 sizes cut from chunks of 256
+# KiB that Windows gives, a freed block the next of its size to be given
+# out, a larger block memory of its own. The 16 bytes before a block say
+# its class; for a large block the bytes asked of Windows, which is
+# always more.
+data rt_cls 0 0 1 2 3 4 5 6 7 7 8 8 9 9 10 10
+data 11 11 11 11 12 12 12 12 13 13 13 13 14 14 14 14
+data 15 15 15 15 15 15 15 15 16 16 16 16 16 16 16 16
+data 17 17 17 17 17 17 17 17 18 18 18 18 18 18 18 18
+data rt_csz 32 0 48 0 64 0 80 0 96 0 112 0 128 0 160 0
+data 192 0 224 0 0 1 64 1 128 1 192 1 0 2 128 2
+data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
+data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
+data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
+
+fn rt_lock
+	load rt_state+16 as rt_t
+	ifz rt_t
+		ret 0
+	end
+	label rt_again
+	cas rt_state+24 0 1 as rt_k
+	jz rt_k rt_again
+end
+fn rt_unlock
+	load rt_state+16 as rt_t
+	if rt_t
+		store rt_state+24 0
+	end
+end
+
+# rt_n bytes that can be read and written, zeros, from Windows, or 0
+fn rt_pages rt_n
+	local rt_a 32
+	store rt_a 0
+	store rt_a+8 rt_n
+	store rt_a+16 0x3000
+	store rt_a+24 4
+	call rt_api rt_i_virtualalloc rt_a 4 as rt_p
+	ret rt_p
+end
+
+# rt_n bytes of zeros at a multiple of 16, or 0
+fn rt_alloc rt_n
+	rt_t=rt_n+16
+	if rt_n>=-4096
+		ret 0
+	end
+	if rt_t>32768
+		call rt_pages rt_t as rt_p
+		ifz rt_p
+			ret 0
+		end
+		store rt_p rt_t
+		ret rt_p+16
+	end
+	if rt_t<32
+		rt_t=32
+	end
+	if rt_t<=1024
+		loadb rt_cls+(rt_t-1>>4) as rt_c
+	else
+		rt_s=10
+		while rt_t-1>>rt_s+1
+			rt_s+=1
+		end
+		rt_c=7+(rt_s-7)*4+(rt_t-1>>rt_s-2&3)
+	end
+	load2 rt_csz+rt_c*2 as rt_z
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_p
+	if rt_p
+		load rt_p as rt_x
+		store rt_q rt_x
+		call rt_unlock
+		rt_z-=16
+		if rt_z>96
+			zero rt_p rt_z
+		else
+			rt_i=0
+			while rt_i<rt_z
+				store rt_p+rt_i 0
+				rt_i+=8
+			end
+		end
+		ret rt_p
+	end
+	load rt_state+32 as rt_p
+	load rt_state+40 as rt_e
+	if rt_e-rt_p<rt_z
+		call rt_pages 262144 as rt_p
+		ifz rt_p
+			call rt_unlock
+			ret 0
+		end
+		store rt_state+40 rt_p+262144
+	end
+	store rt_state+32 rt_p+rt_z
+	call rt_unlock
+	store rt_p rt_c
+	ret rt_p+16
+end
+
+# give back what rt_alloc returned; 0 is nothing
+fn rt_free rt_p
+	local rt_a 32
+	ifz rt_p
+		ret 0
+	end
+	load rt_p-16 as rt_c
+	if rt_c>=39
+		store rt_a rt_p-16
+		store rt_a+8 0
+		store rt_a+16 0x8000
+		call rt_api rt_i_virtualfree rt_a 3
+		ret 0
+	end
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_x
+	store rt_p rt_x
+	store rt_q rt_p
+	call rt_unlock
+	ret 0
+end
+
+label rt_go

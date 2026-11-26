@@ -7,10 +7,10 @@ storeb out+2 48+n/10%10
 storeb out+3 48+n%10
 i=4
 storeb out+i 70/(i+3)
-sys 1 1 out 5
+rt write 1 out 5
 d=7
 store out n/d
 load out as q
 store out+0 n%d<<(q&3)
 load out as r
-sys exit q+r
+rt exit q+r

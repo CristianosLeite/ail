@@ -31,4 +31,4 @@ while i<1000
 	i+=1
 end
 call asyncrun as n
-sys exit_group (s==1000000)*100+x+n
+rt exit (s==1000000)*100+x+n

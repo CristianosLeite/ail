@@ -1,0 +1,26 @@
+# the number of a child and the time are whole 64-bit values: a number
+# beyond the 31 bits of the kernel is no child, though its low bits are
+# all ones, which would mean any child there, or the number of a child;
+# and a time beyond its 31 bits is no time of 0. This program, started
+# again with an argument, ends with 42 at once
+data mark "child" 0
+buf argv 24
+buf io 24
+args as p
+load p as n
+load p+8 as me
+if n>1
+	rt exit 42
+end
+store argv me
+store argv+8 mark
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap 0xffffffff 0 as a
+rt reap c+0x100000000 0 as b
+rt reap c 0x100000000 as s
+rt start argv 0 io 0 as c
+rt reap c 0 as t
+rt exit (a==-1001)+(b==-1001)*2+(s==42)*4+(t==42)*8

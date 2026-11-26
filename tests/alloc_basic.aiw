@@ -6,4 +6,4 @@ storeb q 7
 loadb q as x
 add x z as x
 free p
-sys 60 x
+rt exit x

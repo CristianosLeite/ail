@@ -3,6 +3,6 @@ shl 1 32 as v
 jz v bad
 jnz v good
 label bad
-sys 60 1
+rt exit 1
 label good
-sys 1 1 "ok\n"
+rt write 1 "ok\n"

@@ -4,4 +4,4 @@ fn work a b
 end
 spawn work 6 7 as h
 join h as x
-sys exit_group x
+rt exit x

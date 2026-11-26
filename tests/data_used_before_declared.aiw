@@ -1,4 +1,4 @@
-sys 1 1 d 3
+rt write 1 d 3
 len d as n
-sys 60 n
+rt exit n
 data d "ok\n"

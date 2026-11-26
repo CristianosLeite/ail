@@ -3,5 +3,5 @@ fn f
 	ret x
 end
 call f as x
-sys 60 x
+rt exit x
 data d 33

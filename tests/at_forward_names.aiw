@@ -3,7 +3,7 @@ loadb p as x
 at b 4 4 as q
 store4 q x
 load4 q as y
-sys 60 y
+rt exit y
 data t 1 2 3
 data 4 5 6
 buf b 8

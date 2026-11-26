@@ -8,4 +8,4 @@ data b 1
 call f as r
 sub b a as n
 add n r as n
-sys 60 n
+rt exit n

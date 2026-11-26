@@ -6,4 +6,4 @@ set 5 as t
 sub n 1 as n
 jmp top
 label out
-sys 60 t
+rt exit t

@@ -5,4 +5,4 @@ use "lib/async/time.aiw"
 call asynctimeout 0 10 as g
 await g as x
 call asyncrun as n
-sys exit_group (g==0)+(x==0)*2+n*4
+rt exit (g==0)+(x==0)*2+n*4

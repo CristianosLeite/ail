@@ -10,4 +10,4 @@ while i<2
 	i+=1
 end
 loadb b+8 as x
-sys exit x
+rt exit x

@@ -1,0 +1,30 @@
+# the number of a child that was taken is no child afterwards, whatever
+# is started since: a second child, which on Windows gets the handle the
+# first one had, is not taken by the number of the first, and is there
+# for its own. This program, started again with an argument, is those
+# children, and ends with 42 and that argument's first digit
+data one "2" 0
+data two "3" 0
+buf argv 24
+buf io 24
+args as p
+load p as n
+load p+8 as me
+if n>1
+	load p+16 as a
+	loadb a as d
+	rt exit d-8
+end
+store argv me
+store argv+8 one
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c1
+rt reap c1 0 as r1
+store argv+8 two
+rt start argv 0 io 0 as c2
+rt reap c1 0 as r2
+rt reap c2 0 as r3
+rt reap c2 0 as r4
+rt exit (r1==42)+(r2==-1001)*2+(r3==43)*4+(r4==-1001)*8+(c1!=c2)*16

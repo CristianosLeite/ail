@@ -7,4 +7,4 @@ i+=1
 jlt i 10 fill
 load a+8*7 as x
 load a+(i-1)*8 as y
-sys exit x+y
+rt exit x+y

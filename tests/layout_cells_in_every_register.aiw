@@ -15,4 +15,4 @@ set 16 as e
 set 32 as g
 call sum a b c d e g as x
 sys getpid 0 0 0 a g as y
-sys exit x
+rt exit x

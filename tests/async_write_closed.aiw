@@ -10,6 +10,9 @@ buf sa 32
 buf fds 8
 buf m 16
 data null "/dev/null" 0
+# rt_sigprocmask and rt_sigtimedwait of Linux
+const sigmask 14
+const sigwait 128
 # the signal ends a process, whatever the one that started this left
 sys rt_sigaction 13 sa 0 8
 call asynclisten 0x7f000001 0 as l
@@ -29,18 +32,18 @@ call print " "
 sys pipe fds
 load4 fds as rd
 load4 fds+4 as wr
-sys close rd
+rt close rd
 await asyncwrite wr "x" as r
 await asyncwriteall wr "xyz" as q
 call putn 0-r
 call print " "
 call putn 0-q
 call print " "
-sys asyncsigmask 0 0 m 8
+sys sigmask 0 0 m 8
 load m as blocked
 store m+8 0
 store m 4096
-sys asyncsigwait m 0 sa 8 as pending
+sys sigwait m 0 sa 8 as pending
 call putn blocked
 call putn pending==-11
 call print " "

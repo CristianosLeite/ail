@@ -1,0 +1,41 @@
+# four tasks allocate and free at once, each writing its own number over
+# its blocks and finding it there: no block is given to two of them
+use "lib/std/task.aiw"
+fn work id
+	local live 256
+	i=0
+	while i<32
+		store live+i*8 0
+		i+=1
+	end
+	bad=0
+	i=0
+	while i<20000
+		q=live+(i&31)*8
+		load q as o
+		if o
+			load o as a
+			load o+56 as b
+			bad+=(a!=id)+(b!=id)
+			free o
+		end
+		alloc 64 as p
+		load p as a
+		bad+=a
+		store p id
+		store p+56 id
+		store q p
+		i+=1
+	end
+	ret bad
+end
+call workers 4
+spawn work 1 as a
+spawn work 2 as b
+spawn work 3 as c
+spawn work 4 as d
+join a as ra
+join b as rb
+join c as rc
+join d as rd
+rt exit (ra+rb+rc+rd)!=0

@@ -1,0 +1,4 @@
+# the service exit ends the program with its value; nothing behind it runs
+rt write 1 "before\n"
+rt exit 41
+rt write 1 "after\n"

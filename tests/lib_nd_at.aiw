@@ -51,4 +51,4 @@ call print " "
 call putn z
 call print "\n"
 call ndfree a
-sys exit r+b+c+h+d+f+g+k+l+m
+rt exit r+b+c+h+d+f+g+k+l+m

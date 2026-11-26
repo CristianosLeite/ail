@@ -3,7 +3,7 @@
 # file read by use and a colon, if the fault is in one, and the line number;
 # it is taken from epos, or from the input cursor while that is zero.
 fn ew p n
-	sys write 2 p n
+	rt write 2 p n
 end
 # print the message m of n bytes with its place and exit with status s
 fn die m n s
@@ -38,6 +38,10 @@ fn die m n s
 		c=(u-1)*16+uses
 		load c as pp
 		load c+8 as pl
+		ifz pl
+			# a source of the runtime, which the compiler has in it
+			call ew "runtime"
+		end
 		call ew pp pl
 		call ew ":"
 	end
@@ -65,7 +69,7 @@ fn die m n s
 		call ew ename enamel
 	end
 	call ew "\n"
-	sys exit s
+	rt exit s
 end
 fn err
 	call die "syntax error" 1
@@ -166,6 +170,11 @@ fn efn
 	enamel=nl
 	call die "undefined function" 1
 end
+fn esvc
+	ename=ns
+	enamel=nl
+	call die "unknown service" 1
+end
 fn eargc
 	ename=ns
 	enamel=nl
@@ -191,6 +200,10 @@ end
 fn ewr
 	epos=-1
 	call die "write error" 2
+end
+fn enomem
+	epos=-1
+	call die "no memory" 2
 end
 # syntax error unless c is not zero
 fn ok c

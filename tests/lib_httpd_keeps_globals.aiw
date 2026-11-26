@@ -43,4 +43,4 @@ await hh as st
 call asyncclose ll
 await sv as zz
 call asyncrun
-sys exit b+c+e+f+h+i+j+k+l+n+p+q+r+t+v+w+x+g+st-200
+rt exit b+c+e+f+h+i+j+k+l+n+p+q+r+t+v+w+x+g+st-200

@@ -14,4 +14,4 @@ fn outer a
 	ret b
 end
 call outer 10 as x
-sys 60 x
+rt exit x

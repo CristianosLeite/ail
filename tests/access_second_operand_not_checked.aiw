@@ -5,4 +5,4 @@ add c 8 as p
 store b p
 load b as x
 sub x c as x
-sys 60 x
+rt exit x

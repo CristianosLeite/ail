@@ -1,0 +1,1259 @@
+# The runtime of AIL for x86-64 Linux: the services that docs/runtime.md
+# lists, each a function rt_<name> that takes the values of the service
+# and returns its results. The compiler has this text and compiles it in
+# front of every program, so the first line below is the first that a
+# process runs, and a function here is one of the program: a short one
+# is compiled in place of its calls.
+#
+# The state is the buffer rt_state, which state.aiw declares behind the
+# buffers of the program:
+#    0  the stack at the start
+#    8  clock_gettime of the page of code the kernel maps, 1 if there is
+#       none, 0 before the first use
+#   16  not 0 once the runtime has started a thread
+#   24  the lock of the memory: 1 while a thread is in the cells below
+#   32  the memory of the chunk at hand that no block has had, and
+#   40  its end
+#   48  per class of small blocks, 8 bytes: the blocks given back, each
+#       with the next in its first 8 bytes
+#  360  the children that a reap waits for (see rt_reap)
+# Every name of this file starts with "rt_", and a program has no name
+# that does.
+#
+# The first line keeps the stack; the compiler makes it do nothing in a
+# program that calls no service that reads it (the table rtnames says
+# which do). The second goes to the last, past every function, so that
+# a process touches the first page of this code and no other.
+stack rt_state
+jmp rt_go
+
+# end the process, every thread of it
+fn rt_exit rt_c
+	label rt_again
+	sys exit_group rt_c
+	jmp rt_again
+end
+
+# the address of the count of arguments; behind it their addresses, a
+# zero, the addresses of the environment and a zero
+fn rt_args
+	load rt_state as rt_p
+	ret rt_p
+end
+
+fn rt_close rt_fd
+	sys close rt_fd as rt_r
+	ret rt_r
+end
+
+# up to rt_n bytes: how many were read, 0 at the end, or an error
+fn rt_read rt_fd rt_p rt_n
+	sys read rt_fd rt_p rt_n as rt_r
+	ret rt_r
+end
+
+# up to rt_n bytes: how many were written, or an error
+fn rt_write rt_fd rt_p rt_n
+	sys write rt_fd rt_p rt_n as rt_r
+	ret rt_r
+end
+
+# system calls that the compiler has no name for
+const rt_poll7 7
+const rt_sigprocmask 14
+const rt_dup2 33
+const rt_sendto 44
+const rt_getsockname 51
+const rt_setsockopt 54
+const rt_getsockopt 55
+const rt_fcntl 72
+const rt_getppid 110
+const rt_sigtimedwait 128
+const rt_prctl 157
+const rt_setaffinity 203
+const rt_getdents 217
+const rt_epollwait 232
+const rt_epollctl 233
+const rt_accept4 288
+const rt_eventfd2 290
+const rt_epollcreate1 291
+const rt_waitid 247
+const rt_pidfdsignal 424
+const rt_pidfdopen 434
+
+# the rt_n bytes of a path with a zero behind them, as the kernel takes
+# one, into the 4096 bytes at rt_z: 0, or the error of a path too long
+fn rt_path rt_p rt_n rt_z
+	if rt_n>4095
+		ret -36
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		storeb rt_z+rt_i rt_c
+		rt_i+=1
+	end
+	storeb rt_z+rt_n 0
+	ret 0
+end
+
+# open the file whose path is the rt_n bytes at rt_p: a descriptor, or an
+# error
+fn rt_open rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys open rt_z rt_flags rt_mode as rt_r
+	end
+	ret rt_r
+end
+
+# make a directory, remove a file, remove an empty directory
+fn rt_mkdir rt_p rt_n rt_mode
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys mkdir rt_z rt_mode as rt_r
+	end
+	ret rt_r
+end
+fn rt_unlink rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys unlink rt_z as rt_r
+	end
+	ret rt_r
+end
+fn rt_rmdir rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rmdir rt_z as rt_r
+	end
+	ret rt_r
+end
+
+# give a file another path, in place of a file that has it
+fn rt_rename rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_y 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		call rt_path rt_q rt_m rt_y as rt_r
+	end
+	ifz rt_r
+		sys rename rt_z rt_y as rt_r
+	end
+	ret rt_r
+end
+
+# The next names of the directory that rt_fd is open on, each with a zero
+# behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
+# least 512: the bytes written, 0 after the last name, or an error. A
+# name is shorter than its entry, so the names of what the kernel puts
+# into rt_n bytes fit rt_n bytes.
+fn rt_names rt_fd rt_p rt_n
+	local rt_d 4096
+	if rt_n<512
+		ret -22
+	end
+	if rt_n>4096
+		rt_n=4096
+	end
+	rt_o=0
+	label rt_more
+	sys rt_getdents rt_fd rt_d rt_n as rt_r
+	ifsle rt_r 0
+		ret rt_r
+	end
+	rt_i=0
+	while rt_i<rt_r
+		# an entry: 16 bytes, its length in 2, its kind in 1, the name
+		load2 rt_d+rt_i+16 as rt_l
+		rt_s=rt_d+rt_i+19
+		rt_i+=rt_l
+		load2 rt_s as rt_c
+		loadb rt_s+2 as rt_e
+		if (rt_c==46)|((rt_c==0x2e2e)&(rt_e==0))
+		else
+			label rt_copy
+			loadb rt_s as rt_c
+			storeb rt_p+rt_o rt_c
+			rt_o+=1
+			rt_s+=1
+			jnz rt_c rt_copy
+		end
+	end
+	jz rt_o rt_more
+	ret rt_o
+end
+
+# From now on a write to a pipe or a socket whose other end is closed is
+# the error -32 and no longer the end of the process: the signal of the
+# kernel for it is ignored, in this process and in those it starts.
+fn rt_pipeerr
+	local rt_a 32
+	store rt_a 1
+	store rt_a+8 0
+	store rt_a+16 0
+	store rt_a+24 0
+	sys rt_sigaction 13 rt_a 0 8 as rt_r
+	ret rt_r
+end
+
+# ---- memory
+# A block has 16 bytes before the address a program gets, the first 8 of
+# them saying what it is: the number of its class for a small block, the
+# length of its mapping for a large one, which is always more. A small
+# block is one of 39 sizes, from 32 bytes to 32 KiB with the 16 in them,
+# four sizes for each doubling above 128, so that at most a fifth of a
+# block is not asked for. Small blocks are cut from chunks of 256 KiB
+# that the kernel maps and that are never given back; a block that is
+# freed is the first of the list of its class and the next to be given
+# out, zeroed then. A large block is a mapping of its own.
+#
+# The lists are shared by the threads, and are only locked once the
+# runtime has started one: a program with one thread pays nothing for
+# the others.
+const rt_yield 24
+
+# the class of a block of up to 1024 bytes in all, by the bytes less one
+# over 16, and the size of each class as two bytes
+data rt_cls 0 0 1 2 3 4 5 6 7 7 8 8 9 9 10 10
+data 11 11 11 11 12 12 12 12 13 13 13 13 14 14 14 14
+data 15 15 15 15 15 15 15 15 16 16 16 16 16 16 16 16
+data 17 17 17 17 17 17 17 17 18 18 18 18 18 18 18 18
+data rt_csz 32 0 48 0 64 0 80 0 96 0 112 0 128 0 160 0
+data 192 0 224 0 0 1 64 1 128 1 192 1 0 2 128 2
+data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
+data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
+data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
+
+fn rt_lock
+	load rt_state+16 as rt_t
+	ifz rt_t
+		ret 0
+	end
+	label rt_again
+	cas rt_state+24 0 1 as rt_k
+	if rt_k
+		ret 0
+	end
+	rt_i=0
+	label rt_spin
+	load rt_state+24 as rt_k
+	if rt_k
+		rt_i+=1
+		if rt_i>200
+			sys rt_yield
+		end
+		jmp rt_spin
+	end
+	jmp rt_again
+end
+fn rt_unlock
+	load rt_state+16 as rt_t
+	if rt_t
+		store rt_state+24 0
+	end
+end
+
+# rt_n bytes of zeros at a multiple of 16, or 0
+fn rt_alloc rt_n
+	rt_t=rt_n+16
+	if rt_n>=-4096
+		ret 0
+	end
+	if rt_t>32768
+		sys mmap 0 rt_t 3 0x22 -1 0 as rt_p
+		if rt_p>-4096
+			ret 0
+		end
+		store rt_p rt_t
+		ret rt_p+16
+	end
+	if rt_t<32
+		rt_t=32
+	end
+	if rt_t<=1024
+		loadb rt_cls+(rt_t-1>>4) as rt_c
+	else
+		rt_s=10
+		while rt_t-1>>rt_s+1
+			rt_s+=1
+		end
+		rt_c=7+(rt_s-7)*4+(rt_t-1>>rt_s-2&3)
+	end
+	load2 rt_csz+rt_c*2 as rt_z
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_p
+	if rt_p
+		load rt_p as rt_x
+		store rt_q rt_x
+		call rt_unlock
+		# zeros again: the string instruction, but for the smallest blocks,
+		# which a loop clears before that instruction has started
+		rt_z-=16
+		if rt_z>96
+			zero rt_p rt_z
+		else
+			rt_i=0
+			while rt_i<rt_z
+				store rt_p+rt_i 0
+				rt_i+=8
+			end
+		end
+		ret rt_p
+	end
+	load rt_state+32 as rt_p
+	load rt_state+40 as rt_e
+	if rt_e-rt_p<rt_z
+		sys mmap 0 262144 3 0x22 -1 0 as rt_p
+		if rt_p>-4096
+			call rt_unlock
+			ret 0
+		end
+		store rt_state+40 rt_p+262144
+	end
+	store rt_state+32 rt_p+rt_z
+	call rt_unlock
+	store rt_p rt_c
+	ret rt_p+16
+end
+
+# give back what rt_alloc returned; 0 is nothing
+fn rt_free rt_p
+	ifz rt_p
+		ret 0
+	end
+	load rt_p-16 as rt_c
+	if rt_c>=39
+		sys munmap rt_p-16 rt_c
+		ret 0
+	end
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_x
+	store rt_p rt_x
+	store rt_q rt_p
+	call rt_unlock
+	ret 0
+end
+
+# ---- threads
+# Sleep while the four bytes at rt_p are rt_v, until a wake of rt_p or
+# for rt_ns nanoseconds at most, -1 for no limit: 0 after a wake, -11 if
+# the bytes were another value, -110 after the time, -4 after a signal.
+fn rt_waitfor rt_p rt_v rt_ns
+	local rt_t 16
+	store rt_t rt_ns/1000000000
+	store rt_t+8 rt_ns%1000000000
+	sys futex rt_p 128 rt_v rt_t as rt_r
+	ret rt_r
+end
+fn rt_wait rt_p rt_v rt_ns
+	ifslt rt_ns 0
+		sys futex rt_p 128 rt_v 0 as rt_r
+		ret rt_r
+	end
+	call rt_waitfor rt_p rt_v rt_ns as rt_r
+	ret rt_r
+end
+
+# wake up to rt_n threads that sleep in a wait of rt_p: how many
+fn rt_wake rt_p rt_n
+	sys futex rt_p 129 rt_n as rt_r
+	ret rt_r
+end
+
+# the processors this process may run on; 1 if the kernel does not say
+fn rt_cpus
+	local rt_m 128
+	sys sched_getaffinity 0 128 rt_m as rt_r
+	if rt_r-1>127
+		ret 1
+	end
+	rt_c=0
+	while rt_r
+		rt_r-=1
+		loadb rt_m+rt_r as rt_b
+		while rt_b
+			rt_b&=rt_b-1
+			rt_c+=1
+		end
+	end
+	ifz rt_c
+		rt_c=1
+	end
+	ret rt_c
+end
+
+# Start a thread that calls the function at rt_f with the value rt_a and
+# ends when it returns: 0, or the error of the kernel for the memory, the
+# closed page or the thread. The stack is 8 MiB of its own whose lowest
+# page is closed before the thread exists, so that a function that needs
+# more faults; the thread gives it back at its end. The new thread comes
+# out of the system call on the new stack with the registers of this
+# one, so what it needs is in the four variables, which have registers,
+# and nothing of the frame; after it has given its stack back it makes
+# one system call more and touches no memory.
+fn rt_thread rt_f rt_a
+	store rt_state+16 1
+	sys mmap 0 8388608 3 0x22 -1 0 as rt_s
+	if rt_s>-4096
+		ret rt_s
+	end
+	sys mprotect rt_s 4096 0 as rt_r
+	ifz rt_r
+		sys clone 0x50f00 rt_s+8388608 0 0 0 as rt_r
+		ifz rt_r
+			callp rt_f rt_a
+			sys munmap rt_s 8388608
+			sys exit 0
+		end
+		if rt_r<-4095
+			ret 0
+		end
+	end
+	sys munmap rt_s 8388608
+	ret rt_r
+end
+
+# ---- time
+# 1 if the strings at rt_a and rt_b, each with a zero at its end, are the
+# same
+fn rt_same rt_a rt_b
+	label rt_next
+	loadb rt_a as rt_c
+	loadb rt_b as rt_d
+	if rt_c!=rt_d
+		ret 0
+	end
+	ifz rt_c
+		ret 1
+	end
+	rt_a+=1
+	rt_b+=1
+	jmp rt_next
+end
+
+data rt_want "__vdso_clock_gettime" 0
+
+# The kernel maps a small shared object into every process, whose
+# clock_gettime reads the clock without a system call. Its address is
+# among the pairs behind the environment (the pair 33); the function is
+# found by its name in the table of symbols, 24 bytes a symbol, which
+# the hash table of either form leads to. 1 if anything is not as
+# expected: the system call is used then.
+fn rt_vdso
+	load rt_state as rt_p
+	load rt_p as rt_n
+	rt_p+=16+rt_n*8
+	label rt_env
+	load rt_p as rt_k
+	rt_p+=8
+	jnz rt_k rt_env
+	rt_base=0
+	label rt_aux
+	load rt_p as rt_k
+	if rt_k
+		if rt_k==33
+			load rt_p+8 as rt_base
+		end
+		rt_p+=16
+		jmp rt_aux
+	end
+	ifz rt_base
+		ret 1
+	end
+	# the header: where the program headers are, how large, how many
+	load rt_base+32 as rt_p
+	rt_p+=rt_base
+	load2 rt_base+54 as rt_z
+	load2 rt_base+56 as rt_n
+	rt_bias=rt_base
+	rt_dyn=0
+	while rt_n
+		load4 rt_p as rt_k
+		load rt_p+8 as rt_o
+		if rt_k==1
+			# loaded: file offset, address
+			load rt_p+16 as rt_v
+			rt_bias=rt_base+rt_o-rt_v
+		end
+		if rt_k==2
+			# the dynamic table
+			rt_dyn=rt_base+rt_o
+		end
+		rt_p+=rt_z
+		rt_n-=1
+	end
+	ifz rt_dyn
+		ret 1
+	end
+	rt_hash=0
+	rt_str=0
+	rt_tab=0
+	rt_gnu=0
+	label rt_tags
+	load rt_dyn as rt_k
+	if rt_k
+		load rt_dyn+8 as rt_v
+		rt_v+=rt_bias
+		if rt_k==4
+			rt_hash=rt_v
+		end
+		if rt_k==5
+			rt_str=rt_v
+		end
+		if rt_k==6
+			rt_tab=rt_v
+		end
+		if rt_k==0x6ffffef5
+			rt_gnu=rt_v
+		end
+		rt_dyn+=16
+		jmp rt_tags
+	end
+	if (rt_str==0)|(rt_tab==0)
+		ret 1
+	end
+	if rt_hash
+		# the old form says how many symbols there are
+		load4 rt_hash+4 as rt_n
+		rt_i=0
+		while rt_i<rt_n
+			rt_s=rt_tab+rt_i*24
+			load2 rt_s+6 as rt_k
+			if rt_k
+				load4 rt_s as rt_k
+				call rt_same rt_str+rt_k rt_want as rt_e
+				if rt_e
+					load rt_s+8 as rt_v
+					ret rt_bias+rt_v
+				end
+			end
+			rt_i+=1
+		end
+		ret 1
+	end
+	ifz rt_gnu
+		ret 1
+	end
+	# the new form: buckets, first symbol, words of a filter, then the
+	# filter, the buckets and a chain whose last entry of a bucket is odd
+	load4 rt_gnu as rt_n
+	load4 rt_gnu+4 as rt_o
+	load4 rt_gnu+8 as rt_z
+	rt_b=rt_gnu+16+rt_z*8
+	rt_c=rt_b+rt_n*4
+	rt_j=0
+	while rt_j<rt_n
+		load4 rt_b+rt_j*4 as rt_i
+		if rt_i>=rt_o
+			label rt_sym
+			rt_s=rt_tab+rt_i*24
+			load2 rt_s+6 as rt_k
+			if rt_k
+				load4 rt_s as rt_k
+				call rt_same rt_str+rt_k rt_want as rt_e
+				if rt_e
+					load rt_s+8 as rt_v
+					ret rt_bias+rt_v
+				end
+			end
+			load4 rt_c+(rt_i-rt_o)*4 as rt_k
+			ifz rt_k&1
+				rt_i+=1
+				jmp rt_sym
+			end
+		end
+		rt_j+=1
+	end
+	ret 1
+end
+
+# the clock that only goes forward, in nanoseconds since a moment that is
+# the same for the whole run. The function of the kernel's page is
+# called as C calls one.
+fn rt_clock
+	local rt_t 16
+	local rt_a 48
+	load rt_state+8 as rt_f
+	ifz rt_f
+		call rt_vdso as rt_f
+		store rt_state+8 rt_f
+	end
+	rt_r=1
+	if rt_f!=1
+		store rt_a 1
+		store rt_a+8 rt_t
+		ccall rt_f rt_a 2 as rt_r
+		rt_r&=0xffffffff
+	end
+	if rt_r
+		sys clock_gettime 1 rt_t
+	end
+	load rt_t as rt_s
+	load rt_t+8 as rt_n
+	ret rt_s*1000000000+rt_n
+end
+
+# wait that many nanoseconds: 0, or the error of a wait that a signal
+# ended early
+fn rt_sleep rt_ns
+	local rt_t 16
+	store rt_t rt_ns/1000000000
+	store rt_t+8 rt_ns%1000000000
+	sys nanosleep rt_t 0 as rt_r
+	ret rt_r
+end
+
+# ---- readiness and sockets
+# A poller tells which of the descriptors it watches may be read or
+# written without waiting; on Linux it is an epoll object, which says so
+# once for each time a descriptor becomes ready. An event of the kernel
+# is 12 bytes: what, 4 bytes, and the tag.
+fn rt_poller
+	sys rt_epollcreate1 0x80000 as rt_r
+	ret rt_r
+end
+
+# watch rt_fd for reading (rt_what 1), writing (2) or both, and make it a
+# descriptor that does not wait; rt_tag comes back with its events. -1
+# for a descriptor that is always ready, a plain file.
+fn rt_watch rt_ep rt_fd rt_what rt_tag
+	local rt_e 16
+	sys rt_fcntl rt_fd 3 as rt_f
+	ifslt rt_f 0
+		ret rt_f
+	end
+	ifz rt_f&0x800
+		sys rt_fcntl rt_fd 4 rt_f|0x800
+	end
+	rt_w=0x80000000
+	if rt_what&1
+		rt_w|=0x2001
+	end
+	if rt_what&2
+		rt_w|=4
+	end
+	store4 rt_e rt_w
+	store rt_e+4 rt_tag
+	sys rt_epollctl rt_ep 1 rt_fd rt_e as rt_r
+	ret rt_r
+end
+
+fn rt_unwatch rt_ep rt_fd
+	sys rt_epollctl rt_ep 2 rt_fd 0 as rt_r
+	ret rt_r
+end
+
+# wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
+# events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
+# read, 2 for may be written or their sum, an error or a closed end
+# counting as both, and the tag. How many there are, or an error.
+fn rt_poll rt_ep rt_out rt_max rt_ms
+	local rt_e 768
+	if rt_max>64
+		rt_max=64
+	end
+	sys rt_epollwait rt_ep rt_e rt_max rt_ms as rt_r
+	if rt_r>64
+		ret rt_r
+	end
+	rt_i=0
+	while rt_i<rt_r
+		load4 rt_e+rt_i*12 as rt_w
+		load rt_e+rt_i*12+4 as rt_tag
+		store rt_out+rt_i*16 (rt_w&0x2019!=0)+(rt_w&28!=0)*2
+		store rt_out+rt_i*16+8 rt_tag
+		rt_i+=1
+	end
+	ret rt_r
+end
+
+# a descriptor that a poller watches for reading and that wakeup makes
+# ready, from any thread: what ends a poll that waits
+fn rt_waker
+	sys rt_eventfd2 0 0x80800 as rt_r
+	ret rt_r
+end
+fn rt_wakeup rt_fd
+	local rt_one 8
+	store rt_one 1
+	sys write rt_fd rt_one 8 as rt_r
+	ret rt_r
+end
+
+# the address of a socket of the internet, version 4, at rt_a: the
+# family, the port and the address with their high bytes first, zeros
+fn rt_inet rt_a rt_ip rt_port
+	store rt_a 0
+	store rt_a+8 0
+	store2 rt_a 2
+	storeb rt_a+2 rt_port>>8
+	storeb rt_a+3 rt_port
+	storeb rt_a+4 rt_ip>>24
+	storeb rt_a+5 rt_ip>>16
+	storeb rt_a+6 rt_ip>>8
+	storeb rt_a+7 rt_ip
+end
+
+# a socket that listens on the port of the address, 0 for every address
+# of the machine and port 0 for one the kernel chooses, that does not
+# wait and may take the port of a socket just closed: the descriptor
+fn rt_listen rt_ip rt_port rt_backlog
+	local rt_a 16
+	sys socket 2 0x80801 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 1
+	sys rt_setsockopt rt_fd 1 2 rt_a 4
+	call rt_inet rt_a rt_ip rt_port
+	sys bind rt_fd rt_a 16 as rt_r
+	ifz rt_r
+		sys listen rt_fd rt_backlog as rt_r
+	end
+	if rt_r
+		sys close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
+end
+
+# the next connection to a socket that listens, as a descriptor that does
+# not wait; -11 if there is none now
+fn rt_accept rt_fd
+	sys rt_accept4 rt_fd 0 0 0x80800 as rt_r
+	ret rt_r
+end
+
+# a socket for a stream, which does not wait
+fn rt_socket
+	sys socket 2 0x80801 0 as rt_r
+	ret rt_r
+end
+
+# connect it: 0, or -115 if that goes on, after which the socket may be
+# written when it is done and sockerr says how it ended
+fn rt_connect rt_fd rt_ip rt_port
+	local rt_a 16
+	call rt_inet rt_a rt_ip rt_port
+	sys connect rt_fd rt_a 16 as rt_r
+	ret rt_r
+end
+
+# the error that a socket has to report, as a negative number, or 0
+fn rt_sockerr rt_fd
+	local rt_v 16
+	store rt_v 0
+	store rt_v+8 4
+	sys rt_getsockopt rt_fd 1 4 rt_v rt_v+8 as rt_r
+	ifz rt_r
+		load4 rt_v as rt_r
+		rt_r=0-rt_r
+	end
+	ret rt_r
+end
+
+# the port of a socket
+fn rt_port rt_fd
+	local rt_a 24
+	store rt_a+16 16
+	sys rt_getsockname rt_fd rt_a rt_a+16 as rt_r
+	if rt_r
+		ret rt_r
+	end
+	loadb rt_a+2 as rt_h
+	loadb rt_a+3 as rt_l
+	ret rt_h<<8|rt_l
+end
+
+# write to a socket; the error -32 if the other end is closed, without
+# the signal, and -88 for a descriptor that is no socket
+fn rt_send rt_fd rt_p rt_n
+	sys rt_sendto rt_fd rt_p rt_n 0x4000 0 0 as rt_r
+	ret rt_r
+end
+
+# write to a pipe with the error -32 if nobody reads it, without the
+# signal: it is blocked for this thread around the write, and one that
+# the write made is taken back, unless the program had blocked it
+fn rt_writeq rt_fd rt_p rt_n
+	local rt_m 32
+	store rt_m 4096
+	store rt_m+8 0
+	sys rt_sigprocmask 0 rt_m rt_m+8 8
+	sys write rt_fd rt_p rt_n as rt_r
+	if rt_r==-32
+		load rt_m+8 as rt_o
+		ifz rt_o&4096
+			store rt_m+16 0
+			store rt_m+24 0
+			sys rt_sigtimedwait rt_m 0 rt_m+16 8
+		end
+	end
+	sys rt_sigprocmask 2 rt_m+8 0 8
+	ret rt_r
+end
+
+# ---- processes
+# in the child: end it unless rt_fd is -1 or an open descriptor. Asked
+# of all three before any copy is made, since a copy may take the number
+# of a descriptor that was not open and so pass for it.
+fn rt_fdok rt_fd
+	if rt_fd!=-1
+		sys rt_fcntl rt_fd 1 as rt_r
+		ifslt rt_r 0
+			sys exit 127
+		end
+	end
+end
+
+# in the child: make the three descriptors given its 0, 1 and 2, or end
+# it. One that is 0, 1 or 2 itself must be read before another is put on
+# its number, so each round puts in place those whose number no other
+# still reads. When none is left to do so they read one another in a
+# ring, and only then one of them is copied to a number from 3 up, which
+# is closed when the program starts: without a ring no descriptor is
+# needed beyond the three.
+fn rt_place rt_in rt_out rt_err
+	local rt_m 24
+	store rt_m rt_in
+	store rt_m+8 rt_out
+	store rt_m+16 rt_err
+	rt_i=0
+	while rt_i<3
+		load rt_m+rt_i*8 as rt_s
+		if rt_s==rt_i
+			# it is where it belongs, and must stay open when the
+			# program starts, however it was opened
+			sys rt_fcntl rt_s 2 0
+			store rt_m+rt_i*8 -1
+		end
+		rt_i+=1
+	end
+	label rt_round
+	rt_n=0
+	rt_d=0
+	rt_i=0
+	while rt_i<3
+		load rt_m+rt_i*8 as rt_s
+		if rt_s!=-1
+			rt_n+=1
+			rt_b=0
+			rt_j=0
+			while rt_j<3
+				load rt_m+rt_j*8 as rt_x
+				if rt_x==rt_i
+					rt_b=1
+				end
+				rt_j+=1
+			end
+			ifz rt_b
+				sys rt_dup2 rt_s rt_i as rt_r
+				ifslt rt_r 0
+					sys exit 127
+				end
+				store rt_m+rt_i*8 -1
+				rt_d=1
+			end
+		end
+		rt_i+=1
+	end
+	ifz rt_n
+		ret 0
+	end
+	jnz rt_d rt_round
+	rt_i=0
+	label rt_ring
+	load rt_m+rt_i*8 as rt_s
+	if rt_s==-1
+		rt_i+=1
+		jmp rt_ring
+	end
+	sys rt_fcntl rt_s 1030 3 as rt_s
+	ifslt rt_s 0
+		sys exit 127
+	end
+	store rt_m+rt_i*8 rt_s
+	jmp rt_round
+end
+
+
+# the length of the string at rt_p, which has a zero at its end
+fn rt_strlen rt_p
+	rt_q=rt_p
+	label rt_next
+	loadb rt_q as rt_c
+	if rt_c
+		rt_q+=1
+		jmp rt_next
+	end
+	ret rt_q-rt_p
+end
+
+# in the child: put the three descriptors in place and become the
+# program of rt_argv, with the environment rt_env; nothing here returns.
+# The first argument is the program, a path if it has a slash and else a
+# name looked for in the directories of PATH, as this process has it.
+fn rt_child rt_argv rt_env rt_in rt_out rt_err
+	local rt_z 4096
+	call rt_fdok rt_in
+	call rt_fdok rt_out
+	call rt_fdok rt_err
+	call rt_place rt_in rt_out rt_err
+	load rt_argv as rt_p
+	call rt_strlen rt_p as rt_n
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		if rt_c==47
+			sys execve rt_p rt_argv rt_env
+			sys exit 127
+		end
+		rt_i+=1
+	end
+	set "/usr/bin:/bin" as rt_s
+	load rt_state as rt_e
+	load rt_e as rt_c
+	rt_e+=16+rt_c*8
+	label rt_var
+	load rt_e as rt_q
+	if rt_q
+		load4 rt_q as rt_c
+		loadb rt_q+4 as rt_d
+		# "PATH="
+		if (rt_c==0x48544150)&(rt_d==61)
+			rt_s=rt_q+5
+		end
+		rt_e+=8
+		jmp rt_var
+	end
+	# each directory of the list, an empty one being this directory
+	label rt_dir
+	rt_q=rt_s
+	label rt_scan
+	loadb rt_q as rt_c
+	if rt_c
+		if rt_c!=58
+			rt_q+=1
+			jmp rt_scan
+		end
+	end
+	rt_d=rt_q-rt_s
+	if rt_d+rt_n<4094
+		rt_i=0
+		while rt_i<rt_d
+			loadb rt_s+rt_i as rt_c
+			storeb rt_z+rt_i rt_c
+			rt_i+=1
+		end
+		if rt_d
+			storeb rt_z+rt_d 47
+			rt_d+=1
+		end
+		rt_i=0
+		while rt_i<=rt_n
+			loadb rt_p+rt_i as rt_c
+			storeb rt_z+rt_d+rt_i rt_c
+			rt_i+=1
+		end
+		sys execve rt_z rt_argv rt_env
+	end
+	loadb rt_q as rt_c
+	if rt_c
+		rt_s=rt_q+1
+		jmp rt_dir
+	end
+	sys exit 127
+end
+
+# Start a program as a child process: its number, or an error. rt_argv is
+# the address of the addresses of its arguments, strings with a zero at
+# the end, with a 0 after the last. rt_env is its environment in the same
+# form, 0 for that of this process; rt_fds the address of three
+# descriptors that become its 0, 1 and 2, -1 for the one of this process.
+# With the flag 1 the child is held: the kernel kills it when the thread
+# that started it ends. A program that cannot be started is a child that
+# ends with status 127.
+fn rt_start rt_argv rt_env rt_fds rt_flags
+	ifz rt_env
+		load rt_state as rt_p
+		load rt_p as rt_n
+		rt_env=rt_p+16+rt_n*8
+	end
+	rt_me=0
+	if rt_flags&1
+		sys getpid as rt_me
+	end
+	sys fork as rt_pid
+	if rt_pid
+		ret rt_pid
+	end
+	if rt_flags&1
+		# a kernel that refuses would leave a child nothing holds; a parent
+		# that ended before that line sends nothing
+		sys rt_prctl 1 9 0 0 0 as rt_r
+		if rt_r
+			sys exit 127
+		end
+		sys rt_getppid as rt_r
+		if rt_r!=rt_me
+			sys exit 127
+		end
+	end
+	load rt_fds as rt_in
+	load rt_fds+8 as rt_out
+	load rt_fds+16 as rt_err
+	call rt_child rt_argv rt_env rt_in rt_out rt_err
+	sys exit 127
+end
+
+# Ask the kernel about a child, by its number (rt_which 1) or by a
+# descriptor of it (3), with the options rt_opt of waitid (4 one that has
+# ended, 1 without waiting, 0x1000000 leaving it where it is): what
+# waitid returns, with the bytes at rt_info saying which child and how
+# it ended, or 0 at 16 of them if it still runs and nothing waited.
+fn rt_take rt_which rt_id rt_info rt_opt
+	label rt_again
+	store rt_info+16 0
+	sys rt_waitid rt_which rt_id rt_info rt_opt 0 as rt_r
+	jeq rt_r -4 rt_again
+	ret rt_r
+end
+
+# what reap gives for a child that was taken, from the bytes waitid wrote
+# at rt_info: how it ended is 1 for an exit, with its status, and else a
+# signal. One that the signal 9 ended after its time was over (rt_late)
+# is -1000; one that ended by itself just before is what it ended with.
+fn rt_ended rt_info rt_late
+	load4 rt_info+8 as rt_r
+	load4 rt_info+24 as rt_n
+	if rt_r==1
+		ret rt_n&255
+	end
+	rt_n&=127
+	if rt_late&(rt_n==9)
+		ret -1000
+	end
+	ret 0-rt_n
+end
+
+# Wait for the child to end and take it from the kernel: its exit status,
+# 0 to 255; or the signal that ended it, negated; or -1000 if it still
+# ran after rt_ms milliseconds, in which case it was killed and taken; or
+# -1001 if there is no such child; or, if the kernel refuses the signal
+# to a child whose time is over, its error, the child being left as it
+# is. rt_ms 0 waits without limit.
+# The kernel gives the number of a child to another process once the
+# child is taken, so a thread that waits for a number must be the only
+# one that takes it: each reap puts its number in a list (the cell at 360
+# of the state, 16 bytes of the thread each: the next, the number) for
+# as long as it lasts, and a number that is in the list is no child to
+# another thread. What has the number is then one child from the first
+# question to the last, the signal included.
+fn rt_reap rt_pid rt_ms
+	local rt_me 16
+	# a number that is no process is no child: 0 and the negative ones
+	# would mean a group of processes to the kernel, which reads the low
+	# 32 bits alone, so a larger one would be another number to it
+	ifsle rt_pid 0
+		ret -1001
+	end
+	if rt_pid>0x7fffffff
+		ret -1001
+	end
+	call rt_lock
+	load rt_state+360 as rt_p
+	while rt_p
+		load rt_p+8 as rt_n
+		if rt_n==rt_pid
+			call rt_unlock
+			ret -1001
+		end
+		load rt_p as rt_p
+	end
+	load rt_state+360 as rt_p
+	store rt_me rt_p
+	store rt_me+8 rt_pid
+	store rt_state+360 rt_me
+	call rt_unlock
+	call rt_reaping rt_pid rt_ms as rt_r
+	call rt_lock
+	rt_p=rt_state+360
+	label rt_next
+	load rt_p as rt_n
+	if rt_n!=rt_me
+		rt_p=rt_n
+		jmp rt_next
+	end
+	load rt_me as rt_n
+	store rt_p rt_n
+	call rt_unlock
+	ret rt_r
+end
+
+# reap for the thread that alone takes the child rt_pid
+fn rt_reaping rt_pid rt_ms
+	local rt_info 128
+	local rt_pf 8
+	ifz rt_ms
+		call rt_take 1 rt_pid rt_info 4 as rt_r
+		ifslt rt_r 0
+			ret -1001
+		end
+		tail rt_ended rt_info 0
+	end
+	call rt_clock as rt_t
+	# what the child is asked by: its number (1), or a descriptor of it
+	# (3), with which the kernel says when it ends and the signal goes to
+	# what the descriptor is of, whoever takes children outside the
+	# runtime
+	rt_w=1
+	rt_id=rt_pid
+	sys rt_pidfdopen rt_pid 0 as rt_fd
+	rt_e=rt_fd
+	ifsge rt_fd 0
+		call rt_take 3 rt_fd rt_info 5 as rt_r
+		if rt_r==-22
+			# a kernel that takes no child by a descriptor
+			sys close rt_fd
+			rt_e=-38
+			jmp rt_ask
+		end
+		rt_w=3
+		rt_id=rt_fd
+		load4 rt_info+16 as rt_n
+		jnz rt_r|rt_n rt_took
+		store4 rt_pf rt_fd
+		store4 rt_pf+4 1
+		label rt_again
+		# the kernel counts the time in 31 bits, so a long time is waited
+		# for in pieces, and what is left is counted from the start
+		call rt_clock as rt_n
+		rt_n=(rt_n-rt_t)/1000000
+		rt_r=0
+		if rt_n<rt_ms
+			rt_n=rt_ms-rt_n
+			if rt_n>0x40000000
+				rt_n=0x40000000
+			end
+			sys rt_poll7 rt_pf 1 rt_n as rt_r
+			jsle rt_r 0 rt_again
+		end
+		ifz rt_r
+			sys rt_pidfdsignal rt_fd 9 0 0 as rt_s
+			jmp rt_late
+		end
+		call rt_take 3 rt_fd rt_info 4 as rt_r
+		jmp rt_took
+	end
+	# no descriptor to be had for the child: ask every millisecond
+	# whether it has ended
+	label rt_ask
+	call rt_take 1 rt_pid rt_info 5 as rt_r
+	load4 rt_info+16 as rt_n
+	jnz rt_r|rt_n rt_took
+	call rt_clock as rt_n
+	if (rt_n-rt_t)/1000000<rt_ms
+		call rt_sleep 1000000
+		jmp rt_ask
+	end
+	# it is a child that runs and that no reap of another thread takes.
+	# The number is its own for as long as nothing else takes it either:
+	# where the kernel itself takes the children that end, because the
+	# process ignores their signal or asked for that, the number may be
+	# another process by now, and no signal is sent: the error that kept
+	# the descriptor away is the result, and the child is left. So it is
+	# where the kernel does not say what the process does with the signal
+	zero rt_info 32
+	sys rt_sigaction 17 0 rt_info 8 as rt_r
+	load rt_info as rt_n
+	load rt_info+8 as rt_s
+	if rt_r|(rt_n==1)|(rt_s&2)
+		ret rt_e
+	end
+	sys kill rt_pid 9 as rt_s
+	label rt_late
+	ifz rt_s
+		# the signal is one that nothing keeps from ending it
+		call rt_take rt_w rt_id rt_info 4 as rt_r
+		ifsge rt_r 0
+			call rt_ended rt_info 1 as rt_r
+			jmp rt_out
+		end
+		rt_r=-1001
+		jmp rt_out
+	end
+	# the signal was refused: the child is taken if it has ended since,
+	# and else left
+	call rt_take rt_w rt_id rt_info 5 as rt_r
+	load4 rt_info+16 as rt_n
+	ifz rt_r|rt_n
+		rt_r=rt_s
+		jmp rt_out
+	end
+	label rt_took
+	ifslt rt_r 0
+		rt_r=-1001
+		jmp rt_out
+	end
+	call rt_ended rt_info 0 as rt_r
+	label rt_out
+	if rt_w==3
+		sys close rt_id
+	end
+	ret rt_r
+end
+
+# Let this thread, and the children it starts from now on, run only on
+# the processor rt_cpu, or on the lowest one it may run on if that is not
+# among them: the processor it is now bound to, or an error.
+fn rt_pin rt_cpu
+	local rt_m 128
+	rt_i=0
+	while rt_i<128
+		store rt_m+rt_i 0
+		rt_i+=8
+	end
+	sys sched_getaffinity 0 128 rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	rt_c=0
+	if rt_cpu<1024
+		loadb rt_m+rt_cpu/8 as rt_c
+		rt_c=rt_c>>(rt_cpu&7)&1
+	end
+	ifz rt_c
+		rt_cpu=0
+		label rt_next
+		if rt_cpu>=1024
+			ret -22
+		end
+		loadb rt_m+rt_cpu/8 as rt_c
+		rt_c=rt_c>>(rt_cpu&7)&1
+		ifz rt_c
+			rt_cpu+=1
+			jmp rt_next
+		end
+	end
+	rt_i=0
+	while rt_i<128
+		store rt_m+rt_i 0
+		rt_i+=8
+	end
+	storeb rt_m+rt_cpu/8 1<<(rt_cpu&7)
+	sys rt_setaffinity 0 128 rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	ret rt_cpu
+end
+
+label rt_go

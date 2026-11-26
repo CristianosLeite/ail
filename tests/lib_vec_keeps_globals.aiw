@@ -20,4 +20,4 @@ call vecget b 0
 call vecreserve b 1000
 call vecpop b
 call vecfree b
-sys exit v+n+i+x+p+cap+len+old+ok
+rt exit v+n+i+x+p+cap+len+old+ok

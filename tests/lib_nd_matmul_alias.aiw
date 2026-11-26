@@ -93,4 +93,4 @@ call differ o q 0 as e
 call putn u
 call putn e
 call print "\n"
-sys exit_group 0
+rt exit 0

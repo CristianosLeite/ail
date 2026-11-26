@@ -4,4 +4,4 @@ if 0
 end
 data b 7
 loadb b as x
-sys 60 x
+rt exit x

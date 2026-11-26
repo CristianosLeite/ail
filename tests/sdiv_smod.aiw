@@ -15,4 +15,4 @@ sdiv -8 -2 as q
 sub q 4 as q
 or x q as x
 add x 5 as x
-sys 60 x
+rt exit x

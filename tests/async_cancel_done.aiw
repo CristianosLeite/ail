@@ -48,4 +48,4 @@ call asyncrun as n
 call putn n
 call asyncclock as t1
 call print "\n"
-sys exit_group t1-t0>1000000000
+rt exit t1-t0>1000000000

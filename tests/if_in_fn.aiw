@@ -15,4 +15,4 @@ mul a 100 as a
 mul b 10 as b
 add a b as a
 add a c as a
-sys 60 a
+rt exit a

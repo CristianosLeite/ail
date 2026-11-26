@@ -1,0 +1,3 @@
+# a program that runs for ten seconds, for the test of a limit of time
+rt sleep 10000000000
+rt exit 0

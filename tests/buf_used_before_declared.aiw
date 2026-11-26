@@ -2,4 +2,4 @@
 storeb b 7
 loadb b as v
 buf b 8
-sys 60 v
+rt exit v

@@ -5,4 +5,4 @@ fn work a
 end
 spawn work 7 as h
 join h
-sys exit_group cell
+rt exit cell

@@ -5,4 +5,4 @@ if a<4
 else
 	x=a-1
 end
-sys exit x
+rt exit x

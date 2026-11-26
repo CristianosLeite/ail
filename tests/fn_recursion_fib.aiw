@@ -12,4 +12,4 @@ fn fib n
 	ret n
 end
 call fib 10 as x
-sys 60 x
+rt exit x

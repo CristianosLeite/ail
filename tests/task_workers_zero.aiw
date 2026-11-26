@@ -18,4 +18,4 @@ while i
 	s+=x
 end
 load taskq+48 as w
-sys exit_group s+w
+rt exit s+w

@@ -85,7 +85,7 @@ else
     cmp -s "$tmp/c.aiw" "$tmp/c0.aiw" || r=1
 fi
 say indent_errors $r
-ls examples/*.aiw compiler/*.aiw lib/std/*.aiw lib/async/*.aiw lib/nd/*.aiw lib/algo/*.aiw tools/*.aiw tools/lib/*.aiw \
+ls examples/*.aiw compiler/*.aiw compiler/*/*.aiw rt/*/*.aiw lib/std/*.aiw lib/async/*.aiw lib/nd/*.aiw lib/algo/*.aiw tools/*.aiw tools/lib/*.aiw \
     tests/*.aiw tests/lib/*.aiw |
     grep -vxFf tests/indent/skip > "$tmp/list"
 xargs build/tools/indent --check < "$tmp/list" > "$tmp/said" 2>&1

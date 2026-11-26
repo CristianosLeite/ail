@@ -18,4 +18,4 @@ or r t as r
 le 5 5 as t    # 1
 shl r 1 as r
 or r t as r
-sys 60 r
+rt exit r

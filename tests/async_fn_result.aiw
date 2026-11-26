@@ -10,4 +10,4 @@ end
 call f 6 7 as h
 x=ran
 call await h 0 as y
-sys exit_group x*100+y+ran
+rt exit x*100+y+ran

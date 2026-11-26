@@ -28,4 +28,4 @@ call async 64 p as a
 ref sleeper as p
 call async 64 p as b
 call asyncrun as n
-sys exit_group n+stop
+rt exit n+stop

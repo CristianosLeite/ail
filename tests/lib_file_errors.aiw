@@ -26,4 +26,4 @@ call fileread long 4095 b as r
 call putn 0-r
 load b+8 as n
 call print "\n"
-sys exit n
+rt exit n

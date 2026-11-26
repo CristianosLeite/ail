@@ -52,4 +52,4 @@ call putn x
 call putn freed
 call print "\n"
 call asyncclock as t1
-sys exit_group t1-t0>1000000000
+rt exit t1-t0>1000000000

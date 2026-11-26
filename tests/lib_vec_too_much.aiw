@@ -19,4 +19,4 @@ call putn x
 call print " "
 call putn y
 call print "\n"
-sys exit a+u+r+s+t+(p==q)+(c==d)+(n==1)+f+g
+rt exit a+u+r+s+t+(p==q)+(c==d)+(n==1)+f+g

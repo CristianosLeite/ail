@@ -8,4 +8,4 @@ fn f x
 	tail g x y
 end
 call f 5 as r
-sys 60 r
+rt exit r

@@ -16,4 +16,4 @@ call even 1000001 as a
 call even 1000000 as b
 shl b 1 as b
 or a b as a
-sys 60 a
+rt exit a

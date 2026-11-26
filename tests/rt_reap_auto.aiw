@@ -1,0 +1,33 @@
+# where the kernel itself takes the children that end, a reap that has
+# no descriptor of the child sends it no signal by its number, which
+# may be another process by then: with the signal of children ignored
+# and a limit of three open files, a child that is given 20 ms gets the
+# error of the descriptor, -24, and goes on to write its byte
+const setrlimit 160
+buf act 32
+buf fds 8
+buf ts 16
+buf lim 16
+buf b 8
+store act 1
+sys rt_sigaction 17 act 0 8
+sys pipe fds
+load4 fds as rd
+load4 fds+4 as wr
+store lim 3
+store lim+8 3
+sys setrlimit 7 lim
+store ts+8 250000000
+sys fork as p
+ifz p
+	sys nanosleep ts 0
+	sys write wr "x"
+	rt exit 5
+end
+sys close wr
+rt clock as t0
+rt reap p 20 as a
+rt clock as t1
+sys read rd b 1 as n
+rt reap p 0 as e
+rt exit (a==-24)+(n==1)*2+(e==-1001)*4+(t1-t0<200000000)*8

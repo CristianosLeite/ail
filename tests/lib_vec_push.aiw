@@ -31,4 +31,4 @@ call vecpop v as x i
 call print " "
 call putn x
 call print "\n"
-sys exit s+c+d+e+f+h+j+a+b+g+i
+rt exit s+c+d+e+f+h+j+a+b+g+i

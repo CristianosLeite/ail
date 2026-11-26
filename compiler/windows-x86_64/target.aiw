@@ -1,0 +1,119 @@
+# ailc -- what the compiler knows of its target, x86-64 Windows, beyond
+# the instructions: the form of an executable, and what the runtime of
+# that platform asks of the compiler. The names are those of
+# compiler/linux-x86_64/target.aiw. The file is compiled from a
+# directory that also has imports.aiw, the import tables that
+# compiler/windows-x86_64/imports.sh writes.
+#
+# An executable is laid out so that a byte of the file is at the same
+# place in memory, as the compiler assumes everywhere: the header in the
+# first page, the import tables in the second, the code from the third
+# on, with the file filled up to a page, and behind it the memory of the
+# program, which has no bytes in the file. The image is loaded at one
+# address, 0x140000000, and has no relocations: no instruction contains
+# an address.
+use "target:imports.aiw"
+
+# the bytes before the code of the runtime, two pages, and where in a
+# line of the cache that is
+const thdrn 8192
+const talign 0
+# the runtime has no first line that keeps a stack, and every service
+# has something in its state: the descriptors are there
+const tbootn 0
+const tstate 2
+# the bytes an image may have, from the header to the last buffer:
+# Windows loads no image above that. The memory of a program starts at
+# a page, so the size in the header, which is whole pages, is within
+# it when the bytes are
+const tmax 0x77000000
+# sys means nothing here: there are no system calls to make
+const tsys 0
+# The statement ccall as a row of the statement table without its name:
+# three operands, no flags, and the code that calls the function in rax
+# with the values at the address in rdi, as many as rsi says, where C
+# has them on this platform: the first four in rcx, rdx, r8 and r9, all
+# of them on the stack from its top on, room for four at least, the
+# stack at a multiple of 16. mov r11, rax / mov r10, rdi / mov rcx, rsi /
+# push rbp / mov rbp, rsp / mov eax, 4 / cmp rcx, rax / cmovb rcx, rax /
+# lea rax, [rcx*8+15] / and rax, -16 / and rsp, -16 / sub rsp, rax /
+# mov rcx, rsi / mov rsi, r10 / mov rdi, rsp / rep movsq / the four
+# loads / call r11 / leave.
+data tccrow 3 0 0 79 73 137 195 73 137 250 72 137 241 85 72 137 229 184 4 0 0 0 72 57 193 72 15 66 200 72 141 4 205 15 0 0 0 72 131 224 240 72 131 228 240 72 41 196 72 137 241 76 137 214 72 137 231 243 72 165 72 139 12 36 72 139 84 36 8 76 139 68 36 16 76 139 76 36 24 65 255 211 201
+# The header, 448 bytes: "MZ" with the place of the next part at 60; at
+# 64 "PE", then 20 bytes (x86-64, 3 sections, 240 bytes of what follows,
+# an executable without relocations); at 88 the 240 bytes: 16 the place
+# where the process starts and 20 where the code does, both 8192; 24 the
+# address the image is loaded at; 32 and 36 the page, for memory and for
+# the file; 40 and 48 Windows 6.0; 56 the size of the image; 60 that of
+# the header; 68 a program of the console; 70 that its data is not run;
+# 72 a stack of 8 MiB; 108 sixteen directories, the second of them, at
+# 120, the import tables at 4096. At 328 the sections, 40 bytes each:
+# the import tables, the code, the memory of the program; 8 the size in
+# memory, 12 the place, 16 the size in the file, 20 the place there, 36
+# what the pages may be used for.
+data thdr 77 90 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 64 0 0 0
+data 80 69 0 0 100 134 3 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 240 0 35 0 11 2 1 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 32 0 0 0 32 0 0
+data 0 0 0 64 1 0 0 0 0 16 0 0 0 16 0 0
+data 6 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0
+data 0 0 0 0 0 16 0 0 0 0 0 0 3 0 0 129
+data 0 0 128 0 0 0 0 0 0 16 0 0 0 0 0 0
+data 0 0 16 0 0 0 0 0 0 16 0 0 0 0 0 0
+data 0 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0
+data 0 16 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 46 105 100 97 116 97 0 0
+data 0 16 0 0 0 16 0 0 0 16 0 0 0 16 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 64 0 0 192
+data 46 116 101 120 116 0 0 0 0 0 0 0 0 32 0 0
+data 0 0 0 0 0 32 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 32 0 0 96 46 98 115 115 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 128 0 0 192
+
+# write the header and the import tables into the output: the code
+# starts behind them
+fn tstart
+	call cp thdr 448
+	op=out+4096
+	call cp timp timpn
+	op=out+thdrn
+	store4 out+212 tidtn
+end
+
+# The code and the layout are complete: fill the file up to a page with
+# zeros, where the first pass over a function may have left bytes, and
+# write into the header the size of the code, the place and the size of
+# the memory of the program, rw and m, and the size of the image. A
+# program without memory of its own has two sections. The bytes of the
+# file to write.
+fn tfin q rw m
+	p=out+q
+	while p<out+rw
+		storeb p 0
+		p+=1
+	end
+	store4 out+92 rw-thdrn
+	store4 out+376 q-thdrn
+	store4 out+384 rw-thdrn
+	if m
+		store4 out+100 m
+		store4 out+416 m
+		store4 out+420 rw
+		store4 out+144 rw+(m+4095>>12<<12)
+	else
+		store2 out+70 2
+		store4 out+144 rw
+	end
+	ret rw
+end

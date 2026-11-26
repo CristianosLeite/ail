@@ -891,3 +891,366 @@ program that first needs them).
   which the compiler now uses, rounds it; one beyond every double is
   `number too big`. No new seed. `tests/float_literal*`, the bits
   against `float` of Python.
+
+## Runtime
+
+From [RUNTIME.md](RUNTIME.md); what was decided with it is in
+[TODO.md](TODO.md).
+
+- [x] The runtime in C for x86-64 Linux and the statement `rt`
+  (2026-11-26). `rt/linux-x86_64/` is compiled by `cc` without a C
+  library into one image that may stand anywhere and has no writable
+  byte: a header, a table of entries, and an entry for each service
+  that takes the values of AIL to the convention of C. The compiler has
+  it as data and copies it behind the header of every executable, 960
+  bytes; the process starts at its first entry, and the program ends
+  with a jump to the service `exit`. `rt name` calls a service, with
+  its counts checked: `exit`, `args`, `alloc`, `free`, `open`, `close`,
+  `read`, `write`; the statements `alloc`, `free` and `args` are calls
+  of theirs, and `args` may stand in a function. The code of a program
+  stands where it did in a line of the cache, and no table of fixups
+  has a new kind: the place of an entry is known when it is called.
+  [runtime.md](runtime.md) has the services and the form of the image.
+  `tests/rt_*`; `tests/bytes.sh` computes the files with the image as
+  `cc` built it, and `tests/insn.cases` has a call of an entry and a
+  distance to the writable segment in a form that does not depend on
+  the size of the image. Two tests of `lib/nd` read behind their last
+  buffer, where the state of the runtime now is, and have a buffer of
+  zeros for it.
+- [x] The examples and `lib/std/io.aiw` through the runtime
+  (2026-11-26): `rt read`, `rt write` and `rt exit` where `sys` stood,
+  with names or numbers. The library no longer has a `var` or a line
+  that runs where its `use` stands: `argc`, `argv` and `procenv` of
+  `lib/std/proc.aiw` ask `args` when they are called. `build/hello` is
+  1197 bytes, 243 before, of which 960 are the image; started 1000
+  times in a row, seven times over, a run takes 121 microseconds in the
+  median against 114 before and 389 for C with its library (a rough
+  figure, with the time of the starting process in it; the benchmarks
+  are to measure it properly). The executable now has a writable
+  segment in any case, for the state.
+- [x] Seed 7 and the compiler through the runtime (2026-11-26). The
+  service `pipeerr` makes a write to a closed pipe an error, which the
+  compiler asked of Linux at its start. Seed 7 is the compiler with the
+  runtime and `rt`; its release is to keep the image it was built with
+  beside it. The source of the compiler has no `sys` left: it reads its
+  input and the files of `use`, writes the executable and its messages
+  and ends through `rt`. `tests/io.sh` and every expected message are as
+  they were, the compiler built by the seed and by itself behave alike
+  on every test, example and fuzzed source, and `build/ailc` and
+  `build/ailc2` are the same file.
+- [x] Services for files and directories (2026-11-26): `mkdir`,
+  `unlink`, `rmdir`, `rename` and `names`, which gives the names of a
+  directory as bytes with a NUL behind each, so that no caller knows the
+  form the kernel has for them. `lib/std/file.aiw` has no `sys` left
+  and makes no copy of a path. `tests/rt_dirs`, and the `lib_file_*`
+  tests as they were.
+- [x] Services for time (2026-11-26): `clock`, nanoseconds of the clock
+  that only goes forward, and `sleep`. On Linux the clock is read in
+  the page of code the kernel maps into every process, without a
+  system call, as C reads it: the runtime finds `clock_gettime` there
+  at the first call, through the hash table of either form, and keeps
+  it in its state. `procnow` and `lib/async/time.aiw` call them.
+  `tests/rt_clock`.
+- [x] Services for threads (2026-11-26): `thread`, which runs a function
+  of the program with a value on a stack of its own and gives the stack
+  back when the function returns, `wait` and `wake` on the four bytes
+  at an address, and `cpus`. `lib/std/task.aiw` has no `sys` left: its
+  lock, its idle workers and its joins sleep in `wait`, and a worker is
+  a `thread`. `tests/rt_thread`, and the `spawn_*`, `join_*` and
+  `task_*` tests as they were, the stack overflow that must fault among
+  them.
+- [x] Services for readiness and sockets (2026-11-26): a poller with
+  `watch`, `unwatch` and `poll`, whose events are 16 bytes of the
+  runtime's own, what may be done and a tag; a `waker` that ends a poll
+  from another thread; `listen`, `accept`, `socket`, `connect`,
+  `sockerr`, `port`; `send` and `writeq`, the writes without the signal
+  of a closed end. `lib/async/io.aiw` and `lib/async/pool.aiw` have no
+  `sys` and no number of a system call left, and no address of a socket
+  in the form of the kernel. `tests/rt_sockets`, `tests/rt_waker`; the
+  `async_*`, `lib_http_*` and `lib_httpd_*` tests as they were, but for
+  `async_write_closed`, which has the two numbers it took from the
+  library as constants of its own.
+- [x] Services for processes, and a library without `sys` (2026-11-26):
+  `start`, a program with its arguments, an environment and its three
+  descriptors, held to the process that started it or not; `reap`, its
+  end with a limit of time; `pin`. `lib/std/proc.aiw` calls them, so no
+  file of `lib/` has a `sys` left, which `tests/rt.sh` holds together
+  with the form of the image and its place in an executable. The two
+  functions that put the descriptors of a child in place are in
+  `cli/tool.aiw` now, for the children it forks itself.
+  `tests/rt_start`; the `lib_proc_*` tests as they were.
+- [x] `alloc` and `free` at the cost of C (2026-11-26). Measured first:
+  the program `allocs` of ail-bench took 79 times as long as its C twin,
+  each block being a mapping. The runtime now cuts blocks of 39 sizes
+  from chunks of 256 KiB and gives a freed block out again, cleared
+  with the string instruction (a loop of 16-byte stores was measured
+  and was slower); a block of 32 KiB or more is a mapping as before.
+  The lists are locked only once the runtime has started a thread.
+  1.03 times C. A block that is freed no longer faults when it is used,
+  unless it is a large one: `tests/free_then_use_faults` is a large
+  block now, `tests/alloc_reuses_freed` and `tests/alloc_in_threads`
+  are new. The two other programs of the runtime measured there,
+  `iocopy` and `iosmall`, take 0.89 and 0.99 of the time of C, and a
+  program starts 2 microseconds later than without the runtime, 50
+  against 48.
+- [x] A runtime written in AIL as source the compiler compiles with
+  every program (2026-11-26), in place of the image as a second form of
+  output that the plan had: a service is then a function of the program,
+  with no table between, and a short one is compiled in place of its
+  call, which an image could not be. `rt/linux-x86_64/rt.aiw` is
+  compiled in front of the program and `state.aiw` behind it; the
+  compiler has both as data. A service with a function `rt_<name>`
+  there is a call of it, and any other an entry of the C image, so the
+  two parts run side by side while services move. `exit`, `args`,
+  `close`, `read` and `write` are in AIL: `rt write` in a function is
+  the system call alone. The statement `stack` is for the first line of
+  the runtime. `make test` passes with the AIL part and, but for the
+  one case that expects a service in place, with
+  `make RTAIL=/dev/null`.
+- [x] Paths, memory and threads in AIL (2026-11-26): `open`, `mkdir`,
+  `unlink`, `rmdir`, `rename`, `names`, `pipeerr`; `alloc` and `free`,
+  the same blocks and lists as in C, with the class of a block from a
+  table of 64 bytes; `wait`, `wake`, `cpus` and `thread`, whose new
+  thread comes out of the system call in the middle of an AIL function
+  and has all it needs in registers. The statement `zero`, the string
+  instruction that clears bytes, is new for it. On the programs of
+  ail-bench the AIL services take 0.87 (`iocopy`), 0.98 (`iosmall`) and
+  0.99 (`allocs`) of the time of C; the C services took 0.88, 0.99 and
+  1.03.
+- [x] The runtime in AIL alone (2026-11-26). Time, the poller, the
+  sockets and the processes were written in AIL, and the whole suite
+  passed with the AIL services and with the C ones. Then the C runtime
+  was removed: no image, no `cc` in `make`. An executable is the header,
+  the code of `rt.aiw` and the program. The first line of the runtime
+  does nothing in a program that never asks for the stack of its start,
+  the second jumps over its functions, and the state is no memory of a
+  program that calls no service that keeps something there: `hello`
+  starts in 48.2 to 48.4 microseconds against 47.9 before there was a
+  runtime, where the C runtime cost two. `iocopy`, `iosmall` and
+  `allocs` of ail-bench take 0.85, 0.98 and 0.99 of the time of C.
+- [x] Seed 8 (2026-11-26): the compiler with the runtime in AIL. It is
+  built from its revision alone, with no C compiler, and the build from
+  it gives the same file. The releases `seed-7` (with its image
+  `rt-7`) and `seed-8` are to be published before the branch can be
+  built elsewhere; until then the build needs the local file
+  `seed/ailc-8`.
+- [x] Workloads of the runtime in ail-bench (2026-11-26, its branch
+  `runtime`): `iocopy`, `iosmall` and `allocs` beside C programs at
+  `-O3`, a table "Runtime" of `tools/perf`, and the start of `hello`
+  against the revision before the runtime. Measured with no runtime,
+  with the C one and with the AIL one; `docs/performance.md` there has
+  the figures.
+- [x] The tests on the runtime (2026-11-26): 571 tests that end with a
+  status, write or read by `sys` do so by `rt exit`, `rt write`,
+  `rt read` and `rt close`, with their expected outputs as they were,
+  so that they can run where the system calls of x86-64 Linux are not.
+  The tests named `sys_*`, those that must fail to compile, the
+  generated ones and four that depend on what a raw system call leaves
+  in a register keep `sys`; 150 test sources still have one, for what
+  only Linux has.
+- [x] The target of the compiler as a package, and the statements
+  `ccall` and `base` (2026-11-26), for a second platform. What the
+  compiler knows of x86-64 Linux beyond the instructions is in
+  `compiler/linux-x86_64/target.aiw`, named by the source as a package
+  that the build chooses; the compiler writes the same bytes as before.
+  `ccall` calls a function by the C convention of the platform with
+  its values at an address and the stack at a multiple of 16, which is
+  how the clock of the kernel's page is called now, and `base` is the
+  address an executable is loaded at.
+- [x] Windows on x86-64, the second platform, as far as the compiler
+  itself (2026-11-26). `build/ailc-windows-x86_64` runs on Linux and
+  writes executables of Windows: a header and import tables in two
+  pages, the code behind them, the memory of the program a section
+  without bytes, every byte of the file at the same place in memory.
+  `rt/windows-x86_64/rt.aiw` has `exit`, `args`, `alloc`, `free`,
+  `open`, `close`, `read`, `write` and `pipeerr`, each by functions of
+  Windows called with `ccall`. Under Wine `hello.exe` writes its line,
+  and the compiler compiled for Windows compiles its own source to the
+  file it is. 522 tests of the suite give their output and status
+  there. `tests/win.sh` is in `make test` and is skipped without wine.
+  The interface held: no service changed its values, its results or
+  its errors for Windows.
+- [x] Directories, time, threads and processes on Windows (2026-11-26):
+  `mkdir`, `unlink`, `rmdir`, `rename`, `names` as a search of the
+  path of a directory; `clock` and `sleep`; `cpus`, `wait` and `wake`
+  on `WaitOnAddress`, `thread` on a thread of Windows that enters AIL
+  through fifteen bytes of code, since Windows calls with another
+  convention; `start`, which writes the arguments as one line, quoted
+  so that `args` reads them as they were, with the three handles and
+  an environment, and holds a child in a job; `reap`; `pin`. 567 tests
+  of the suite pass under Wine, and `tests/win/start.aiw` starts
+  programs of Windows. [runtime.md](runtime.md) lists where a service
+  cannot be on Windows what it is on Linux.
+- [x] Sockets and a poller on Windows (2026-11-26), the last of its
+  services: sockets of Winsock as descriptors of the runtime, a poller
+  made of `WSAPoll` that says once when a socket becomes ready, by a
+  note of what it has said that a read, a write or an accept takes away
+  when it finds the socket not ready, and a waker that is a socket
+  connected to itself. The tasks, `lib/async` and the HTTP client and
+  server pass their tests under Wine: 579 tests in all, tried twice
+  before one has failed, since a start under Wine fails now and then.
+  The services held as they were written for Linux; what is not the
+  same behind them is listed in [runtime.md](runtime.md).
+- [x] `reap` on Linux takes only a child (2026-11-26): with a limit of
+  time it asked for a descriptor of the process, which the kernel gives
+  for any process, and killed the number when the time was over, so a
+  number that was no child was killed. It now asks the kernel first
+  whether the number is a child that runs, kills through the
+  descriptor, which is that child whatever got its number since, and
+  takes no number below 1. `tests/rt_reap_not_child`.
+- [x] `start` on Linux keeps a descriptor given as its own number
+  (2026-11-26): one opened to be closed at the start of a program was
+  closed in the child when it already had the number it was given as,
+  since nothing was copied. The mark is taken away there.
+  `tests/rt_start_cloexec`.
+- [x] Descriptors and pollers on Windows that threads share
+  (2026-11-26): two threads that opened at once could get one number,
+  since it was taken only when Windows had given the handle; it is now
+  taken with `cas` first and given back last by `close`. What a poller
+  watched was kept with the socket, so a second poller changed the tag,
+  ended the watch or took the event of the first; each poller now has a
+  record of its own. `tests/rt_open_threads`, `tests/rt_poll_two`,
+  which `tests/win.sh` always runs.
+- [x] `start` on Windows gives a child its three handles alone
+  (2026-11-26): it made the handles of this process inheritable and
+  left them so, so a later child got them too; and it put a held child
+  in its job after it ran, without looking whether that worked. The
+  child now gets copies made for it and a list that names them, and is
+  in the job by the same list from the moment it is made; a job that
+  cannot be made or a descriptor that is not open is a child that ends
+  with 127. `tests/win/inherit.aiw`, `tests/win/holder.aiw`.
+- [x] `reap` on Linux asks one process for everything (2026-11-26):
+  the kernel reads 32 bits of the number of a child and 31 of a time,
+  so a number above that was any child or another one, and a long time
+  was none; and the question whether a number is a child and the
+  descriptor for it were two calls, between which another thread could
+  take the child and the number go to another process. A number above
+  2^31-1 is now no child, a long time is waited for in pieces counted
+  from the start, and the descriptor is had first and asked whether it
+  is a child, whether it has ended and to take it (`waitid`). Where the
+  kernel gives no descriptor the signal goes to the number under the
+  lock that every taking of a child holds, which is done after the
+  waiting. `tests/rt_reap_wide`.
+- [x] Pollers on Windows that share a waker, and threads at one poller
+  (2026-11-26): the poller that reported a waker emptied its socket,
+  so a second poller that watched it was not told; and what a poller
+  notes of a socket was read and written back with nothing between, so
+  a watch that had just ended could come back, and an answer of
+  Windows could get the tag of a later watch. The record of a poller
+  has a lock and a number for each watch, a poller a socket of its own
+  that ends its wait, and `wakeup` notes the waker in every poller
+  that watches it. `tests/rt_poll_shared`, which `tests/win.sh` always
+  runs.
+- [x] `reap` on Linux keeps a child for the thread that waits for it
+  (2026-11-26): where the wait was by the number, another thread could
+  take the child between two questions and the number go to a new
+  child, which was then taken or killed; and a signal the kernel
+  refused was not noticed, so the child was waited for without limit
+  and said to have been killed whatever it ended with. Each `reap`
+  now puts its number in a list of the runtime for as long as it
+  lasts, and a number in the list is no child to another thread, so
+  what has the number is one child from the first question to the
+  signal; nothing is taken under a lock any more. A refused signal is
+  the result, with the child left, and a child that ended by itself
+  before the signal gives what it ended with. `tests/rt_reap_two`,
+  `tests/rt_reap_denied`.
+- [x] A watch on Windows that outlived its socket, and the time of
+  `reap` there (2026-11-26): `watch` asked what the descriptor was
+  before it had the record of the poller, so a close between the two
+  left a watch on a number that the next descriptor got; and `reap`
+  gave its time to Windows, which reads 32 bits of it. `watch` now
+  asks under the lock of the record, where a close always takes its
+  descriptor out before the number is free, and `reap` waits in pieces
+  counted from the start, says so if Windows refuses to end the child,
+  and takes one that has ended with what it ended with.
+  `tests/win/stale.aiw`, `tests/rt_watch_close`, `tests/rt_reap_long`.
+- [x] `reap` on Windows gives a child to one thread (2026-11-26): two
+  threads that reaped one child both waited for its handle, and the
+  first to finish closed it under the other, which then read a status
+  of 0 from a call that had failed, or asked about whatever the handle
+  had become. `start` now puts each child in a list of the runtime,
+  `reap` takes one that is there and that no other `reap` has, -1001
+  otherwise, and takes it out of the list before the handle is closed;
+  a status that Windows does not give is its error. The source of the
+  services may be 48 KiB, since that of Windows passed 32.
+  `tests/rt_reap_many`, which `tests/win.sh` always runs: eight
+  threads, of which five or four got 0 before.
+- [x] `reap` on Linux sends no signal to a number the kernel may have
+  given away (2026-11-26): without a descriptor of the child the wait
+  asks by the number, which stays the child's only while nothing but
+  `reap` takes children; a process that ignores `SIGCHLD` has the
+  kernel take them, so the number could be another process when the
+  time was over. There `reap` now returns the error that kept the
+  descriptor away and leaves the child; `docs/runtime.md` says what
+  the promise needs. `tests/rt_reap_auto`.
+- [x] `reap` on Linux sends no signal by a number when the kernel does
+  not say who takes children (2026-11-26): the check before the signal
+  read what the process does with `SIGCHLD` and not whether the kernel
+  had answered, so under a filter that refuses `rt_sigaction` the
+  zeros it had put there read as a process that takes its children
+  itself, and the child was killed by its number. A question that
+  fails is now the case in which no signal is sent, and
+  `docs/runtime.md` says that the answer is taken once, so a program
+  must not change it during such a `reap`. `tests/rt_reap_blind`.
+- [x] A child on Windows is a number of the runtime, not its handle
+  (2026-11-26): `start` returned the handle, which `reap` closes and
+  Windows gives to the next child, so the number of a child that was
+  taken named a later one, and a `reap` with it took that. `start` now
+  gives a number counted from 2 that no other child gets, kept with
+  the handle in the list of the children, which is all that knows the
+  handle. `tests/rt_reap_again`, which `tests/win.sh` always runs: the
+  second child was taken by the number of the first before.
+- [x] `tests/win.sh` fails when a test it always runs does not compile
+  (2026-11-26): the runner left out every test the compiler for
+  Windows refused, without a word, and only asked that one program
+  had run, so a change that broke the compiling of `rt_reap_again`
+  left the suite green. A test of that list which does not compile is
+  now a failure, with what the compiler said; the other tests are
+  still left out, since the suite is those the compiler compiles.
+  Checked with a compiler that refuses that one source.
+- [x] `tests/win.sh` fails when a test it always runs is not there to
+  run (2026-11-26): the list of those tests was only looked at for a
+  test the loop over `tests/*.out` had found and no filter had left
+  out, so without `tests/rt_reap_again.out` the test was not run and
+  the suite stayed green. Before the loop every name of the list must
+  now have its `.out` and its source, no `sys` and no line in
+  `tests/win.skip`, or the suite fails and says which. Checked in a
+  copy with each of the four made untrue.
+- [x] The compiler for Windows refuses a program whose image Windows
+  does not load (2026-11-26): the last check of the size of an image
+  was 2 GiB on both targets, so a program with buffers up to that
+  compiled for Windows, which loads no image above 0x77000000 bytes.
+  The limit is now `tmax` of the target file, 2 GiB less one byte on
+  Linux as before and 0x77000000 for Windows, and `buffers too big`
+  above it. `tests/win.sh` compiles a program whose image is that size
+  and reads it in the header, and requires one a page above to be
+  refused.
+- [x] `docs/runtime.md` says what to do with a program Microsoft
+  Defender takes wrongly (2026-11-26): it named a signature and an
+  excluded directory beside a report to Microsoft, as if either
+  answered the verdict. A signature says who published a file and that
+  it is unchanged, and signed files are taken too; an excluded
+  directory is scanned no more. The two detections stay as what one
+  scan recorded, and the guide points to the submission of the file
+  that was flagged.
+- [x] A path too long for Windows is the error -36 there
+  (2026-11-26): `tests/lib_file_errors` passed under Wine and printed
+  2, no such file, for its path of 4095 bytes on Windows, which
+  answers a path of 260 bytes or more, with the directory of the
+  process, as one that is not there. After that answer `open`,
+  `mkdir`, `unlink`, `rmdir` and `rename` now ask `GetFullPathNameA`
+  (`rt_long`), which fails for such a path with the error that is -36.
+  Checked on Windows 11, where the test now gives its output.
+- [x] `tests/rt_pipe_signal` passes where the signal is ignored
+  (2026-11-26): it expected a write to a pipe that nobody reads to end
+  the process, which is what the signal does by default. The runner of
+  GitHub starts `make test` with the signal ignored, a child keeps
+  that, and the write gave the error, so the test failed there alone.
+  It now sets the default with `rt_sigaction` before the write.
+- [x] Six tests of the separators end their lines with CRLF again
+  (2026-11-26): the conversion of the tests from `sys` to `rt` wrote
+  `data_tabs_crlf`, `fn_separators`, `gvar_tabs_comment`,
+  `if_with_comment_tabs`, `separators_tab_crlf` and `use_tab_crlf`
+  with LF alone, so they still passed and no longer tested a CR
+  before the LF. Every line of them has its CR back, the lines with
+  `rt` included.

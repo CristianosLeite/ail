@@ -4,4 +4,4 @@ fn f p
 	ret p
 end
 call f b as x
-sys 60 0
+rt exit 0

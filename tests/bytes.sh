@@ -4,8 +4,9 @@
 # displacement and the whole ELF header. Each program is one line repeated
 # until the source has its 8 MiB, so its code is one record for each of the
 # K lines, between a prefix and the implicit exit, and the expected file is
-# a formula, which awk writes out byte for byte. A second compiler, if
-# given, must produce the same file.
+# a formula, which awk writes out byte for byte: the header, and the code
+# from where the runtime ends up to the jump that ends the program. A
+# second compiler, if given, must produce the same file.
 # Usage: AILC=<compiler> [AILC2=<compiler>] tests/bytes.sh   (default build/ailc)
 set -u
 cd "$(dirname "$0")/.."
@@ -16,12 +17,25 @@ out=$(mktemp -d build/tests/bytes.XXXXXX) || exit 1
 trap 'rm -rf "$out"' EXIT
 trap 'exit 1' HUP INT TERM
 fail=0
+# The runtime stands between the header and the program, and its bytes
+# are not computed here: tests/rt.sh checks them. What the expected file
+# needs of it is taken from the empty program, which is the header, the
+# runtime and seven bytes: where the code of a program starts, where the
+# process starts, how much the runtime keeps in the writable segment,
+# and where the end of a program jumps to.
+: | "$ailc" > "$out/empty" 2> /dev/null
+u() { od -An -tu$1 -j"$2" -N$1 "$out/empty" | tr -d ' '; }
+base=$(( $(wc -c < "$out/empty") - 7 ))
+start=$(u 8 24)
+state=$(u 8 160)
+xit=$(( base + 7 + $(od -An -td4 -j$((base + 3)) -N4 "$out/empty" | tr -d ' ') ))
 
 # check <name> <awk program>: the awk program defines K, the number of
 # lines; source(), which prints the source; and code(), which prints the
-# code between the header and the implicit exit with b() and r4(). MEM is
-# the size of the writable segment. code() may use size, the length of the
-# output file, and rw, where the writable segment starts.
+# code between the image and the implicit exit with b() and r4(). MEM is
+# what the program has in the writable segment. code() may use size, the
+# length of the output file, rw, where the writable segment starts, and
+# base, where the code does.
 check() {
     lib='
     function b(s,   i, n, f) { n = split(s, f, " "); for (i = 1; i <= n; i++) printf "%c", f[i] + 0 }
@@ -30,7 +44,7 @@ check() {
         printf "%c%c%c%c", v % 256, int(v / 256) % 256, int(v / 65536) % 256, int(v / 16777216) }
     function header(mem) {
         b("127 69 76 70 2 1 1 0 0 0 0 0 0 0 0 0")
-        le(3, 2); le(62, 2); le(1, 4); le(176, 8); le(64, 8); le(0, 8); le(0, 4)
+        le(3, 2); le(62, 2); le(1, 4); le(start, 8); le(64, 8); le(0, 8); le(0, 4)
         le(64, 2); le(56, 2); le(2, 2); le(64, 2); le(0, 2); le(0, 2)
         le(1, 4); le(5, 4); le(0, 8); le(0, 8); le(0, 8); le(size, 8); le(size, 8); le(4096, 8)
         le(1, 4); le(6, 4); le(0, 8); le(rw, 8); le(rw, 8); le(0, 8); le(mem, 8); le(4096, 8)
@@ -40,10 +54,12 @@ check() {
         echo "FAIL $1 (compile)"; fail=1; return
     fi
     size=$(wc -c < "$out/bin")
-    LC_ALL=C awk -v size="$size" "$lib $2 BEGIN { init(); rw = int((size + 4095) / 4096) * 4096
-        header(MEM); code(); b(\"184 231 0 0 0 49 255 15 5\") }" > "$out/want"
-    ok=1
-    cmp -s "$out/want" "$out/bin" || ok=0
+    v="-v size=$size -v base=$base -v start=$start -v state=$state -v xit=$xit"
+    rw='rw = int((size + 4095) / 4096) * 4096'
+    LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; header(MEM + state) }" > "$out/want"
+    LC_ALL=C awk $v "$lib $2 BEGIN { init(); $rw; code(); b(\"49 192 233\"); r4(xit - size) }" > "$out/wantcode"
+    cmp -s -n 176 "$out/want" "$out/bin" && tail -c +$((base + 1)) "$out/bin" | cmp -s - "$out/wantcode"
+    ok=$((1 - $?))
     if [ -n "${AILC2:-}" ]; then
         timeout --signal=KILL $limit "$AILC2" < "$out/src" 2> /dev/null | cmp -s - "$out/bin" || ok=0
     fi
@@ -81,15 +97,15 @@ check bytes_buffer_addresses '
     function init() { K = 762600; MEM = 8 }
     function source(   i) { print "buf b 8"; for (i = 0; i < K; i++) print "set b as x" }
     function code(   i) { for (i = 0; i < K; i++) {
-        printf "%c%c%c", 72, 141, 29; r4(rw - (176 + 7 * i + 7)) } }'
+        printf "%c%c%c", 72, 141, 29; r4(rw - (base + 7 * i + 7)) } }'
 
 # the cell of a var, read and written: mov rax, [rip+rel32] / mov [rip+rel32], rax
 check bytes_var_cells '
     function init() { K = 762600; MEM = 8 }
     function source(   i) { print "var v"; for (i = 0; i < K; i++) print "set v as v" }
     function code(   i) { for (i = 0; i < K; i++) {
-        printf "%c%c%c", 72, 139, 5; r4(rw - (176 + 14 * i + 7))
-        printf "%c%c%c", 72, 137, 5; r4(rw - (176 + 14 * i + 14)) } }'
+        printf "%c%c%c", 72, 139, 5; r4(rw - (base + 14 * i + 7))
+        printf "%c%c%c", 72, 137, 5; r4(rw - (base + 14 * i + 14)) } }'
 
 # Calls compiled in place: f has four calls of h, which stands behind
 # them, and g calls f K times. The body of f goes in place of a call

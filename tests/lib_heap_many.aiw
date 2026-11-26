@@ -12,7 +12,7 @@ while i<50000
 	x=x*0x5851f42d4c957f2d+0x14057b7ef767814f
 	call heappush h x>>52 as r
 	ifz r
-		sys exit 1
+		rt exit 1
 	end
 	s+=x>>52
 	i+=1
@@ -25,7 +25,7 @@ i=0
 while i<50000
 	call heappop h as v r
 	ifz r&(v>=p)
-		sys exit 2
+		rt exit 2
 	end
 	p=v
 	t+=v
@@ -43,4 +43,4 @@ load h+16 as c
 call heappush h 4 as r
 call heappop h as v d
 call heapfree h
-sys exit a+c+r+d+v
+rt exit a+c+r+d+v

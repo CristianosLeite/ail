@@ -13,4 +13,4 @@ if a
 else
 	add r 16 as r
 end
-sys 60 r
+rt exit r

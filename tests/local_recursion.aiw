@@ -12,4 +12,4 @@ fn f n
 	ret 0
 end
 call f 5 as r
-sys 60 r
+rt exit r

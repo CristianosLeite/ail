@@ -60,4 +60,4 @@ call ndadd c c row as n
 call ndsize c as o
 call putn o
 call print "\n"
-sys exit r+s+t+u+v+w+y+z+b+d+f+g+h+l+m+n
+rt exit r+s+t+u+v+w+y+z+b+d+f+g+h+l+m+n

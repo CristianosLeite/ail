@@ -3,4 +3,4 @@ load b as v
 add b 56 as p
 load p as w
 add v w as v
-sys 60 v
+rt exit v

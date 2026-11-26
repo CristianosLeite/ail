@@ -1,0 +1,53 @@
+# reap whose signal the kernel refuses says so and leaves the child,
+# which a later reap takes with what it ended with: a filter of the
+# process makes pidfd_send_signal and kill fail with EPERM, a child
+# that ends by itself after a quarter of a second is given 20 ms, with
+# a descriptor of it and, with a limit of three open files, without
+const prctl 157
+const setrlimit 160
+buf filt 40
+buf prog 16
+buf ts 16
+buf lim 16
+# the number of the call; for those two the error 1, else it goes on
+store4 filt 32
+store4 filt+8 21+65536
+store4 filt+12 424
+store4 filt+16 21+16777216
+store4 filt+20 62
+store4 filt+24 6
+store4 filt+28 327681
+store4 filt+32 6
+store4 filt+36 2147418112
+store prog 5
+store prog+8 filt
+sys prctl 38 1 0 0 0 as r
+ifz r
+	sys prctl 22 2 prog 0 0 as r
+end
+if r
+	rt exit 99
+end
+store ts+8 250000000
+sys fork as p
+ifz p
+	sys nanosleep ts 0
+	rt exit 5
+end
+rt clock as t0
+rt reap p 20 as a
+rt clock as t1
+rt reap p 0 as b
+store lim 3
+store lim+8 3
+sys setrlimit 7 lim
+sys fork as p
+ifz p
+	sys nanosleep ts 0
+	rt exit 7
+end
+rt clock as t2
+rt reap p 20 as c
+rt clock as t3
+rt reap p 0 as d
+rt exit (a==-1)+(b==5)*2+(c==-1)*4+(d==7)*8+(t1-t0<200000000)*16+(t3-t2<200000000)*32

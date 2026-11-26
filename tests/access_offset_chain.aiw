@@ -5,4 +5,4 @@ sub q 2 as r
 add 6 r as s
 store4 s 3
 load4 s as x
-sys 60 x
+rt exit x

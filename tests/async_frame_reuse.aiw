@@ -27,4 +27,4 @@ r+=c!=d
 call asyncrun
 call async 64 0 as e
 r+=c==e
-sys exit_group r*100+x+y+z
+rt exit r*100+x+y+z

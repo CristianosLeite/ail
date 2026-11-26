@@ -13,9 +13,17 @@
 #
 # A local copy is seed/ailc-<version>, which git ignores. Earlier lines
 # stay, so that an older revision can still be built with its own seed.
+#
+# Seed 7 has in it the image of a runtime that a C compiler built at its
+# revision, and another C compiler may write other bytes. The release
+# keeps that image beside the seed as rt-7: make RT=<that file> at the
+# revision gives the seed again. From seed 8 on the runtime is AIL and
+# a seed is built from its revision alone.
 1 489efbf9c605048c6613535a532e296dd74d9f25 a3784aec1fc9739f8b46e5b0ba2db9135b8823211709029144a96c768ba52c57 https://github.com/CristianosLeite/ail/releases/download/seed-1/ailc-1
 2 c9104308c4394e11bffa2e793728db30eacff42d c2cb658cff091aeeb263e92ccf86923291d5cb666db676df29506df6cf959081 https://github.com/CristianosLeite/ail/releases/download/seed-2/ailc-2
 3 9cc44dd93a06e11dd7d73ddeecb4b29d68fcd81b 346a9f77fcbe1e27da8259ffcb66b569a48c04c2b38c77f350fb2d21b2f283e1 https://github.com/CristianosLeite/ail/releases/download/seed-3/ailc-3
 4 8314e2db28a1ccf7bf35c23541f365017dfa10a9 0361ccfbd1396fad6df3ec0e9a87a4629b795a9030f02e516887be72821689ee https://github.com/CristianosLeite/ail/releases/download/seed-4/ailc-4
 5 e8acf57d280d1e3093505d7b673763c9aecc7e8c 7008f286fcf36db2c50030839a102e8f47d7c837e5bc6906cf2e076b77ee0c37 https://github.com/CristianosLeite/ail/releases/download/seed-5/ailc-5
 6 f4f4004286e4f48a3f5ba7b1bdabd17fd6d11102 41f4c7b355dcd8955c77b0926ee175d81a997d73b5b84c927ef44915485343d7 https://github.com/CristianosLeite/ail/releases/download/seed-6/ailc-6
+7 ad3a34dc6cc182debffb95b38f1ff2cc68f6d1f7 31ee2e69bd8b90bcbf27ae88403ad613a33cc46b3e4a38b33b06d3817d6b5096 https://github.com/CristianosLeite/ail/releases/download/seed-7/ailc-7
+8 151ad7ee1c013a5a1079f3088e5975c7a877e591 83e336517250dabd8c699db242b62b40c428496ea2d99ed5f229cab11fbaaea9 https://github.com/CristianosLeite/ail/releases/download/seed-8/ailc-8

@@ -13,4 +13,4 @@ end
 call workers 2
 spawn fib 16 as h
 join h as x
-sys exit_group x==987
+rt exit x==987

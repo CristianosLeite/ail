@@ -59,4 +59,4 @@ call putn s+t+u+v+w
 call putn r+y+z
 call print "\n"
 call ndfree c
-sys exit_group 0
+rt exit 0

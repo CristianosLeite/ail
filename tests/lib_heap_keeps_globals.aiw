@@ -21,4 +21,4 @@ call heappeek b
 call heappop b
 call heappop b
 call heapfree b
-sys exit h+x+i+p+c+y+z+n+r
+rt exit h+x+i+p+c+y+z+n+r

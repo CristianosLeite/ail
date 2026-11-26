@@ -72,4 +72,4 @@ call dots 0 a b 7 1 2 3 4 0 as x
 store4 a+12 0x7f800001
 call dots 0 a b 7 1 2 3 4 0 as y
 r+=x+y
-sys exit r
+rt exit r

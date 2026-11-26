@@ -9,4 +9,4 @@ eq p q as e
 add x e as x
 free q
 free p
-sys 60 x
+rt exit x

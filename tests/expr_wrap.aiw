@@ -9,24 +9,24 @@ jne 1<<63>>63 1 f7
 jne 0-8/2 -4 f8
 jne 0xffffffffffffffff/2 9223372036854775807 f9
 jne 0xffffffffffffffff%10 5 f10
-sys exit 0
+rt exit 0
 label f1
-sys exit 1
+rt exit 1
 label f2
-sys exit 2
+rt exit 2
 label f3
-sys exit 3
+rt exit 3
 label f4
-sys exit 4
+rt exit 4
 label f5
-sys exit 5
+rt exit 5
 label f6
-sys exit 6
+rt exit 6
 label f7
-sys exit 7
+rt exit 7
 label f8
-sys exit 8
+rt exit 8
 label f9
-sys exit 9
+rt exit 9
 label f10
-sys exit 10
+rt exit 10

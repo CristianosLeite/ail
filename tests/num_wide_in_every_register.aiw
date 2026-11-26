@@ -13,4 +13,4 @@ fn f a b c d e g
 	ret a
 end
 call f 0x100000000 0x200000000 0x400000000 0x800000000 0x1000000000 0x2000000000 as r
-sys 60 r
+rt exit r

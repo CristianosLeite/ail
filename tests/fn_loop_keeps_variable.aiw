@@ -21,4 +21,4 @@ fn f
 	ret s
 end
 call f as r
-sys 60 r
+rt exit r

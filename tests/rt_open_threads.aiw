@@ -1,0 +1,71 @@
+# descriptors opened by many threads at once are all different: 48
+# threads wait for a word, awake, each opens the file of this program four
+# times and keeps the descriptors, and no two of all are the same
+buf go 8
+buf done 8
+buf path 16
+buf fds 1536
+fn work i
+	load path as p
+	load path+8 as n
+	# not asleep, so that all go on at the same moment
+	g=0
+	while g==0
+		load go as g
+	end
+	k=0
+	while k<4
+		rt open p n 0 0 as fd
+		store fds+(i*4+k)*8 fd
+		k+=1
+	end
+	xadd done 1 as d
+	rt wake done 1
+	# asleep until the program ends: under Wine a process that ends
+	# while its threads do may lose its status
+	label stay
+	rt sleep 1000000000
+	jmp stay
+end
+args as p
+load p+8 as me
+n=0
+label len
+loadb me+n as c
+if c
+	n+=1
+	jmp len
+end
+store path me
+store path+8 n
+ref work as f
+i=0
+while i<48
+	rt thread f i
+	i+=1
+end
+rt sleep 50000000
+store go 1
+d=0
+while d<48
+	rt wait done d 100000000
+	load done as d
+end
+bad=0
+i=0
+while i<192
+	load fds+i*8 as a
+	ifslt a 3
+		bad+=1
+	end
+	j=i+1
+	while j<192
+		load fds+j*8 as b
+		if a==b
+			bad+=1
+		end
+		j+=1
+	end
+	i+=1
+end
+rt exit bad!=0

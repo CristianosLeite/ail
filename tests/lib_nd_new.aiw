@@ -65,4 +65,4 @@ call ndnew a 9 sh as x
 load a+8 as y
 call show x+y
 call print "\n"
-sys exit r+t+u+v+w
+rt exit r+t+u+v+w

@@ -13,32 +13,32 @@ jne 6!=7 1 f11
 jne 6!=6 0 f12
 jne 0-1>1 1 f13
 jne (1<2)+(2<3) 2 f14
-sys exit 0
+rt exit 0
 label f1
-sys exit 1
+rt exit 1
 label f2
-sys exit 2
+rt exit 2
 label f3
-sys exit 3
+rt exit 3
 label f4
-sys exit 4
+rt exit 4
 label f5
-sys exit 5
+rt exit 5
 label f6
-sys exit 6
+rt exit 6
 label f7
-sys exit 7
+rt exit 7
 label f8
-sys exit 8
+rt exit 8
 label f9
-sys exit 9
+rt exit 9
 label f10
-sys exit 10
+rt exit 10
 label f11
-sys exit 11
+rt exit 11
 label f12
-sys exit 12
+rt exit 12
 label f13
-sys exit 13
+rt exit 13
 label f14
-sys exit 14
+rt exit 14

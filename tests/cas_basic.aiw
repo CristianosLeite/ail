@@ -7,4 +7,4 @@ load c as v
 shl yes 7 as yes
 add v yes as v
 add v no as v
-sys exit v
+rt exit v

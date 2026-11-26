@@ -3,4 +3,4 @@ sgt -9223372036854775808 9223372036854775807 as b
 sle 0 0 as c
 add a b as a
 add a c as a
-sys 60 a
+rt exit a

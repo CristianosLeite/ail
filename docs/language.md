@@ -12,7 +12,7 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 ## Program structure
 
-A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the syscall `exit_group` with status 0, which ends the whole process. A `sys exit` written in the program ends only the thread that runs it, which is the process when there is one thread; a program with other threads ends with `sys exit_group`.
+A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the service `exit` of the [runtime](#rt) with status 0, which ends the whole process, as `rt exit` written in the program does. A `sys exit` ends only the thread that runs it, which is the process when there is one thread.
 
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 
@@ -166,7 +166,7 @@ jslt fd 0 fail
 args as p
 ```
 
-Keeps in a variable the address of what the kernel passed to the program. At that address stands the number of arguments, 8 bytes; then one address for each argument, the first being the name the program was started with; then a zero; then one address for each environment string, and another zero. Every argument and environment string ends with a NUL byte.
+Keeps in a variable the address of what the program was started with, which the [runtime](#rt) noted at the start. At that address stands the number of arguments, 8 bytes; then one address for each argument, the first being the name the program was started with; then a zero; then one address for each environment string, and another zero. Every argument and environment string ends with a NUL byte.
 
 ```
 args as p
@@ -175,7 +175,65 @@ add p 8 as q
 load q as name          # address of the program's name
 ```
 
-`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/std/io.aiw`](#the-io-library) does that and offers `argc` and `argv`.
+`args` may stand anywhere, in a function too, and gives the same address each time; it is the service `args` of the runtime. [`lib/std/io.aiw`](#the-io-library) offers `argc` and `argv`.
+
+### `rt`
+
+```
+rt name a b c
+rt name a b c as x y
+```
+
+Calls a service of the runtime: what a program asks of the platform it runs on, by a name that is the same on every platform, where [`sys`](#sys) is a system call of x86-64 Linux by its number. The runtime is code that the compiler compiles into every executable; [runtime.md](runtime.md) describes it and each service. `name` is one of the names below and is a name only in that place: a variable, a `const` or a function of the program may be called the same. The values are [arguments](#arguments) like those of a `call`, a string being two, its address and its length. Their number is checked (`wrong operand count`), as is the number of names after `as`, which is optional and takes at most as many names as the service has results (`wrong result count`); a name that is no service is an `unknown service`.
+
+| Service | Values | Result |
+|---|---|---|
+| `exit` | status | none: ends the process with every thread |
+| `args` | | the address [`args`](#args) gives |
+| `alloc` | size | the address [`alloc`](#alloc-and-free) gives, or 0 |
+| `free` | address | none |
+| `open` | address and length of a path, flags, mode | a descriptor, or an error |
+| `close` | descriptor | 0, or an error |
+| `read` | descriptor, address, size | the bytes read, 0 at the end, or an error |
+| `write` | descriptor, address, size | the bytes written, or an error |
+| `pipeerr` | | 0, or an error; a `write` to a closed pipe is the error -32 from now on, not the end of the process |
+| `mkdir` | address and length of a path, mode | 0, or an error (-17 if it is there) |
+| `unlink` | address and length of a path | 0, or an error: the file is removed |
+| `rmdir` | address and length of a path | 0, or an error (-39 if it is not empty): the empty directory is removed |
+| `rename` | address and length of a path, and of another | 0, or an error: the file has the second path, in place of a file that had it |
+| `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error |
+| `clock` |  | nanoseconds of the clock that only goes forward, since a moment that is the same for the whole run |
+| `sleep` | nanoseconds | 0, or the error -4 of a wait that ended early |
+| `wait` | address, value, nanoseconds or -1 | 0 after a `wake`, -11 if the four bytes at the address were not the value, -110 after the time, -4 |
+| `wake` | address, number | how many threads that sleep in a `wait` of the address were woken, at most the number |
+| `cpus` |  | the processors the process may run on, at least 1 |
+| `thread` | address of a function, value | 0, or an error: a thread calls the function with the value and ends when it returns |
+| `poller` |  | a poller, which tells which of the descriptors it watches may be read or written without waiting, or an error. It is closed with `close` |
+| `watch` | poller, descriptor, 1 to read, 2 to write or 3, tag | 0, or an error, -1 for a plain file |
+| `unwatch` | poller, descriptor | 0, or an error |
+| `poll` | poller, address, most events (up to 64), milliseconds or -1 | the number of events at the address, 16 bytes each (what, tag), or an error |
+| `waker` |  | a descriptor that a poller watches to read and that `wakeup` makes ready from any thread, or an error |
+| `wakeup` | waker | 8, or an error |
+| `listen` | IPv4 address as a number (0 for every address), port (0 for any), most connections that wait | a socket that listens and does not wait, or an error |
+| `accept` | socket that listens | the next connection, a socket that does not wait; -11 if there is none now |
+| `socket` |  | a socket for a stream that does not wait, or an error |
+| `connect` | socket, IPv4 address, port | 0, or -115 while it goes on: the socket may be written when it is done and `sockerr` says how it ended |
+| `sockerr` | socket | 0, or the error the socket has to report |
+| `port` | socket | its port, or an error |
+| `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
+| `writeq` | descriptor, address, size | the bytes written, or an error, -32 for a pipe nobody reads |
+| `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error |
+| `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child, or another thread waits for it; an error if it could not be killed |
+| `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
+
+An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
+
+```
+rt write 1 "hello\n" as n
+rt exit n!=6
+```
+
+A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable. Names that start with `rt_` are those of the runtime, which is AIL source compiled with every program ([runtime.md](runtime.md)), so that a short service is compiled in place of its call: a program defines no function, global name or variable with such a name. The statement `stack p`, which stores the stack pointer at an address and is allowed at top level only, is for the first line of that source.
 
 ### `set` and arithmetic
 
@@ -692,7 +750,7 @@ alloc size as p
 free p
 ```
 
-`alloc` asks the kernel for `size` bytes of memory at run time and keeps their address in a variable, or 0 if the kernel refuses. The bytes are zero-filled and the address is a multiple of 16. `free` gives back what one `alloc` returned; `free 0` does nothing. After `free` the address must not be used again.
+`alloc` asks the [runtime](#rt) for `size` bytes of memory at run time and keeps their address in a variable, or 0 if there are none to be had. The bytes are zero-filled and the address is a multiple of 16. `free` gives back what one `alloc` returned; `free 0` does nothing. After `free` the address must not be used again.
 
 ```
 alloc n as p
@@ -701,7 +759,27 @@ jz p fail
 free p
 ```
 
-Each `alloc` is a memory mapping of its own (`mmap` and `munmap`, with 16 bytes in front for the length), so it costs a system call and at least a page: use it for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
+The two statements are the services `alloc` and `free` of the runtime. A block of up to 32 KiB less 16 bytes is one of 39 sizes, cut from memory the runtime takes from the kernel 256 KiB at a time and never gives back; a block that is freed is the next of its size to be given out, with zeros in it again, so an `alloc` and its `free` cost what `calloc` and `free` cost in C and no system call. A larger block is a memory mapping of its own, given back by `free`. Tasks of [`spawn`](#tasks) may allocate and free at the same time; a thread that a program makes with `sys clone` itself may not. Use `alloc` for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
+
+### `ccall` and `base`
+
+```
+ccall f a n
+ccall f a n as x
+base as p
+```
+
+`ccall` calls the function at the address `f` by the convention that C has on the platform: the `n` values are 8 bytes each at the address `a`, the stack is at a multiple of 16, and the result of the function is kept with `as`. It is how the runtime calls code that is not AIL: a function of the kernel's page on Linux, the functions of the system on Windows. On x86-64 Linux six values are passed whatever `n` is, so the address has 48 bytes that can be read. [`callp`](#functions) calls a function of AIL.
+
+`base` keeps the address the executable is loaded at, where the first byte of its file is. Both may stand anywhere.
+
+### `zero`
+
+```
+zero p n
+```
+
+Makes the `n` bytes at the address `p` zero, by the string instruction of the processor (`rep stosb`): for more than about a hundred bytes it is faster than a loop of stores, and below that a loop is. No `as`; nothing is checked.
 
 ### `var`
 
@@ -946,7 +1024,7 @@ What the language offers against mistakes is therefore local and explicit:
 
 - the compiler rejects an access it can prove wrong ([`load` and `store`](#load-and-store)) and a read of a variable that may be unassigned ([control flow](#control-flow));
 - [`at`](#at) checks an offset at run time where the program asks for it;
-- the lifetime of storage follows from how it was obtained: a `buf` and `data` live as long as the program, a [`local`](#local) until its function returns, and an [`alloc`](#alloc-and-free) until its `free`, after which the memory is unmapped and a use of it faults instead of reading stale bytes, unless a later `alloc` was given the same pages.
+- the lifetime of storage follows from how it was obtained: a `buf` and `data` live as long as the program, a [`local`](#local) until its function returns, and an [`alloc`](#alloc-and-free) until its `free`, after which the memory is that of a later `alloc` of the same size, or for a block of 32 KiB or more is unmapped, so that a use of it faults.
 
 There is no ownership or borrow checking. A function receives addresses as plain values and may keep them; a syscall receives them the same way.
 
@@ -1006,7 +1084,7 @@ call print p n
 call print "\n"
 ```
 
-A string literal is the two values that `print` takes. The library defines the var `ioargp` besides its functions, and no other global name. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, and no variable named `ioargp`, which would write the library's.
+A string literal is the two values that `print` takes. The library defines no global name besides its functions, has no line that runs where the `use` stands, and asks the [runtime](#rt) for everything it does, so it is the same on every platform. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function.
 
 ## The bytes library
 
@@ -1048,7 +1126,7 @@ call print p n
 | `fileread p n b` | adds the bytes of the file at the path to the buffer `b`; returns their number |
 | `filereadfd fd b` | the same from an open descriptor, up to the end of the file; the descriptor stays open |
 | `filewrite p n d dn` | makes the file at the path hold the `dn` bytes at `d` and nothing else, creating it with mode 0666 less the umask; returns 0 |
-| `fileopen p n flags mode` | opens the path with the flags and mode of the `open` syscall, plus close-on-exec; returns the descriptor, which the caller closes |
+| `fileopen p n flags mode` | opens the path with the flags and mode of the service [`open`](#rt), plus the flag that closes it in a program the process starts; returns the descriptor, which the caller closes |
 | `filemkdir p n mode` | makes the directory at the path, with the mode less the umask; returns 0 |
 | `fileunlink p n` | removes the file at the path; returns 0 |
 | `filermdir p n` | removes the empty directory at the path; returns 0 |
@@ -1068,7 +1146,7 @@ load b as q
 call filewrite "copy" q r
 ```
 
-- **Errors**: a result below zero is the error number of the kernel, negated: -2 no such file, -13 not allowed, -21 a directory, -17 there already, -39 a directory that is not empty, -12 no memory, -36 a path of 4096 bytes or more. Test it with a signed comparison (`ifslt r 0`). After a failed `fileread` the buffer holds what was read until then; after a failed `filewrite` the file may hold a part. A call interrupted by a signal is repeated.
+- **Errors**: a result below zero is the error of the [runtime](#rt), which the library asks for everything: -2 no such file, -13 not allowed, -21 a directory, -17 there already, -39 a directory that is not empty, -12 no memory, -36 a path of 4096 bytes or more. Test it with a signed comparison (`ifslt r 0`). After a failed `fileread` the buffer holds what was read until then; after a failed `filewrite` the file may hold a part. A call interrupted by a signal is repeated.
 - **Descriptors**: `fileread` and `filewrite` close what they open, on every way out. `fileopen` and `filereadfd` leave that to the caller.
 - **Growth**: `fileread` and `filereadfd` grow the buffer as `byadd` does, 64 KiB of room at a time, so an address into it is not good afterwards.
 - **Names**: the library owns every name that starts with `file`; a program has no `var` of such a name.
@@ -1832,12 +1910,12 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `args` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `stack` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys`; an `rt` with another number of values than its service takes |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -1846,12 +1924,13 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
+| `unknown service` *name* | 1 | an [`rt`](#rt) whose name is no service of the runtime, or a service that the runtime of the platform the compiler writes for does not have |
 | `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/std/task.aiw`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
-| `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |
+| `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it, or for Windows exceed 0x77000000 bytes, the largest image Windows loads |
 | `cannot read file` *path* | 1 | the path of a `use` cannot be opened or read; the path is the one that was opened, with the directory of its [package](#packages) |
 | `unknown package` *name* | 1 | a `use` of `name:path` when no argument of the compiler names that package |
 | `source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes); no place |
@@ -1859,6 +1938,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `usage: ailc [name=directory]... < source > executable` | 2 | an argument of the compiler that names no [package](#packages), or a name given twice; no place |
 | `read error` | 2 | reading stdin failed; no place |
 | `write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included; no place |
+| `no memory` | 2 | the compiler did not get the memory it asks for when it starts, 484937472 bytes for the names of the program; no place |
 
 What remains a plain `syntax error`:
 

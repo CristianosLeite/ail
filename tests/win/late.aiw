@@ -1,0 +1,16 @@
+# a program that after a second and a half makes the file its argument
+# names, for the test of a child that is held: one that was ended
+# before makes no file
+args as p
+load p+16 as file
+n=0
+label len
+loadb file+n as c
+if c
+	n+=1
+	jmp len
+end
+rt sleep 1500000000
+rt open file n 0x241 0 as f
+rt close f
+rt exit 0

@@ -5,4 +5,4 @@ fn f
 	ret d
 end
 call f as r
-sys 60 r
+rt exit r

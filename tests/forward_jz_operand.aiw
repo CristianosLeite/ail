@@ -1,5 +1,5 @@
 jz b bad
-sys 60 2
+rt exit 2
 label bad
-sys 60 1
+rt exit 1
 buf b 8

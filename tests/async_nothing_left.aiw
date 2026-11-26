@@ -20,4 +20,4 @@ call async 64 p as h
 call await h 0
 a=a*10+inner+35
 call await 0 0 as x r
-sys exit_group a*10+x+r
+rt exit a*10+x+r

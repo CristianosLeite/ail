@@ -9,4 +9,4 @@ ref poll as p
 call async 72 p as h
 store h+64 21
 call await h 0 as x r
-sys exit_group x+r
+rt exit x+r

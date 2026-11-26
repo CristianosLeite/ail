@@ -54,7 +54,7 @@ fn fact n
 	ret r
 end
 fn say n
-	sys write 1 "say "
+	rt write 1 "say "
 	ret n+1
 end
 fn inner a

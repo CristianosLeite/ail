@@ -7,4 +7,4 @@ shr -16 2 as c
 ne c -4 as z
 add x y as x
 add x z as x
-sys 60 x
+rt exit x

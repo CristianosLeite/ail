@@ -16,4 +16,4 @@ while i
 	join h as x
 	s+=x
 end
-sys exit_group s%251
+rt exit s%251

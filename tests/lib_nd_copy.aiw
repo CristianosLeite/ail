@@ -8,6 +8,8 @@ buf v 176
 buf c 176
 buf e 176
 buf sh 24
+# 176 bytes of zeros are no array
+buf none 176
 fn show d
 	call ndsize d as n
 	load d as p
@@ -72,11 +74,11 @@ call show e
 call ndslice e e 0 1 1 1 as z
 call ndcopy e e as b
 call ndsize e as n
-call ndcopy c sh+16 as d
+call ndcopy c none as d
 call putn n+d
 call print "\n"
 call ndfree a
 call ndfree v
 call ndfree c
 call ndfree e
-sys exit r+s+t+u+h+k+l+w+x+y+z+b
+rt exit r+s+t+u+h+k+l+w+x+y+z+b

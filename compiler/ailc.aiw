@@ -95,6 +95,18 @@ const lalign 64
 var nhn hbkt scope nscope snh
 # rwstart = where the writable segment starts in the image, known in fin
 var rwstart
+# the service of the runtime that the statement at hand calls: the number
+# of its entry, its values and its results
+var rte rta rtr
+# rtu = the unit that is the runtime, while it is compiled; rtt = 1 once
+# the source behind the program is being compiled; rtck = not 0 in a
+# statement that became a call of a function of the runtime: 1, plus 1
+# if it must have "as" and 2 if it may not; callrow = the row of call
+var rtu rtt rtck callrow
+# what the services called so far need of the state of the runtime: 2
+# the state, 1 also the stack the process starts with; rtbss = the bytes
+# of the buffers before those of the runtime
+var rtuse rtbss
 # expressions: the nodes, values and operators of the one being parsed, and
 # whether it divides or shifts
 var nex nexv nexs exdm exsh
@@ -138,9 +150,21 @@ var epos ename enamel mainend curunit
 # out 16 times as much (see OUTSZ in stage0), and each table one entry for
 # every shortest line that makes one
 const inmax 8388609
-buf in inmax
+# The runtime is source that the compiler carries (rtsrc and rttail, from
+# build/rt/source.aiw) and compiles with every program, the first in
+# front of it and the second behind it. Their text stands in the 64 KiB
+# behind the room of the source, and each table that keeps entries to
+# the end has room for theirs beyond what the source limit gives: 16
+# files, 1024 functions, tails, checked accesses and 64 runs of data,
+# 4096 calls, uses of names and nodes, 256 global names.
+const insz 8454145
+buf in insz
+# per entry of the runtime: 1 + the function of rt.aiw that is the
+# service
+buf rtfn 512
+buf rtnm 40         # the name of such a function, "rt_" and the service
+buf rtfl 64         # per entry: what the service needs of the state (see rtnames)
 buf out 134217728
-buf sig 32          # struct sigaction
 buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
 buf topcell 512     # per top-level variable after the sixth: the address of its cell
 buf vfirst 512      # per variable of the function: where the source defines it,
@@ -167,54 +191,59 @@ buf awts 8388616      # 1048577 awaits of the function ("await a", 8 bytes): whe
 # the names after "as"
 buf loops 22369632    # 1398102 backward jumps of the function: where the source has
 # the label, and the jump
-buf globs 201326640   # 4194305 global names of 48 bytes: name, length, address, size or
+buf globs 201338928   # 4194305 global names of 48 bytes: name, length, address, size or
 # value, kind (0 buffer or data, 1 var, 2 const), 1 + run of data
 buf opd 96          # what is known of the first two values of the statement, 32 bytes
 # each: kind (1 number, 2 name plus number, 3 string), then the
 # number, or name, length and number; a third entry is scratch
 buf vk 2048         # the same per variable of the current scope
-buf chks 50331680     # 1048577 loads and stores through a known name, and 524288 more
+buf chks 50364448     # 1048577 loads and stores through a known name, and 524288 more
 # for bodies compiled in place, 32 bytes: name,
 # length, offset, width + 256 for a store
-buf runend 7456544    # per run of data statements: the address after its last byte
+buf runend 7457056    # per run of data statements: the address after its last byte
 buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 that jumps past
 # the block, asg, and (4 bytes each) 1 for an else part and dead
 # at its end (for a while, the number of variables at its head),
 # and for a while the address of its first line and the place of
 # its value in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
-buf hnodes 484675328 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
+# 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
 # yet defined, length, next node, scope, index in the table of
 # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
-# label with jumps but no definition yet)
-buf ustart 9586984  # per file of use: where its bytes start,
-buf uendp 9586984   # and end
-buf ucur 9586984    # per use being compiled: curunit outside it
+# label with jumps but no definition yet). They are the largest
+# table and no buffer: hnodes is the address of hnsz bytes that the
+# compiler asks for when it starts, so that its image stays below
+# the 0x77000000 bytes above which Windows loads none
+const hnsz 484937472
+var hnodes
+buf ustart 9587112  # per file of use: where its bytes start,
+buf uendp 9587112   # and end
+buf ucur 9587112    # per use being compiled: curunit outside it
 buf numbuf 24       # a line number in decimal
-buf uses 19173968     # 1198373 files compiled through use, 16 bytes: path as written, length
-buf ustack 19173968   # per use being compiled: where its line ended, and the end of
+buf uses 19174224     # 1198373 files compiled through use, 16 bytes: path as written, length
+buf ustack 19174224   # per use being compiled: where its line ended, and the end of
 # the unit that has it
 buf pathbuf 4096    # the path of a use, with a NUL for open
 buf pkgs 8192       # 256 packages of 32 bytes: name, length, directory, length
-buf upkg 9586984    # per file of use: its package, counted from 1, or 0 for a file
+buf upkg 9587112    # per file of use: its package, counted from 1, or 0 for a file
 # that is read from the working directory
 buf lback 1048577    # a byte for each label: a jump of the first pass went back to it
 buf labs 41943080     # 1048577 labels of 40 bytes: name, length, address in out, place in the
 # source, variables assigned on every way to it
 buf fixs 44739264     # 1398102 jumps of 32 bytes: label name, length, rel32 address,
 # variables assigned at the jump
-buf funs 37282720     # 932068 functions of 40 bytes: name, length, entry, parameters, then
+buf funs 37323680     # 932068 functions of 40 bytes: name, length, entry, parameters, then
 # (4 bytes each) results, 0 for a function with a tail and no ret
 # until fin knows, and the head of the list of the tails to it
-buf finl 44739264     # per function, 48 bytes: where its parameters are in the source
+buf finl 44788416     # per function, 48 bytes: where its parameters are in the source
 # if its calls are compiled in place, else 0, its variables,
 # which of them it assigns, and how many entries its body adds to
 # calls, refs and chks
-buf tails 9586984     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
+buf tails 9595176     # 1198373 tails of 8 bytes ("tail a", 7 bytes): the function it
 # stands in and the next tail to the same function, as index + 1
-buf tailq 3728272     # 932068 functions of 4 bytes whose results are known and not yet
+buf tailq 3732368     # 932068 functions of 4 bytes whose results are known and not yet
 # passed on
-buf calls 100663360    # 2097154 calls of 32 bytes, and 1048576 more for bodies compiled in
+buf calls 100794432    # 2097154 calls of 32 bytes, and 1048576 more for bodies compiled in
 # place: name, length, rel32 address, then two
 # 4-byte counts: values (all ones for ref) and names after "as",
 # or for a tail its function with the bit 31 set;
@@ -225,12 +254,13 @@ buf exs 8388609      # and as many operators or open parentheses, a byte each
 buf xrows 128        # the rows of the statements of the sixteen operators
 buf exnm 8           # the name of a statement that compares and jumps
 buf caps 96         # the names after "as": 0 and a variable, or 1 and the cell of a var
-buf refs 201326624    # 4194305 uses of a name not declared yet, and 2097152 more for
+buf refs 201457696    # 4194305 uses of a name not declared yet, and 2097152 more for
 # bodies compiled in place, 32 bytes: name, length,
 # imm32 address, 0 for its address or 1 for its length
 
 # ---- the functions are files of their own, compiled here in this order:
 # errors, input, tables of names, expressions and their code, output
+use "target:target.aiw"
 use "lib/std/num.aiw"
 use "compiler/diag.aiw"
 use "compiler/lex.aiw"
@@ -240,8 +270,11 @@ use "compiler/expr.aiw"
 use "compiler/emit.aiw"
 
 # ---- start: a closed output pipe must be a write error, not a death
-store sig 1
-sys rt_sigaction 13 sig 0 8
+rt pipeerr
+alloc hnsz as hnodes
+ifz hnodes
+	call enomem
+end
 args as p
 call pkargs p
 p=in
@@ -251,7 +284,7 @@ r=q-p
 ifz r
 	call ebig
 end
-sys read 0 p r as r
+rt read 0 p r as r
 if r
 	if r>inmax
 		call erd
@@ -264,7 +297,21 @@ srcend=p
 mainend=p
 ip=in
 op=out
-call cp hdr 176
+call tstart
+# the runtime is compiled first, behind the header, the program behind it
+call rtinit
+load4 rtsrcn as r
+load4 rttailn as c
+call mv rtsrc in+inmax r
+call mv rttail in+inmax+r c
+if r
+	store ucur 0
+	store ustack ip
+	store ustack+8 ie
+	nustk=1
+	call rtunit in+inmax r
+	rtu=curunit
+end
 
 # ---- statement
 label next
@@ -315,8 +362,11 @@ if f==255
 	jeq d 9 usedef
 	jeq d 10 elsedef
 	jeq d 12 asydef
+	jeq d 13 ccdef
+	jeq d 14 basedef
 	jmp whiledef
 end
+label stmt
 cur=r
 ai=0
 ncap=0
@@ -383,7 +433,25 @@ if f&16
 	cl=nl
 	jmp tokend
 end
+loadb cur+2 as d
+if d&128
+	# a service: a call of its function if the runtime in AIL has one
+	ifz f&4
+		loadb cur+4 as rte
+		loadb cur as rta
+		rtr=f&1
+		call rtcall f&3
+		jmp arg
+	end
+	call rtname
+	call rtcall 0
+	jmp tokend
+end
 jz f&4 arg
+# sys on a platform that has no system calls
+ifz tsys
+	call estmt
+end
 call pk as c
 call low c as d
 jz d num
@@ -412,6 +480,24 @@ asg=wasg
 dead=0
 jmp be3
 
+# "ccall <function> <address> <count> [as <name>]": a call by the
+# convention of the platform, whose code is the row of the target
+label ccdef
+r=tccrow
+loadb r+1 as f
+jmp stmt
+
+# "base as <name>": the address the executable is loaded at, which is
+# where its first byte is: lea rax, [rip+rel32] back to it
+label basedef
+call eb 72
+call eb 141
+call eb 5
+call e4 out-op-4
+r=rowas
+loadb r+1 as f
+jmp stmt
+
 # "<name>=<expression>" and "<name><operator>=<expression>"
 label asgn
 call exasn d-2
@@ -419,9 +505,24 @@ jmp next
 
 # the end of a unit of source: go on after the use that named it, or finish
 label uend
-jz nustk fin
+ifz nustk
+	# the source of the program has ended: what the runtime declares
+	# behind it, once
+	jnz rtt|infn|nblk fin
+	rtt=1
+	rtbss=bsssz
+	load4 rtsrcn as r
+	load4 rttailn as c
+	jz c fin
+	call rtunit in+inmax+r c
+	jmp next
+end
 if infn
 	call eend
+end
+if curunit==rtu
+	rtu=0
+	call rtready
 end
 nustk-=1
 load nustk*8+ucur as curunit
@@ -481,7 +582,7 @@ store nuses*8+upkg d
 nuses+=1
 epos=ns
 call pkpath d
-sys open pathbuf 0 0 as f
+rt open pathbuf pathl 0 0 as f
 ifslt f 0
 	call euse
 end
@@ -491,7 +592,7 @@ q=in+inmax-srcend
 ifz q
 	call ebig
 end
-sys read f srcend q as c
+rt read f srcend q as c
 ifslt c 0
 	call euse
 end
@@ -499,7 +600,7 @@ if c
 	srcend+=c
 	jmp u4
 end
-sys close f
+rt close f
 epos=0
 p=nuses*8
 store p+ustart-8 r
@@ -542,6 +643,9 @@ end
 call crlf
 label a1
 jnz wend wclose
+if rtck
+	call rtend 0
+end
 loadb cur+1 as f
 if f&8
 	call emlab
@@ -815,10 +919,13 @@ jeq c 35 cp4
 loadb cur+1 as d
 jnz d&16 cp0
 loadb cur+2 as d
-jnz d&4 cp0
+jnz d&132 cp0
 call err
 label cp4
 call eol
+if rtck
+	call rtend 1
+end
 if xst
 	if xst==4
 		call xmload
@@ -877,6 +984,11 @@ r=r+7>>3<<3
 q=bsssz
 r+=q
 if r>0x7fffffff
+	# the state of the runtime no longer fits behind the buffers of the
+	# program: no line of the program is at fault
+	if rtt
+		epos=-1
+	end
 	call ebuf
 end
 bsssz=r
@@ -1486,7 +1598,11 @@ end
 if nblk
 	call eend
 end
-call cp exit0 9
+call cp exit0 3
+load rtfn+8 as r
+call ok r
+load r*40+funs-24 as r
+call e4 r-op-4
 rwstart=op-out+4095>>12<<12
 call resolve
 call tailres
@@ -1620,18 +1736,36 @@ while r
 end
 epos=-1
 q=op-out
-store out+96 q
-store out+104 q
-store out+136 rwstart
-store out+144 rwstart
 c=ngv*8+bsssz
-store out+160 c
-if c+rwstart>0x7fffffff
+# The first line of the runtime keeps the stack the process starts
+# with. If no service that reads it is called it does nothing instead,
+# and if no service has anything in the state of the runtime, the last
+# of the buffers, the segment ends before it: a program that keeps
+# nothing in memory has no writable segment, as before the runtime.
+ifz rtuse&1
+	p=out+thdrn
+	r=tbootn
+	while r>9
+		call mv nops+36 p 9
+		p+=9
+		r-=9
+	end
+	if r
+		call mv r*(r-1)/2+nops p r
+	end
+end
+ifz rtuse|tstate
+	if rtt
+		c=ngv*8+rtbss
+	end
+end
+call tfin q rwstart c as q
+if c+rwstart>tmax
 	call ebuf
 end
 p=out
 label w1
-sys write 1 p q as c
+rt write 1 p q as c
 ifz c-1<q
 	call ewr
 end
@@ -1642,3 +1776,4 @@ jnz q w1
 # ---- the read-only tables are a file of their own, compiled here: a data
 # name may be declared after its uses
 use "compiler/tables.aiw"
+use "rt:source.aiw"

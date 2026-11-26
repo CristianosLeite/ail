@@ -1,0 +1,58 @@
+# one child and eight threads that reap it at once: one of them takes it
+# and gets its status, and it is no child to the seven others, nor to a
+# reap after all of them. This program, started again with an argument,
+# is that child. The threads stay until the process ends: under Wine a
+# thread that returns while the process exits can give its 0 as the
+# status of the process
+data mark "child" 0
+buf argv 24
+buf io 24
+buf res 64
+buf done 8
+buf hold 8
+var kid
+fn work i
+	rt reap kid 0 as r
+	store res+i*8 r
+	xadd done 1 as o
+	rt wake done 1
+	while 1
+		rt wait hold 0 -1
+	end
+end
+args as p
+load p as n
+load p+8 as me
+if n>1
+	rt sleep 100000000
+	rt exit 42
+end
+store argv me
+store argv+8 mark
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+set c as kid
+ref work as f
+i=0
+while i<8
+	rt thread f i
+	i+=1
+end
+load done as d
+while d<8
+	rt wait done d -1
+	load done as d
+end
+got=0
+none=0
+i=0
+while i<8
+	load res+i*8 as r
+	got+=r==42
+	none+=r==-1001
+	i+=1
+end
+rt reap c 0 as e
+rt exit (got==1)+(none==7)*2+(e==-1001)*4

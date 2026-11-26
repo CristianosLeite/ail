@@ -18,7 +18,7 @@
 #   64  next and 72 previous task of the queue; 64 also links free records
 #
 # The state of the pool is the buffer taskq, every cell written under the
-# lock except the two that a futex sleeps on:
+# lock except the two that a wait of the runtime sleeps on:
 #    0  lock: 0 free, 1 held, 2 held and someone asleep on it
 #    8  count of the tasks ever queued, on which idle workers sleep
 #   16  first and 24 last task waiting
@@ -29,7 +29,7 @@
 #   72  free records, which come in blocks and are never given back
 buf taskq 80
 
-# take the lock: after a few tries, asleep in the kernel while another
+# take the lock: after a few tries, asleep in a wait while another
 # thread holds it. The lock is held for a few instructions, so a try
 # mostly succeeds where a sleep would cost two system calls.
 fn tasklock
@@ -41,7 +41,7 @@ fn tasklock
 	end
 	label taska
 	cas taskq 1 2 as taskk
-	sys futex taskq 128 2 0
+	rt wait taskq 2 -1
 	cas taskq 0 2 as taskk
 	jz taskk taska
 	label taskx
@@ -52,7 +52,7 @@ fn taskunlock
 	xadd taskq -1 as tasks
 	if tasks!=1
 		store taskq 0
-		sys futex taskq 129 1
+		rt wake taskq 1
 	end
 end
 
@@ -66,22 +66,9 @@ fn workers taskn
 	call taskunlock
 end
 
-# the processors this process may run on; 1 if the kernel does not say
+# the processors this process may run on; 1 if the platform does not say
 fn taskcpus
-	local taskm 128
-	sys sched_getaffinity 0 128 taskm as taskr
-	if taskr>128
-		ret 1
-	end
-	taskc=0
-	while taskr
-		taskr-=1
-		loadb taskm+taskr as taskb
-		while taskb
-			taskb&=taskb-1
-			taskc+=1
-		end
-	end
+	rt cpus as taskc
 	ret taskc
 end
 
@@ -118,7 +105,7 @@ fn taskrun taskt
 	cas taskt 1 2 as taskk
 	ifz taskk
 		store taskt 2
-		sys futex taskt 129 1
+		rt wake taskt 1
 	end
 end
 
@@ -134,7 +121,7 @@ fn taskwork
 		load taskq+40 as taski
 		store taskq+40 taski+1
 		call taskunlock
-		sys futex taskq+8 128 tasks 0
+		rt wait taskq+8 tasks -1
 		call tasklock
 		load taskq+40 as taski
 		store taskq+40 taski-1
@@ -146,31 +133,13 @@ fn taskwork
 	jmp tasktop
 end
 
-# start a worker: a thread on a stack of 8 MiB whose lowest page is closed
-# before the thread exists, so that a task that needs more faults. 1 if it
-# runs, 0 if the kernel refused the memory, the closed page or the thread;
-# the stack is given back then. The stack is a mapping of its own and not
-# an alloc, whose length would stand in the closed page. The new thread
-# comes out of clone on the new stack with the registers of this one, so
-# nothing between the clone and the call of taskwork may be kept in the
-# frame: this function has two variables, which have registers.
+# start a worker, a thread of the runtime that runs taskwork: 1 if it
+# runs, 0 if the platform refused it. Its stack is 8 MiB with a closed
+# page under it, so that a task that needs more faults.
 fn taskstart
-	sys mmap 0 8388608 3 0x22 -1 0 as tasks
-	if tasks>-4096
-		ret 0
-	end
-	sys mprotect tasks 4096 0 as taskr
-	ifz taskr
-		sys clone 0x50f00 tasks+8388608 0 0 0 as taskr
-		ifz taskr
-			call taskwork
-		end
-		if taskr<-4095
-			ret 1
-		end
-	end
-	sys munmap tasks 8388608
-	ret 0
+	ref taskwork as taskp
+	rt thread taskp 0 as taskr
+	ret taskr==0
 end
 
 # 819 free records in one block of 64 KiB from alloc, linked; 0 if there
@@ -253,7 +222,7 @@ fn spawn taskp taska taskb taskc taskd taske
 	call taskput taskt as taskw
 	call taskunlock
 	if taskw==1
-		sys futex taskq+8 129 1
+		rt wake taskq+8 1
 	end
 	if taskw==2
 		call taskstart as taskk
@@ -290,7 +259,7 @@ fn join taskt
 	load taskt as tasks
 	if tasks!=2
 		cas taskt 1 3 as taskk
-		sys futex taskt 128 3 0
+		rt wait taskt 3 -1
 		jmp taskw
 	end
 	label taskdone

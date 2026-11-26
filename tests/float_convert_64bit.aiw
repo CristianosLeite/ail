@@ -5,4 +5,4 @@ itof -0x100000000 as b
 eq b 0xc1f0000000000000 as y
 shl y 1 as y
 or x y as x
-sys exit x
+rt exit x

@@ -2,11 +2,11 @@
 x=4
 y=5
 jeq x+1 y a
-sys exit 1
+rt exit 1
 label a
 ifgt x*y 19
 	jz x-4 b
 end
-sys exit 2
+rt exit 2
 label b
-sys exit 0
+rt exit 0

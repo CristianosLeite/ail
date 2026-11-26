@@ -44,4 +44,4 @@ call work 1 2 as p
 call work 10 3 as q
 call await q 0 as y
 call await p 0 as x
-sys exit_group x*16+y
+rt exit x*16+y

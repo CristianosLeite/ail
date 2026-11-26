@@ -50,4 +50,4 @@ r+=x==0x400921fb60000000
 # than registers
 call wide 0xc0200000 1 2 3 4 5 as x
 r+=x==0xc004000000000000
-sys exit r
+rt exit r

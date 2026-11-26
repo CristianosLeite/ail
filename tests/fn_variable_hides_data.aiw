@@ -6,4 +6,4 @@ end
 call f 1 as x
 loadb d as y
 add x y as x
-sys 60 x
+rt exit x

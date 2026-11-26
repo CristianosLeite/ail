@@ -37,4 +37,4 @@ call jsonmember x+1 x+y
 call jsonstr o "\x22\x5cu00e9\x5ct\x22"
 call jsonadds o "\x01\x22\x0a"
 call jsonaddi o 0-5
-sys exit a+an+b+c+d+e+end+hi+i+k+kn+lo+m+n+obj+ok+p+q+r+s+t+v+vn+w+j
+rt exit a+an+b+c+d+e+end+hi+i+k+kn+lo+m+n+obj+ok+p+q+r+s+t+v+vn+w+j

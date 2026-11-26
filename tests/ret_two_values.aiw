@@ -7,4 +7,4 @@ end
 call divmod 47 5 as q r
 mul q 10 as q
 add q r as q
-sys 60 q
+rt exit q

@@ -22,4 +22,4 @@
 		label done
 	loadb tab+1 as b
 	call f i as cell
-	sys exit cell+b
+	rt exit cell+b

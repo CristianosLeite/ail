@@ -12,4 +12,4 @@ set 30 as v
 set 72 as w
 call f p q r s t u v w as x
 call f 0 0 0 0 0 0 w x as y
-sys 60 y
+rt exit y

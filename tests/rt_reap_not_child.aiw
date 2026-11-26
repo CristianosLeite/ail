@@ -1,0 +1,9 @@
+# reap takes and kills only a child of this process: its own number is
+# no such child, with a limit of time or without, and nothing is sent to
+# it when the time is over; 0 and a negative number are no child either
+sys getpid as me
+rt reap me 20 as a
+rt reap me 0 as b
+rt reap 0 0 as c
+rt reap -1 0 as d
+rt exit (a==-1001)+(b==-1001)*2+(c==-1001)*4+(d==-1001)*8

@@ -1,6 +1,7 @@
 build/
 .venv/
 seed/ailc-*
+seed/rt-*
 
 # Editors
 .vscode/

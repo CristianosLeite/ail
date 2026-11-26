@@ -13,4 +13,4 @@ end
 ifz 0
 	add r 8 as r
 end
-sys 60 r
+rt exit r

@@ -1,0 +1,10 @@
+# base is the address the executable is loaded at: its first bytes are
+# those of the file, and the address is the same wherever it is asked
+fn f
+	base as b
+	ret b
+end
+base as a
+call f as b
+load4 a as m
+rt exit (a==b)+(m==0x464c457f)*2+(a%4096==0)*4

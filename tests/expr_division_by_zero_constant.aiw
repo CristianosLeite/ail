@@ -3,4 +3,4 @@ x=5
 if x-5
 	y=1/0
 end
-sys exit 3
+rt exit 3

@@ -10,4 +10,4 @@ fn isqrt n
 	jmp top
 end
 call isqrt 50 as x
-sys 60 x
+rt exit x

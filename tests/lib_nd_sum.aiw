@@ -89,4 +89,4 @@ end
 call putn bad
 call print "\n"
 call ndfree a
-sys exit r+s+t+u+w+y+z+c+d+e+f+g+h+l+m+n+o
+rt exit r+s+t+u+w+y+z+c+d+e+f+g+h+l+m+n+o

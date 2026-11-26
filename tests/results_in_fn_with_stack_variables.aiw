@@ -14,4 +14,4 @@ fn f a b c d e g
 end
 call f 1 1 1 1 1 1 as x y
 add x y as x
-sys 60 x
+rt exit x

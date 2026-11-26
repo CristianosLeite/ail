@@ -1,0 +1,10 @@
+# the service args is the statement args, and may be asked in a function
+fn count
+	rt args as p
+	load p as n
+	ret n
+end
+args as q
+rt args as p
+call count as n
+rt exit (p==q)+n*2

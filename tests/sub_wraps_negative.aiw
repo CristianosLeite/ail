@@ -1,4 +1,4 @@
 # 0 - 1 is all ones; shifting it right by 60 leaves 15
 sub 0 1 as m
 shr m 60 as m
-sys 60 m
+rt exit m

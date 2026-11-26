@@ -38,4 +38,4 @@ call ndadd v v b as g
 call show c
 call putn s+t+w+x+y+d+e+f
 call print "\n"
-sys exit r+u+g
+rt exit r+u+g

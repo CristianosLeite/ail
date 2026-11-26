@@ -7,4 +7,4 @@ ifz k
 	add b 8 as p
 end
 loadb p as x
-sys 60 x
+rt exit x

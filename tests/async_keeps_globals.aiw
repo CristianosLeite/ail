@@ -36,4 +36,4 @@ call await e 0
 call asyncyield as y
 call await y 0
 call await g 0 as d
-sys exit_group a+b+c+f+h+k+n+p+r+s+t+v+w+x+z+d
+rt exit a+b+c+f+h+k+n+p+r+s+t+v+w+x+z+d

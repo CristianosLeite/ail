@@ -8,4 +8,4 @@ storeb p 2
 loadb a as x
 loadb p as y
 add x y as x
-sys exit x
+rt exit x

@@ -11,7 +11,7 @@ store lim 0x4000000
 store lim+8 0x4000000
 sys setrlimit 9 lim as r
 if r
-	sys exit 1
+	rt exit 1
 end
 n=0
 r=1
@@ -33,7 +33,7 @@ i=0
 while i<n
 	call mapget m i*0x9e3779b97f4a7c15 as x r
 	ifz r&(x==i)
-		sys exit 2
+		rt exit 2
 	end
 	i+=1
 end
@@ -45,4 +45,4 @@ call putn k==e
 call putn x
 call print "\n"
 call mapfree m
-sys exit a+b+(p==q)+(c==d)+(u==f)+g+h+j
+rt exit a+b+(p==q)+(c==d)+(u==f)+g+h+j

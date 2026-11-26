@@ -10,6 +10,6 @@ call f x-1 x y x*x 15/y 100%y+5 as r
 jne r 123456 bad
 call f 1 2 3 4 15/y 54%(x*4) as r
 jne r 123456 bad
-sys exit 0
+rt exit 0
 label bad
-sys exit 1
+rt exit 1

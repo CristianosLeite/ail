@@ -34,4 +34,4 @@ end
 call w3 5 37 as x y
 call down 4 0 as s
 call pick 0 as p q
-sys exit x+y+s+p+q
+rt exit x+y+s+p+q

@@ -11,4 +11,4 @@ add p r as p
 add p s as p
 add p t as p
 add p u as p
-sys 60 p
+rt exit p

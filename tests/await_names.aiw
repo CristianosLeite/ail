@@ -22,4 +22,4 @@ call two as g
 await g as a
 await f as b
 await h as c
-sys exit_group a*100+b*10+c
+rt exit a*100+b*10+c

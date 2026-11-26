@@ -6,4 +6,4 @@ fn f p
 	ret x
 end
 call f b as x
-sys 60 x
+rt exit x

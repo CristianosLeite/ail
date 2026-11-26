@@ -36,4 +36,4 @@ call asyncclock as t1
 await t
 call asyncrun as n
 ms=(t1-t0)/1000000
-sys exit_group (ms<45)+(ms>150)*2+(ticks<5)*4+n*8+x+y
+rt exit (ms<45)+(ms>150)*2+(ticks<5)*4+n*8+x+y

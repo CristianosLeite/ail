@@ -14,4 +14,4 @@ or r t as r
 ne a b as t    # 1
 shl r 1 as r
 or r t as r
-sys 60 r
+rt exit r

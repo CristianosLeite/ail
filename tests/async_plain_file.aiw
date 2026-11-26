@@ -11,4 +11,4 @@ call await h 0 as n
 call print rb+1 n-1
 call print "\n"
 call asyncclose fd as r
-sys exit_group n+r
+rt exit n+r

@@ -5,4 +5,4 @@ xadd c 7 as b
 load c as v
 add a b as a
 add a v as a
-sys exit a
+rt exit a

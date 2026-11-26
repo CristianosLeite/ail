@@ -16,4 +16,4 @@ call byadd b "y" as u
 load b as q
 load b+8 as m
 call print q m
-sys exit a+u+r+s+t+(p==q)+(c==d)+(n==1)
+rt exit a+u+r+s+t+(p==q)+(c==d)+(n==1)

@@ -5,4 +5,4 @@ store b p
 load b as q
 shr q 33 as q         # 0x7FFFFFFF
 sub q 2147483600 as q
-sys 60 q
+rt exit q

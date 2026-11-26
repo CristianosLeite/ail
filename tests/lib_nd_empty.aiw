@@ -43,4 +43,4 @@ call print "\n"
 call ndfree a
 call ndfree c
 call ndfree w
-sys exit r+s+t+u+b+d+e+f
+rt exit r+s+t+u+b+d+e+f

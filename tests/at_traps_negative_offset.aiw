@@ -2,4 +2,4 @@ buf b 16
 sys 39 as i
 or i -1 as i
 at b i 1 as p
-sys 60 3
+rt exit 3

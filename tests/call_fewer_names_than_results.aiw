@@ -7,4 +7,4 @@ call f as b c
 call f
 add a b as a
 add a c as a
-sys 60 a
+rt exit a

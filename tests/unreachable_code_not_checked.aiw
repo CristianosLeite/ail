@@ -4,6 +4,6 @@ jz p a
 set 1 as x
 label a
 jmp e
-sys 60 x
+rt exit x
 label e
-sys 60 7
+rt exit 7

@@ -2,4 +2,4 @@
 var c1 c2 c3
 buf b 8
 and b 4095 as x
-sys exit x
+rt exit x

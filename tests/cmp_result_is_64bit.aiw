@@ -10,4 +10,4 @@ or h z as h
 shr z 56 as g
 or h g as h           # 0
 add h r as h
-sys 60 h
+rt exit h

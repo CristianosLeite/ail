@@ -1,2 +1,2 @@
-sys 1 1 "out\n"
-sys 60 7
+rt write 1 "out\n"
+rt exit 7

@@ -1,0 +1,32 @@
+# two pollers keep what they watch apart: an event goes to the poller
+# that watches its descriptor, with the tag given there; a poller that
+# does not watch a descriptor cannot end the watch of another; and a
+# poller that is closed takes nothing from another
+buf ev 32
+rt poller as p1
+rt poller as p2
+rt waker as w1
+rt waker as w2
+rt watch p1 w1 1 11 as a
+rt watch p2 w2 1 22 as b
+rt wakeup w1
+rt poll p2 ev 2 0 as none
+rt poll p1 ev 2 1000 as n1
+load ev+8 as t1
+rt wakeup w2
+rt poll p2 ev 2 1000 as n2
+load ev+8 as t2
+rt unwatch p2 w1 as u
+rt wakeup w1
+rt poll p1 ev 2 1000 as n3
+load ev+8 as t3
+rt close p2
+rt wakeup w1
+rt poll p1 ev 2 1000 as n4
+load ev+8 as t4
+ok=(a==0)&(b==0)&(none==0)
+one=(n1==1)&(t1==11)
+two=(n2==1)&(t2==22)
+kept=(u>-4096)&(n3==1)&(t3==11)
+shut=(n4==1)&(t4==11)
+rt exit ok+one*2+two*4+kept*8+shut*16

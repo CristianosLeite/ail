@@ -26,10 +26,10 @@ The source of the compiler may only use what the pinned seed understands. A new 
 
 There is one pass over the top level and two over each function, and no intermediate representation.
 
-1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
-2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
+1. Ask the runtime, with `rt pipeerr`, that writing to a closed pipe fails with an error the compiler can report instead of killing it. The compiler asks its platform for nothing but through the runtime: `rt read`, `rt open`, `rt close`, `rt write` and `rt exit`, and `args`. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
+2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer. The source of the runtime, which the compiler has in it, is compiled first, the program behind it.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
-4. Append the code for `exit_group(0)`.
+4. Append the end of the program, a jump to the service `exit` of the runtime with 0.
 5. Fill in the displacement of every top-level jump from the label table and of every call from the function table. Place the writable segment on the page after the code and fill in the distance to every buffer, data name and var cell, and the lengths of names used before their declaration.
 6. Patch the segment sizes and the address of the second segment in the header, write the buffer to stdout, exit.
 
@@ -125,14 +125,21 @@ The counters and the saved scope are `var`s too (`nbufs`, `bsssz`, `nlabels`, `i
 offset 0     ELF header            64 bytes   type ET_DYN
 offset 64    program header        56 bytes   PT_LOAD, flags R+X: the whole file
 offset 120   program header        56 bytes   PT_LOAD, flags R+W: cells and buffers, no file bytes
-offset 176   code, strings, data   entry point
+offset 176   the runtime           the code of rt.aiw; entry point, its first line
+behind it    code, strings, data   the program, from its first statement on
 ```
 
 The output is a position-independent executable. Its addresses are distances from the start of an image that the kernel loads wherever it chooses, at a different place on each run unless address randomisation is off. There are no sections, no symbol table, no dynamic section and no relocations: no instruction contains an address, only distances to other parts of the image.
 
-The whole file is the first segment, readable and executable but not writable: the byte at file offset `n` is at `n` in the image and the entry point is at 176. The second segment has a file size of zero and starts on the page after the code. It holds the 8-byte cells of the `var`s and of the top-level variables beyond the sixth, in the order they were made, and behind them the buffers in the order of their declaration; its memory size is the sum of both, which may be zero.
+The whole file is the first segment, readable and executable but not writable: the byte at file offset `n` is at `n` in the image. The second segment has a file size of zero and starts on the page after the code. It holds the 8-byte cells of the `var`s and of the top-level variables beyond the sixth, in the order they were made, behind them the buffers in the order of their declaration, and last the state of the runtime; its memory size is the sum of the three.
 
-Where the second segment starts is only known when the code is complete. So everything that refers to it, and every global name that may still be declared later, is a fixup in `refs`: `fin` computes the start (`rwstart`) and writes the distances. The image must stay within 2 GiB less one byte, so that every such distance fits a `rel32`; `fin` reports `buffers too big` otherwise.
+**The target.** What the compiler knows of the platform it writes for, beyond the instructions, is in one file, `compiler/<target>/target.aiw`, which `compiler/ailc.aiw` names as `use "target:target.aiw"`; the runtime of the platform is `use "rt:source.aiw"`. `target` and `rt` are packages: whoever compiles the compiler says which directories they are, and `make` does for `TARGET`, x86-64 Linux. The file has the header of an executable (`thdr`, `thdrn` bytes), where the code starts in a line of the cache (`talign`), how many bytes the first line of the runtime has (`tbootn`), whether `sys` means anything (`tsys`), how many bytes an image may have (`tmax`), what every program needs of the state of the runtime (`tstate`), the row of the statement `ccall` (`tccrow`), the function `tstart`, which writes the header into the output, and the function `tfin`, which `fin` calls with the bytes of the file, the start of the writable segment and its bytes, to write them into the header.
+
+**The runtime** ([runtime.md](runtime.md)) is two AIL sources that the compiler has as the data `rtsrc` and `rttail` (`build/rt/<target>/source.aiw`, which `make` writes from `rt/<target>/rt.aiw` and `state.aiw` and which the last line of `compiler/ailc.aiw` names with `use "rt:source.aiw"`, with their lengths in `rtsrcn` and `rttailn`). Before the first line of the program is read their text is copied behind the room of the source, into the 64 KiB that `in` has for it beyond `inmax` (`insz`), and the first is compiled as a unit like a file of `use`, with an entry of `uses` that has no path (`rtunit`; `die` writes `runtime` for it): the state machine starts in it, with the main source on `ustack`. Its first line is at 176, the entry point, and its second jumps over its functions. When it ends, `uend` calls `rtready`, which looks up for every row of `rtnames` the function `rt_<name>` (the name built in `rtnm`), requires it to have the parameters of the service, and notes it in `rtfn`, 8 bytes a service, as 1 plus its number in `funs`, and what the row says the service needs of the state in `rtfl`; then it pads with instructions that do nothing until the code stands at 48 in a line of the cache, where 176 is. When the main source has ended, `uend` compiles the second source the same way, once (`rtt`, with the bytes of the buffers until then in `rtbss`), and only then goes to `fin`; the buffer declared there, the state of the runtime, is behind those of the program. The tables that keep entries to the end (`uses` and its companions, `funs`, `finl`, `tails`, `tailq`, `calls`, `refs`, `chks`, `globs`, `hnodes`, `runend`) have room for those of the runtime beyond what the source limit gives.
+
+A statement that is a service becomes a call of its function in `next` (`rtcall`): `cur` is the row of `call` (`callrow`), `cn` and `cl` the name of the function, `rtuse` takes what the service needs of the state, and from there on the statement is a call, compiled in place where a call is. What the row of the service says is checked at the end of the statement by `rtend`, which `a1` and `capture` call while `rtck` is set: `as` required or forbidden, the number of values and of names. `inlopen` reads a body of the runtime up to the end of that room, since it lies behind `srcend`. `fin` ends the program with a jump to the function of `exit`. If no service that reads the stack of the start was called, it overwrites the first line of the runtime, ten bytes, with instructions that do nothing; if no service that keeps anything in the state was called, the writable segment ends before the state.
+
+Where the second segment starts is only known when the code is complete. So everything that refers to it, and every global name that may still be declared later, is a fixup in `refs`: `fin` computes the start (`rwstart`) and writes the distances. The image must stay within `tmax` bytes of the target file: on Linux 2 GiB less one byte, so that every such distance fits a `rel32`, and for Windows 0x77000000, above which Windows loads no image; `fin` reports `buffers too big` otherwise.
 
 ## Code generation
 
@@ -162,7 +169,7 @@ The bytes lie just behind the `lea`, at a distance that is known as soon as the 
 
 **End of statement.** The instruction bytes of the statement, copied from its `optab` entry by `eop`; for `sys` that is `syscall` (`0F 05`). With `as`, they are followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
-**End of program.** `mov eax, 231` / `xor edi, edi` / `syscall`: `exit_group(0)`, which ends every thread of the process, where `exit` (60) would end only the one that reached the last line and leave a program with other threads running.
+**End of program.** `xor eax, eax` / `jmp rel32` to the function of the service `exit` (the table `exit0` and the distance): it ends every thread of the process, where the syscall `exit` would end only the one that reached the last line and leave a program with other threads running.
 
 ## Operations
 
@@ -183,7 +190,6 @@ That is the general way, and what the table below shows. The statements that onl
 | `smod` | `cqo` / `idiv rdi` / `mov rax, rdx` |
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
 | `slt` `sle` `sgt` `sge` | the same with `setl` `setle` `setg` or `setge` |
-| `args` | `mov rax, rsp` |
 | `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
 | `load4` | `mov eax, [rax]` |
@@ -200,9 +206,12 @@ That is the general way, and what the table below shows. The statements that onl
 | `fdot` | the same around `movsd xmm1, [rdi]` / `mulsd xmm1, [rsi]` / `addsd xmm0, xmm1`, both addresses stepped by 8, the count in `rdx` |
 | `fdot4` | the loop of `fdot` with `movss xmm1, [rdi]` / `cvtss2sd xmm1, xmm1` for the load, the first address stepped by 4. Not `cvtss2sd xmm1, [rdi]`: that form keeps the high half of `xmm1`, so every round would wait for the product of the one before |
 | `xadd` | `lock xadd [rax], rdi` / `mov rax, rdi` |
+| `zero` | `mov rcx, rdi` / `mov rdi, rax` / `xor eax, eax` / `rep stosb` |
+| `ccall` | no row of `optab`: `next` (`ccdef`) takes the row `tccrow` of the target file, three operands and the code that passes the values at an address as C does and calls |
+| `base` | `lea rax, [rip+rel32]` back to the first byte of the output, written by `basedef`, which goes on with the row `rowas` for its `as` |
+| `stack` | `mov [rax], rsp` |
 | `cas` | `mov rcx, rax` / `mov rax, rdi` / `lock cmpxchg [rcx], rsi` / `sete al` / `movzx eax, al` |
-| `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
-| `free` | `munmap` of the mapping whose length lies 16 bytes before the address, unless it is 0: 19 bytes |
+| `alloc`, `free`, `args` | no instruction: the one byte of the row is the number of a service of the runtime, whose function the statement calls (`IS_RT`) |
 | `store` | `mov [rax], rdi` |
 | `store4` | `mov [rax], edi` |
 | `store2` | `mov [rax], di` |
@@ -224,38 +233,35 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and a `jz` or `jnz` on its result tests the value again; write the comparison and the jump as one statement.
 
-The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`, 32 `IS_LIB`, 64 `IS_AWT`; a new flag goes there, the first byte being full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` (`args`) is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function, because only at top level does `rsp` still point at what the kernel passed, the top level keeping its variables in registers and cells and pushing nothing between statements. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`, 32 `IS_LIB`, 64 `IS_AWT`, 128 `IS_RT`; both bytes are full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function. No row has it since `args` is a service of the runtime, which notes the stack when the process starts. `IS_RT` marks a statement that is a service of the runtime: `rt`, which also has `IS_SYS`, so that its first word is read as a name (`rtname` looks it up in the table `rtnames` and keeps the number of the service, of its values and of its results in `rte`, `rta` and `rtr`) and a string is two values; and `args`, `alloc` and `free`, rows with a fixed number of operands whose one byte of code is the number of their service. `next` makes each a call of the function of the runtime (above), and `capture` allows several names after `as` as for a call. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 
 `examples/hello.aiw` writes a line and exits with status 0 only if all 12 bytes went out:
 
 ```
-sys write 1 "hello world\n" as n
-sys exit n-12
+rt write 1 "hello world\n" as n
+rt exit n-12
 ```
 
-It compiles to 243 bytes: the 176-byte header followed by
+It compiles to the 176-byte header, the code of the runtime and 61 bytes, here with the offsets they would have behind the header alone:
 
 ```
-b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
-b5:  bf 01 00 00 00      mov  edi, 1          ; fd: stdout
-ba:  e9 0c 00 00 00      jmp  0xcb            ; skip the 12 string bytes
-bf:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
-cb:  48 8d 35 ed ff ff ff   lea  rsi, [rip-19]   ; address of the string: 0xbf
-d2:  ba 0c 00 00 00      mov  edx, 12         ; its length
-d7:  0f 05               syscall
-d9:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
-dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
-e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
-e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
-e8:  0f 05               syscall
-ea:  b8 e7 00 00 00      mov  eax, 231        ; implicit exit_group(0), never reached here
-ef:  31 ff               xor  edi, edi
-f1:  0f 05               syscall
+b0:  b8 01 00 00 00      mov  eax, 1          ; the first value: stdout
+b5:  e9 0c 00 00 00      jmp  0xc6            ; skip the 12 string bytes
+ba:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
+c6:  48 8d 3d ed ff ff ff   lea  rdi, [rip-19]   ; address of the string: 0xba
+cd:  be 0c 00 00 00      mov  esi, 12         ; its length
+d2:  e8 .. .. .. ..      call <write>         ; the function rt_write of the runtime
+d7:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
+da:  48 89 d8            mov  rax, rbx        ; n-12, computed in the register of
+dd:  48 83 e8 0c         sub  rax, 12         ; its position: n, then the number
+e1:  e8 .. .. .. ..      call <exit>
+e6:  31 c0               xor  eax, eax        ; the implicit end, never reached here:
+e8:  e9 .. .. .. ..      jmp  <exit>          ; the service exit of the runtime with 0
 ```
 
-The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit exit: 226 bytes.
+The one-line program `rt write 1 "hello world\n"` is the first six lines plus the implicit end.
 
 To inspect any compiled program the same way:
 
@@ -496,7 +502,7 @@ ee:  e8 c2 ff ff ff      call 0xb5
 
 Labels, functions and global names are found through one hash table; only the variables of a scope, at most 64, and the paths of `use` are searched one by one (`look`).
 
-`buckets` has 2^20 entries, each the number of the first node of a chain or 0. `hnodes` holds the nodes in the order they were added: the name (an address into the input and a length), the kind (a global name, a function, a label, or a label that is not defined yet), the scope, the index in the table of that kind, the next node of the chain and the bucket. `hhash` is FNV-1a over the bytes of the name, mixed with the kind and the scope by exclusive or and folded to 20 bits. `hfind` walks the chain of the bucket and compares kind, scope, length and bytes; `hadd` puts a new node in front of its chain. `llab`, `lfn` and `lbuf` are wrappers that return the index, or -1.
+`buckets` has 2^20 entries, each the number of the first node of a chain or 0. `hnodes` is the address of the nodes, which are the largest table and the only one that is no buffer: the top level asks for their `hnsz` bytes with `alloc` before it reads the source and reports `no memory` without them. With them in it the image of the compiler was 0x77df6000 bytes, and Windows loads none above 0x77000000. They are in the order they were added: the name (an address into the input and a length), the kind (a global name, a function, a label, or a label that is not defined yet), the scope, the index in the table of that kind, the next node of the chain and the bucket. `hhash` is FNV-1a over the bytes of the name, mixed with the kind and the scope by exclusive or and folded to 20 bits. `hfind` walks the chain of the bucket and compares kind, scope, length and bytes; `hadd` puts a new node in front of its chain. `llab`, `lfn` and `lbuf` are wrappers that return the index, or -1.
 
 - **Scope.** A label belongs to the function it stands in. Each `fn` takes the next number from `nscope` as `scope`, on each of its two passes, and the top level is 0. The label nodes of a finished function are never removed: no later lookup has their scope.
 - **Visibility.** A global name gets its node only when its statement is complete (`globdone`), and a function when its parameter line is, as the tables counted them before.
@@ -509,7 +515,7 @@ For two keys with the same name, a different kind or scope always gives a differ
 
 Every error ends the compiler through `die`, which writes one line to stderr in pieces: `ailc: `, the place, the message, the name, a line end.
 
-- **Message.** Each has a function of three lines (`err`, `estmt`, `eplace`, ...) that sets the name at fault in `ename` and `enamel` if the message has one, sets `epos` to -1 if it has no place, and calls `die` with the text and the exit status, 1, or 2 for `read error` and `write error`. A function cannot jump out, so every error is a call that does not return.
+- **Message.** Each has a function of three lines (`err`, `estmt`, `eplace`, ...) that sets the name at fault in `ename` and `enamel` if the message has one, sets `epos` to -1 if it has no place, and calls `die` with the text and the exit status, 1, or 2 for `read error`, `write error` and `no memory`. A function cannot jump out, so every error is a call that does not return.
 - **Place.** `epos` says where: 0 means the input cursor, which is where parsing stopped, in the unit `curunit`; -1 means nowhere; any other value is an address in the source. The routines that run after a line was parsed set it from the name in the entry they work on: `resolve` for an undefined label, the loops of `fin` for calls and names, and for the access checks the position that `memchk` stored in the entry. For such an address `die` finds the unit whose bytes hold it (`mainend`, `ustart`, `uendp`).
 - **Line.** `die` counts the line ends from the start of the unit to the place. Nothing is counted while the source compiles, so a correct program pays nothing for it.
 - **Unit.** `usedef` records where each file lies and makes it the current unit; `uend` goes back to the unit that named it (`ucur`). A used file is printed as the path of its `use`.
@@ -523,7 +529,7 @@ Nothing in the compiler grows: every buffer has the size that the largest source
 - **Source.** The limit is 8 MiB; `inmax` is one byte more, the size of the input buffer. The read loops of stdin and of `use` stop with `source too big` when the buffer is full.
 - **Tables.** Each is sized for a source of 8 MiB made only of the shortest line that adds an entry, as the comment beside each `buf` says, so no append is checked: `label a` is 8 bytes, `jmp a` 6, `await a` 8 for two entries of `calls`, a name used as a value 2. The hash has room for every global name, label, function and jump at once.
 - **Output.** `out` is 16 times the source limit. No line produces 16 bytes of code for each of its own: the worst are `fn a` with a frame of a page (51 bytes for 5) and the `end` of a function with six results (32 for 4). Because that is an argument and not a structure, the buffer is also checked: `ochk` reports `program too big` when fewer than 4096 bytes are left, and it runs at every statement, every value, every item of `data` and every byte of a string, between which no more than a few hundred bytes are emitted.
-- **Layout.** `fin` checks that the image, from the header to the last buffer, stays within 2 GiB (`buffers too big`), since every distance in it must fit 32 bits.
+- **Layout.** `fin` checks that the image, from the header to the last buffer, stays within `tmax` of the target (`buffers too big`): 2 GiB on Linux, since every distance in it must fit 32 bits, and 0x77000000 bytes for Windows, which loads no larger image.
 
 The `program too big` check cannot fail while the 16-to-1 argument holds, so no test reaches it.
 
