@@ -293,11 +293,14 @@ Where a service cannot be on Windows what it is on Linux:
   without `..`; a link in it stays what it is. `kind` is never 4, and
   3 for whatever Windows keeps as a reparse point. `chmod` has nothing
   to do and gives 0 for a descriptor that is open.
-- `lock` is a mutex of Windows named by the path made whole, since
-  Windows locks no directory: it keeps out the programs that ask the
-  runtime for the lock and nothing else. A mutex belongs to a thread,
-  so the thread that took the lock closes it, and a second `lock` of
-  the same path by that thread is given at once.
+- `lock` is a mutex of Windows, since Windows locks no directory: it
+  keeps out the programs that ask the runtime for the lock and nothing
+  else. Its name is made of the number of the volume and the number
+  the file has there, which the runtime asks of the opened file, so
+  that two ways to write the path of one directory are one lock. A
+  mutex belongs to a thread, so the thread that took the lock closes
+  it, and a second `lock` of the same file by that thread is given at
+  once.
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:
@@ -308,9 +311,14 @@ Where a service cannot be on Windows what it is on Linux:
   it, and Windows does when that process ends. On Linux the group is
   one of the kernel, with a watcher in it, a process that waits for
   the end of a pipe from the process that started the child and then
-  kills the group; the child runs only once the watcher is there. The
-  watcher keeps no other descriptor, and a program that makes a group
-  of its own (`setsid`, `setpgid`) is out of it.
+  kills the group it is in; the child runs only once the watcher is
+  there and says so. The watcher keeps no other descriptor, with a
+  kernel that closes them by a range (Linux 5.9) or without, and a
+  program that makes a group of its own (`setsid`, `setpgid`) is out
+  of it. `reap` asks about such a child and leaves it where it is
+  until the group is killed, so that the number of the group is no
+  other's by then, and takes the watcher by a descriptor of it where
+  the kernel has one (Linux 5.4).
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform

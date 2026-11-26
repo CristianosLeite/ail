@@ -721,60 +721,63 @@ end
 # at a time has, after waiting for the one that has it: a descriptor
 # that holds it until it is closed or the process ends, or an error.
 # Windows locks no directory, so the lock is a mutex of Windows named
-# by the path made whole, in small letters: "Local\ail-" and the 16
-# digits of a sum of its bytes (FNV-1a). A mutex belongs to a thread,
-# which may take it again and which alone gives it back: the thread
-# that took the lock closes it.
+# by what the path leads to, however it is written: the file is opened,
+# for nothing but to be asked about, and the name is "Local\ail-" and
+# 24 digits, the number of its volume and the number it has there. A
+# mutex belongs to a thread, which may take it again and which alone
+# gives it back: the thread that took the lock closes it.
 fn rt_lock rt_p rt_n
 	local rt_z 4096
-	local rt_y 4096
-	local rt_a 32
+	local rt_y 56
+	local rt_a 56
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
 		ret rt_r
 	end
+	# no access, shared with all, one that exists, a directory too
 	store rt_a rt_z
-	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
-	rt_r&=0xffffffff
-	if rt_r==0xffffffff
+	store rt_a+8 0
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 3
+	store rt_a+40 0x2000000
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
 		call rt_error as rt_r
 		tail rt_long rt_z rt_r
 	end
-	store rt_a rt_z
-	store rt_a+8 4096
-	store rt_a+16 rt_y
-	store rt_a+24 0
-	call rt_api rt_i_getfullpathnamea rt_a 4 as rt_m
-	rt_m&=0xffffffff
-	ifz rt_m
-		tail rt_error
+	store rt_a rt_h
+	store rt_a+8 rt_y
+	call rt_api rt_i_getfileinformationbyhandle rt_a 2 as rt_r
+	rt_e=0
+	ifz rt_r&0xffffffff
+		call rt_error as rt_e
 	end
-	if rt_m>=4096
-		ret -36
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_e
+		ret rt_e
 	end
-	rt_s=0xcbf29ce484222325
-	rt_i=0
-	while rt_i<rt_m
-		loadb rt_y+rt_i as rt_c
-		if (rt_c>64)&(rt_c<91)
-			rt_c+=32
-		end
-		rt_s=(rt_s^rt_c)*0x100000001b3
-		rt_i+=1
-	end
-	# "Local\ail-"
+	# "Local\ail-", then the volume at 28 and the number at 44 and 48
 	store rt_z 0x69615c6c61636f4c
 	store2 rt_z+8 0x2d6c
-	rt_i=0
-	while rt_i<16
-		rt_c=rt_s>>(60-rt_i*4)&15
-		if rt_c>9
-			rt_c+=39
+	load4 rt_y+28 as rt_s
+	rt_j=0
+	while rt_j<3
+		rt_i=0
+		while rt_i<8
+			rt_c=rt_s>>(28-rt_i*4)&15
+			if rt_c>9
+				rt_c+=39
+			end
+			storeb rt_z+10+rt_j*8+rt_i rt_c+48
+			rt_i+=1
 		end
-		storeb rt_z+10+rt_i rt_c+48
-		rt_i+=1
+		load4 rt_y+44+rt_j*4 as rt_s
+		rt_j+=1
 	end
-	storeb rt_z+26 0
+	storeb rt_z+34 0
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd

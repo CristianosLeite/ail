@@ -1,6 +1,7 @@
 # the lock of a directory: this program starts itself, and what it
 # starts gets the lock only when it is closed here, after a file was
-# made that it then finds; nothing at a path is no lock
+# made that it then finds, though it writes the path of the directory
+# in another way; nothing at a path is no lock
 buf exe 4096
 buf argv 24
 buf io 24
@@ -10,8 +11,7 @@ data mark "build/tests/rt_lock.d/mark"
 args as p
 load p as n
 if n>1
-	len dir as n
-	rt lock dir n as l
+	rt lock "build/tests/../tests/rt_lock.d/" as l
 	len mark as n
 	rt kind mark n as k
 	if k==1
