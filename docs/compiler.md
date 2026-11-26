@@ -26,7 +26,7 @@ The source of the compiler may only use what the pinned seed understands. A new 
 
 There is one pass over the top level and two over each function, and no intermediate representation.
 
-1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
+1. Ask the runtime, with `rt pipeerr`, that writing to a closed pipe fails with an error the compiler can report instead of killing it. The compiler asks its platform for nothing but through the runtime: `rt read`, `rt open`, `rt close`, `rt write` and `rt exit`, and `args`. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
 2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer, and behind it the image of the runtime.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
 4. Append the end of the program, a jump to the service `exit` of the runtime with 0.

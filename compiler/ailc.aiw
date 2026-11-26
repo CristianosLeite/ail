@@ -143,7 +143,6 @@ var epos ename enamel mainend curunit
 const inmax 8388609
 buf in inmax
 buf out 134217728
-buf sig 32          # struct sigaction
 buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
 buf topcell 512     # per top-level variable after the sixth: the address of its cell
 buf vfirst 512      # per variable of the function: where the source defines it,
@@ -242,8 +241,7 @@ use "compiler/expr.aiw"
 use "compiler/emit.aiw"
 
 # ---- start: a closed output pipe must be a write error, not a death
-store sig 1
-sys rt_sigaction 13 sig 0 8
+rt pipeerr
 args as p
 call pkargs p
 p=in
@@ -253,7 +251,7 @@ r=q-p
 ifz r
 	call ebig
 end
-sys read 0 p r as r
+rt read 0 p r as r
 if r
 	if r>inmax
 		call erd
@@ -494,7 +492,7 @@ store nuses*8+upkg d
 nuses+=1
 epos=ns
 call pkpath d
-sys open pathbuf 0 0 as f
+rt open pathbuf pathl 0 0 as f
 ifslt f 0
 	call euse
 end
@@ -504,7 +502,7 @@ q=in+inmax-srcend
 ifz q
 	call ebig
 end
-sys read f srcend q as c
+rt read f srcend q as c
 ifslt c 0
 	call euse
 end
@@ -512,7 +510,7 @@ if c
 	srcend+=c
 	jmp u4
 end
-sys close f
+rt close f
 epos=0
 p=nuses*8
 store p+ustart-8 r
@@ -1651,7 +1649,7 @@ if c+rwstart>0x7fffffff
 end
 p=out
 label w1
-sys write 1 p q as c
+rt write 1 p q as c
 ifz c-1<q
 	call ewr
 end

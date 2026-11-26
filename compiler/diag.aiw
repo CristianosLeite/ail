@@ -3,7 +3,7 @@
 # file read by use and a colon, if the fault is in one, and the line number;
 # it is taken from epos, or from the input cursor while that is zero.
 fn ew p n
-	sys write 2 p n
+	rt write 2 p n
 end
 # print the message m of n bytes with its place and exit with status s
 fn die m n s
@@ -65,7 +65,7 @@ fn die m n s
 		call ew ename enamel
 	end
 	call ew "\n"
-	sys exit s
+	rt exit s
 end
 fn err
 	call die "syntax error" 1

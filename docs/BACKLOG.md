@@ -904,3 +904,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   figure, with the time of the starting process in it; the benchmarks
   are to measure it properly). The executable now has a writable
   segment in any case, for the state.
+- [x] Seed 7 and the compiler through the runtime (2026-11-26). The
+  service `pipeerr` makes a write to a closed pipe an error, which the
+  compiler asked of Linux at its start. Seed 7 is the compiler with the
+  runtime and `rt`; its release is to keep the image it was built with
+  beside it. The source of the compiler has no `sys` left: it reads its
+  input and the files of `use`, writes the executable and its messages
+  and ends through `rt`. `tests/io.sh` and every expected message are as
+  they were, the compiler built by the seed and by itself behave alike
+  on every test, example and fuzzed source, and `build/ailc` and
+  `build/ailc2` are the same file.
