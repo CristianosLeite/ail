@@ -42,7 +42,7 @@ fn failpath m ml p pl
 	call eprint m ml
 	call eprint p pl
 	call eprint "\n"
-	sys exit_group 1
+	rt exit 1
 end
 
 # a line of the file at path that --check found wrong
@@ -141,7 +141,7 @@ fn main
 		i+=1
 	end
 	if gbad
-		sys exit_group 1
+		rt exit 1
 	end
 end
 
