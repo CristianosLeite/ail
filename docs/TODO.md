@@ -70,8 +70,19 @@ source that the compiler compiles with every program
   ([BACKLOG.md](BACKLOG.md)): its compiler, its fixed point, every
   service, 579 tests. Left there: what the tests of faults are to
   expect, the command `ail`, a run on Windows itself. Linux on aarch64
-  is to do, and needs `qemu-user` and the assembler for aarch64
-  installed first.
+  is to do. Its tools need no installation by root: `apt-get download
+  qemu-user binutils-aarch64-linux-gnu` and `dpkg -x` into a directory
+  give `qemu-aarch64` and `aarch64-linux-gnu-as`, which ran a program
+  written by hand (2026-11-26). The work is a second code generator:
+  the rows of the statement table, the encoders of `compiler/emit.aiw`
+  and the instruction selection of `compiler/expr.aiw` are x86-64
+  throughout, jumps and calls are four bytes of distance where aarch64
+  has fields of an instruction word, and its system calls are others
+  (no `open`, `fork` or `poll`). It starts with the split of the
+  compiler into shared and target files, the x86-64 output unchanged
+  by a byte, and a first backend may compile every statement by its
+  row, as lines with a string are compiled now, before it selects
+  instructions.
 - [ ] The gaps to C closed, each change measured first. Known: every
   executable has all of the runtime, 11.7 KiB, where it could have the
   functions it reaches; a service compiled in place moves its values
