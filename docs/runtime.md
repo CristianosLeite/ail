@@ -68,6 +68,7 @@ result is a value.
 | 43 | `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
 | 44 | `pid` |  | a number that no other process has while this one runs |
 | 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
+| 46 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -291,6 +292,10 @@ Where a service cannot be on Windows what it is on Linux:
   runtime for the lock and nothing else. A mutex belongs to a thread,
   so the thread that took the lock closes it, and a second `lock` of
   the same path by that thread is given at once.
+- `become` starts the program as a child that is held, with the input
+  and the outputs of the process, waits for it and ends the process
+  with its status, or with 128 and the number of what ended it:
+  Windows puts no program in the place of another.
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform

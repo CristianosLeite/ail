@@ -1516,6 +1516,31 @@ fn rt_reaping rt_p rt_ms
 	end
 	ret rt_r&255 1
 end
+# The program of rt_argv in place of this process, with the environment
+# rt_env, 0 for that of the process: the service returns only if the
+# program cannot be started, with the error. Windows puts no program
+# in the place of another, so the program is a child that is held, with
+# the input and the outputs of this process, which waits for it and
+# ends with its status, or with 128 and the number of what ended it.
+fn rt_become rt_argv rt_env
+	local rt_fds 24
+	store rt_fds -1
+	store rt_fds+8 -1
+	store rt_fds+16 -1
+	call rt_start rt_argv rt_env rt_fds 1 as rt_c
+	if rt_c==1
+		ret -2
+	end
+	ifslt rt_c 0
+		ret rt_c
+	end
+	call rt_reap rt_c 0 as rt_s
+	ifslt rt_s 0
+		rt_s=128-rt_s
+	end
+	tail rt_exit rt_s
+end
+
 
 # Let this thread run only on the processor rt_cpu, or on the lowest one
 # if it may not run there: the processor it is now bound to, or an error

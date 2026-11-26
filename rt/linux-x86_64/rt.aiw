@@ -1033,24 +1033,21 @@ fn rt_strlen rt_p
 	ret rt_q-rt_p
 end
 
-# in the child: put the three descriptors in place and become the
-# program of rt_argv, with the environment rt_env; nothing here returns.
-# The first argument is the program, a path if it has a slash and else a
-# name looked for in the directories of PATH, as this process has it.
-fn rt_child rt_argv rt_env rt_in rt_out rt_err
+# Become the program of rt_argv, with the environment rt_env: nothing
+# here returns unless that fails, and then it is the error. The first
+# argument is the program, a path if it has a slash and else a name
+# looked for in the directories of PATH, as this process has it; of the
+# errors of those the first that is not "no such file" is given.
+fn rt_exec rt_argv rt_env
 	local rt_z 4096
-	call rt_fdok rt_in
-	call rt_fdok rt_out
-	call rt_fdok rt_err
-	call rt_place rt_in rt_out rt_err
 	load rt_argv as rt_p
 	call rt_strlen rt_p as rt_n
 	rt_i=0
 	while rt_i<rt_n
 		loadb rt_p+rt_i as rt_c
 		if rt_c==47
-			sys execve rt_p rt_argv rt_env
-			sys exit 127
+			sys execve rt_p rt_argv rt_env as rt_r
+			ret rt_r
 		end
 		rt_i+=1
 	end
@@ -1070,6 +1067,7 @@ fn rt_child rt_argv rt_env rt_in rt_out rt_err
 		rt_e+=8
 		jmp rt_var
 	end
+	rt_e=-2
 	# each directory of the list, an empty one being this directory
 	label rt_dir
 	rt_q=rt_s
@@ -1099,14 +1097,42 @@ fn rt_child rt_argv rt_env rt_in rt_out rt_err
 			storeb rt_z+rt_d+rt_i rt_c
 			rt_i+=1
 		end
-		sys execve rt_z rt_argv rt_env
+		sys execve rt_z rt_argv rt_env as rt_r
+		if (rt_e==-2)&(rt_r!=-20)
+			rt_e=rt_r
+		end
 	end
 	loadb rt_q as rt_c
 	if rt_c
 		rt_s=rt_q+1
 		jmp rt_dir
 	end
+	ret rt_e
+end
+
+# in the child: put the three descriptors in place and become the
+# program of rt_argv, with the environment rt_env; nothing here returns.
+fn rt_child rt_argv rt_env rt_in rt_out rt_err
+	call rt_fdok rt_in
+	call rt_fdok rt_out
+	call rt_fdok rt_err
+	call rt_place rt_in rt_out rt_err
+	call rt_exec rt_argv rt_env
 	sys exit 127
+end
+
+# The program of rt_argv in place of this process, with the environment
+# rt_env, 0 for that of the process, and the descriptors the process
+# has that were not opened to be closed then: the service returns only
+# if the program cannot be started, with the error. The arguments are
+# those of rt_start.
+fn rt_become rt_argv rt_env
+	ifz rt_env
+		load rt_state as rt_p
+		load rt_p as rt_n
+		rt_env=rt_p+16+rt_n*8
+	end
+	tail rt_exec rt_argv rt_env
 end
 
 # Start a program as a child process: its number, or an error. rt_argv is

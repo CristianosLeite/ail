@@ -1,0 +1,24 @@
+# a program in place of the process: this one becomes itself with an
+# argument, after a program that is not there gave an error and left
+# the process what it was
+buf exe 4096
+buf argv 24
+data again "again" 0
+data none "build/tests/no/such/program" 0
+args as p
+load p as n
+if n>1
+	rt write 1 "became\n"
+	rt exit 5
+end
+store argv none
+rt become argv 0 as e
+if e==-2
+	rt write 1 "still here\n"
+end
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 again
+rt become argv 0 as e
+rt exit 1
