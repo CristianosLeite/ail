@@ -1119,3 +1119,15 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   in the job by the same list from the moment it is made; a job that
   cannot be made or a descriptor that is not open is a child that ends
   with 127. `tests/win/inherit.aiw`, `tests/win/holder.aiw`.
+- [x] `reap` on Linux asks one process for everything (2026-11-26):
+  the kernel reads 32 bits of the number of a child and 31 of a time,
+  so a number above that was any child or another one, and a long time
+  was none; and the question whether a number is a child and the
+  descriptor for it were two calls, between which another thread could
+  take the child and the number go to another process. A number above
+  2^31-1 is now no child, a long time is waited for in pieces counted
+  from the start, and the descriptor is had first and asked whether it
+  is a child, whether it has ended and to take it (`waitid`). Where the
+  kernel gives no descriptor the signal goes to the number under the
+  lock that every taking of a child holds, which is done after the
+  waiting. `tests/rt_reap_wide`.

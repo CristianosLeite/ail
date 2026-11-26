@@ -34,3 +34,5 @@ async_tcp_echo
 lib_http_cancel
 # it opens /dev/null with a flag of Linux
 rt_start_cloexec
+# the widths are those of the kernel of Linux
+rt_reap_wide

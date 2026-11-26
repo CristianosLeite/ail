@@ -76,6 +76,7 @@ const rt_epollctl 233
 const rt_accept4 288
 const rt_eventfd2 290
 const rt_epollcreate1 291
+const rt_waitid 247
 const rt_pidfdsignal 424
 const rt_pidfdopen 434
 
@@ -1012,81 +1013,138 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	sys exit 127
 end
 
+# Take a child that has ended from the kernel, by its number (rt_which 1)
+# or by a descriptor of it (3): what waitid returns, with the bytes at
+# rt_info saying which child and how it ended, or 0 at 16 of them if it
+# still runs and rt_block is 0. The kernel gives the number of a child to
+# another process once the child is taken, so nothing is taken but
+# under the lock, which a thread holds while it sends a signal to a
+# number: the waiting is done before, leaving the child where it is.
+fn rt_take rt_which rt_id rt_info rt_block
+	label rt_again
+	if rt_block
+		sys rt_waitid rt_which rt_id rt_info 0x1000004 0 as rt_r
+		jeq rt_r -4 rt_again
+		ifslt rt_r 0
+			ret rt_r
+		end
+	end
+	call rt_lock
+	store rt_info+16 0
+	sys rt_waitid rt_which rt_id rt_info 5 0 as rt_r
+	call rt_unlock
+	jeq rt_r -4 rt_again
+	if rt_block
+		# taken by another thread since, and its number given to a child
+		# that runs
+		load4 rt_info+16 as rt_n
+		jz rt_r|rt_n rt_again
+	end
+	ret rt_r
+end
+
 # Wait for the child to end and take it from the kernel: its exit status,
 # 0 to 255; or the signal that ended it, negated; or -1000 if it still
 # ran after rt_ms milliseconds, in which case it was killed and taken; or
 # -1001 if there is no such child. rt_ms 0 waits without limit.
 fn rt_reap rt_pid rt_ms
-	local rt_st 8
+	local rt_info 128
 	local rt_pf 8
-	# a number that is no process is no child; 0 and the negative ones
-	# would mean a group of processes to the kernel
+	# a number that is no process is no child: 0 and the negative ones
+	# would mean a group of processes to the kernel, which reads the low
+	# 32 bits alone, so a larger one would be another number to it
 	ifsle rt_pid 0
 		ret -1001
 	end
-	if rt_ms
-		# only a child of this process is waited for and killed: the
-		# kernel says here whether the number is one, and whether it has
-		# ended already
-		label rt_mine
-		store rt_st 0
-		sys wait4 rt_pid rt_st 1 0 as rt_r
-		jeq rt_r -4 rt_mine
-		jnz rt_r rt_took
-		sys rt_pidfdopen rt_pid 0 as rt_fd
-		ifsge rt_fd 0
-			store4 rt_pf rt_fd
-			store4 rt_pf+4 1
-			label rt_again
-			sys rt_poll7 rt_pf 1 rt_ms as rt_r
-			jeq rt_r -4 rt_again
-			ifz rt_r
-				# through the descriptor, which is that child and no
-				# process that got its number since
-				sys rt_pidfdsignal rt_fd 9 0 0
-				sys close rt_fd
-				jmp rt_gone
-			end
-			sys close rt_fd
-		else
-			# no descriptor to be had for the child: ask every millisecond
-			# whether it has ended
-			call rt_clock as rt_t
-			label rt_ask
-			store rt_st 0
-			sys wait4 rt_pid rt_st 1 0 as rt_r
-			jeq rt_r -4 rt_ask
-			jnz rt_r rt_took
-			call rt_clock as rt_n
-			jge (rt_n-rt_t)/1000000 rt_ms rt_late
-			call rt_sleep 1000000
-			jmp rt_ask
-		end
-	end
-	label rt_wait4
-	store rt_st 0
-	sys wait4 rt_pid rt_st 0 0 as rt_r
-	jeq rt_r -4 rt_wait4
-	label rt_took
-	ifslt rt_r 0
+	if rt_pid>0x7fffffff
 		ret -1001
 	end
-	load4 rt_st as rt_r
-	if rt_r&127
-		ret 0-(rt_r&127)
+	ifz rt_ms
+		call rt_take 1 rt_pid rt_info 1 as rt_r
+		jmp rt_took
 	end
-	ret rt_r>>8&255
+	call rt_clock as rt_t
+	# a descriptor of the process that has the number now: whether it is
+	# a child, whether it has ended and the signal at the end of the time
+	# are all asked of the descriptor, so of one and the same process,
+	# whoever takes the child and gets its number meanwhile
+	sys rt_pidfdopen rt_pid 0 as rt_fd
+	ifsge rt_fd 0
+		call rt_take 3 rt_fd rt_info 0 as rt_r
+		jeq rt_r -22 rt_nofd
+		load4 rt_info+16 as rt_n
+		if rt_r|rt_n
+			sys close rt_fd
+			jmp rt_took
+		end
+		store4 rt_pf rt_fd
+		store4 rt_pf+4 1
+		label rt_again
+		# the kernel counts the time in 31 bits, so a long time is waited
+		# for in pieces, and what is left is counted from the start
+		call rt_clock as rt_n
+		rt_n=(rt_n-rt_t)/1000000
+		rt_r=0
+		if rt_n<rt_ms
+			rt_n=rt_ms-rt_n
+			if rt_n>0x40000000
+				rt_n=0x40000000
+			end
+			sys rt_poll7 rt_pf 1 rt_n as rt_r
+			jsle rt_r 0 rt_again
+		end
+		ifz rt_r
+			sys rt_pidfdsignal rt_fd 9 0 0
+			call rt_take 3 rt_fd rt_info 1 as rt_r
+			sys close rt_fd
+			jmp rt_late
+		end
+		call rt_take 3 rt_fd rt_info 1 as rt_r
+		sys close rt_fd
+		jmp rt_took
+	end
+	jmp rt_ask
+	label rt_nofd
+	# a kernel that takes no child by a descriptor
+	sys close rt_fd
+	# no descriptor to be had for the child: ask every millisecond
+	# whether it has ended
+	label rt_ask
+	call rt_take 1 rt_pid rt_info 0 as rt_r
+	load4 rt_info+16 as rt_n
+	jnz rt_r|rt_n rt_took
+	call rt_clock as rt_n
+	if (rt_n-rt_t)/1000000<rt_ms
+		call rt_sleep 1000000
+		jmp rt_ask
+	end
+	# the signal goes to a number, which is the child for as long as
+	# nothing takes it: the lock keeps the threads of the runtime from
+	# that between the question and the signal
+	call rt_lock
+	sys rt_waitid 1 rt_pid rt_info 0x1000005 0 as rt_r
+	ifz rt_r
+		sys kill rt_pid 9
+	end
+	call rt_unlock
+	call rt_take 1 rt_pid rt_info 1 as rt_r
 	label rt_late
-	# the kernel just said that it is a child that runs
-	sys kill rt_pid 9
-	label rt_gone
-	sys wait4 rt_pid 0 0 0 as rt_r
-	jeq rt_r -4 rt_gone
 	ifslt rt_r 0
 		# another thread took it meanwhile
 		ret -1001
 	end
 	ret -1000
+	label rt_took
+	ifslt rt_r 0
+		ret -1001
+	end
+	# how it ended is 1 for an exit, with its status, and else a signal
+	load4 rt_info+8 as rt_r
+	load4 rt_info+24 as rt_n
+	if rt_r!=1
+		ret 0-(rt_n&127)
+	end
+	ret rt_n&255
 end
 
 # Let this thread, and the children it starts from now on, run only on
