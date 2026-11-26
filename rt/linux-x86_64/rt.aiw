@@ -61,12 +61,20 @@ end
 # system calls that the compiler has no name for
 const rt_poll7 7
 const rt_sigprocmask 14
+const rt_lstat 6
 const rt_dup2 33
 const rt_sendto 44
 const rt_getsockname 51
 const rt_setsockopt 54
 const rt_getsockopt 55
 const rt_fcntl 72
+const rt_flock 73
+const rt_getcwd 79
+const rt_chdir 80
+const rt_fchdir 81
+const rt_readlink 89
+const rt_fchmod 91
+const rt_setpgid 109
 const rt_getppid 110
 const rt_sigtimedwait 128
 const rt_prctl 157
@@ -75,6 +83,7 @@ const rt_getdents 217
 const rt_epollwait 232
 const rt_epollctl 233
 const rt_accept4 288
+const rt_pipe2 293
 const rt_eventfd2 290
 const rt_epollcreate1 291
 const rt_waitid 247
@@ -145,6 +154,107 @@ fn rt_rename rt_p rt_n rt_q rt_m
 	ifz rt_r
 		sys rename rt_z rt_y as rt_r
 	end
+	ret rt_r
+end
+
+# The directory of the process into the rt_n bytes at rt_p, with a zero
+# behind it that is not counted: its length, or an error, -34 if it does
+# not fit.
+fn rt_cwd rt_p rt_n
+	sys rt_getcwd rt_p rt_n as rt_r
+	ifsgt rt_r 0
+		rt_r-=1
+	end
+	ret rt_r
+end
+
+# make the directory at the path the one of the process
+fn rt_chdir rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_chdir rt_z as rt_r
+	end
+	ret rt_r
+end
+
+# The directory at the path as the kernel names it, from the root and
+# with no link and no ".." in it, into the rt_m bytes at rt_q as rt_cwd
+# writes one: its length, or an error. The kernel says that of the
+# directory a process is in, so the process goes there and comes back,
+# by a descriptor, which a directory that may be entered and not listed
+# gives as well; the lock keeps two threads from doing so at once, and
+# a thread that names a file from the directory of the process must not
+# do it meanwhile.
+fn rt_real rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	set ".\0" as rt_d
+	call rt_lock
+	sys open rt_d 0x290000 0 as rt_fd
+	rt_r=rt_fd
+	ifsge rt_fd 0
+		sys rt_chdir rt_z as rt_r
+		ifz rt_r
+			call rt_cwd rt_q rt_m as rt_r
+			sys rt_fchdir rt_fd
+		end
+		sys close rt_fd
+	end
+	call rt_unlock
+	ret rt_r
+end
+
+# The path of the executable of the process into the rt_n bytes at rt_p:
+# its length, or an error, -36 for a path that does not fit.
+fn rt_self rt_p rt_n
+	set "/proc/self/exe\0" as rt_d
+	sys rt_readlink rt_d rt_p rt_n as rt_r
+	if rt_r==rt_n
+		ret -36
+	end
+	ret rt_r
+end
+
+# What is at the path: 1 a file, 2 a directory, 3 a link, which is not
+# followed, 4 anything else, or an error, -2 if nothing is there.
+fn rt_kind rt_p rt_n
+	local rt_z 4096
+	local rt_s 144
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_lstat rt_z rt_s as rt_r
+	end
+	if rt_r
+		ret rt_r
+	end
+	load4 rt_s+24 as rt_r
+	rt_r&=0xf000
+	if rt_r==0x8000
+		ret 1
+	end
+	if rt_r==0x4000
+		ret 2
+	end
+	if rt_r==0xa000
+		ret 3
+	end
+	ret 4
+end
+
+# give the open file the mode rt_mode, whatever the process leaves out
+# of the mode of a file it makes
+fn rt_chmod rt_fd rt_mode
+	sys rt_fchmod rt_fd rt_mode as rt_r
+	ret rt_r
+end
+
+# a number that no other process has while this one runs
+fn rt_pid
+	sys getpid as rt_r
 	ret rt_r
 end
 

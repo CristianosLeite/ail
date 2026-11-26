@@ -60,6 +60,13 @@ result is a value.
 | 35 | `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error. The arguments and the environment are addresses of strings that end with a NUL, with a 0 after the last; the first argument is the program, a path if it has a slash and else a name looked for in the directories of `PATH`. The three descriptors, 8 bytes each, become its 0, 1 and 2, -1 for the one of the process; one that is given stays open in the child however it was opened. With the flag 1 the child is killed when the thread that started it ends. A program that cannot be started is a child that ends with 127 |
 | 36 | `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child; the error of the platform if it refuses to end a child whose time is over, which is then left as it is and may be given to `reap` again, unless it has ended meanwhile, which gives what it ended with. Only a child of the process is waited for and killed, never another process that has the number: a number that is not 1 to 2^31-1 is no child, and a child that one thread waits for is no child to another thread meanwhile, so that no `reap` takes it and frees its number during the wait. On Linux that holds against anything that takes children when the wait has a descriptor of the child, as it has on every kernel since 5.4 unless the process is out of descriptors; without one it holds against `reap` alone, so a program that takes children with `sys` must not do so during a `reap` with a time, and where the kernel itself takes the children that end (the process ignores `SIGCHLD`, or set `SA_NOCLDWAIT`), or does not say whether it does (a filter that refuses `rt_sigaction`), a child whose time is over is sent no signal: the error that kept the descriptor away is the result and the child is left. What the process does with `SIGCHLD` is asked once, when the time is over, so a program must not change it during such a `reap` either. The time is all 64 bits |
 | 37 | `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
+| 38 | `cwd` | address, size | the length of the path of the directory of the process, which is written there with a NUL behind it that is not counted, or an error: -34 if it does not fit |
+| 39 | `chdir` | path | 0, or an error: the directory at the path is the one of the process from now on, for every thread |
+| 40 | `real` | path, address, size | the length of the path of the directory as the system names it, from the root and with no link and no `..` in it, written as `cwd` writes one, or an error. On Linux the process goes into the directory and comes back by a descriptor, so a directory that may be entered and not listed has a name too, and a thread that names a file from the directory of the process must not do so meanwhile |
+| 41 | `self` | address, size | the length of the path of the executable of the process, which is written there, or an error: -36 if it does not fit |
+| 42 | `kind` | path | 1 for a file, 2 for a directory, 3 for a link, which is not followed, 4 for anything else, or an error: -2 if nothing is there |
+| 43 | `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
+| 44 | `pid` |  | a number that no other process has while this one runs |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -273,6 +280,11 @@ Where a service cannot be on Windows what it is on Linux:
   back only when a close has finished, so threads that open at once get
   different numbers. A write to a socket takes
   all its bytes where Linux takes part of many.
+- `cwd`, `real` and `self` write a path as Windows does, with its
+  drive and `\`. `real` is the path made whole by `GetFullPathNameA`,
+  without `..`; a link in it stays what it is. `kind` is never 4, and
+  3 for whatever Windows keeps as a reparse point. `chmod` has nothing
+  to do and gives 0 for a descriptor that is open.
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform

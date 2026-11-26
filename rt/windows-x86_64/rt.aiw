@@ -573,6 +573,144 @@ fn rt_rename rt_p rt_n rt_q rt_m
 	ret 0
 end
 
+# The directory of the process into the rt_n bytes at rt_p, with a zero
+# behind it that is not counted: its length, or an error, -34 if it does
+# not fit.
+fn rt_cwd rt_p rt_n
+	local rt_a 32
+	if rt_n>0x7fffffff
+		rt_n=0x7fffffff
+	end
+	store rt_a rt_n
+	store rt_a+8 rt_p
+	call rt_api rt_i_getcurrentdirectorya rt_a 2 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_n
+		ret -34
+	end
+	ret rt_r
+end
+
+# make the directory at the path the one of the process
+fn rt_chdir rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_setcurrentdirectorya rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ret 0
+end
+
+# The directory at the path as Windows writes it whole, from its drive
+# and with no ".." in it, into the rt_m bytes at rt_q as rt_cwd writes
+# one: its length, or an error. A link in it stays what it is.
+fn rt_real rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ifz rt_r&16
+		ret -20
+	end
+	if rt_m>0x7fffffff
+		rt_m=0x7fffffff
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_m
+	store rt_a+16 rt_q
+	store rt_a+24 0
+	call rt_api rt_i_getfullpathnamea rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_m
+		ret -34
+	end
+	ret rt_r
+end
+
+# The path of the executable of the process into the rt_n bytes at rt_p:
+# its length, or an error, -36 for a path that does not fit.
+fn rt_self rt_p rt_n
+	local rt_a 32
+	if rt_n>0x7fffffff
+		rt_n=0x7fffffff
+	end
+	store rt_a 0
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	call rt_api rt_i_getmodulefilenamea rt_a 3 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_n
+		ret -36
+	end
+	ret rt_r
+end
+
+# What is at the path: 1 a file, 2 a directory, 3 a link, which is not
+# followed, or an error, -2 if nothing is there.
+fn rt_kind rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	if rt_r&0x400
+		ret 3
+	end
+	if rt_r&16
+		ret 2
+	end
+	ret 1
+end
+
+# the mode of a file means nothing here: 0 for a descriptor that is open
+fn rt_chmod rt_fd rt_mode
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	ret 0
+end
+
+# a number that no other process has while this one runs
+fn rt_pid
+	local rt_a 32
+	call rt_api rt_i_getcurrentprocessid rt_a 0 as rt_r
+	ret rt_r&0xffffffff
+end
+
 # The next names of the directory that rt_fd is open on, each with a zero
 # behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
 # least 512: the bytes written, 0 after the last name, or an error. The

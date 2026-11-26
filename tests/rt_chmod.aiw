@@ -1,0 +1,12 @@
+# the mode of an open file: one made with no mode can be read once it
+# has one, and a descriptor that is not open is an error
+rt unlink "build/tests/rt_chmod.f"
+rt open "build/tests/rt_chmod.f" 0x41 0 as f
+rt chmod f 420 as a
+rt close f
+rt open "build/tests/rt_chmod.f" 0 0 as g
+rt close g
+rt chmod 200 420 as b
+rt unlink "build/tests/rt_chmod.f" as u
+rt write 1 "mode\n"
+rt exit (a==0)+(g>2)*2+(b==-9)*4+(u==0)*8

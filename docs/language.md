@@ -225,6 +225,13 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error |
 | `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child, or another thread waits for it; an error if it could not be killed |
 | `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
+| `cwd` | address, size | the length of the path of the directory of the process, which is written there with a NUL behind it that is not counted, or an error: -34 if it does not fit |
+| `chdir` | path | 0, or an error: the directory at the path is the one of the process from now on, for every thread |
+| `real` | path, address, size | the length of the path of the directory as the system names it, from the root and with no link and no `..` in it, written as `cwd` writes one, or an error. On Linux the process goes into the directory and comes back by a descriptor, so a directory that may be entered and not listed has a name too, and a thread that names a file from the directory of the process must not do so meanwhile |
+| `self` | address, size | the length of the path of the executable of the process, which is written there, or an error: -36 if it does not fit |
+| `kind` | path | 1 for a file, 2 for a directory, 3 for a link, which is not followed, 4 for anything else, or an error: -2 if nothing is there |
+| `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
+| `pid` |  | a number that no other process has while this one runs |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 
