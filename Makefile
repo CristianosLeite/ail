@@ -60,7 +60,7 @@ $(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/p
 # takes an image built elsewhere instead of compiling one.
 RTDIR := rt/linux-x86_64
 RTFLAGS := -O2 -ffreestanding -fpie -fvisibility=hidden -fno-stack-protector \
-	-fno-asynchronous-unwind-tables -fcf-protection=none -nostdlib -Wall -Wextra -Werror
+	-fno-asynchronous-unwind-tables -fcf-protection=none -fno-tree-loop-distribute-patterns -fstack-clash-protection -nostdlib -Wall -Wextra -Werror
 RTIMG := $(B)/rt/image.aiw
 
 ifeq ($(RT),)

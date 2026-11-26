@@ -1,0 +1,21 @@
+# the services of directories: make one, a file in it, its names without
+# "." and "..", another name for the file, and all of it removed again
+buf b 512
+rt rmdir "build/tests/rt_dirs.d"
+rt mkdir "build/tests/rt_dirs.d" 493 as a
+rt mkdir "build/tests/rt_dirs.d" 493 as c
+rt open "build/tests/rt_dirs.d/one" 0x41 420 as f
+rt close f
+rt rmdir "build/tests/rt_dirs.d" as d
+rt rename "build/tests/rt_dirs.d/one" "build/tests/rt_dirs.d/two" as e
+rt open "build/tests/rt_dirs.d" 0x10000 0 as f
+rt names f b 511 as s
+rt names f b 512 as n
+rt write 1 b n-1
+rt write 1 "\n"
+rt names f b 512 as m
+rt close f
+rt unlink "build/tests/rt_dirs.d/one" as g
+rt unlink "build/tests/rt_dirs.d/two" as h
+rt rmdir "build/tests/rt_dirs.d" as i
+rt exit (a==0)+(c==-17)*2+(d==-39)*4+(e==0)*8+(s==-22)*16+(n==4)*32+(m==0)*64+(g==-2)*128+h+i

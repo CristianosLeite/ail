@@ -23,6 +23,7 @@ struct rt2 {
 };
 
 /* error codes: the numbers of Linux, negative */
+#define RT_EINVAL 22
 #define RT_ENAMETOOLONG 36
 
 long rt_exit(struct rt *rt, long code);
@@ -34,6 +35,11 @@ long rt_close(struct rt *rt, long fd);
 long rt_read(struct rt *rt, long fd, void *p, unsigned long n);
 long rt_write(struct rt *rt, long fd, const void *p, unsigned long n);
 long rt_pipeerr(struct rt *rt);
+long rt_mkdir(struct rt *rt, const char *path, unsigned long n, long mode);
+long rt_unlink(struct rt *rt, const char *path, unsigned long n);
+long rt_rmdir(struct rt *rt, const char *path, unsigned long n);
+long rt_rename(struct rt *rt, const char *path, unsigned long n, const char *to, unsigned long m);
+long rt_names(struct rt *rt, long fd, char *p, unsigned long n);
 
 #endif
 #endif

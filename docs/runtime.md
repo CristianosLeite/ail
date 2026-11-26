@@ -29,14 +29,19 @@ result is a value.
 | 7 | `read` | descriptor, address, size | the bytes read, at most the size and 0 at the end, or an error |
 | 8 | `write` | descriptor, address, size | the bytes written, at most the size, or an error |
 | 9 | `pipeerr` | | 0, or an error. From now on a `write` to a pipe or a socket whose other end is closed gives the error -32; until it is called such a write ends the process on Linux. It holds for the programs the process starts too |
+| 10 | `mkdir` | address and length of a path, mode | 0, or an error (-17 if it is there) |
+| 11 | `unlink` | address and length of a path | 0, or an error: the file is removed |
+| 12 | `rmdir` | address and length of a path | 0, or an error (-39 if it is not empty): the empty directory is removed |
+| 13 | `rename` | address and length of a path, and of another | 0, or an error: the file has the second path, in place of a file that had it |
+| 14 | `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error (-22 for a size below 512): the next names of the directory, each with a NUL behind it, none of them `.` or `..` |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
 with no NUL behind them. The flags of `open` are a sum of 0 to read, 1 to
 write or 2 for both, 64 to make the file if it is not there (with the
 mode, the bits of its permissions), 512 to cut it to no bytes, 1024 to
-write at its end and 0x80000 to close it in a program the process
-starts. `read` and `write` may do less than they were asked, and a
+write at its end, 0x10000 for a directory, whose names `names` gives,
+and 0x80000 to close it in a program the process starts. `read` and `write` may do less than they were asked, and a
 caller that wants all asks again.
 
 The errors that a caller may tell apart, with the numbers Linux gives
@@ -53,7 +58,9 @@ them; a runtime for another platform gives the same numbers:
 | -17 | the file is there |
 | -28 | no room left |
 | -32 | the other end is closed |
+| -22 | a value that the service does not take |
 | -36 | the path is too long |
+| -39 | the directory is not empty |
 
 ## How a program calls it
 

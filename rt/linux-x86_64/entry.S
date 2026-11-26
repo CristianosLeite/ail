@@ -32,6 +32,11 @@ rt_table:
 	.long e_read - rt_image
 	.long e_write - rt_image
 	.long e_pipeerr - rt_image
+	.long e_mkdir - rt_image
+	.long e_unlink - rt_image
+	.long e_rmdir - rt_image
+	.long e_rename - rt_image
+	.long e_names - rt_image
 rt_table_end:
 
 	.text
@@ -70,3 +75,8 @@ e_start:
 	entry read
 	entry write
 	entry pipeerr
+	entry mkdir
+	entry unlink
+	entry rmdir
+	entry rename
+	entry names

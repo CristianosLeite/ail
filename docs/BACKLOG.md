@@ -914,3 +914,9 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   they were, the compiler built by the seed and by itself behave alike
   on every test, example and fuzzed source, and `build/ailc` and
   `build/ailc2` are the same file.
+- [x] Services for files and directories (2026-11-26): `mkdir`,
+  `unlink`, `rmdir`, `rename` and `names`, which gives the names of a
+  directory as bytes with a NUL behind each, so that no caller knows the
+  form the kernel has for them. `lib/std/file.aiw` has no `sys` left
+  and makes no copy of a path. `tests/rt_dirs`, and the `lib_file_*`
+  tests as they were.

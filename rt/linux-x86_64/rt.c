@@ -23,7 +23,8 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
-	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_exit_group = 231
+	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rename = 82, SYS_mkdir = 83,
+	SYS_rmdir = 84, SYS_unlink = 87, SYS_getdents64 = 217, SYS_exit_group = 231
 };
 
 /* end the process, every thread of it */
@@ -66,20 +67,30 @@ long rt_free(struct rt *rt, unsigned long p)
 	return 0;
 }
 
+/* the n bytes of a path with a zero behind them, as the kernel takes
+ * one, in the 4096 bytes at z: 0, or the error of a path too long */
+static long path0(char *z, const char *path, unsigned long n)
+{
+	unsigned long i;
+
+	if (n >= 4096)
+		return -RT_ENAMETOOLONG;
+	for (i = 0; i < n; i++)
+		z[i] = path[i];
+	z[n] = 0;
+	return 0;
+}
+
 /* open the file whose path is the n bytes at path; a descriptor or an
  * error */
 long rt_open(struct rt *rt, const char *path, unsigned long n, long flags, long mode)
 {
 	char z[4096];
-	unsigned long i;
+	long r;
 
 	(void)rt;
-	if (n >= sizeof z)
-		return -RT_ENAMETOOLONG;
-	for (i = 0; i < n; i++)
-		z[i] = path[i];
-	z[n] = 0;
-	return sys3(SYS_open, z, flags, mode);
+	r = path0(z, path, n);
+	return r ? r : sys3(SYS_open, z, flags, mode);
 }
 
 long rt_close(struct rt *rt, long fd)
@@ -116,4 +127,81 @@ long rt_pipeerr(struct rt *rt)
 
 	(void)rt;
 	return sys4(SYS_rt_sigaction, 13, &act, 0, 8);
+}
+
+/* make a directory, remove a file, remove an empty directory */
+long rt_mkdir(struct rt *rt, const char *path, unsigned long n, long mode)
+{
+	char z[4096];
+	long r;
+
+	(void)rt;
+	r = path0(z, path, n);
+	return r ? r : sys2(SYS_mkdir, z, mode);
+}
+
+long rt_unlink(struct rt *rt, const char *path, unsigned long n)
+{
+	char z[4096];
+	long r;
+
+	(void)rt;
+	r = path0(z, path, n);
+	return r ? r : sys1(SYS_unlink, z);
+}
+
+long rt_rmdir(struct rt *rt, const char *path, unsigned long n)
+{
+	char z[4096];
+	long r;
+
+	(void)rt;
+	r = path0(z, path, n);
+	return r ? r : sys1(SYS_rmdir, z);
+}
+
+/* give a file another path, in place of a file that has it */
+long rt_rename(struct rt *rt, const char *path, unsigned long n, const char *to, unsigned long m)
+{
+	char z[4096], y[4096];
+	long r;
+
+	(void)rt;
+	r = path0(z, path, n);
+	if (!r)
+		r = path0(y, to, m);
+	return r ? r : sys2(SYS_rename, z, y);
+}
+
+/* the next names of the directory that fd is open on, each with a zero
+ * behind it and none of them "." or "..", into the n bytes at p, at
+ * least 512: the bytes written, 0 after the last name, or an error.
+ * The names of an entry are shorter than the entry, so those of what
+ * the kernel puts into n bytes fit n bytes. */
+long rt_names(struct rt *rt, long fd, char *p, unsigned long n)
+{
+	char d[4096];
+	unsigned long o = 0;
+	long r, i;
+
+	(void)rt;
+	if (n < 512)
+		return -RT_EINVAL;
+	for (;;) {
+		r = sys3(SYS_getdents64, fd, d, n < sizeof d ? n : sizeof d);
+		if (r <= 0)
+			return r;
+		for (i = 0; i < r;) {
+			const char *s = d + i + 19;
+
+			i += *(unsigned short *)(d + i + 16);
+			if (s[0] == '.' && (!s[1] || (s[1] == '.' && !s[2])))
+				continue;
+			while (*s)
+				p[o++] = *s++;
+			p[o++] = 0;
+		}
+		if (o)
+			return o;
+	}
 }

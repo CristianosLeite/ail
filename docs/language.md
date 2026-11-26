@@ -197,6 +197,11 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `read` | descriptor, address, size | the bytes read, 0 at the end, or an error |
 | `write` | descriptor, address, size | the bytes written, or an error |
 | `pipeerr` | | 0, or an error; a `write` to a closed pipe is the error -32 from now on, not the end of the process |
+| `mkdir` | address and length of a path, mode | 0, or an error (-17 if it is there) |
+| `unlink` | address and length of a path | 0, or an error: the file is removed |
+| `rmdir` | address and length of a path | 0, or an error (-39 if it is not empty): the empty directory is removed |
+| `rename` | address and length of a path, and of another | 0, or an error: the file has the second path, in place of a file that had it |
+| `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 
@@ -1063,7 +1068,7 @@ call print p n
 | `fileread p n b` | adds the bytes of the file at the path to the buffer `b`; returns their number |
 | `filereadfd fd b` | the same from an open descriptor, up to the end of the file; the descriptor stays open |
 | `filewrite p n d dn` | makes the file at the path hold the `dn` bytes at `d` and nothing else, creating it with mode 0666 less the umask; returns 0 |
-| `fileopen p n flags mode` | opens the path with the flags and mode of the `open` syscall, plus close-on-exec; returns the descriptor, which the caller closes |
+| `fileopen p n flags mode` | opens the path with the flags and mode of the service [`open`](#rt), plus the flag that closes it in a program the process starts; returns the descriptor, which the caller closes |
 | `filemkdir p n mode` | makes the directory at the path, with the mode less the umask; returns 0 |
 | `fileunlink p n` | removes the file at the path; returns 0 |
 | `filermdir p n` | removes the empty directory at the path; returns 0 |
@@ -1083,7 +1088,7 @@ load b as q
 call filewrite "copy" q r
 ```
 
-- **Errors**: a result below zero is the error number of the kernel, negated: -2 no such file, -13 not allowed, -21 a directory, -17 there already, -39 a directory that is not empty, -12 no memory, -36 a path of 4096 bytes or more. Test it with a signed comparison (`ifslt r 0`). After a failed `fileread` the buffer holds what was read until then; after a failed `filewrite` the file may hold a part. A call interrupted by a signal is repeated.
+- **Errors**: a result below zero is the error of the [runtime](#rt), which the library asks for everything: -2 no such file, -13 not allowed, -21 a directory, -17 there already, -39 a directory that is not empty, -12 no memory, -36 a path of 4096 bytes or more. Test it with a signed comparison (`ifslt r 0`). After a failed `fileread` the buffer holds what was read until then; after a failed `filewrite` the file may hold a part. A call interrupted by a signal is repeated.
 - **Descriptors**: `fileread` and `filewrite` close what they open, on every way out. `fileopen` and `filereadfd` leave that to the caller.
 - **Growth**: `fileread` and `filereadfd` grow the buffer as `byadd` does, 64 KiB of room at a time, so an address into it is not good afterwards.
 - **Names**: the library owns every name that starts with `file`; a program has no `var` of such a name.
