@@ -726,6 +726,8 @@ end
 # 48 digits, the number of its volume and the number it has there, 64
 # and 128 bits, the whole of each: of the 64 bits that Windows has for
 # the number of a file too, some files of one volume have the same. A
+# number of the file that is all zeros is what a volume gives that has
+# none, for every file of it, and is the error -95. A
 # mutex belongs to a thread, which may take it again and which alone
 # gives it back: the thread that took the lock closes it.
 fn rt_lock rt_p rt_n
@@ -763,6 +765,11 @@ fn rt_lock rt_p rt_n
 	call rt_api rt_i_closehandle rt_a 1
 	if rt_e
 		ret rt_e
+	end
+	load rt_y+8 as rt_i
+	load rt_y+16 as rt_c
+	ifz rt_i|rt_c
+		ret -95
 	end
 	# "Local\ail-", then the 8 bytes of the volume and the 16 of the file
 	store rt_z 0x69615c6c61636f4c
