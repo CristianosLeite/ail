@@ -1175,3 +1175,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   services may be 48 KiB, since that of Windows passed 32.
   `tests/rt_reap_many`, which `tests/win.sh` always runs: eight
   threads, of which five or four got 0 before.
+- [x] `reap` on Linux sends no signal to a number the kernel may have
+  given away (2026-11-26): without a descriptor of the child the wait
+  asks by the number, which stays the child's only while nothing but
+  `reap` takes children; a process that ignores `SIGCHLD` has the
+  kernel take them, so the number could be another process when the
+  time was over. There `reap` now returns the error that kept the
+  descriptor away and leaves the child; `docs/runtime.md` says what
+  the promise needs. `tests/rt_reap_auto`.

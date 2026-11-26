@@ -1117,11 +1117,13 @@ fn rt_reaping rt_pid rt_ms
 	rt_w=1
 	rt_id=rt_pid
 	sys rt_pidfdopen rt_pid 0 as rt_fd
+	rt_e=rt_fd
 	ifsge rt_fd 0
 		call rt_take 3 rt_fd rt_info 5 as rt_r
 		if rt_r==-22
 			# a kernel that takes no child by a descriptor
 			sys close rt_fd
+			rt_e=-38
 			jmp rt_ask
 		end
 		rt_w=3
@@ -1162,8 +1164,19 @@ fn rt_reaping rt_pid rt_ms
 		call rt_sleep 1000000
 		jmp rt_ask
 	end
-	# it is a child that runs and that no other thread takes, so the
-	# number is still its own
+	# it is a child that runs and that no reap of another thread takes.
+	# The number is its own for as long as nothing else takes it either:
+	# where the kernel itself takes the children that end, because the
+	# process ignores their signal or asked for that, the number may be
+	# another process by now, and no signal is sent: the error that kept
+	# the descriptor away is the result, and the child is left
+	zero rt_info 32
+	sys rt_sigaction 17 0 rt_info 8
+	load rt_info as rt_n
+	load rt_info+8 as rt_s
+	if (rt_n==1)|(rt_s&2)
+		ret rt_e
+	end
 	sys kill rt_pid 9 as rt_s
 	label rt_late
 	ifz rt_s
