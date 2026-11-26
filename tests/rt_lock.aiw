@@ -1,0 +1,45 @@
+# the lock of a directory: this program starts itself, and what it
+# starts gets the lock only when it is closed here, after a file was
+# made that it then finds; nothing at a path is no lock
+buf exe 4096
+buf argv 24
+buf io 24
+data again "again" 0
+data dir "build/tests/rt_lock.d"
+data mark "build/tests/rt_lock.d/mark"
+args as p
+load p as n
+if n>1
+	len dir as n
+	rt lock dir n as l
+	len mark as n
+	rt kind mark n as k
+	if k==1
+		rt write 1 "waited\n"
+	end
+	rt close l as c
+	rt exit (l>2)+(c==0)*2
+end
+len mark as m
+rt unlink mark m
+len dir as n
+rt rmdir dir n
+rt mkdir dir n 493
+rt lock dir n as l
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 again
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt sleep 300000000
+rt open mark m 0x41 420 as f
+rt close f
+rt close l as u
+rt reap c 0 as s
+rt lock "build/tests/rt_lock.d/none" as none
+rt unlink mark m
+rt rmdir dir n as d
+rt exit (l>2)+(u==0)*2+(s==3)*4+(none==-2)*8+(d==0)*16

@@ -28,7 +28,8 @@
 # 4464  1 + the job of Windows that the children held to this process
 #       are in, or 0 before the first of them
 # 4472  1 once the sockets of Windows are started
-# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller, 8 a
+#       lock
 # 4736  per descriptor, 8 bytes: the record of the poller that it is or
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
@@ -343,6 +344,11 @@ fn rt_close rt_fd
 		end
 		call rt_free rt_d
 		jmp rt_done
+	end
+	if rt_k&8
+		# a lock: the mutex is given back, which only its thread can
+		store rt_a rt_h
+		call rt_api rt_i_releasemutex rt_a 1
 	end
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1 as rt_x
@@ -709,6 +715,92 @@ fn rt_pid
 	local rt_a 32
 	call rt_api rt_i_getcurrentprocessid rt_a 0 as rt_r
 	ret rt_r&0xffffffff
+end
+
+# Take the lock of the directory or file at the path, which one process
+# at a time has, after waiting for the one that has it: a descriptor
+# that holds it until it is closed or the process ends, or an error.
+# Windows locks no directory, so the lock is a mutex of Windows named
+# by the path made whole, in small letters: "Local\ail-" and the 16
+# digits of a sum of its bytes (FNV-1a). A mutex belongs to a thread,
+# which may take it again and which alone gives it back: the thread
+# that took the lock closes it.
+fn rt_lock rt_p rt_n
+	local rt_z 4096
+	local rt_y 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	store rt_a rt_z
+	store rt_a+8 4096
+	store rt_a+16 rt_y
+	store rt_a+24 0
+	call rt_api rt_i_getfullpathnamea rt_a 4 as rt_m
+	rt_m&=0xffffffff
+	ifz rt_m
+		tail rt_error
+	end
+	if rt_m>=4096
+		ret -36
+	end
+	rt_s=0xcbf29ce484222325
+	rt_i=0
+	while rt_i<rt_m
+		loadb rt_y+rt_i as rt_c
+		if (rt_c>64)&(rt_c<91)
+			rt_c+=32
+		end
+		rt_s=(rt_s^rt_c)*0x100000001b3
+		rt_i+=1
+	end
+	# "Local\ail-"
+	store rt_z 0x69615c6c61636f4c
+	store2 rt_z+8 0x2d6c
+	rt_i=0
+	while rt_i<16
+		rt_c=rt_s>>(60-rt_i*4)&15
+		if rt_c>9
+			rt_c+=39
+		end
+		storeb rt_z+10+rt_i rt_c+48
+		rt_i+=1
+	end
+	storeb rt_z+26 0
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 0
+	store rt_a+8 0
+	store rt_a+16 rt_z
+	call rt_api rt_i_createmutexa rt_a 3 as rt_h
+	ifz rt_h
+		call rt_error as rt_r
+		tail rt_unfd rt_fd rt_r
+	end
+	# 0 it is this thread's, 128 also, left by a thread that ended with it
+	store rt_a rt_h
+	store rt_a+8 0xffffffff
+	call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
+	rt_r&=0xffffffff
+	if (rt_r!=0)&(rt_r!=128)
+		call rt_error as rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		tail rt_unfd rt_fd rt_r
+	end
+	storeb rt_state+4480+rt_fd 8
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
 end
 
 # The next names of the directory that rt_fd is open on, each with a zero
@@ -1267,7 +1359,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	load rt_pi as rt_p
 	store rt_kid+8 rt_p
 	store rt_kid+16 0
-	call rt_lock
+	call rt_mlock
 	load rt_state+6792 as rt_p
 	rt_p+=1
 	store rt_state+6792 rt_p
@@ -1276,7 +1368,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	load rt_state+6784 as rt_h
 	store rt_kid rt_h
 	store rt_state+6784 rt_kid
-	call rt_unlock
+	call rt_munlock
 	ret rt_p
 end
 
@@ -1301,11 +1393,11 @@ fn rt_reap rt_p rt_ms
 	if rt_p==1
 		ret 127
 	end
-	call rt_lock
+	call rt_mlock
 	load rt_state+6784 as rt_k
 	label rt_find
 	ifz rt_k
-		call rt_unlock
+		call rt_munlock
 		ret -1001
 	end
 	load rt_k+24 as rt_h
@@ -1315,18 +1407,18 @@ fn rt_reap rt_p rt_ms
 	end
 	load rt_k+16 as rt_h
 	if rt_h
-		call rt_unlock
+		call rt_munlock
 		ret -1001
 	end
 	store rt_k+16 1
 	load rt_k+8 as rt_p
-	call rt_unlock
+	call rt_munlock
 	call rt_reaping rt_p rt_ms as rt_r rt_took
 	ifz rt_took
 		store rt_k+16 0
 		ret rt_r
 	end
-	call rt_lock
+	call rt_mlock
 	rt_q=rt_state+6784
 	label rt_next
 	load rt_q as rt_h
@@ -1336,7 +1428,7 @@ fn rt_reap rt_p rt_ms
 	end
 	load rt_k as rt_h
 	store rt_q rt_h
-	call rt_unlock
+	call rt_munlock
 	call rt_free rt_k
 	store rt_a rt_p
 	call rt_api rt_i_closehandle rt_a 1
@@ -2315,7 +2407,7 @@ data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
 data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
 data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
 
-fn rt_lock
+fn rt_mlock
 	load rt_state+16 as rt_t
 	ifz rt_t
 		ret 0
@@ -2324,7 +2416,7 @@ fn rt_lock
 	cas rt_state+24 0 1 as rt_k
 	jz rt_k rt_again
 end
-fn rt_unlock
+fn rt_munlock
 	load rt_state+16 as rt_t
 	if rt_t
 		store rt_state+24 0
@@ -2370,12 +2462,12 @@ fn rt_alloc rt_n
 	end
 	load2 rt_csz+rt_c*2 as rt_z
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_p
 	if rt_p
 		load rt_p as rt_x
 		store rt_q rt_x
-		call rt_unlock
+		call rt_munlock
 		rt_z-=16
 		if rt_z>96
 			zero rt_p rt_z
@@ -2393,13 +2485,13 @@ fn rt_alloc rt_n
 	if rt_e-rt_p<rt_z
 		call rt_pages 262144 as rt_p
 		ifz rt_p
-			call rt_unlock
+			call rt_munlock
 			ret 0
 		end
 		store rt_state+40 rt_p+262144
 	end
 	store rt_state+32 rt_p+rt_z
-	call rt_unlock
+	call rt_munlock
 	store rt_p rt_c
 	ret rt_p+16
 end
@@ -2419,11 +2511,11 @@ fn rt_free rt_p
 		ret 0
 	end
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_x
 	store rt_p rt_x
 	store rt_q rt_p
-	call rt_unlock
+	call rt_munlock
 	ret 0
 end
 

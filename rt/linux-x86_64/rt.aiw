@@ -193,7 +193,7 @@ fn rt_real rt_p rt_n rt_q rt_m
 		ret rt_r
 	end
 	set ".\0" as rt_d
-	call rt_lock
+	call rt_mlock
 	sys open rt_d 0x290000 0 as rt_fd
 	rt_r=rt_fd
 	ifsge rt_fd 0
@@ -204,7 +204,7 @@ fn rt_real rt_p rt_n rt_q rt_m
 		end
 		sys close rt_fd
 	end
-	call rt_unlock
+	call rt_munlock
 	ret rt_r
 end
 
@@ -256,6 +256,32 @@ end
 fn rt_pid
 	sys getpid as rt_r
 	ret rt_r
+end
+
+# Take the lock of the directory or file at the path, which one process
+# at a time has, after waiting for the one that has it: a descriptor
+# that holds it until it is closed or the process ends, or an error. A
+# program that is started does not get the descriptor. The lock is the
+# kernel's own of what is at the path, so a process that has it and
+# asks again waits for itself.
+fn rt_lock rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	sys open rt_z 0x80000 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	label rt_again
+	sys rt_flock rt_fd 2 as rt_r
+	jeq rt_r -4 rt_again
+	if rt_r
+		sys close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
 end
 
 # The next names of the directory that rt_fd is open on, each with a zero
@@ -340,7 +366,7 @@ data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
 data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
 data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
 
-fn rt_lock
+fn rt_mlock
 	load rt_state+16 as rt_t
 	ifz rt_t
 		ret 0
@@ -362,7 +388,7 @@ fn rt_lock
 	end
 	jmp rt_again
 end
-fn rt_unlock
+fn rt_munlock
 	load rt_state+16 as rt_t
 	if rt_t
 		store rt_state+24 0
@@ -397,12 +423,12 @@ fn rt_alloc rt_n
 	end
 	load2 rt_csz+rt_c*2 as rt_z
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_p
 	if rt_p
 		load rt_p as rt_x
 		store rt_q rt_x
-		call rt_unlock
+		call rt_munlock
 		# zeros again: the string instruction, but for the smallest blocks,
 		# which a loop clears before that instruction has started
 		rt_z-=16
@@ -422,13 +448,13 @@ fn rt_alloc rt_n
 	if rt_e-rt_p<rt_z
 		sys mmap 0 262144 3 0x22 -1 0 as rt_p
 		if rt_p>-4096
-			call rt_unlock
+			call rt_munlock
 			ret 0
 		end
 		store rt_state+40 rt_p+262144
 	end
 	store rt_state+32 rt_p+rt_z
-	call rt_unlock
+	call rt_munlock
 	store rt_p rt_c
 	ret rt_p+16
 end
@@ -444,11 +470,11 @@ fn rt_free rt_p
 		ret 0
 	end
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_x
 	store rt_p rt_x
 	store rt_q rt_p
-	call rt_unlock
+	call rt_munlock
 	ret 0
 end
 
@@ -1178,12 +1204,12 @@ fn rt_reap rt_pid rt_ms
 	if rt_pid>0x7fffffff
 		ret -1001
 	end
-	call rt_lock
+	call rt_mlock
 	load rt_state+360 as rt_p
 	while rt_p
 		load rt_p+8 as rt_n
 		if rt_n==rt_pid
-			call rt_unlock
+			call rt_munlock
 			ret -1001
 		end
 		load rt_p as rt_p
@@ -1192,9 +1218,9 @@ fn rt_reap rt_pid rt_ms
 	store rt_me rt_p
 	store rt_me+8 rt_pid
 	store rt_state+360 rt_me
-	call rt_unlock
+	call rt_munlock
 	call rt_reaping rt_pid rt_ms as rt_r
-	call rt_lock
+	call rt_mlock
 	rt_p=rt_state+360
 	label rt_next
 	load rt_p as rt_n
@@ -1204,7 +1230,7 @@ fn rt_reap rt_pid rt_ms
 	end
 	load rt_me as rt_n
 	store rt_p rt_n
-	call rt_unlock
+	call rt_munlock
 	ret rt_r
 end
 

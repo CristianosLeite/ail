@@ -232,6 +232,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `kind` | path | 1 for a file, 2 for a directory, 3 for a link, which is not followed, 4 for anything else, or an error: -2 if nothing is there |
 | `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
 | `pid` |  | a number that no other process has while this one runs |
+| `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 
