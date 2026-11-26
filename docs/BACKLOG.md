@@ -993,3 +993,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   ail-bench the AIL services take 0.87 (`iocopy`), 0.98 (`iosmall`) and
   0.99 (`allocs`) of the time of C; the C services took 0.88, 0.99 and
   1.03.
+- [x] The runtime in AIL alone (2026-11-26). Time, the poller, the
+  sockets and the processes were written in AIL, and the whole suite
+  passed with the AIL services and with the C ones. Then the C runtime
+  was removed: no image, no `cc` in `make`. An executable is the header,
+  the code of `rt.aiw` and the program. The first line of the runtime
+  does nothing in a program that never asks for the stack of its start,
+  the second jumps over its functions, and the state is no memory of a
+  program that calls no service that keeps something there: `hello`
+  starts in 48.2 to 48.4 microseconds against 47.9 before there was a
+  runtime, where the C runtime cost two. `iocopy`, `iosmall` and
+  `allocs` of ail-bench take 0.85, 0.98 and 0.99 of the time of C.

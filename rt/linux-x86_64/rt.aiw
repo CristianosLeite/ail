@@ -1,10 +1,9 @@
-# The runtime of AIL for x86-64 Linux, in AIL: the services that
-# docs/runtime.md lists, each a function rt_<name> that takes the values
-# of the service and returns its results. The compiler has this text and
-# compiles it in front of every program, so the first line below is the
-# first that a process runs, and a function here is one of the program:
-# a short one is compiled in place of its calls. A service that has no
-# function here is an entry of the image written in C, rt.c.
+# The runtime of AIL for x86-64 Linux: the services that docs/runtime.md
+# lists, each a function rt_<name> that takes the values of the service
+# and returns its results. The compiler has this text and compiles it in
+# front of every program, so the first line below is the first that a
+# process runs, and a function here is one of the program: a short one
+# is compiled in place of its calls.
 #
 # The state is the buffer rt_state, which state.aiw declares behind the
 # buffers of the program:
@@ -19,7 +18,13 @@
 #       with the next in its first 8 bytes
 # Every name of this file starts with "rt_", and a program has no name
 # that does.
+#
+# The first line keeps the stack; the compiler makes it do nothing in a
+# program that calls no service that reads it (the table rtnames says
+# which do). The second goes to the last, past every function, so that
+# a process touches the first page of this code and no other.
 stack rt_state
+jmp rt_go
 
 # end the process, every thread of it
 fn rt_exit rt_c
@@ -1097,3 +1102,5 @@ fn rt_pin rt_cpu
 	end
 	ret rt_cpu
 end
+
+label rt_go

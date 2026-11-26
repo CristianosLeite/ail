@@ -115,7 +115,7 @@ data 5 "spawn" 0 17 34 3 72 141 5
 data 4 "join" 0 16 32 1 232
 data 5 "await" 0 16 96 0
 # rt calls the service of the runtime named after it; args, alloc and free
-# are services too, their one byte of code the number of the entry
+# are services too, their one byte of code the number of the service
 data 2 "rt" 0 4 128 0
 data 2 "fn" 1 255 0 0
 data 3 "buf" 2 255 0 0
@@ -173,46 +173,48 @@ data 10 "exit_group" 231 0
 data 6 "openat" 1 1
 data 9 "getrandom" 62 1
 data 0
-# the services of the runtime that rt names: name length, name, the number
-# of the entry in the image, how many values it takes, how many results
-# it gives
-data rtnames 4 "exit" 1 1 0
-data 4 "args" 2 0 1
-data 5 "alloc" 3 1 1
-data 4 "free" 4 1 0
-data 4 "open" 5 4 1
-data 5 "close" 6 1 1
-data 4 "read" 7 3 1
-data 5 "write" 8 3 1
-data 7 "pipeerr" 9 0 1
-data 5 "mkdir" 10 3 1
-data 6 "unlink" 11 2 1
-data 5 "rmdir" 12 2 1
-data 6 "rename" 13 4 1
-data 5 "names" 14 3 1
-data 5 "clock" 15 0 1
-data 5 "sleep" 16 1 1
-data 4 "wait" 17 3 1
-data 4 "wake" 18 2 1
-data 4 "cpus" 19 0 1
-data 6 "thread" 20 2 1
-data 6 "poller" 21 0 1
-data 5 "watch" 22 4 1
-data 7 "unwatch" 23 2 1
-data 4 "poll" 24 4 1
-data 5 "waker" 25 0 1
-data 6 "wakeup" 26 1 1
-data 6 "listen" 27 3 1
-data 6 "accept" 28 1 1
-data 6 "socket" 29 0 1
-data 7 "connect" 30 3 1
-data 7 "sockerr" 31 1 1
-data 4 "port" 32 1 1
-data 4 "send" 33 3 1
-data 6 "writeq" 34 3 1
-data 5 "start" 35 4 1
-data 4 "reap" 36 2 1
-data 3 "pin" 37 1 1
+# the services of the runtime that rt names: name length, name, its
+# number, how many values it takes, how many results it gives, and what
+# it needs of the state of the runtime: 2 the state, 3 also the stack
+# the process starts with, which the first line of the runtime keeps
+# there
+data rtnames 4 "exit" 1 1 0 0
+data 4 "args" 2 0 1 3
+data 5 "alloc" 3 1 1 2
+data 4 "free" 4 1 0 2
+data 4 "open" 5 4 1 0
+data 5 "close" 6 1 1 0
+data 4 "read" 7 3 1 0
+data 5 "write" 8 3 1 0
+data 7 "pipeerr" 9 0 1 0
+data 5 "mkdir" 10 3 1 0
+data 6 "unlink" 11 2 1 0
+data 5 "rmdir" 12 2 1 0
+data 6 "rename" 13 4 1 0
+data 5 "names" 14 3 1 0
+data 5 "clock" 15 0 1 3
+data 5 "sleep" 16 1 1 0
+data 4 "wait" 17 3 1 0
+data 4 "wake" 18 2 1 0
+data 4 "cpus" 19 0 1 0
+data 6 "thread" 20 2 1 2
+data 6 "poller" 21 0 1 0
+data 5 "watch" 22 4 1 0
+data 7 "unwatch" 23 2 1 0
+data 4 "poll" 24 4 1 0
+data 5 "waker" 25 0 1 0
+data 6 "wakeup" 26 1 1 0
+data 6 "listen" 27 3 1 0
+data 6 "accept" 28 1 1 0
+data 6 "socket" 29 0 1 0
+data 7 "connect" 30 3 1 0
+data 7 "sockerr" 31 1 1 0
+data 4 "port" 32 1 1 0
+data 4 "send" 33 3 1 0
+data 6 "writeq" 34 3 1 0
+data 5 "start" 35 4 1 3
+data 4 "reap" 36 2 1 3
+data 3 "pin" 37 1 1 0
 data 0
 # the keyword of the row that a service written in AIL is compiled by
 data callkw "call"

@@ -103,6 +103,10 @@ var rte rta rtr
 # statement that became a call of a function of the runtime: 1, plus 1
 # if it must have "as" and 2 if it may not; callrow = the row of call
 var rtu rtt rtck callrow
+# what the services called so far need of the state of the runtime: 2
+# the state, 1 also the stack the process starts with; rtbss = the bytes
+# of the buffers before those of the runtime
+var rtuse rtbss
 # expressions: the nodes, values and operators of the one being parsed, and
 # whether it divides or shifts
 var nex nexv nexs exdm exsh
@@ -146,19 +150,20 @@ var epos ename enamel mainend curunit
 # out 16 times as much (see OUTSZ in stage0), and each table one entry for
 # every shortest line that makes one
 const inmax 8388609
-# The runtime written in AIL is source that the compiler carries (rtsrc
-# and rttail, from build/rt/source.aiw) and compiles with every program,
-# the first in front of it and the second behind it. Their text stands
-# in the 64 KiB behind the room of the source, and each table that keeps
-# entries to the end has room for theirs beyond what the source limit
-# gives: 16 files, 1024 functions, tails, checked accesses and 64 runs
-# of data, 4096 calls, uses of names and nodes, 256 global names.
+# The runtime is source that the compiler carries (rtsrc and rttail, from
+# build/rt/source.aiw) and compiles with every program, the first in
+# front of it and the second behind it. Their text stands in the 64 KiB
+# behind the room of the source, and each table that keeps entries to
+# the end has room for theirs beyond what the source limit gives: 16
+# files, 1024 functions, tails, checked accesses and 64 runs of data,
+# 4096 calls, uses of names and nodes, 256 global names.
 const insz 8454145
 buf in insz
 # per entry of the runtime: 1 + the function of rt.aiw that is the
-# service, or 0 for one that is an entry of the image
+# service
 buf rtfn 512
 buf rtnm 40         # the name of such a function, "rt_" and the service
+buf rtfl 64         # per entry: what the service needs of the state (see rtnames)
 buf out 134217728
 buf vars 2048       # variables: 64 top level then 64 of the function, 16 bytes each: name, length
 buf topcell 512     # per top-level variable after the sixth: the address of its cell
@@ -282,13 +287,7 @@ mainend=p
 ip=in
 op=out
 call cp hdr 176
-# the runtime behind the header, and the program behind that; the process
-# starts at the first entry of the image
-load4 rtimg+8 as r
-call cp rtimg r
-load4 rtimg+32 as r
-store out+24 r+176
-# the runtime written in AIL is compiled first, the program behind it
+# the runtime is compiled first, behind the header, the program behind it
 call rtinit
 load4 rtsrcn as r
 load4 rttailn as c
@@ -475,6 +474,7 @@ ifz nustk
 	# behind it, once
 	jnz rtt|infn|nblk fin
 	rtt=1
+	rtbss=bsssz
 	load4 rtsrcn as r
 	load4 rttailn as c
 	jz c fin
@@ -1564,13 +1564,9 @@ if nblk
 end
 call cp exit0 3
 load rtfn+8 as r
-if r
-	load r*40+funs-24 as r
-	call e4 r-op-4
-else
-	load4 rtimg+36 as r
-	call e4 out+176+r-op-4
-end
+call ok r
+load r*40+funs-24 as r
+call e4 r-op-4
 rwstart=op-out+4095>>12<<12
 call resolve
 call tailres
@@ -1708,12 +1704,21 @@ store out+96 q
 store out+104 q
 store out+136 rwstart
 store out+144 rwstart
-# the state of the runtime is behind the buffers; the image has its
-# distance from there
 c=ngv*8+bsssz
-store out+200 c+rwstart-176
-load4 rtimg+12 as r
-c+=r
+# The first line of the runtime keeps the stack the process starts
+# with. If no service that reads it is called it does nothing instead,
+# and if no service has anything in the state of the runtime, the last
+# of the buffers, the segment ends before it: a program that keeps
+# nothing in memory has no writable segment, as before the runtime.
+ifz rtuse&1
+	call mv nops+36 out+176 9
+	storeb out+185 144
+end
+ifz rtuse
+	if rtt
+		c=ngv*8+rtbss
+	end
+end
 store out+160 c
 if c+rwstart>0x7fffffff
 	call ebuf
@@ -1731,5 +1736,4 @@ jnz q w1
 # ---- the read-only tables are a file of their own, compiled here: a data
 # name may be declared after its uses
 use "compiler/tables.aiw"
-use "build/rt/image.aiw"
 use "build/rt/source.aiw"

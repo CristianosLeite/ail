@@ -225,7 +225,7 @@ fn rtname
 	loadb r+2 as rtr
 	ret 0
 	label t
-	r=r+l+3
+	r=r+l+4
 	jmp a
 end
 # find the row of call, which a statement that is a service becomes
@@ -250,9 +250,9 @@ fn rtunit a n
 	ie=a+n
 end
 # The functions of the runtime are compiled: note for each service the
-# function rt_<name> if there is one, which must take as many values as
-# the service, and put the program where it would stand in a line of
-# the cache behind the header alone.
+# function rt_<name>, which must take as many values as the service,
+# and put the program where it would stand in a line of the cache
+# behind the header alone.
 fn rtready
 	storeb rtnm 114
 	storeb rtnm+1 116
@@ -278,8 +278,10 @@ fn rtready
 			load i*40+funs+24 as p
 			call ok p==c
 			store rtfn+e*8 i+1
+			loadb r+3 as c
+			storeb rtfl+e c
 		end
-		r+=3
+		r+=4
 		jmp a
 	end
 	n=(out+48-op)&63
@@ -291,18 +293,19 @@ fn rtready
 		call cp n*(n-1)/2+nops n
 	end
 end
-# The statement at hand calls the service rte: if that is a function of
-# the runtime, it becomes a call of the function, with what the service
+# The statement at hand calls the service rte: it becomes a call of the
+# function of the runtime that is the service, with what the service
 # says of "as" (k: 1 it must have one, 2 it may not) kept for its end.
 fn rtcall k
 	load rtfn+rte*8 as i
-	if i
-		p=i*40+funs-40
-		load p as cn
-		load p+8 as cl
-		rtck=1+k
-		cur=callrow
-	end
+	call ok i
+	p=i*40+funs-40
+	load p as cn
+	load p+8 as cl
+	rtck=1+k
+	cur=callrow
+	loadb rtfl+rte as c
+	rtuse|=c
 end
 # the end of such a statement, with names after "as" (a) or without:
 # what the row of the service would have checked

@@ -5,12 +5,9 @@
 # a length that is not that of its name or code, a statement or syscall
 # name twice, a flag that no statement has, a row split over two lines, a
 # missing end, a table of the wrong size, a syscall number that is not
-# the kernel's, a service of the runtime that is no entry of its image
-# or that a statement calls with another number of values.
+# the kernel's, a service of the runtime that a statement calls with
+# another number of values.
 cd "$(dirname "$0")/.." || exit 1
-# the entries of the image, if it is built: the four bytes at 16
-rtimage=
-[ -e build/rt/image ] && rtimage=$(od -An -tu4 -j16 -N4 build/rt/image | tr -d ' ')
 out=$(awk '
 function bad(msg) { printf "%s (line %d)\n", msg, NR; nbad++ }
 # split a data line into bytes b[1..nb]; a string gives its characters
@@ -64,7 +61,8 @@ $1 != "data" { bad("not a data line"); next }
     names[table, name] = 1
     p = 2 + len
     if (table == "rtnames") {
-        if (nb != p + 2) { bad("wrong row length: " name); next }
+        if (nb != p + 3) { bad("wrong row length: " name); next }
+        if (b[p + 3] != 0 && b[p + 3] != 2 && b[p + 3] != 3) bad("flag of a service: " name)
         if (b[p] < 1 || b[p] in rtentry) bad("entry of a service twice or none: " name)
         if (b[p + 1] > 5 || b[p + 2] > 2) bad("values or results of a service: " name)
         rtentry[b[p]] = name; rtnum[name] = b[p]; rtargs[name] = b[p + 1]
@@ -104,14 +102,14 @@ END {
         if (rtnum[n] != svc[n]) bad("statement and service of another entry: " n)
         else if (rtargs[n] != svccnt[n]) bad("statement and service of other values: " n)
     }
-    if (rtimage != "" && rtmax + 1 != rtimage) bad("the image has " rtimage " entries, rtnames names up to " rtmax)
+    if (rtmax > 63) bad("more services than the compiler has room for")
     for (t in size) if (count[t] != size[t]) bad("table " t " has " count[t] + 0 " bytes, not " size[t])
     for (t in count) if (!(t in size)) bad("unknown table: " t)
     if (!("optab" in seen)) bad("no optab")
     if (nsysrows != nsys) bad("sysnames has " nsysrows + 0 " names, not " nsys)
     if (nrows < 80) bad("optab has only " nrows " rows")
     exit nbad != 0
-}' rtimage="$rtimage" compiler/tables.aiw)
+}' compiler/tables.aiw)
 if [ $? -eq 0 ] && [ -z "$out" ]
 then echo "ok   tables_form"
 else echo "FAIL tables_form"; [ -n "$out" ] && echo "$out" | sed 's/^/     /'; exit 1

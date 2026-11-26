@@ -54,43 +54,15 @@ $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw
 $(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/proc.aiw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
-# The runtime (docs/runtime.md): the services of the platform, compiled
-# without a C library into an image that may stand anywhere, which the
-# compiler has as data lines and copies into every executable. RT=<file>
-# takes an image built elsewhere instead of compiling one.
+# The runtime (docs/runtime.md): the services of the platform, written in
+# AIL. The compiler has its source as data lines and compiles it with
+# every program, rt.aiw in front of the program and state.aiw behind it.
 RTDIR := rt/linux-x86_64
-RTFLAGS := -O2 -ffreestanding -fpie -fvisibility=hidden -fno-stack-protector \
-	-fno-asynchronous-unwind-tables -fcf-protection=none -fno-tree-loop-distribute-patterns -fstack-clash-protection -nostdlib -Wall -Wextra -Werror
-RTIMG := $(B)/rt/image.aiw
-
-ifeq ($(RT),)
-$(B)/rt/image: $(RTDIR)/rt.c $(RTDIR)/entry.S $(RTDIR)/rt.h $(RTDIR)/image.ld
-	@mkdir -p $(@D)
-	$(CC) $(RTFLAGS) -c $(RTDIR)/rt.c -o $(B)/rt/rt.o
-	$(CC) $(RTFLAGS) -c $(RTDIR)/entry.S -o $(B)/rt/entry.o
-	$(LD) -T $(RTDIR)/image.ld -o $(B)/rt/image.elf $(B)/rt/entry.o $(B)/rt/rt.o
-	objcopy -O binary -j .image $(B)/rt/image.elf $@
-else
-$(B)/rt/image: $(RT)
-	@mkdir -p $(@D)
-	cp $(RT) $@
-endif
-
-$(RTIMG): $(B)/rt/image rt/image.sh
-	rt/image.sh $< > $@.tmp && mv $@.tmp $@
-
-# The part of the runtime that is written in AIL: source that the compiler
-# has as data and compiles with every program, rt.aiw in front of it and
-# state.aiw behind it. A service without a function there is an entry of
-# the image. RTAIL=/dev/null leaves it out, so that every service is the
-# one written in C: the way to run the tests against that one.
-RTAIL ?= $(RTDIR)/rt.aiw
-RTTAIL := $(if $(filter /dev/null,$(RTAIL)),/dev/null,$(RTDIR)/state.aiw)
 RTSRC := $(B)/rt/source.aiw
 
-$(RTSRC): $(RTAIL) $(RTTAIL) rt/source.sh
+$(RTSRC): $(RTDIR)/rt.aiw $(RTDIR)/state.aiw rt/source.sh
 	@mkdir -p $(@D)
-	{ rt/source.sh rtsrc $(RTAIL) && rt/source.sh rttail $(RTTAIL); } > $@.tmp && mv $@.tmp $@
+	{ rt/source.sh rtsrc $(RTDIR)/rt.aiw && rt/source.sh rttail $(RTDIR)/state.aiw; } > $@.tmp && mv $@.tmp $@
 
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
@@ -102,13 +74,13 @@ $(RTSRC): $(RTAIL) $(RTTAIL) rt/source.sh
 # compiler/ailc.aiw names the other files with use "compiler/<name>.aiw",
 # paths that the compiler opens from the directory make runs in. It is
 # the first of SRC because the recipes compile $<.
-$(B)/ailc1: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc0
+$(B)/ailc1: $(SRC) $(RTSRC) $(B)/ailc0
 	$(call compile,$(B)/ailc0)
 
-$(B)/ailc: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc1
+$(B)/ailc: $(SRC) $(RTSRC) $(B)/ailc1
 	$(call compile,$(B)/ailc1)
 
-$(B)/ailc2: $(SRC) $(RTIMG) $(RTSRC) $(B)/ailc
+$(B)/ailc2: $(SRC) $(RTSRC) $(B)/ailc
 	$(call compile,$(B)/ailc)
 
 # Each run names its compiler, so an AILC in the environment of make

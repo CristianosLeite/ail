@@ -1,20 +1,19 @@
 # The runtime
 
 A program asks its platform for a few things: to start and to end, for
-memory, for the bytes of a file. The runtime is the code that does them,
-behind names that are the same on every platform. The compiler puts it
-into each executable and the statement [`rt`](language.md#rt) calls it;
-`alloc`, `free`, `args` and the end of a program are calls of it too.
+memory, for the bytes of a file, for a thread, a socket, another
+program. The runtime is the code that does them, behind names that are
+the same on every platform. The compiler compiles it into each
+executable and the statement [`rt`](language.md#rt) calls it; `alloc`,
+`free`, `args` and the end of a program are calls of it too.
 [RUNTIME.md](RUNTIME.md) is the plan this follows. What a program wants
 of x86-64 Linux alone it still asks with [`sys`](language.md#sys).
 
-There is one runtime now, for x86-64 Linux, in `rt/linux-x86_64/`. It is
-being moved from C to AIL, a service at a time: `rt.aiw` has the
-services that are written in AIL, and `rt.c` all of them, of which the
-compiler calls those that `rt.aiw` does not have. `make` compiles the C
-part with `cc`, without a C library; `make RT=<file>` takes an image
-built elsewhere, and `make RTAIL=/dev/null` leaves the AIL part out, so
-that every service is the one in C and the tests can be run against it.
+There is one runtime now, for x86-64 Linux, written in AIL:
+`rt/linux-x86_64/rt.aiw`. It was written in C first, compiled without a
+C library into an image that stood in every executable; the two were
+run against the same tests, service by service, before the C one was
+removed (2026-11-26).
 
 ## Services
 
@@ -22,7 +21,7 @@ A service takes up to five values and gives up to two results. An error
 is a negative number larger than -4096, one of those below; any other
 result is a value.
 
-| Entry | Service | Values | Results |
+| Number | Service | Values | Results |
 |---|---|---|---|
 | 1 | `exit` | status | none: the process ends, with every thread |
 | 2 | `args` | | the address of the number of arguments; behind it the address of each argument, a zero, the address of each string of the environment, a zero. Each ends with a NUL |
@@ -97,8 +96,6 @@ them; a runtime for another platform gives the same numbers:
 
 ## Memory on Linux
 
-Written in AIL (`rt_alloc`, `rt_free` of `rt.aiw`), as it was first in C, where the figures below were taken; in AIL the same program takes 0.99 of the time of C.
-
 A block has 16 bytes before its address, which say what it is. Up to 32
 KiB with those 16 it is one of 39 sizes, four for each doubling above 128
 bytes, cut from chunks of 256 KiB that are mapped as they are needed and
@@ -109,60 +106,35 @@ A larger block is a mapping of its own, which `free` gives back to the
 kernel. The lists are in the state and are locked, by a few instructions
 that spin, only once `thread` has started a thread. On the program
 `allocs` of ail-bench, 200000 blocks of 16 to 1039 bytes with 64 alive,
-this takes 1.03 times as long as `calloc` and `free` of the C library; a
+this takes 0.99 of the time of `calloc` and `free` of the C library; a
 mapping for every block took 79 times as long.
 
-## How a program calls it
-
-The values are in `rax`, `rdi`, `rsi`, `rdx` and `r10`, as for a call of
-a function of the program, and the results come back in `rax` and
-`rdi`. `rbx`, `rbp` and `r12` to `r15` are kept; every other register
-may change. The stack may stand anywhere: an entry aligns it for the
-code it calls.
-
-## The image
-
-The runtime is one run of bytes that may stand at any address and has no
-writable byte. The compiler has it as data (`build/rt/image.aiw`,
-written by `rt/image.sh`) and copies it behind the header of every
-executable; the program follows it.
-
-| Offset | Bytes | |
-|---|---|---|
-| 0 | 4 | `AILR` |
-| 4 | 4 | the version of this form, 1 |
-| 8 | 4 | the size of the image, a multiple of 64 |
-| 12 | 4 | the bytes of state |
-| 16 | 4 | the number of entries |
-| 20 | 4 | zeros |
-| 24 | 8 | the distance from the start of the image to its state, which the compiler fills in |
-| 32 | 4 each | the offset of each entry from the start of the image |
-
-The state is memory of the process that is zero at the start, as many
-bytes as the image names, which the compiler reserves behind the buffers
-of the program. All that the runtime keeps is there.
-
-The entry 0 is where the process starts: it notes the stack, which on
-Linux is what `args` gives, and goes on at the end of the image, the
-first statement of the program. Every other entry is a service, with the
-number the table above gives it; the compiler knows the services by the
-table `rtnames` of `compiler/tables.aiw`, and `tests/tables.sh` holds
-the two together.
-
-## The part in AIL
+## How the runtime is part of a program
 
 `rt/linux-x86_64/rt.aiw` is AIL source that the compiler has as data
 (`build/rt/source.aiw`, written by `rt/source.sh` without its comments)
 and compiles in front of every program, as if the program began with
 it. A function `rt_<name>` there is the service `name`: it takes the
 values of the service and returns its results, and a statement that
-calls the service is a call of that function, with all that a call has.
-In a function, a short one is compiled in place of its call, so `rt
-write` in a function is the system call and nothing around it. The
-first line of the file is the first that a process runs: `stack
-rt_state` keeps the stack the process starts with. `state.aiw` is
-compiled behind the program and declares what the runtime keeps, so
-that its bytes are behind the buffers of the program.
+calls the service is a call of that function, with all that a call has:
+values in `rax`, `rdi`, `rsi`, `rdx` and `r10`, results in `rax` and
+`rdi`, the registers of the variables kept. In a function, a short
+service is compiled in place of its call, so `rt write` in a function
+is the system call and nothing around it.
+
+`state.aiw` is compiled behind the program and declares what the
+runtime keeps, the buffer `rt_state`, so that its bytes are behind the
+buffers of the program. The table `rtnames` of the compiler says for
+each service whether it has anything there; a program that calls no
+such service has no bytes of state, and one that keeps nothing in
+memory has no writable segment.
+
+The first line of `rt.aiw` is the first that a process runs: `stack
+rt_state` keeps the stack the process starts with, which is what
+`args` gives. In a program that calls no service that reads it, the
+compiler makes the line do nothing. The second line jumps past every
+function of the runtime to the program, so a process touches the first
+page of that code and the pages of what it calls.
 
 Every name of the two files starts with `rt_`, variables and labels too,
 and a program has no name that does: a function of the runtime that is
@@ -172,15 +144,26 @@ on the name of a `var` of the program would write that `var`.
 The statement `stack p` is for that first line: it stores the stack
 pointer at the address `p`, and is allowed at top level only.
 
-While both parts are there, the image written in C stands in every
-executable with all of its entries, and the process starts at its first
-one, which goes on at the first line of `rt.aiw`.
+An executable with the runtime is 11.7 KiB longer than without, all of
+its functions being in each. A program starts in the time it took
+before there was a runtime, within half a microsecond of 48: started in
+turn 3000 times each on one CPU, `hello` took 48.2 and 48.4
+microseconds in the median against 47.9 for the one of the revision
+before the runtime (the C runtime cost two microseconds). On the
+programs of ail-bench that spend their time in the runtime it takes
+0.85 (`iocopy`), 0.98 (`iosmall`) and 0.99 (`allocs`) of the time of the
+C programs with the C library.
 
 ## A new service
 
-A function in `rt/linux-x86_64/rt.c` with its line in `rt.h`, an entry
-at the end of the table and of the entries in `entry.S`, a row in
-`rtnames` with the number of that entry, a line in the tables here and
-in [language.md](language.md#rt), and tests `tests/rt_*`. Or a function
-`rt_<name>` in `rt.aiw`, with the row and the lines, and until the C
-part is gone an entry all the same, which may be one that does nothing.
+A function `rt_<name>` in `rt/linux-x86_64/rt.aiw`, a row in the table
+`rtnames` of `compiler/tables.aiw` with a number of its own, its values,
+its results and what it needs of the state, a line in the tables here
+and in [language.md](language.md#rt), and tests `tests/rt_*`. The
+source of the compiler may call it once a seed that has it is pinned.
+
+## Another platform
+
+A directory `rt/<platform>/` with the same two files, written for that
+platform, and a compiler that writes code for it; the services, their
+values, their results and their errors are those of this page.

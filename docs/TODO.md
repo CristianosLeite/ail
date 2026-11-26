@@ -58,21 +58,14 @@ version 0.2.0 after it.
   meant and not how Linux does it: a program started in a group that
   ends with it, a lock of a directory, the directory of the process and
   of the executable, a program in place of the process.
-- [ ] The services in AIL one group at a time, tested against both
-  (`make RTAIL=/dev/null` for the C ones). Done: `exit`, `args`,
-  `close`, `read`, `write`, `open` and the services of directories,
-  `pipeerr`, memory, threads. To do: time, the poller and sockets,
-  processes.
-- [ ] The C runtime removed, and seed 8.
 - [ ] A second platform: the compiler split into shared and target
   files, a second backend and its runtime, the test suite there.
 - [ ] Workloads for startup, I/O and allocation in ail-bench against C
   at `-O3`, measured before the runtime, with the C one and the AIL one.
-- [ ] The gaps to C closed, each change measured first. Known: a
-  program starts 2 microseconds later with the runtime, whose image is
-  9 KiB in every executable and whose state makes a writable segment
-  where there was none (only the entries a program reaches, and a state
-  only for those that need one); a division by a constant is a division
-  where C multiplies (`allocs` lost 13% to that before its sizes were a
-  mask).
+- [ ] The gaps to C closed, each change measured first. Known: every
+  executable has all of the runtime, 11.7 KiB, where it could have the
+  functions it reaches; a service compiled in place moves its values
+  through the variables of its function; a division by a constant is a
+  division where C multiplies (`allocs` lost 13% to that before its
+  sizes were a mask).
 - [ ] Version 0.2.0.

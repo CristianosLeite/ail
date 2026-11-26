@@ -184,7 +184,7 @@ rt name a b c
 rt name a b c as x y
 ```
 
-Calls a service of the runtime: what a program asks of the platform it runs on, by a name that is the same on every platform, where [`sys`](#sys) is a system call of x86-64 Linux by its number. The runtime is code that the compiler puts into every executable; [runtime.md](runtime.md) describes it and each service. `name` is one of the names below and is a name only in that place: a variable, a `const` or a function of the program may be called the same. The values are [arguments](#arguments) like those of a `call`, a string being two, its address and its length. Their number is checked (`wrong operand count`), as is the number of names after `as`, which is optional and takes at most as many names as the service has results (`wrong result count`); a name that is no service is an `unknown service`.
+Calls a service of the runtime: what a program asks of the platform it runs on, by a name that is the same on every platform, where [`sys`](#sys) is a system call of x86-64 Linux by its number. The runtime is code that the compiler compiles into every executable; [runtime.md](runtime.md) describes it and each service. `name` is one of the names below and is a name only in that place: a variable, a `const` or a function of the program may be called the same. The values are [arguments](#arguments) like those of a `call`, a string being two, its address and its length. Their number is checked (`wrong operand count`), as is the number of names after `as`, which is optional and takes at most as many names as the service has results (`wrong result count`); a name that is no service is an `unknown service`.
 
 | Service | Values | Result |
 |---|---|---|
@@ -233,7 +233,7 @@ rt write 1 "hello\n" as n
 rt exit n!=6
 ```
 
-A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable. Names that start with `rt_` are those of the runtime, part of which is AIL source compiled with every program ([runtime.md](runtime.md)): a program defines no function, global name or variable with such a name. The statement `stack p`, which stores the stack pointer at an address and is allowed at top level only, is for the first line of that source.
+A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable. Names that start with `rt_` are those of the runtime, which is AIL source compiled with every program ([runtime.md](runtime.md)), so that a short service is compiled in place of its call: a program defines no function, global name or variable with such a name. The statement `stack p`, which stores the stack pointer at an address and is allowed at top level only, is for the first line of that source.
 
 ### `set` and arithmetic
 
