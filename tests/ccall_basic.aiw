@@ -1,0 +1,28 @@
+# ccall calls a function by the convention of C with the values at an
+# address: here bytes of data that add their first two values, and bytes
+# that return the stack pointer, which must be 8 beyond a multiple of 16
+# as it is in a function that C called
+buf v 48
+# lea rax, [rdi+rsi] / ret
+data sum 72 141 4 55 195
+# mov rax, rsp / ret
+data sp 72 137 224 195
+fn deep a b
+	local l 24
+	store v a
+	store v+8 b
+	ccall sum v 2 as r
+	ccall sp v 0 as s
+	ret r s&15
+end
+store v 30
+store v+8 12
+ccall sum v 2 as r
+ccall sp v 0 as s
+ccall sp v 0
+call deep 5 6 as t u
+x=1
+y=2
+z=3
+ccall sum v 2 as q
+rt exit (r==42)+(s&15==8)*2+(t==11)*4+(u==8)*8+(q==11)*16+(x+y+z==6)*32

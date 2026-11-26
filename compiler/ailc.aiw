@@ -352,8 +352,11 @@ if f==255
 	jeq d 9 usedef
 	jeq d 10 elsedef
 	jeq d 12 asydef
+	jeq d 13 ccdef
+	jeq d 14 basedef
 	jmp whiledef
 end
+label stmt
 cur=r
 ai=0
 ncap=0
@@ -462,6 +465,24 @@ ip=wip
 asg=wasg
 dead=0
 jmp be3
+
+# "ccall <function> <address> <count> [as <name>]": a call by the
+# convention of the platform, whose code is the row of the target
+label ccdef
+r=tccrow
+loadb r+1 as f
+jmp stmt
+
+# "base as <name>": the address the executable is loaded at, which is
+# where its first byte is: lea rax, [rip+rel32] back to it
+label basedef
+call eb 72
+call eb 141
+call eb 5
+call e4 out-op-4
+r=rowas
+loadb r+1 as f
+jmp stmt
 
 # "<name>=<expression>" and "<name><operator>=<expression>"
 label asgn

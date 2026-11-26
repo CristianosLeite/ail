@@ -117,6 +117,8 @@ data 3 "use" 9 255 0 0
 data 4 "else" 10 255 0 0
 data 5 "while" 11 255 0 0
 data 5 "async" 12 255 0 0
+data 5 "ccall" 13 255 0 0
+data 4 "base" 14 255 0 0
 data 0
 # names that sys accepts for a syscall number, unless the program has a
 # const of that name: name length, name, number as two bytes
@@ -206,6 +208,9 @@ data 3 "pin" 37 1 1 0
 data 0
 # the keyword of the row that a service written in AIL is compiled by
 data callkw "call"
+# the row of a statement that has no operand and no code and must have
+# "as": base, whose instruction basedef writes itself
+data rowas 0 1 0 0
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195
 # function entry: six pushes

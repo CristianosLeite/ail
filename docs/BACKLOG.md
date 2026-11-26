@@ -1024,3 +1024,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   generated ones and four that depend on what a raw system call leaves
   in a register keep `sys`; 150 test sources still have one, for what
   only Linux has.
+- [x] The target of the compiler as a package, and the statements
+  `ccall` and `base` (2026-11-26), for a second platform. What the
+  compiler knows of x86-64 Linux beyond the instructions is in
+  `compiler/linux-x86_64/target.aiw`, named by the source as a package
+  that the build chooses; the compiler writes the same bytes as before.
+  `ccall` calls a function by the C convention of the platform with
+  its values at an address and the stack at a multiple of 16, which is
+  how the clock of the kernel's page is called now, and `base` is the
+  address an executable is loaded at.

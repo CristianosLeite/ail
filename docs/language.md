@@ -761,6 +761,18 @@ free p
 
 The two statements are the services `alloc` and `free` of the runtime. A block of up to 32 KiB less 16 bytes is one of 39 sizes, cut from memory the runtime takes from the kernel 256 KiB at a time and never gives back; a block that is freed is the next of its size to be given out, with zeros in it again, so an `alloc` and its `free` cost what `calloc` and `free` cost in C and no system call. A larger block is a memory mapping of its own, given back by `free`. Tasks of [`spawn`](#tasks) may allocate and free at the same time; a thread that a program makes with `sys clone` itself may not. Use `alloc` for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
 
+### `ccall` and `base`
+
+```
+ccall f a n
+ccall f a n as x
+base as p
+```
+
+`ccall` calls the function at the address `f` by the convention that C has on the platform: the `n` values are 8 bytes each at the address `a`, the stack is at a multiple of 16, and the result of the function is kept with `as`. It is how the runtime calls code that is not AIL: a function of the kernel's page on Linux, the functions of the system on Windows. On x86-64 Linux six values are passed whatever `n` is, so the address has 48 bytes that can be read. [`callp`](#functions) calls a function of AIL.
+
+`base` keeps the address the executable is loaded at, where the first byte of its file is. Both may stand anywhere.
+
 ### `zero`
 
 ```

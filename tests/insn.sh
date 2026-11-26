@@ -73,7 +73,7 @@ while IFS= read -r line; do
         esac
     fi
     if [ "$mode" = asm ]; then
-        pat=$(printf '%s' "$hex" | sed 's/e8\.\{8\}/e800000000/g' | tr -d '<>')
+        pat=$(printf '%s' "$hex" | sed 's/\.\{8\}/00000000/g' | tr -d '<>')
     else
         pat=$(printf '%s' "$hex" | tr . '?')
         # a distance to the writable segment: as far as the segment is

@@ -573,10 +573,11 @@ fn rt_vdso
 end
 
 # the clock that only goes forward, in nanoseconds since a moment that is
-# the same for the whole run. The function of the kernel's page takes its
-# values where C has them, the second and third of a call here.
+# the same for the whole run. The function of the kernel's page is
+# called as C calls one.
 fn rt_clock
 	local rt_t 16
+	local rt_a 48
 	load rt_state+8 as rt_f
 	ifz rt_f
 		call rt_vdso as rt_f
@@ -584,7 +585,9 @@ fn rt_clock
 	end
 	rt_r=1
 	if rt_f!=1
-		callp rt_f 0 1 rt_t as rt_r
+		store rt_a 1
+		store rt_a+8 rt_t
+		ccall rt_f rt_a 2 as rt_r
 		rt_r&=0xffffffff
 	end
 	if rt_r
