@@ -153,8 +153,12 @@ on the name of a `var` of the program would write that `var`.
 The statement `stack p` is for that first line: it stores the stack
 pointer at the address `p`, and is allowed at top level only.
 
-An executable with the runtime is 11.7 KiB longer than without, all of
-its functions being in each. A program starts in the time it took
+An executable with the runtime is 17.8 KiB longer than without, all of
+its functions being in each (11.7 KiB before the services of 2026-11-26
+for the command `ail`, which are 6.1 KiB of it; `hello` with them
+against `hello` without, 3000 starts each in turn on one CPU, took
+50.0 against 49.7 microseconds in the median, and 49.5 against 49.3
+the other way round). A program starts in the time it took
 before there was a runtime, within half a microsecond of 48: started in
 turn 3000 times each on one CPU, `hello` took 48.2 and 48.4
 microseconds in the median against 47.9 for the one of the revision
@@ -165,7 +169,9 @@ C programs with the C library.
 
 ## A new service
 
-A function `rt_<name>` in `rt/linux-x86_64/rt.aiw`, a row in the table
+A function `rt_<name>` in `rt/linux-x86_64/rt.aiw` and in the file of
+every other platform, since the compiler of each wants one for every
+row, a row in the table
 `rtnames` of `compiler/tables.aiw` with a number of its own, its values,
 its results and what it needs of the state, a line in the tables here
 and in [language.md](language.md#rt), and tests `tests/rt_*`. The
@@ -307,7 +313,6 @@ Where a service cannot be on Windows what it is on Linux:
   of its own (`setsid`, `setpgid`) is out of it.
 - `pipeerr` has nothing to do: there is no signal.
 
-## Another platform
 ## Another platform
 
 A directory `rt/<platform>/` with the same two files, written for that

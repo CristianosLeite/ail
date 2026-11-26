@@ -53,15 +53,6 @@ source that the compiler compiles with every program
 the runtime of Windows as far as Wine shows it. The seed 8 is
 published; the seed 7, which had the runtime in C, is not.
 
-- [ ] The command `ail` and the tools without `sys`. `cli/tool.aiw`
-  starts a test in a group of processes of its own, with a watcher that
-  kills the group when the command is gone, takes a lock on the
-  directory of a package, goes into directories and back by a
-  descriptor, and asks where its own executable is; `cli/ail.aiw`
-  becomes the program it runs. Each wants a service that says what is
-  meant and not how Linux does it: a program started in a group that
-  ends with it, a lock of a directory, the directory of the process and
-  of the executable, a program in place of the process.
 - [ ] A second platform, and a third (user, 2026-11-26). First Windows
   on x86-64, run under Wine: the same instructions, another form of
   executable, another convention for calls, and no system calls, so
@@ -71,7 +62,10 @@ published; the seed 7, which had the runtime in C, is not.
   program, then the test suite. Windows is done as far as Wine shows
   ([BACKLOG.md](BACKLOG.md)): its compiler, its fixed point, every
   service, 579 tests. Left there: what the tests of faults are to
-  expect, the command `ail`, a run on Windows itself. Linux on aarch64
+  expect, a run on Windows itself, and the command `ail`, which the
+  compiler for Windows compiles now that it has no `sys`
+  ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
+  `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64
   is to do. Its tools need no installation by root: `apt-get download
   qemu-user binutils-aarch64-linux-gnu` and `dpkg -x` into a directory
   give `qemu-aarch64` and `aarch64-linux-gnu-as`, which ran a program
@@ -86,7 +80,7 @@ published; the seed 7, which had the runtime in C, is not.
   row, as lines with a string are compiled now, before it selects
   instructions.
 - [ ] The gaps to C closed, each change measured first. Known: every
-  executable has all of the runtime, 11.7 KiB, where it could have the
+  executable has all of the runtime, 17.8 KiB, where it could have the
   functions it reaches; a service compiled in place moves its values
   through the variables of its function; a division by a constant is a
   division where C multiplies (`allocs` lost 13% to that before its
