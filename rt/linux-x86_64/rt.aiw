@@ -1308,7 +1308,12 @@ end
 # is that of the child as long as the watcher is there.
 fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	local rt_b 16
-	sys rt_setpgid 0 rt_pid as rt_e
+	# a watcher that is not in the group of the child would kill the
+	# group it is in, that of the process that started the child
+	sys rt_setpgid 0 rt_pid as rt_r
+	if rt_r
+		sys exit 127
+	end
 	sys close rt_wr
 	sys close rt_grd
 	# the two it keeps, the lower first
@@ -1347,10 +1352,8 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 			rt_i+=1
 		end
 	end
-	ifz rt_e
-		storeb rt_b 0
-		sys write rt_gwr rt_b 1
-	end
+	storeb rt_b 0
+	sys write rt_gwr rt_b 1
 	sys close rt_gwr
 	label rt_wait
 	sys read rt_rd rt_b 1 as rt_r

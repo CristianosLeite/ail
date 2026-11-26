@@ -1,0 +1,53 @@
+# a watcher that cannot join the group of its child must not kill
+# another group: this program starts itself as "mid", leader of a group,
+# which makes the kernel refuse a process that puts itself into the
+# group of another, and starts "late" with the flag 2. The watcher of
+# "late" then ends, "late" never runs and is 127 to "mid", which lives
+# to say so. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf prog 16
+data mid "mid" 0
+data late "late" 0
+# the call 109 with a first value of 0 and a second that is not: the
+# error 1, else as ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 0 5 109 0 0 0
+data 32 0 0 0 16 0 0 0
+data 21 0 0 3 0 0 0 0
+data 32 0 0 0 24 0 0 0
+data 21 0 1 0 0 0 0 0
+data 6 0 0 0 1 0 5 0
+data 6 0 0 0 0 0 255 127
+fn startself a
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 -1
+	store io+16 -1
+	rt start argv 0 io 2 as c
+	ret c
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==108
+		rt exit 0
+	end
+	sys 157 38 1 0 0 0 as a
+	store prog 8
+	store prog+8 flt
+	sys 157 22 2 prog 0 0 as b
+	call startself late as c
+	rt reap c 0 as r
+	rt exit (a==0)+(b==0)*2+(r==127)*4
+end
+call startself mid as c
+rt reap c 0 as a
+rt write 1 "join\n"
+rt exit a

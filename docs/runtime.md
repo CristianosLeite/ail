@@ -312,7 +312,9 @@ Where a service cannot be on Windows what it is on Linux:
   one of the kernel, with a watcher in it, a process that waits for
   the end of a pipe from the process that started the child and then
   kills the group it is in; the child runs only once the watcher is
-  there and says so. The watcher keeps no other descriptor, with a
+  there and says so, and a watcher that cannot join the group ends
+  before it does, so that the child is one that ends with 127. The
+  watcher keeps no other descriptor, with a
   kernel that closes them by a range (Linux 5.9) or without, and a
   program that makes a group of its own (`setsid`, `setpgid`) is out
   of it. `reap` asks about such a child and leaves it where it is
