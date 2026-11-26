@@ -1183,3 +1183,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   time was over. There `reap` now returns the error that kept the
   descriptor away and leaves the child; `docs/runtime.md` says what
   the promise needs. `tests/rt_reap_auto`.
+- [x] `reap` on Linux sends no signal by a number when the kernel does
+  not say who takes children (2026-11-26): the check before the signal
+  read what the process does with `SIGCHLD` and not whether the kernel
+  had answered, so under a filter that refuses `rt_sigaction` the
+  zeros it had put there read as a process that takes its children
+  itself, and the child was killed by its number. A question that
+  fails is now the case in which no signal is sent, and
+  `docs/runtime.md` says that the answer is taken once, so a program
+  must not change it during such a `reap`. `tests/rt_reap_blind`.

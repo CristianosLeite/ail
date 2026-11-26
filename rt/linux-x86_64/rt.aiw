@@ -1169,12 +1169,13 @@ fn rt_reaping rt_pid rt_ms
 	# where the kernel itself takes the children that end, because the
 	# process ignores their signal or asked for that, the number may be
 	# another process by now, and no signal is sent: the error that kept
-	# the descriptor away is the result, and the child is left
+	# the descriptor away is the result, and the child is left. So it is
+	# where the kernel does not say what the process does with the signal
 	zero rt_info 32
-	sys rt_sigaction 17 0 rt_info 8
+	sys rt_sigaction 17 0 rt_info 8 as rt_r
 	load rt_info as rt_n
 	load rt_info+8 as rt_s
-	if (rt_n==1)|(rt_s&2)
+	if rt_r|(rt_n==1)|(rt_s&2)
 		ret rt_e
 	end
 	sys kill rt_pid 9 as rt_s
