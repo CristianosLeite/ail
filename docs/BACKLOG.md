@@ -1225,3 +1225,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   above it. `tests/win.sh` compiles a program whose image is that size
   and reads it in the header, and requires one a page above to be
   refused.
+- [x] `docs/runtime.md` says what to do with a program Microsoft
+  Defender takes wrongly (2026-11-26): it named a signature and an
+  excluded directory beside a report to Microsoft, as if either
+  answered the verdict. A signature says who published a file and that
+  it is unchanged, and signed files are taken too; an excluded
+  directory is scanned no more. The two detections stay as what one
+  scan recorded, and the guide points to the submission of the file
+  that was flagged.
