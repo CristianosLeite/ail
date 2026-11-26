@@ -22,6 +22,11 @@ const talign 0
 # has something in its state: the descriptors are there
 const tbootn 0
 const tstate 2
+# the bytes an image may have, from the header to the last buffer:
+# Windows loads no image above that. The memory of a program starts at
+# a page, so the size in the header, which is whole pages, is within
+# it when the bytes are
+const tmax 0x77000000
 # sys means nothing here: there are no system calls to make
 const tsys 0
 # The statement ccall as a row of the statement table without its name:

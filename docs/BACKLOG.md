@@ -1216,3 +1216,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   now have its `.out` and its source, no `sys` and no line in
   `tests/win.skip`, or the suite fails and says which. Checked in a
   copy with each of the four made untrue.
+- [x] The compiler for Windows refuses a program whose image Windows
+  does not load (2026-11-26): the last check of the size of an image
+  was 2 GiB on both targets, so a program with buffers up to that
+  compiled for Windows, which loads no image above 0x77000000 bytes.
+  The limit is now `tmax` of the target file, 2 GiB less one byte on
+  Linux as before and 0x77000000 for Windows, and `buffers too big`
+  above it. `tests/win.sh` compiles a program whose image is that size
+  and reads it in the header, and requires one a page above to be
+  refused.

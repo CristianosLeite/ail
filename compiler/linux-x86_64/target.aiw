@@ -15,6 +15,9 @@ const tbootn 10
 # what every program needs of the state of the runtime whatever it
 # calls, as the table rtnames says it of a service: nothing
 const tstate 0
+# the bytes an image may have, from the header to the last buffer: every
+# distance in it has to fit 32 bits
+const tmax 0x7fffffff
 # 1 if the statement sys means something here
 const tsys 1
 # The statement ccall as a row of the statement table without its name:

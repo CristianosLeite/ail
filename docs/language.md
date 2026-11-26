@@ -1930,7 +1930,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |
 | `invalid access` *name* | 1 | a load or store through a known address that leaves the buffer or data named, or a store into data; without a name, the same through a string; see [`load` and `store`](#load-and-store) |
 | `number too big` | 1 | an integer above 18446744073709551615, below -9223372036854775808 or with more than sixteen hexadecimal digits |
-| `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it |
+| `buffers too big` | 1 | a buffer larger than 2 GiB or the locals of a function exceeding it; without a place, buffers that together with the code exceed it, or for Windows exceed 0x77000000 bytes, the largest image Windows loads |
 | `cannot read file` *path* | 1 | the path of a `use` cannot be opened or read; the path is the one that was opened, with the directory of its [package](#packages) |
 | `unknown package` *name* | 1 | a `use` of `name:path` when no argument of the compiler names that package |
 | `source too big` | 1 | the source and the files it names with `use` are together larger than 8 MiB (8388608 bytes); no place |

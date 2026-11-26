@@ -192,8 +192,11 @@ the number of this page. The statement `sys` is no statement there.
 The runtime has every service. The compiler compiled for Windows runs
 under Wine and compiles its own source to the file it is. Windows loads
 no image above 0x77000000 bytes, the buffers of a program included,
-whatever the address it is loaded at; Wine loads any, so `tests/win.sh`
-reads the size of the image of the compiler in its header. Of the tests
+whatever the address it is loaded at, so the compiler for Windows
+reports `buffers too big` for a program whose image would be larger.
+Wine loads any, so `tests/win.sh` reads the size of the image of the
+compiler in its header, and that of a program whose buffers end at
+that size. Of the tests
 that have no `sys`, 579 give their output and status there, the tasks,
 the async library with its sockets and the HTTP client and server among
 them; 21 are of Linux alone and say why in `tests/win.skip`.

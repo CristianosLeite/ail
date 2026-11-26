@@ -10,6 +10,8 @@
 #   source with its message and the status 1, and compile its own source
 #   to the file it is itself: the fixed point of the port. Its image must
 #   be one that Windows loads, which is not for Wine to say.
+# - A program whose image is the largest Windows loads must compile, and
+#   one a page larger must be refused.
 # - tests/win/start.aiw must start programs of Windows, with their output
 #   in a file, a limit of time and an argument that has to be quoted.
 # - tests/win/inherit.aiw must find that a child got the descriptors it
@@ -55,6 +57,18 @@ say win_compiler_runs $r
 # 0x77000000 bytes, and Wine loads any
 [ "$(od -An -tu4 -j144 -N4 $tmp/ailc.exe | tr -d ' ')" -le 1996488704 ]
 say win_compiler_loads $?
+
+# a program too: one whose buffers end at that size is compiled, with the
+# size in its header, and one a page above is refused
+r=0
+echo 'buf a 4096' | $wc > $tmp/small.exe || r=1
+s=$(od -An -tu4 -j144 -N4 $tmp/small.exe | tr -d ' ')
+n=$((1996488704 - s + 4096))
+echo "buf a $n" | $wc > $tmp/top.exe || r=1
+[ "$(od -An -tu4 -j144 -N4 $tmp/top.exe | tr -d ' ')" -eq 1996488704 ] || r=1
+echo "buf a $((n + 4096))" | $wc > $tmp/over.exe 2> $tmp/err
+[ $? -eq 1 ] && [ "$(cat $tmp/err)" = "ailc: buffers too big" ] && [ ! -s $tmp/over.exe ] || r=1
+say win_image_limit $r
 
 echo frob | timeout $limit wine $tmp/ailc.exe > /dev/null 2> $tmp/err
 [ $? -eq 1 ] && [ "$(tr -d '\r' < $tmp/err)" = "ailc: 1: unknown statement" ]

@@ -1760,7 +1760,7 @@ ifz rtuse|tstate
 	end
 end
 call tfin q rwstart c as q
-if c+rwstart>0x7fffffff
+if c+rwstart>tmax
 	call ebuf
 end
 p=out
