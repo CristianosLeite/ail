@@ -222,7 +222,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `port` | socket | its port, or an error |
 | `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
 | `writeq` | descriptor, address, size | the bytes written, or an error, -32 for a pipe nobody reads |
-| `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error |
+| `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags (1 the child ends with the thread that started it, 2 it leads a group that ends when it is taken and when the process ends) | the number of a child process, or an error |
 | `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child, or another thread waits for it; an error if it could not be killed |
 | `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
 | `cwd` | address, size | the length of the path of the directory of the process, which is written there with a NUL behind it that is not counted, or an error: -34 if it does not fit |

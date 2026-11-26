@@ -17,6 +17,7 @@
 #   48  per class of small blocks, 8 bytes: the blocks given back, each
 #       with the next in its first 8 bytes
 #  360  the children that a reap waits for (see rt_reap)
+#  368  the children that lead a group (see rt_group)
 # Every name of this file starts with "rt_", and a program has no name
 # that does.
 #
@@ -89,6 +90,7 @@ const rt_epollcreate1 291
 const rt_waitid 247
 const rt_pidfdsignal 424
 const rt_pidfdopen 434
+const rt_closerange 436
 
 # the rt_n bytes of a path with a zero behind them, as the kernel takes
 # one, into the 4096 bytes at rt_z: 0, or the error of a path too long
@@ -1135,14 +1137,29 @@ fn rt_become rt_argv rt_env
 	tail rt_exec rt_argv rt_env
 end
 
+# in a child that is held: the kernel is to kill it when the thread
+# that started it, of the process rt_me, ends. A kernel that refuses
+# would leave a child nothing holds; a parent that ended before that
+# line sends nothing
+fn rt_hold rt_me
+	sys rt_prctl 1 9 0 0 0 as rt_r
+	if rt_r
+		sys exit 127
+	end
+	sys rt_getppid as rt_r
+	if rt_r!=rt_me
+		sys exit 127
+	end
+end
+
 # Start a program as a child process: its number, or an error. rt_argv is
 # the address of the addresses of its arguments, strings with a zero at
 # the end, with a 0 after the last. rt_env is its environment in the same
 # form, 0 for that of this process; rt_fds the address of three
 # descriptors that become its 0, 1 and 2, -1 for the one of this process.
 # With the flag 1 the child is held: the kernel kills it when the thread
-# that started it ends. A program that cannot be started is a child that
-# ends with status 127.
+# that started it ends. With the flag 2 it leads a group (rt_group). A
+# program that cannot be started is a child that ends with status 127.
 fn rt_start rt_argv rt_env rt_fds rt_flags
 	ifz rt_env
 		load rt_state as rt_p
@@ -1153,27 +1170,183 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	if rt_flags&1
 		sys getpid as rt_me
 	end
+	if rt_flags&2
+		tail rt_group rt_argv rt_env rt_fds rt_flags rt_me
+	end
 	sys fork as rt_pid
 	if rt_pid
 		ret rt_pid
 	end
 	if rt_flags&1
-		# a kernel that refuses would leave a child nothing holds; a parent
-		# that ended before that line sends nothing
-		sys rt_prctl 1 9 0 0 0 as rt_r
-		if rt_r
-			sys exit 127
-		end
-		sys rt_getppid as rt_r
-		if rt_r!=rt_me
-			sys exit 127
-		end
+		call rt_hold rt_me
 	end
 	load rt_fds as rt_in
 	load rt_fds+8 as rt_out
 	load rt_fds+16 as rt_err
 	call rt_child rt_argv rt_env rt_in rt_out rt_err
 	sys exit 127
+end
+
+# Start a child that leads a group of processes of its own, which what
+# it starts is in unless it leaves: the group is killed when the child
+# is taken by reap, and when this process ends, however it ends. The
+# record of such a child, in the list at 368 of the state: the next, its
+# number, the number of its watcher, a descriptor.
+# Two pipes, both closed in a program that is started. Only this
+# process writes to the first, and the descriptor of the record is that
+# end: the watcher, a process in the group of the child, where a signal
+# for the group of this process does not reach it, waits for the end of
+# that pipe, which comes when this process closes it or is gone, and
+# then kills the group, itself with it. It keeps no other descriptor of
+# this process. The second pipe holds the child back until the watcher
+# is there, so that the program never runs without one; if this process
+# is gone before that, the pipe ends without a byte and so does the
+# child.
+fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
+	local rt_pp 8
+	local rt_info 128
+	call rt_alloc 32 as rt_g
+	ifz rt_g
+		ret -12
+	end
+	sys rt_pipe2 rt_pp 0x80000 as rt_r
+	if rt_r
+		call rt_free rt_g
+		ret rt_r
+	end
+	load4 rt_pp as rt_rd
+	load4 rt_pp+4 as rt_wr
+	sys rt_pipe2 rt_pp 0x80000 as rt_r
+	if rt_r
+		sys close rt_rd
+		sys close rt_wr
+		call rt_free rt_g
+		ret rt_r
+	end
+	load4 rt_pp as rt_grd
+	load4 rt_pp+4 as rt_gwr
+	sys fork as rt_pid
+	ifz rt_pid
+		sys rt_setpgid 0 0
+		sys close rt_wr
+		sys close rt_gwr
+		label rt_go
+		sys read rt_grd rt_pp 1 as rt_r
+		jeq rt_r -4 rt_go
+		if rt_r!=1
+			sys exit 127
+		end
+		if rt_flags&1
+			call rt_hold rt_me
+		end
+		load rt_fds as rt_in
+		load rt_fds+8 as rt_out
+		load rt_fds+16 as rt_err
+		call rt_child rt_argv rt_env rt_in rt_out rt_err
+		sys exit 127
+	end
+	rt_wd=-1
+	rt_e=rt_pid
+	ifsgt rt_pid 0
+		# the same from here, in case the child has not come to it yet
+		sys rt_setpgid rt_pid rt_pid
+		sys fork as rt_wd
+		ifz rt_wd
+			sys rt_setpgid 0 rt_pid
+			rt_r=0
+			if rt_rd
+				sys rt_closerange 0 rt_rd-1 0 as rt_r
+			end
+			ifz rt_r
+				sys rt_closerange rt_rd+1 0xffffffff 0 as rt_r
+			end
+			if rt_r
+				# a kernel without that call: the descriptors a process
+				# has unless it asked for more
+				rt_i=0
+				while rt_i<1024
+					if rt_i!=rt_rd
+						sys close rt_i
+					end
+					rt_i+=1
+				end
+			end
+			label rt_wait
+			sys read rt_rd rt_pp 1 as rt_r
+			jeq rt_r -4 rt_wait
+			sys kill 0-rt_pid 9
+			sys exit 0
+		end
+		rt_e=rt_wd
+		ifsgt rt_wd 0
+			# the same from here, and known to be done before the child
+			# gets its byte: a watcher still in the group of this process
+			# would go with it at a signal for that group
+			sys rt_setpgid rt_wd rt_pid as rt_r
+			if rt_r
+				sys kill rt_wd 9
+				call rt_take 1 rt_wd rt_info 4
+				rt_wd=-1
+				rt_e=rt_r
+			end
+		end
+	end
+	sys close rt_rd
+	sys close rt_grd
+	ifsle rt_wd 0
+		# no child, or no watcher in its group: the child, which still
+		# waits for its byte, ends when the pipe does
+		sys close rt_gwr
+		sys close rt_wr
+		ifsgt rt_pid 0
+			sys kill 0-rt_pid 9
+			call rt_take 1 rt_pid rt_info 4
+		end
+		call rt_free rt_g
+		ret rt_e
+	end
+	storeb rt_pp 0
+	sys write rt_gwr rt_pp 1
+	sys close rt_gwr
+	store rt_g+8 rt_pid
+	store rt_g+16 rt_wd
+	store rt_g+24 rt_wr
+	call rt_mlock
+	load rt_state+368 as rt_p
+	store rt_g rt_p
+	store rt_state+368 rt_g
+	call rt_munlock
+	ret rt_pid
+end
+
+# The child rt_pid was taken: if it led a group, whatever it started
+# and left behind ends with it, the watcher too, which is taken.
+fn rt_ungroup rt_pid
+	local rt_info 128
+	call rt_mlock
+	rt_q=rt_state+368
+	label rt_next
+	load rt_q as rt_g
+	if rt_g
+		load rt_g+8 as rt_n
+		if rt_n!=rt_pid
+			rt_q=rt_g
+			jmp rt_next
+		end
+		load rt_g as rt_n
+		store rt_q rt_n
+	end
+	call rt_munlock
+	ifz rt_g
+		ret 0
+	end
+	load rt_g+16 as rt_wd
+	load rt_g+24 as rt_wr
+	sys kill 0-rt_pid 9
+	sys close rt_wr
+	sys kill rt_wd 9
+	call rt_take 1 rt_wd rt_info 4
+	call rt_free rt_g
 end
 
 # Ask the kernel about a child, by its number (rt_which 1) or by a
@@ -1245,7 +1418,7 @@ fn rt_reap rt_pid rt_ms
 	store rt_me+8 rt_pid
 	store rt_state+360 rt_me
 	call rt_munlock
-	call rt_reaping rt_pid rt_ms as rt_r
+	call rt_reaping rt_pid rt_ms as rt_r rt_k
 	call rt_mlock
 	rt_p=rt_state+360
 	label rt_next
@@ -1257,21 +1430,30 @@ fn rt_reap rt_pid rt_ms
 	load rt_me as rt_n
 	store rt_p rt_n
 	call rt_munlock
+	if rt_k
+		load rt_state+368 as rt_n
+		if rt_n
+			call rt_ungroup rt_pid
+		end
+	end
 	ret rt_r
 end
 
-# reap for the thread that alone takes the child rt_pid
+# reap for the thread that alone takes the child rt_pid: what reap
+# gives, and 1 if the child is taken or gone, 0 if it is left
 fn rt_reaping rt_pid rt_ms
 	local rt_info 128
 	local rt_pf 8
 	ifz rt_ms
 		call rt_take 1 rt_pid rt_info 4 as rt_r
 		ifslt rt_r 0
-			ret -1001
+			ret -1001 1
 		end
-		tail rt_ended rt_info 0
+		call rt_ended rt_info 0 as rt_r
+		ret rt_r 1
 	end
 	call rt_clock as rt_t
+	rt_k=1
 	# what the child is asked by: its number (1), or a descriptor of it
 	# (3), with which the kernel says when it ends and the signal goes to
 	# what the descriptor is of, whoever takes children outside the
@@ -1338,7 +1520,7 @@ fn rt_reaping rt_pid rt_ms
 	load rt_info as rt_n
 	load rt_info+8 as rt_s
 	if rt_r|(rt_n==1)|(rt_s&2)
-		ret rt_e
+		ret rt_e 0
 	end
 	sys kill rt_pid 9 as rt_s
 	label rt_late
@@ -1358,6 +1540,7 @@ fn rt_reaping rt_pid rt_ms
 	load4 rt_info+16 as rt_n
 	ifz rt_r|rt_n
 		rt_r=rt_s
+		rt_k=0
 		jmp rt_out
 	end
 	label rt_took
@@ -1370,7 +1553,7 @@ fn rt_reaping rt_pid rt_ms
 	if rt_w==3
 		sys close rt_id
 	end
-	ret rt_r
+	ret rt_r rt_k
 end
 
 # Let this thread, and the children it starts from now on, run only on

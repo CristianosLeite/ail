@@ -1,0 +1,70 @@
+# a child that leads a group: this program starts itself as "mid",
+# which starts "late" and ends at once; "late" makes a file after a
+# while. Started plainly, the file comes; started with the flag 2,
+# reap ends what "mid" left and no file comes. A child of a group that
+# runs too long is killed as any other.
+buf exe 4096
+buf argv 24
+buf io 24
+data mid "mid" 0
+data late "late" 0
+data slow "slow" 0
+data mark "build/tests/rt_group.mark"
+fn startself a f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 -1
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+# 1 once the file is there, 0 if it is not after rounds of 10 ms
+fn there rounds
+	len mark as m
+	while rounds
+		rt kind mark m as k
+		if k==1
+			ret 1
+		end
+		rt sleep 10000000
+		rounds-=1
+	end
+	ret 0
+end
+len mark as m
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==109
+		call startself late 0
+		rt sleep 100000000
+		rt exit 7
+	end
+	if c==108
+		rt sleep 300000000
+		rt open mark m 0x41 420 as f
+		rt close f
+		rt exit 0
+	end
+	rt sleep 5000000000
+	rt exit 0
+end
+rt unlink mark m
+call startself mid 0 as c
+rt reap c 0 as a
+call there 500 as b
+rt unlink mark m
+call startself mid 2 as c
+rt reap c 0 as d
+call there 100 as e
+call startself slow 2 as c
+rt reap c 100 as s
+rt reap c 0 as g
+rt unlink mark m
+rt write 1 "group\n"
+rt exit (a==7)+b*2+(d==7)*4+(e==0)*8+(s==-1000)*16+(g==-1001)*32

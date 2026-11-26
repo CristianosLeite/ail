@@ -1083,19 +1083,22 @@ fn rt_room rt_v
 	ret rt_n+2
 end
 
-# 1 + the job of Windows that the children held to this process are in,
-# made at the first of them, or 0 if Windows gives none: a job whose
-# processes end when its last handle is closed, which is when this
-# process ends. The limits are 144 bytes, the flags of the limit at 16.
-# Of two threads that make it one keeps its job and the other takes
-# that.
-fn rt_heldjob
+# close the job rt_j less 1, which ends the processes in it, if rt_j is
+# not 0
+fn rt_shutjob rt_j
+	local rt_a 32
+	if rt_j
+		store rt_a rt_j-1
+		call rt_api rt_i_closehandle rt_a 1
+	end
+end
+
+# A job of Windows whose processes end when its last handle is closed,
+# or 0 if Windows gives none. The limits are 144 bytes, the flags of
+# the limit at 16.
+fn rt_newjob
 	local rt_a 32
 	local rt_job 144
-	load rt_state+4464 as rt_j
-	if rt_j
-		ret rt_j
-	end
 	store rt_a 0
 	store rt_a+8 0
 	call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
@@ -1109,14 +1112,33 @@ fn rt_heldjob
 	store rt_a+16 rt_job
 	store rt_a+24 144
 	call rt_api rt_i_setinformationjobobject rt_a 4 as rt_r
-	if rt_r&0xffffffff
+	ifz rt_r&0xffffffff
+		store rt_a rt_j
+		call rt_api rt_i_closehandle rt_a 1
+		ret 0
+	end
+	ret rt_j
+end
+
+# 1 + the job of Windows that the children held to this process are in,
+# made at the first of them, or 0 if Windows gives none: its last
+# handle is closed when this process ends. Of two threads that make it
+# one keeps its job and the other takes that.
+fn rt_heldjob
+	local rt_a 32
+	load rt_state+4464 as rt_j
+	if rt_j
+		ret rt_j
+	end
+	call rt_newjob as rt_j
+	if rt_j
 		cas rt_state+4464 0 rt_j+1 as rt_r
 		if rt_r
 			ret rt_j+1
 		end
+		store rt_a rt_j
+		call rt_api rt_i_closehandle rt_a 1
 	end
-	store rt_a rt_j
-	call rt_api rt_i_closehandle rt_a 1
 	load rt_state+4464 as rt_j
 	ret rt_j
 end
@@ -1142,7 +1164,11 @@ end
 # is its environment in the same form, 0 for that of this process;
 # rt_fds the address of three descriptors that become its input, output
 # and error output, -1 for the one of this process. With the flag 1 the
-# child is held: Windows ends it when this process ends. A program that
+# child is held: Windows ends it when this process ends. With the flag
+# 2 it leads a group: it is in a job of its own, which what it starts
+# is in too and which this process alone has a handle of, kept at 32
+# of the record of the child, so all of it ends when reap has taken
+# the child and closes the job, and when this process ends. A program that
 # cannot be started is the number 1, which reap takes as a child that
 # ended with status 127, and so is one whose descriptors are not open
 # or that Windows does not hold.
@@ -1164,10 +1190,21 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	local rt_jl 8
 	local rt_sz 8
 	rt_j=0
-	if rt_flags&1
-		call rt_heldjob as rt_j
+	rt_gj=0
+	if rt_flags&2
+		# a job of its own, which is all the flag 1 would give as well
+		call rt_newjob as rt_j
 		ifz rt_j
 			ret 1
+		end
+		rt_j+=1
+		rt_gj=rt_j
+	else
+		if rt_flags&1
+			call rt_heldjob as rt_j
+			ifz rt_j
+				ret 1
+			end
 		end
 	end
 	store rt_a 0
@@ -1209,6 +1246,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	end
 	if rt_bad
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret 1
 	end
 	call rt_room rt_argv as rt_n
@@ -1219,12 +1257,14 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	call rt_alloc rt_n+rt_m as rt_line
 	ifz rt_line
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret -12
 	end
-	call rt_alloc 32 as rt_kid
+	call rt_alloc 40 as rt_kid
 	ifz rt_kid
 		call rt_free rt_line
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret -12
 	end
 	rt_o=rt_line
@@ -1351,8 +1391,10 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	call rt_free rt_line
 	ifz rt_ok
 		call rt_free rt_kid
+		call rt_shutjob rt_gj
 		ret 1
 	end
+	store rt_kid+32 rt_gj
 	load rt_pi+8 as rt_h
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1
@@ -1429,6 +1471,9 @@ fn rt_reap rt_p rt_ms
 	load rt_k as rt_h
 	store rt_q rt_h
 	call rt_munlock
+	# what a child that led a group started and left behind ends with it
+	load rt_k+32 as rt_h
+	call rt_shutjob rt_h
 	call rt_free rt_k
 	store rt_a rt_p
 	call rt_api rt_i_closehandle rt_a 1
@@ -1516,6 +1561,7 @@ fn rt_reaping rt_p rt_ms
 	end
 	ret rt_r&255 1
 end
+
 # The program of rt_argv in place of this process, with the environment
 # rt_env, 0 for that of the process: the service returns only if the
 # program cannot be started, with the error. Windows puts no program
@@ -1540,7 +1586,6 @@ fn rt_become rt_argv rt_env
 	end
 	tail rt_exit rt_s
 end
-
 
 # Let this thread run only on the processor rt_cpu, or on the lowest one
 # if it may not run there: the processor it is now bound to, or an error

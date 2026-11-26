@@ -1,4 +1,4 @@
 # The state of the runtime written in AIL, rt.aiw, which the compiler
 # compiles behind every program, so that these bytes are behind the
 # buffers of the program.
-buf rt_state 368
+buf rt_state 376
