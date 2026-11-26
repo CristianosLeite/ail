@@ -204,7 +204,9 @@ them; 21 are of Linux alone and say why in `tests/win.skip`.
 Microsoft Defender takes a program for malware now and then, by its
 model and not by a signature: in November 2026 two of the 628 programs
 of the tests, `tests/win/stale.aiw` and `tests/rt_open_threads.aiw`
-(`Sabsik`, `Wacatac`), and it does not let them start. Nothing in the
+(`Sabsik`, `Wacatac`). The first of them it did not let start; the
+same source compiled after the runtime had got one more import
+started, and so did the second. Nothing in the
 header decides it: one byte changed there, a time of linking for one,
 clears a program or does not, by the value of the byte. That is what
 one scan recorded, and no rule of what Defender takes. A file it takes
