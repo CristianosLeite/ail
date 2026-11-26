@@ -1189,11 +1189,12 @@ end
 
 # Start a child that leads a group of processes of its own, which what
 # it starts is in unless it leaves: the group is killed when the child
-# is taken by reap, and when this process ends, however it ends, both
-# by its watcher. The
+# is taken by reap (rt_ungroup), and by its watcher when this process
+# ends, however it ends. The
 # record of such a child, in the list at 368 of the state: the next, its
-# number, the number of its watcher, a descriptor of a pipe, and a
-# descriptor of the watcher, or -1 where the kernel has none.
+# number, the number of its watcher, a descriptor of a pipe, a
+# descriptor of the watcher and one of the child, each -1 where the
+# kernel has none.
 # Two pipes, both closed in a program that is started. Only this
 # process writes to the first, and the descriptor of the record is that
 # end: the watcher, a process in the group of the child, where a signal
@@ -1208,7 +1209,7 @@ end
 fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	local rt_pp 8
 	local rt_info 128
-	call rt_alloc 40 as rt_g
+	call rt_alloc 48 as rt_g
 	ifz rt_g
 		ret -12
 	end
@@ -1228,7 +1229,14 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	end
 	load4 rt_pp as rt_grd
 	load4 rt_pp+4 as rt_gwr
-	sys fork as rt_pid
+	# a fork that gives a descriptor of the child too, which is that
+	# child whatever becomes of its number (0x1000, and the signal 17
+	# at its end); a kernel that has none refuses
+	store4 rt_pp -1
+	sys clone 0x1011 0 rt_pp 0 0 as rt_pid
+	if rt_pid==-22
+		sys fork as rt_pid
+	end
 	ifz rt_pid
 		sys rt_setpgid 0 0
 		sys close rt_wr
@@ -1254,13 +1262,16 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	end
 	rt_wd=-1
 	rt_wf=-1
+	rt_lf=-1
 	rt_e=rt_pid
 	ifsgt rt_pid 0
+		load4 rt_pp as rt_n
+		if rt_n!=0xffffffff
+			rt_lf=rt_n
+		end
 		# the same from here, in case the child has not come to it yet
 		sys rt_setpgid rt_pid rt_pid
-		# a fork that gives a descriptor of the child too, which is that
-		# child whatever becomes of its number (0x1000, and the signal 17
-		# at its end); a kernel that has none refuses
+		# and such a fork for the watcher
 		store4 rt_pp -1
 		sys clone 0x1011 0 rt_pp 0 0 as rt_wd
 		ifsgt rt_wd 0
@@ -1284,6 +1295,9 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 		ifsgt rt_pid 0
 			call rt_take 1 rt_pid rt_info 4
 		end
+		ifsge rt_lf 0
+			sys close rt_lf
+		end
 		call rt_free rt_g
 		ret rt_e
 	end
@@ -1291,6 +1305,7 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	store rt_g+16 rt_wd
 	store rt_g+24 rt_wr
 	store rt_g+32 rt_wf
+	store rt_g+40 rt_lf
 	call rt_mlock
 	load rt_state+368 as rt_p
 	store rt_g rt_p
@@ -1400,18 +1415,33 @@ fn rt_grp rt_pid
 	ret 0
 end
 
+# a signal for the watcher, by its descriptor rt_wf, or by its number
+# rt_wd where there is none
+fn rt_poke rt_wf rt_wd rt_sig
+	ifsge rt_wf 0
+		sys rt_pidfdsignal rt_wf rt_sig 0 0 as rt_r
+		ret rt_r
+	end
+	sys kill rt_wd rt_sig as rt_r
+	ret rt_r
+end
+
 # The child of the record rt_g, which led a group, was taken or is
 # gone: whatever it started and left behind ends, the watcher too,
-# which is taken. No signal goes from here, by no number: the number of
-# the child is free once the child is taken, by this runtime or by
-# anything else, and may be another process or group by now. The pipe
-# is closed, and the watcher kills the group it is in, which is that of
-# the child for as long as the watcher lives, since the kernel gives
-# the number of a group to nothing else while a process is in it. The
-# watcher is taken by its descriptor, which is of that process alone,
-# and by its number only where the kernel has no such thing. A watcher
-# that something killed by itself kills nothing: what is left of its
-# group then stays.
+# which is taken. No signal goes to the group by a number: the number
+# of the child is free once the child is taken, by this runtime or by
+# anything else, and may be another process or group by now. The signal
+# goes to the group by the descriptor of the child (the flag 4 of the
+# call, Linux 6.9), which is of that group for as long as a process is
+# in it, and to none after. Then, and with a kernel that has no such
+# signal only this, the pipe is closed and the watcher kills the group
+# it is in, which is that of the child for as long as the watcher
+# lives; the watcher is told to go on (the signal 18) in case it was
+# stopped, with its group or alone. It is waited for a second: one that
+# has not ended by then, stopped again or held by something, is killed,
+# and what is left of its group then stays. The watcher is signalled
+# and taken by its descriptor, and by its number only where the kernel
+# has no such thing.
 fn rt_ungroup rt_g
 	local rt_info 128
 	call rt_mlock
@@ -1428,16 +1458,42 @@ fn rt_ungroup rt_g
 	load rt_g+16 as rt_wd
 	load rt_g+24 as rt_wr
 	load rt_g+32 as rt_wf
+	load rt_g+40 as rt_lf
+	call rt_free rt_g
+	ifsge rt_lf 0
+		sys rt_pidfdsignal rt_lf 9 0 4
+		sys close rt_lf
+	end
 	sys close rt_wr
-	rt_r=-22
+	rt_w=3
+	rt_id=rt_wf
+	ifslt rt_wf 0
+		rt_w=1
+		rt_id=rt_wd
+	end
+	call rt_poke rt_wf rt_wd 18
+	rt_i=0
+	label rt_ask
+	call rt_take rt_w rt_id rt_info 5 as rt_r
+	if (rt_r==-22)&(rt_w==3)
+		# a kernel that takes no child by a descriptor
+		rt_w=1
+		rt_id=rt_wd
+		jmp rt_ask
+	end
+	load4 rt_info+16 as rt_n
+	ifz rt_r|rt_n
+		if rt_i<5000
+			call rt_sleep 200000
+			rt_i+=1
+			jmp rt_ask
+		end
+		call rt_poke rt_wf rt_wd 9
+		call rt_take rt_w rt_id rt_info 4
+	end
 	ifsge rt_wf 0
-		call rt_take 3 rt_wf rt_info 4 as rt_r
 		sys close rt_wf
 	end
-	if rt_r==-22
-		call rt_take 1 rt_wd rt_info 4
-	end
-	call rt_free rt_g
 end
 
 # Ask the kernel about a child, by its number (rt_which 1) or by a

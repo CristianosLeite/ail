@@ -324,15 +324,20 @@ Where a service cannot be on Windows what it is on Linux:
   range does (Linux 5.9), and with another the watcher closes those
   that `/proc/self/fd` names, or ends where that cannot be read. A
   program that makes a group of its own (`setsid`, `setpgid`) is out
-  of it. `reap` takes such a child as any other and then closes the
-  pipe: it is the watcher that kills the group, the one it is in, so
-  no signal goes to a number that was the child's, which may be
-  another group once the child is taken, by `reap` or by anything
-  else in the process that takes children. `reap` keeps the child
-  from every other `reap` until that is done, and takes the watcher
-  by a descriptor of it where the kernel has one (Linux 5.4). A
-  watcher that something kills by itself leaves what remains of its
-  group running.
+  of it. `reap` takes such a child as any other and then kills the
+  group by a descriptor of the child, kept since the start, which
+  names that group and no other whatever becomes of the number
+  (Linux 6.9). It then closes the pipe, and with an older kernel it
+  is the watcher that kills the group, the one it is in, woken first
+  in case the group was stopped: no signal goes to a number that was
+  the child's, which may be another group once the child is taken,
+  by `reap` or by anything else in the process that takes children.
+  `reap` keeps the child from every other `reap` until that is done,
+  and takes the watcher by a descriptor of it where the kernel has
+  one (Linux 5.4). It waits a second for the watcher: with an older
+  kernel a watcher that has not ended by then is killed, and what is
+  left of its group stays, as it does when something kills the
+  watcher alone.
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform
