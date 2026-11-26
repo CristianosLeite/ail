@@ -54,6 +54,9 @@ result is a value.
 | 32 | `port` | socket | its port, or an error |
 | 33 | `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
 | 34 | `writeq` | descriptor, address, size | the bytes written, or an error: a `write` that gives -32 for a pipe nobody reads without ending the process, whether `pipeerr` was called or not |
+| 35 | `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error. The arguments and the environment are addresses of strings that end with a NUL, with a 0 after the last; the first argument is the program, a path if it has a slash and else a name looked for in the directories of `PATH`. The three descriptors, 8 bytes each, become its 0, 1 and 2, -1 for the one of the process. With the flag 1 the child is killed when the thread that started it ends. A program that cannot be started is a child that ends with 127 |
+| 36 | `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child |
+| 37 | `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,

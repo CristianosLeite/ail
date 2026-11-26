@@ -1,0 +1,43 @@
+# the services of processes: a program started with its arguments, its
+# output in a pipe and an environment of one variable, taken with its
+# status; one that runs too long is killed; no such child; a program
+# that is not there ends with 127
+buf fds 8
+buf io 24
+buf b 64
+data sh "sh" 0
+data c "-c" 0
+data script "echo $0 $V; exit 3" 0
+data v "V=runtime" 0
+data path "PATH=/usr/bin:/bin" 0
+data forever "sleep 5" 0
+data none "/no/such/program" 0
+buf argv 32
+buf env 24
+sys pipe fds
+load4 fds as r
+load4 fds+4 as w
+store argv sh
+store argv+8 c
+store argv+16 script
+store env v
+store env+8 path
+store io -1
+store io+8 w
+store io+16 -1
+rt start argv env io 0 as p
+rt close w
+rt read r b 64 as n
+rt write 1 b n
+rt reap p 0 as s
+rt reap p 0 as gone
+store argv+16 forever
+store io+8 -1
+rt start argv 0 io 1 as p
+rt reap p 50 as late
+store argv none
+store argv+8 0
+rt start argv 0 io 0 as p
+rt reap p 2000 as missing
+rt pin 0 as cpu
+rt exit (s==3)+(gone==-1001)*2+(late==-1000)*4+(missing==127)*8+(cpu<1024)*16

@@ -22,7 +22,7 @@ rt_image:
 rt_state:
 	.quad 0
 rt_table:
-	.long e_start - rt_image
+	.long e_boot - rt_image
 	.long e_exit - rt_image
 	.long e_args - rt_image
 	.long e_alloc - rt_image
@@ -57,6 +57,9 @@ rt_table:
 	.long e_port - rt_image
 	.long e_send - rt_image
 	.long e_writeq - rt_image
+	.long e_start - rt_image
+	.long e_reap - rt_image
+	.long e_pin - rt_image
 rt_table_end:
 
 	.text
@@ -80,7 +83,7 @@ e_\name:
 
 /* where the process starts: keep the stack and go on at the first
  * statement of the program, which stands behind the image */
-e_start:
+e_boot:
 	lea rt_image(%rip), %rax
 	add rt_state(%rip), %rax
 	mov %rsp, (%rax)
@@ -119,6 +122,9 @@ e_start:
 	entry port
 	entry send
 	entry writeq
+	entry start
+	entry reap
+	entry pin
 
 /* thread: start a thread that calls the function in rax with the value
  * in rdi, by the convention of AIL, and ends when it returns. 0, or the

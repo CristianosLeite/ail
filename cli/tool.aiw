@@ -20,6 +20,88 @@ const tlsetpgid 109
 const tlpipe2 293
 const tlfchmod 91
 
+const tldup2 33
+
+# in a child that this file forks: end it unless tlfd is -1 or an open
+# descriptor. Asked of all three before any copy is made, since a copy
+# may take the number of a descriptor that was not open and so pass for
+# it.
+fn tlopen tlfd
+	if tlfd!=-1
+		sys tlfcntl tlfd 1 as tlr
+		ifslt tlr 0
+			sys exit 127
+		end
+	end
+end
+
+# in such a child: make the three descriptors given its 0, 1 and 2, or
+# end it, as the service start of the runtime does for the programs it
+# starts. One that is 0, 1 or 2 itself must be read before another is
+# put on its number, so each round puts in place those whose number no
+# other still reads. When none is left to do so they read one another
+# in a ring, and only then one of them is copied to a number from 3 up,
+# which is closed when the program starts.
+fn tlmap tlin tlout tlerr
+	local tlm 24
+	store tlm tlin
+	store tlm+8 tlout
+	store tlm+16 tlerr
+	tli=0
+	while tli<3
+		load tlm+tli*8 as tls
+		if tls==tli
+			store tlm+tli*8 -1
+		end
+		tli+=1
+	end
+	label round
+	tln=0
+	tld=0
+	tli=0
+	while tli<3
+		load tlm+tli*8 as tls
+		if tls!=-1
+			tln+=1
+			tlb=0
+			tlj=0
+			while tlj<3
+				load tlm+tlj*8 as tlx
+				if tlx==tli
+					tlb=1
+				end
+				tlj+=1
+			end
+			ifz tlb
+				sys tldup2 tls tli as tlr
+				ifslt tlr 0
+					sys exit 127
+				end
+				store tlm+tli*8 -1
+				tld=1
+			end
+		end
+		tli+=1
+	end
+	ifz tln
+		ret 0
+	end
+	jnz tld round
+	tli=0
+	label ring
+	load tlm+tli*8 as tls
+	if tls==-1
+		tli+=1
+		jmp ring
+	end
+	sys tlfcntl tls 1030 3 as tls
+	ifslt tls 0
+		sys exit 127
+	end
+	store tlm+tli*8 tls
+	jmp round
+end
+
 buf tlhome 24       # the directory of AIL, as tlfind found it
 buf tlailc 24       # the path of its compiler, with a NUL byte
 buf tlindent 24     # and of its formatter, the same, or no bytes if it has none
@@ -553,10 +635,10 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 		sys fork as tlpid
 		ifz tlpid
 			# the child: nothing here returns
-			call procopen tlin
-			call procopen tlout
-			call procopen tlerr
-			call procmap tlin tlout tlerr
+			call tlopen tlin
+			call tlopen tlout
+			call tlopen tlerr
+			call tlmap tlin tlout tlerr
 			load tlv as tlq
 			load tlq as tlp
 			load tle as tln
@@ -610,10 +692,10 @@ fn tlrunenv tls tlin tlout tlerr tlep tlen tlms
 		if tlr!=1
 			sys exit 127
 		end
-		call procopen tlin
-		call procopen tlout
-		call procopen tlerr
-		call procmap tlin tlout tlerr
+		call tlopen tlin
+		call tlopen tlout
+		call tlopen tlerr
+		call tlmap tlin tlout tlerr
 		load tlv as tlq
 		load tlq as tlp
 		load tle as tln

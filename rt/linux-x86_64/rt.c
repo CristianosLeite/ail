@@ -24,13 +24,13 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
-	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rt_sigprocmask = 14,
-	SYS_nanosleep = 35, SYS_socket = 41, SYS_connect = 42, SYS_sendto = 44, SYS_bind = 49,
+	SYS_poll = 7, SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rt_sigprocmask = 14,
+	SYS_dup2 = 33, SYS_nanosleep = 35, SYS_getpid = 39, SYS_socket = 41, SYS_connect = 42, SYS_sendto = 44, SYS_bind = 49,
 	SYS_listen = 50, SYS_getsockname = 51, SYS_setsockopt = 54, SYS_getsockopt = 55,
-	SYS_fcntl = 72, SYS_rename = 82, SYS_mkdir = 83,
-	SYS_rmdir = 84, SYS_unlink = 87, SYS_rt_sigtimedwait = 128, SYS_futex = 202, SYS_sched_getaffinity = 204, SYS_getdents64 = 217, SYS_clock_gettime = 228,
+	SYS_fork = 57, SYS_execve = 59, SYS_exit = 60, SYS_wait4 = 61, SYS_kill = 62, SYS_fcntl = 72, SYS_rename = 82, SYS_mkdir = 83,
+	SYS_rmdir = 84, SYS_unlink = 87, SYS_getppid = 110, SYS_rt_sigtimedwait = 128, SYS_prctl = 157, SYS_futex = 202, SYS_sched_setaffinity = 203, SYS_sched_getaffinity = 204, SYS_getdents64 = 217, SYS_clock_gettime = 228,
 	SYS_exit_group = 231, SYS_epoll_wait = 232, SYS_epoll_ctl = 233, SYS_accept4 = 288,
-	SYS_eventfd2 = 290, SYS_epoll_create1 = 291
+	SYS_eventfd2 = 290, SYS_epoll_create1 = 291, SYS_pidfd_open = 434
 };
 
 /* end the process, every thread of it */
@@ -550,4 +550,205 @@ long rt_writeq(struct rt *rt, long fd, const void *p, unsigned long n)
 		sys4(SYS_rt_sigtimedwait, &set, 0, t, 8);
 	sys4(SYS_rt_sigprocmask, 2, &old, 0, 8);
 	return r;
+}
+
+/* in a child: end it, as a program that cannot be started ends */
+static void fail(void)
+{
+	for (;;)
+		sys1(SYS_exit, 127);
+}
+
+/* in a child: make the three descriptors given its 0, 1 and 2, or end
+ * it; -1 is one to leave. One that is 0, 1 or 2 itself must be read
+ * before another is put on its number, so each round puts in place
+ * those whose number no other still reads. When none is left to do so
+ * they read one another in a ring, and only then one of them is copied
+ * to a number from 3 up, which is closed when the program starts. */
+static void place(long *m)
+{
+	long i, j, n, d, b;
+
+	for (i = 0; i < 3; i++)
+		if (m[i] == i)
+			m[i] = -1;
+	for (;;) {
+		n = d = 0;
+		for (i = 0; i < 3; i++) {
+			if (m[i] == -1)
+				continue;
+			n++;
+			b = 0;
+			for (j = 0; j < 3; j++)
+				if (m[j] == i)
+					b = 1;
+			if (b)
+				continue;
+			if (sys2(SYS_dup2, m[i], i) < 0)
+				fail();
+			m[i] = -1;
+			d = 1;
+		}
+		if (!n)
+			return;
+		if (d)
+			continue;
+		for (i = 0; m[i] == -1; i++)
+			;
+		m[i] = sys3(SYS_fcntl, m[i], 1030, 3);
+		if (m[i] < 0)
+			fail();
+	}
+}
+
+/* Start a program as a child process: its number, or an error. argv is
+ * the address of the addresses of its arguments, strings with a zero at
+ * the end, with a 0 after the last; the first is the program, a path if
+ * it has a slash and else a name looked for in the directories of PATH.
+ * env is its environment in the same form, 0 for that of this process;
+ * fds the address of three descriptors that become its 0, 1 and 2, -1
+ * for the one of this process. With the flag 1 the child is held: the
+ * kernel kills it when the thread that started it ends. A program that
+ * cannot be started is a child that ends with status 127. */
+long rt_start(struct rt *rt, char **argv, char **env, long *fds, long flags)
+{
+	char z[4096];
+	long m[3], me = 0, pid, i, n, d;
+	const char *path = "/usr/bin:/bin", *q;
+	char **own = (char **)(rt->sp + 16 + 8 * *(long *)rt->sp), **e;
+
+	if (!env)
+		env = own;
+	if (flags & 1)
+		me = sys1(SYS_getpid, 0);
+	pid = sys1(SYS_fork, 0);
+	if (pid)
+		return pid;
+	if (flags & 1) {
+		/* a kernel that refuses would leave a child nothing holds; a
+		 * parent that ended before that line sends nothing */
+		if (sys5(SYS_prctl, 1, 9, 0, 0, 0) || sys1(SYS_getppid, 0) != me)
+			fail();
+	}
+	for (i = 0; i < 3; i++) {
+		m[i] = fds[i];
+		/* asked of all three before any copy is made, since a copy may
+		 * take the number of a descriptor that was not open */
+		if (m[i] != -1 && sys2(SYS_fcntl, m[i], 1) < 0)
+			fail();
+	}
+	place(m);
+	for (n = 0; argv[0][n]; n++)
+		if (argv[0][n] == '/') {
+			sys3(SYS_execve, argv[0], argv, env);
+			fail();
+		}
+	for (e = own; *e; e++)
+		if ((*e)[0] == 'P' && (*e)[1] == 'A' && (*e)[2] == 'T' && (*e)[3] == 'H' && (*e)[4] == '=')
+			path = *e + 5;
+	/* each directory of the list, an empty one being this directory */
+	for (;;) {
+		for (q = path; *q && *q != ':'; q++)
+			;
+		d = q - path;
+		if (d + n < 4094) {
+			for (i = 0; i < d; i++)
+				z[i] = path[i];
+			if (d)
+				z[d++] = '/';
+			for (i = 0; i <= n; i++)
+				z[d + i] = argv[0][i];
+			sys3(SYS_execve, z, argv, env);
+		}
+		if (!*q)
+			fail();
+		path = q + 1;
+	}
+}
+
+/* Wait for the child to end and take it from the kernel: its exit
+ * status, 0 to 255; or the signal that ended it, negated; or -1000 if
+ * it still ran after ms milliseconds, in which case it was killed and
+ * taken; or -1001 if there is no such child. ms 0 waits without limit. */
+long rt_reap(struct rt *rt, long pid, unsigned long ms)
+{
+	int st = 0;
+	long r, fd, t;
+	struct {
+		int fd;
+		short want, got;
+	} pf;
+
+	if (ms) {
+		fd = sys2(SYS_pidfd_open, pid, 0);
+		if (fd >= 0) {
+			pf.fd = fd;
+			pf.want = 1;
+			pf.got = 0;
+			do
+				r = sys3(SYS_poll, &pf, 1, ms);
+			while (r == -4);
+			sys1(SYS_close, fd);
+			if (!r)
+				goto late;
+		} else {
+			/* no descriptor to be had for the child: ask every
+			 * millisecond whether it has ended */
+			t = rt_clock(rt);
+			for (;;) {
+				st = 0;
+				r = sys4(SYS_wait4, pid, &st, 1, 0);
+				if (r == -4)
+					continue;
+				if (r)
+					goto took;
+				if ((unsigned long)(rt_clock(rt) - t) / 1000000 >= ms)
+					goto late;
+				rt_sleep(rt, 1000000);
+			}
+		}
+	}
+	do {
+		st = 0;
+		r = sys4(SYS_wait4, pid, &st, 0, 0);
+	} while (r == -4);
+took:
+	if (r < 0)
+		return -1001;
+	if (st & 127)
+		return -(long)(st & 127);
+	return st >> 8 & 255;
+late:
+	sys2(SYS_kill, pid, 9);
+	while (sys4(SYS_wait4, pid, 0, 0, 0) == -4)
+		;
+	return -1000;
+}
+
+/* Let this thread, and the children it starts from now on, run only on
+ * the processor cpu, or on the lowest one it may run on if that is not
+ * among them: the processor it is now bound to, or an error. */
+long rt_pin(struct rt *rt, unsigned long cpu)
+{
+	unsigned char m[128];
+	unsigned long i;
+	long r;
+
+	(void)rt;
+	for (i = 0; i < sizeof m; i++)
+		m[i] = 0;
+	r = sys3(SYS_sched_getaffinity, 0, sizeof m, m);
+	if (r < 0)
+		return r;
+	if (cpu >= 1024 || !(m[cpu / 8] >> (cpu & 7) & 1)) {
+		for (cpu = 0; cpu < 1024 && !(m[cpu / 8] >> (cpu & 7) & 1); cpu++)
+			;
+		if (cpu == 1024)
+			return -RT_EINVAL;
+	}
+	for (i = 0; i < sizeof m; i++)
+		m[i] = 0;
+	m[cpu / 8] = 1 << (cpu & 7);
+	r = sys3(SYS_sched_setaffinity, 0, sizeof m, m);
+	return r < 0 ? r : (long)cpu;
 }

@@ -60,6 +60,9 @@ long rt_sockerr(struct rt *rt, long fd);
 long rt_port(struct rt *rt, long fd);
 long rt_send(struct rt *rt, long fd, const void *p, unsigned long n);
 long rt_writeq(struct rt *rt, long fd, const void *p, unsigned long n);
+long rt_start(struct rt *rt, char **argv, char **env, long *fds, long flags);
+long rt_reap(struct rt *rt, long pid, unsigned long ms);
+long rt_pin(struct rt *rt, unsigned long cpu);
 
 #endif
 #endif

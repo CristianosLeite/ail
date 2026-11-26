@@ -104,7 +104,7 @@ test: all $(B)/ailc2 $(TOOLS)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
 	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; tests/install.sh || f=1; \
-	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
+	tests/make.sh || f=1; tests/tables.sh || f=1; AILC=$(B)/ailc tests/rt.sh || f=1; AILC=$(B)/ailc tests/insn.sh || f=1; \
 	AILC=$(B)/ailc AILC2=$(B)/ailc1 tests/bytes.sh || f=1; tests/self.sh || f=1; \
 	tests/fuzz.sh 300 1 || f=1; AILC=$(B)/ailc tests/infix.sh || f=1; AILC=$(B)/ailc tests/indent.sh || f=1; \
 	tests/tools.sh || f=1; AILC=$(B)/ailc tests/randvars.sh || f=1; \

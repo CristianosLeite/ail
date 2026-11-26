@@ -49,9 +49,15 @@ and no object file; it is written in C first, built by `cc` in `make`,
 and then in AIL; one pull request when all of it is done, and the
 version 0.2.0 after it.
 
-- [ ] Services for files and directories, the clock, threads with
-  waiting and waking, readiness and sockets, and processes, each with
-  the library that needs it; no `sys` left in `lib/`, `cli/` and `tools/`.
+- [ ] The command `ail` and the tools without `sys`. `cli/tool.aiw`
+  starts a test in a group of processes of its own, with a watcher that
+  kills the group when the command is gone, takes a lock on the
+  directory of a package, goes into directories and back by a
+  descriptor, and asks where its own executable is; `cli/ail.aiw`
+  becomes the program it runs. Each wants a service that says what is
+  meant and not how Linux does it: a program started in a group that
+  ends with it, a lock of a directory, the directory of the process and
+  of the executable, a program in place of the process.
 - [ ] An image as a form of output, for a runtime written in AIL.
 - [ ] The services in AIL one group at a time, tested against both.
 - [ ] The C runtime removed, and seed 8.

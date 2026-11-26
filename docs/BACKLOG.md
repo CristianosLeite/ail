@@ -946,3 +946,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `async_*`, `lib_http_*` and `lib_httpd_*` tests as they were, but for
   `async_write_closed`, which has the two numbers it took from the
   library as constants of its own.
+- [x] Services for processes, and a library without `sys` (2026-11-26):
+  `start`, a program with its arguments, an environment and its three
+  descriptors, held to the process that started it or not; `reap`, its
+  end with a limit of time; `pin`. `lib/std/proc.aiw` calls them, so no
+  file of `lib/` has a `sys` left, which `tests/rt.sh` holds together
+  with the form of the image and its place in an executable. The two
+  functions that put the descriptors of a child in place are in
+  `cli/tool.aiw` now, for the children it forks itself.
+  `tests/rt_start`; the `lib_proc_*` tests as they were.
