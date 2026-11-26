@@ -314,8 +314,9 @@ Where a service cannot be on Windows what it is on Linux:
   kills the group it is in; the child runs only once the watcher is
   there and says so, and a watcher that cannot join the group ends
   before it does, so that the child is one that ends with 127. The
-  watcher keeps no other descriptor, with a
-  kernel that closes them by a range (Linux 5.9) or without, and a
+  watcher keeps no other descriptor: a kernel that closes them by a
+  range does (Linux 5.9), and with another the watcher closes those
+  that `/proc/self/fd` names, or ends where that cannot be read. A
   program that makes a group of its own (`setsid`, `setpgid`) is out
   of it. `reap` asks about such a child and leaves it where it is
   until the group is killed, so that the number of the group is no

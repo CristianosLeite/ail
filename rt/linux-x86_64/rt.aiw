@@ -75,7 +75,6 @@ const rt_chdir 80
 const rt_fchdir 81
 const rt_readlink 89
 const rt_fchmod 91
-const rt_getrlimit 97
 const rt_setpgid 109
 const rt_getppid 110
 const rt_sigtimedwait 128
@@ -1300,16 +1299,18 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 end
 
 # in the watcher of the group rt_pid: nothing here returns. It joins the
-# group, closes every descriptor but the end rt_rd it waits at, those of
-# the pipes by their numbers, whatever the kernel can do, and the others
-# all at once or, with a kernel that cannot, one after the other up to
-# the number the process may have. Then it lets the child go with the
-# byte, and after the end of its pipe kills the group it is in, which
-# is that of the child as long as the watcher is there.
+# group, and ends at once if it cannot: it would kill the group it is
+# in, which must be no other than that of the child. It closes every
+# descriptor but the end rt_rd it waits at, those of the pipes by their
+# numbers, whatever the kernel can do, and the others all at once or,
+# with a kernel that cannot, those the kernel lists as open, one after
+# the other; without that list it ends too, since a descriptor it did
+# not close may be what another process waits for the end of. Then it
+# lets the child go with the byte, and after the end of its pipe kills
+# the group it is in. A watcher that ends before the byte ends the pipe
+# of the child, which then ends with 127.
 fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
-	local rt_b 16
-	# a watcher that is not in the group of the child would kill the
-	# group it is in, that of the process that started the child
+	local rt_b 1024
 	sys rt_setpgid 0 rt_pid as rt_r
 	if rt_r
 		sys exit 127
@@ -1336,21 +1337,41 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 		sys rt_closerange rt_hi+1 0xffffffff 0 as rt_r
 	end
 	if rt_r
-		rt_n=1024
-		sys rt_getrlimit 7 rt_b as rt_r
-		ifz rt_r
-			load rt_b as rt_n
-			if rt_n>0x100000
-				rt_n=0x100000
-			end
+		# the names of that directory are the descriptors that are open,
+		# whatever number the process may have now; the kernel goes on
+		# from the number it came to, so one that is closed is not missed
+		set "/proc/self/fd\0" as rt_d
+		sys open rt_d 0x10000 0 as rt_fd
+		ifslt rt_fd 0
+			sys exit 127
+		end
+		label rt_more
+		sys rt_getdents rt_fd rt_b 1024 as rt_r
+		ifslt rt_r 0
+			sys exit 127
 		end
 		rt_i=0
-		while rt_i<rt_n
-			if (rt_i!=rt_rd)&(rt_i!=rt_gwr)
-				sys close rt_i
+		while rt_i<rt_r
+			# an entry: 16 bytes, its length in 2, its kind in 1, the name
+			load2 rt_b+rt_i+16 as rt_l
+			rt_s=rt_b+rt_i+19
+			rt_i+=rt_l
+			rt_n=0
+			loadb rt_s as rt_c
+			while (rt_c>47)&(rt_c<58)
+				rt_n=rt_n*10+rt_c-48
+				rt_s+=1
+				loadb rt_s as rt_c
 			end
-			rt_i+=1
+			# "." and ".." are no number
+			ifz rt_c
+				if (rt_n!=rt_rd)&(rt_n!=rt_gwr)&(rt_n!=rt_fd)
+					sys close rt_n
+				end
+			end
 		end
+		jnz rt_r rt_more
+		sys close rt_fd
 	end
 	storeb rt_b 0
 	sys write rt_gwr rt_b 1
