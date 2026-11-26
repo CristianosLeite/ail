@@ -1092,24 +1092,54 @@ end
 # of what it ended with; or the fault that ended it as the signal Linux
 # has for it, negated; or -1000 if it still ran after rt_ms
 # milliseconds, in which case it was ended and taken; or -1001 if there
-# is no such child. rt_ms 0 waits without limit.
+# is no such child; or, if Windows refuses to end a child whose time is
+# over, its error, the child being left as it is. rt_ms 0 waits without
+# limit. Windows counts the time of a wait in 32 bits, of which the
+# largest value means no limit, so a long time is waited for in pieces,
+# and what is left is counted from the start.
 fn rt_reap rt_p rt_ms
 	local rt_a 32
 	local rt_c 8
 	if rt_p==1
 		ret 127
 	end
-	ifz rt_ms
-		rt_ms=0xffffffff
+	call rt_clock as rt_t
+	label rt_again
+	rt_n=0xffffffff
+	if rt_ms
+		call rt_clock as rt_n
+		rt_n=(rt_n-rt_t)/1000000
+		if rt_n>=rt_ms
+			rt_n=0
+		else
+			rt_n=rt_ms-rt_n
+			if rt_n>0x40000000
+				rt_n=0x40000000
+			end
+		end
 	end
 	store rt_a rt_p
-	store rt_a+8 rt_ms
+	store rt_a+8 rt_n
 	call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
 	rt_r&=0xffffffff
 	if rt_r==258
+		# the piece is over: the time may not be
+		call rt_clock as rt_n
+		jlt (rt_n-rt_t)/1000000 rt_ms rt_again
 		store rt_a rt_p
 		store rt_a+8 1
-		call rt_api rt_i_terminateprocess rt_a 2
+		call rt_api rt_i_terminateprocess rt_a 2 as rt_x
+		ifz rt_x&0xffffffff
+			# Windows ends no process that has ended, so it is taken with
+			# what it ended with if it has, and else left
+			call rt_error as rt_x
+			store rt_a rt_p
+			store rt_a+8 0
+			call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
+			rt_r&=0xffffffff
+			jz rt_r rt_took
+			ret rt_x
+		end
 		store rt_a rt_p
 		store rt_a+8 0xffffffff
 		call rt_api rt_i_waitforsingleobject rt_a 2
@@ -1120,6 +1150,7 @@ fn rt_reap rt_p rt_ms
 	if rt_r
 		ret -1001
 	end
+	label rt_took
 	store rt_c 0
 	store rt_a rt_p
 	store rt_a+8 rt_c
@@ -1236,7 +1267,10 @@ fn rt_marks rt_fd rt_mask
 		if rt_k&4
 			load rt_state+4736+rt_ep*8 as rt_d
 			loadb rt_d+rt_fd as rt_k
-			if rt_k
+			# a descriptor that is closed is looked for under the lock
+			# whatever is noted now: a watch that found it open may be
+			# about to note it (rt_watch)
+			if rt_k|(rt_mask==0)
 				# what it notes now, which may be nothing since
 				call rt_plock rt_d
 				loadb rt_d+rt_fd as rt_k
@@ -1561,17 +1595,30 @@ fn rt_watch rt_ep rt_fd rt_what rt_tag
 	if rt_fd>255
 		ret -9
 	end
+	# what the descriptor is, is asked under the lock of the record: a
+	# close makes it nothing first and then takes it out of every poller
+	# under that lock (rt_marks), before its number is given out again.
+	# So one that is a socket here is taken out by its close after this,
+	# and one that is being closed is no socket here.
+	call rt_plock rt_d
 	loadb rt_state+4480+rt_fd as rt_x
-	ifz rt_x&3
-		load rt_state+360+rt_fd*8 as rt_h
+	load rt_state+360+rt_fd*8 as rt_h
+	load rt_d+2312 as rt_s
+	if (rt_x&3==0)|(rt_h<3)|(rt_s==0)
+		call rt_punlock rt_d
+		if (rt_s==0)|(rt_h==2)
+			ret -9
+		end
 		ifz rt_h
 			if rt_fd>2
 				ret -9
 			end
 		end
+		if rt_x&3
+			ret -9
+		end
 		ret -1
 	end
-	call rt_plock rt_d
 	loadb rt_d+rt_fd as rt_k
 	if rt_k
 		call rt_punlock rt_d

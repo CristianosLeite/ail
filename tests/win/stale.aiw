@@ -1,0 +1,50 @@
+# a watch that waits for the record of its poller while the socket is
+# closed watches nothing afterwards. The lock of the record (2304 of
+# what rt_state has at 4736 for the poller) is held here while one
+# thread calls watch and then another close, and let go when both wait;
+# a waker that then gets the number of the socket and is woken must be
+# no event of the poller, which was never given it. Ends with 3
+buf ev 32
+buf ep 8
+buf fd 8
+buf done 16
+fn watcher v
+	load ep as p
+	load fd as s
+	rt watch p s 1 77
+	store done 1
+	rt wake done 1
+end
+fn closer v
+	load fd as s
+	rt close s
+	store done+8 1
+	rt wake done+8 1
+end
+rt poller as p
+rt socket as s
+store ep p
+store fd s
+load rt_state+4736+p*8 as d
+cas d+2304 0 1 as k
+ref watcher as f
+rt thread f 0
+rt sleep 200000000
+ref closer as f
+rt thread f 0
+rt sleep 200000000
+store d+2304 0
+a=0
+while a==0
+	rt wait done 0 -1
+	load done as a
+end
+a=0
+while a==0
+	rt wait done+8 0 -1
+	load done+8 as a
+end
+rt waker as w
+rt wakeup w
+rt poll p ev 2 0 as n
+rt exit (n==0)+(w==s)*2

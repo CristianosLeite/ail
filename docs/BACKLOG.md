@@ -1154,3 +1154,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the result, with the child left, and a child that ended by itself
   before the signal gives what it ended with. `tests/rt_reap_two`,
   `tests/rt_reap_denied`.
+- [x] A watch on Windows that outlived its socket, and the time of
+  `reap` there (2026-11-26): `watch` asked what the descriptor was
+  before it had the record of the poller, so a close between the two
+  left a watch on a number that the next descriptor got; and `reap`
+  gave its time to Windows, which reads 32 bits of it. `watch` now
+  asks under the lock of the record, where a close always takes its
+  descriptor out before the number is free, and `reap` waits in pieces
+  counted from the start, says so if Windows refuses to end the child,
+  and takes one that has ended with what it ended with.
+  `tests/win/stale.aiw`, `tests/rt_watch_close`, `tests/rt_reap_long`.

@@ -14,6 +14,8 @@
 # - tests/win/inherit.aiw must find that a child got the descriptors it
 #   was given and no other handle, and tests/win/holder.aiw that a held
 #   child ends with the process that started it.
+# - tests/win/stale.aiw must find that a watch which waited while its
+#   socket was closed watches nothing.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -95,9 +97,17 @@ while [ ! -f $tmp/free.txt ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
 [ ! -f $tmp/held.txt ] || r=1
 say win_held $r
 
-# tests that are run whatever the count: threads that open at once, and
-# pollers that share nothing or a waker
-always="rt_open_threads rt_poll_two rt_poll_shared"
+# a watch that waits for its poller while the socket is closed
+r=0
+$wc < tests/win/stale.aiw > $tmp/stale.exe || r=1
+timeout 60 wine $tmp/stale.exe > /dev/null 2>&1
+[ $? -eq 3 ] || r=1
+say win_stale_watch $r
+
+# tests that are run whatever the count: threads that open at once,
+# pollers that share nothing or a waker, a watch and a close at once,
+# and a long time of reap
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long"
 n=0
 ran=0
 for f in tests/*.out; do
