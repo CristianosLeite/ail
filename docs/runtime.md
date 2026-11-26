@@ -301,9 +301,16 @@ Where a service cannot be on Windows what it is on Linux:
   path of one directory are one lock and two files never are; where
   Windows does not say them, or the volume has no number for its
   files and gives zeros, the service is an error. The name is in the
-  names that all sessions of the machine share (`Global\`) and the
-  mutex is open to every user, so that a service and the program of
-  a user keep each other out. A
+  names that all sessions of the machine share (`Global\`), so that
+  a service and the program of a user keep each other out. Who may
+  open the mutex is made of the list of the file: the file is opened
+  to be read, so who takes its lock may read it; who may read it may
+  wait for the mutex and give it back and nothing else, who is
+  forbidden to read it is forbidden the mutex, and a file without a
+  list gives those two rights to all. An entry of the list that is
+  neither a permission nor a prohibition is an error of the service,
+  -95. The mutex keeps the list it was made with for as long as a
+  process has it. A
   mutex belongs to a thread, so the thread that took the lock closes
   it, and a second `lock` of the same file by that thread is given at
   once.

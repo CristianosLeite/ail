@@ -717,22 +717,91 @@ fn rt_pid
 	ret rt_r&0xffffffff
 end
 
+# Who may have the lock of the file whose handle is rt_h, as a list of
+# Windows for a mutex, made in the 66000 bytes at rt_s: its address, or
+# an error. It is the list of the file itself, as Windows gives it,
+# changed in place: who may read the file or the names in the directory
+# (the bit 1, or all, of an entry that holds for the file itself and
+# not only for what is made in it) may wait for the mutex and give it
+# back, 0x100001, and nothing else; who is forbidden that is forbidden
+# the mutex, 0x1f0001; every other entry is left with no right. An
+# entry of another kind than those two, whose meaning is not known
+# here, is the error -95. A file that has no list is open to all, and
+# so is its mutex, for those two rights: the list is then one entry
+# for everybody, written behind what Windows gave.
+fn rt_who rt_h rt_s
+	local rt_a 48
+	store rt_a rt_h
+	store rt_a+8 4
+	store rt_a+16 rt_s
+	store rt_a+24 65536
+	store rt_a+32 rt_a+40
+	call rt_api rt_i_getkernelobjectsecurity rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		ret rt_r
+	end
+	# what Windows wrote: 20 bytes, with what is there in 2 at 2 (4: a
+	# list) and where the list is in 4 at 16
+	load2 rt_s+2 as rt_c
+	load4 rt_s+16 as rt_d
+	if ((rt_c&4)==0)|(rt_d==0)
+		# a list of 28 bytes with one entry of 20, for the name 1-1-0
+		rt_d=rt_s+65536
+		store rt_d 0x1001c0002
+		store rt_d+8 0x10000100140000
+		store rt_d+16 0x100000000000101
+		store4 rt_d+24 0
+		ret rt_d
+	end
+	rt_d+=rt_s
+	# a list: 8 bytes, the number of entries in 2 at 4; an entry: its
+	# kind, its flags (8: only for what is made in the directory), its
+	# length in 2, the rights in 4, a name
+	load2 rt_d+4 as rt_n
+	rt_q=rt_d+8
+	while rt_n
+		loadb rt_q as rt_t
+		loadb rt_q+1 as rt_f
+		load4 rt_q+4 as rt_m
+		if rt_t>1
+			ret -95
+		end
+		rt_k=0
+		if ((rt_m&0x90000001)!=0)&((rt_f&8)==0)
+			rt_k=0x100001
+			if rt_t
+				rt_k=0x1f0001
+			end
+		end
+		storeb rt_q+1 0
+		store4 rt_q+4 rt_k
+		load2 rt_q+2 as rt_l
+		rt_q+=rt_l
+		rt_n-=1
+	end
+	ret rt_d
+end
+
 # Take the lock of the directory or file at the path, which one process
 # at a time has, after waiting for the one that has it: a descriptor
 # that holds it until it is closed or the process ends, or an error.
 # Windows locks no directory, so the lock is a mutex of Windows named
 # by what the path leads to, however it is written: the file is opened,
-# for nothing but to be asked about, and the name is "Global\ail-" and
-# 48 digits, the number of its volume and the number it has there, 64
-# and 128 bits, the whole of each: of the 64 bits that Windows has for
-# the number of a file too, some files of one volume have the same. A
-# number of the file that is all zeros is what a volume gives that has
-# none, for every file of it, and is the error -95. The name is one
-# for all the sessions of the machine, and the mutex is made open to
-# every user, as the file is to those that can open it: a service and
-# a program of a user that lock one directory wait for each other. A
-# mutex belongs to a thread, which may take it again and which alone
-# gives it back: the thread that took the lock closes it.
+# to read it, which who takes its lock must be allowed, and the name is
+# "Global\ail-" and 48 digits, the number of its volume and the number
+# it has there, 64 and 128 bits, the whole of each: of the 64 bits that
+# Windows has for the number of a file too, some files of one volume
+# have the same. A number of the file that is all zeros is what a
+# volume gives that has none, for every file of it, and is the error
+# -95. The name is one for all the sessions of the machine, and the
+# mutex is made with a list of who may open it that is made of the
+# list of the file (rt_who): a service and a program of a user that
+# lock one directory wait for each other, and who may not read the
+# directory has no part in its lock. The mutex is asked for with the
+# two rights of that list alone, since one that is there already gives
+# no more. A mutex belongs to a thread, which may take it again and
+# which alone gives it back: the thread that took the lock closes it.
 fn rt_lock rt_p rt_n
 	local rt_z 4096
 	local rt_y 64
@@ -741,9 +810,10 @@ fn rt_lock rt_p rt_n
 	if rt_r
 		ret rt_r
 	end
-	# no access, shared with all, one that exists, a directory too
+	# to read it and who may open it (1 and 0x20000), shared with all,
+	# one that exists, a directory too
 	store rt_a rt_z
-	store rt_a+8 0
+	store rt_a+8 0x20001
 	store rt_a+16 7
 	store rt_a+24 0
 	store rt_a+32 3
@@ -754,25 +824,39 @@ fn rt_lock rt_p rt_n
 		call rt_error as rt_r
 		tail rt_long rt_z rt_r
 	end
-	# what Windows calls FileIdInfo, 18: 24 bytes
-	store rt_a rt_h
-	store rt_a+8 18
-	store rt_a+16 rt_y
-	store rt_a+24 24
-	call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
-	rt_e=0
-	ifz rt_r&0xffffffff
-		call rt_error as rt_e
+	call rt_alloc 66000 as rt_s
+	rt_e=-12
+	rt_d=0
+	if rt_s
+		# what Windows calls FileIdInfo, 18: 24 bytes
+		store rt_a rt_h
+		store rt_a+8 18
+		store rt_a+16 rt_y
+		store rt_a+24 24
+		call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
+		rt_e=0
+		ifz rt_r&0xffffffff
+			call rt_error as rt_e
+		end
+		ifz rt_e
+			load rt_y+8 as rt_i
+			load rt_y+16 as rt_c
+			ifz rt_i|rt_c
+				rt_e=-95
+			end
+		end
+		ifz rt_e
+			call rt_who rt_h rt_s as rt_d
+			if rt_d>-4096
+				rt_e=rt_d
+			end
+		end
 	end
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1
 	if rt_e
+		call rt_free rt_s
 		ret rt_e
-	end
-	load rt_y+8 as rt_i
-	load rt_y+16 as rt_c
-	ifz rt_i|rt_c
-		ret -95
 	end
 	# "Global\ail-", then the 8 bytes of the volume and the 16 of the file
 	store rt_z 0x615c6c61626f6c47
@@ -791,24 +875,30 @@ fn rt_lock rt_p rt_n
 	storeb rt_z+59 0
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
+		call rt_free rt_s
 		ret rt_fd
 	end
 	# who may open the mutex: 24 bytes that name a description of 40,
-	# which says that there is a list of who may and gives none, and
-	# that is everybody; without it a mutex made by a service is closed
-	# to the users
+	# which says that it has a list that nothing adds to (0x1004), and
+	# the list
 	zero rt_y 64
 	store4 rt_y 24
 	store rt_y+8 rt_y+24
 	storeb rt_y+24 1
-	store2 rt_y+26 4
+	store2 rt_y+26 0x1004
+	store rt_y+56 rt_d
 	store rt_a rt_y
-	store rt_a+8 0
-	store rt_a+16 rt_z
-	call rt_api rt_i_createmutexa rt_a 3 as rt_h
+	store rt_a+8 rt_z
+	store rt_a+16 0
+	store rt_a+24 0x100001
+	call rt_api rt_i_createmutexexa rt_a 4 as rt_h
+	rt_e=0
 	ifz rt_h
-		call rt_error as rt_r
-		tail rt_unfd rt_fd rt_r
+		call rt_error as rt_e
+	end
+	call rt_free rt_s
+	if rt_e
+		tail rt_unfd rt_fd rt_e
 	end
 	# 0 it is this thread's, 128 also, left by a thread that ended with it
 	store rt_a rt_h
