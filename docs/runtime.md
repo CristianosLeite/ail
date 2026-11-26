@@ -219,6 +219,10 @@ Where a service cannot be on Windows what it is on Linux:
 - A directory is opened for its names only, and is no handle of
   Windows: `names` is a search of its path. Names are in the code page
   of the process, not UTF-8.
+- A path is too long, -36, from 260 bytes on, counted with the
+  directory the process is in, and not from 4096. Windows says of such
+  a path that it is not there, so after that answer the runtime asks
+  `GetFullPathNameA`, which says that it is too long.
 - `wake` does not say how many threads it woke, and gives 0. `wait`
   returns 0 also when the bytes changed while it slept.
 - A thread is one of Windows, with a stack that Windows keeps; a

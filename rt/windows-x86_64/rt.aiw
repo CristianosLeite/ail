@@ -377,6 +377,28 @@ fn rt_path rt_p rt_n rt_z
 	ret 0
 end
 
+# The error rt_r of a call of Windows on the path at rt_z, or -36 in its
+# place: Windows says of a path too long for it, 260 bytes with the
+# directory the process is in, that there is no such path, and only the
+# function that makes a path whole says that it is too long.
+fn rt_long rt_z rt_r
+	local rt_a 32
+	if rt_r==-2
+		store rt_a rt_z
+		store rt_a+8 0
+		store rt_a+16 0
+		store rt_a+24 0
+		call rt_api rt_i_getfullpathnamea rt_a 4 as rt_n
+		ifz rt_n&0xffffffff
+			call rt_error as rt_n
+			if rt_n==-36
+				ret -36
+			end
+		end
+	end
+	ret rt_r
+end
+
 # Open the file whose path is the rt_n bytes at rt_p: a descriptor, the
 # lowest that is free from 3 on, or an error. The flags are those of
 # docs/runtime.md: 0 to read, 1 to write, 2 for both, 64 to make the
@@ -426,6 +448,7 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 		rt_r&=0xffffffff
 		if rt_r==0xffffffff
 			call rt_error as rt_r
+			call rt_long rt_z rt_r as rt_r
 			tail rt_unfd rt_fd rt_r
 		end
 		ifz rt_r&16
@@ -458,6 +481,7 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 	call rt_api rt_i_createfilea rt_a 7 as rt_h
 	if rt_h==-1
 		call rt_error as rt_r
+		call rt_long rt_z rt_r as rt_r
 		if rt_r==-13
 			# Windows does not allow a directory to be opened as a file,
 			# which is the error -21 of a directory
@@ -489,7 +513,8 @@ fn rt_mkdir rt_p rt_n rt_mode
 	store rt_a+8 0
 	call rt_api rt_i_createdirectorya rt_a 2 as rt_r
 	ifz rt_r&0xffffffff
-		tail rt_error
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
 	end
 	ret 0
 end
@@ -503,7 +528,8 @@ fn rt_unlink rt_p rt_n
 	store rt_a rt_z
 	call rt_api rt_i_deletefilea rt_a 1 as rt_r
 	ifz rt_r&0xffffffff
-		tail rt_error
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
 	end
 	ret 0
 end
@@ -517,7 +543,8 @@ fn rt_rmdir rt_p rt_n
 	store rt_a rt_z
 	call rt_api rt_i_removedirectorya rt_a 1 as rt_r
 	ifz rt_r&0xffffffff
-		tail rt_error
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
 	end
 	ret 0
 end
@@ -539,7 +566,9 @@ fn rt_rename rt_p rt_n rt_q rt_m
 	store rt_a+16 1
 	call rt_api rt_i_movefileexa rt_a 3 as rt_r
 	ifz rt_r&0xffffffff
-		tail rt_error
+		call rt_error as rt_r
+		call rt_long rt_z rt_r as rt_r
+		tail rt_long rt_y rt_r
 	end
 	ret 0
 end

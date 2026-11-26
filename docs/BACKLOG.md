@@ -1233,3 +1233,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   directory is scanned no more. The two detections stay as what one
   scan recorded, and the guide points to the submission of the file
   that was flagged.
+- [x] A path too long for Windows is the error -36 there
+  (2026-11-26): `tests/lib_file_errors` passed under Wine and printed
+  2, no such file, for its path of 4095 bytes on Windows, which
+  answers a path of 260 bytes or more, with the directory of the
+  process, as one that is not there. After that answer `open`,
+  `mkdir`, `unlink`, `rmdir` and `rename` now ask `GetFullPathNameA`
+  (`rt_long`), which fails for such a path with the error that is -36.
+  Checked on Windows 11, where the test now gives its output.
