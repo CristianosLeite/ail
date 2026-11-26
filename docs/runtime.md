@@ -189,11 +189,11 @@ the arguments, as its C library does, at its first call; memory comes
 from `VirtualAlloc`, in the same blocks; an error of Windows becomes
 the number of this page. The statement `sys` is no statement there.
 
-The runtime has every service but those of the poller and the sockets.
-The compiler compiled for Windows runs under Wine and compiles its own
-source to the file it is. Of the tests that have no `sys`, 567 give
-their output and status there; 14 call a service that is still to be
-written, and 19 are of Linux alone (`tests/win.skip`).
+The runtime has every service. The compiler compiled for Windows runs
+under Wine and compiles its own source to the file it is. Of the tests
+that have no `sys`, 579 give their output and status there, the tasks,
+the async library with its sockets and the HTTP client and server among
+them; 21 are of Linux alone and say why in `tests/win.skip`.
 
 Where a service cannot be on Windows what it is on Linux:
 
@@ -211,6 +211,15 @@ Where a service cannot be on Windows what it is on Linux:
   the thread. `reap` gives a fault of the child as the signal Linux has
   for it, negated: -11, -8, -4, or -6 for any other.
 - `clock` is the counter of Windows; `sleep` waits whole milliseconds.
+- A poller watches sockets and nothing else: `watch` gives -1 for any
+  other descriptor, as for a plain file, and a read of a pipe waits.
+  Windows says of a socket whether it is ready and not when it becomes
+  so; the runtime keeps for each what it has said, asks Windows about
+  the others, and forgets what it said when a read, a write or an
+  accept finds the socket not ready, which is when a caller waits for
+  it. A waker is a socket for single messages connected to itself.
+- A descriptor is one of 256, a socket too. A write to a socket takes
+  all its bytes where Linux takes part of many.
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform

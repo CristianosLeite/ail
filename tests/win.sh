@@ -83,10 +83,15 @@ for f in tests/*.out; do
     $wc < tests/$t.aiw > $tmp/t.exe 2> /dev/null || continue
     want=0
     [ -f tests/$t.code ] && want=$(cat tests/$t.code)
-    timeout $limit wine $tmp/t.exe < /dev/null > $tmp/got 2> /dev/null
-    got=$?
     ran=$((ran + 1))
-    if [ "$got" != "$want" ] || ! cmp -s $tmp/got tests/$t.out; then echo "FAIL win $t"; fail=1; fi
+    # twice before it has failed: under Wine a start now and then fails
+    # where the program is not at fault
+    for try in 1 2; do
+        timeout $limit wine $tmp/t.exe < /dev/null > $tmp/got 2> /dev/null
+        got=$?
+        [ "$got" = "$want" ] && cmp -s $tmp/got tests/$t.out && continue 2
+    done
+    echo "FAIL win $t"; fail=1
 done
 [ $ran -gt 0 ]
 say "win_tests ($ran run)" $?

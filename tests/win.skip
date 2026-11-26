@@ -27,3 +27,8 @@ lib_proc_keeps_globals
 lib_proc_path
 lib_proc_redirect
 lib_proc_status
+# it expects a write to a socket to take fewer bytes than it was given,
+# as Linux does for 16 MiB; Windows takes them all
+async_tcp_echo
+# it counts the open descriptors of the process in /proc
+lib_http_cancel

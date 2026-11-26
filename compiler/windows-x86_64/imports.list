@@ -4,3 +4,4 @@
 # place of each function's address in them.
 kernel32.dll ExitProcess GetStdHandle WriteFile ReadFile CreateFileA CloseHandle GetLastError GetCommandLineA GetEnvironmentStringsA VirtualAlloc VirtualFree CreateDirectoryA DeleteFileA RemoveDirectoryA MoveFileExA GetFileAttributesA FindFirstFileA FindNextFileA FindClose QueryPerformanceCounter QueryPerformanceFrequency Sleep GetSystemInfo CreateThread CreateProcessA WaitForSingleObject GetExitCodeProcess TerminateProcess SetHandleInformation CreateJobObjectA SetInformationJobObject AssignProcessToJobObject SetThreadAffinityMask GetCurrentThread
 api-ms-win-core-synch-l1-2-0.dll WaitOnAddress WakeByAddressSingle WakeByAddressAll
+ws2_32.dll WSAStartup WSAGetLastError socket bind listen accept connect send recv closesocket ioctlsocket getsockname getsockopt WSAPoll

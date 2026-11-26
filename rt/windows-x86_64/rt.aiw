@@ -24,6 +24,11 @@
 #       use)
 # 4464  1 + the job of Windows that the children held to this process
 #       are in, or 0 before the first of them
+# 4472  1 once the sockets of Windows are started
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller; 8 and
+#       16 watched for reading and for writing; 32 and 64 said to be
+#       ready to read and to write since it last was not
+# 4736  per descriptor, 8 bytes: the tag it is watched with
 # Every name of this file starts with "rt_".
 #
 # The first line goes to the last, past every function.
@@ -80,6 +85,111 @@ fn rt_error
 	ret -5
 end
 
+# the error that the sockets of Windows have for the call that just
+# failed, as the number of the runtime: -11 nothing now, -115 it goes on,
+# -32 and -104 the other end is closed or broke the connection, -111
+# nobody listens, -98 the port is taken, -110 the time is over, -88 no
+# socket, and -5 for any other
+fn rt_sockerror
+	local rt_a 32
+	call rt_api rt_i_wsagetlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if rt_e==10035
+		ret -11
+	end
+	if (rt_e==10036)|(rt_e==10037)
+		ret -115
+	end
+	if (rt_e==10058)|(rt_e==10053)
+		ret -32
+	end
+	if rt_e==10054
+		ret -104
+	end
+	if rt_e==10061
+		ret -111
+	end
+	if rt_e==10048
+		ret -98
+	end
+	if rt_e==10060
+		ret -110
+	end
+	if rt_e==10038
+		ret -88
+	end
+	if rt_e==10024
+		ret -24
+	end
+	ret -5
+end
+
+# read from the socket rt_h, which is the descriptor rt_fd: the bytes, 0
+# at the end, or an error. One that has nothing now is no longer said to
+# be ready, so that the poller says when it is again.
+fn rt_recv rt_fd rt_h rt_p rt_n
+	local rt_a 32
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_a rt_h
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 0
+	call rt_api rt_i_recv rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			loadb rt_state+4480+rt_fd as rt_k
+			storeb rt_state+4480+rt_fd rt_k&223
+		end
+		if rt_r==-32
+			ret 0
+		end
+	end
+	ret rt_r
+end
+
+# write to a socket; the error -32 if the other end is closed or broke
+# the connection, and -88 for a descriptor that is no socket
+fn rt_send rt_fd rt_p rt_n
+	local rt_a 32
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		load rt_state+360+rt_fd*8 as rt_h
+		ifz rt_h
+			if rt_fd>2
+				ret -9
+			end
+		end
+		ret -88
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_a rt_h-1
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 0
+	call rt_api rt_i_send rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			storeb rt_state+4480+rt_fd rt_k&191
+		end
+		if rt_r==-104
+			ret -32
+		end
+	end
+	ret rt_r
+end
+
 # end the process, every thread of it
 fn rt_exit rt_c
 	local rt_a 32
@@ -117,6 +227,10 @@ fn rt_write rt_fd rt_p rt_n
 	if rt_h>-4096
 		ret -9
 	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&1
+		tail rt_send rt_fd rt_p rt_n
+	end
 	if rt_n>0x40000000
 		rt_n=0x40000000
 	end
@@ -143,6 +257,10 @@ fn rt_read rt_fd rt_p rt_n
 	call rt_handle rt_fd as rt_h
 	if rt_h>-4096
 		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&1
+		tail rt_recv rt_fd rt_h rt_p rt_n
 	end
 	if rt_n>0x40000000
 		rt_n=0x40000000
@@ -172,6 +290,20 @@ fn rt_close rt_fd
 		ret -9
 	end
 	store rt_state+360+rt_fd*8 0
+	loadb rt_state+4480+rt_fd as rt_k
+	storeb rt_state+4480+rt_fd 0
+	if rt_k&4
+		# a poller is a descriptor of the runtime alone
+		ret 0
+	end
+	if rt_k&3
+		store rt_a rt_h
+		call rt_api rt_i_closesocket rt_a 1 as rt_r
+		if rt_r&0xffffffff
+			tail rt_sockerror
+		end
+		ret 0
+	end
 	load rt_state+2408+rt_fd*8 as rt_d
 	if rt_d
 		# a directory: the search of its names, if one was begun, and
@@ -880,6 +1012,420 @@ fn rt_pin rt_cpu
 		tail rt_error
 	end
 	ret 0
+end
+
+# ---- sockets and readiness
+# the lowest descriptor that is free, from 3 on, or -24
+fn rt_newfd
+	rt_fd=3
+	label rt_next
+	if rt_fd>255
+		ret -24
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	if rt_h
+		rt_fd+=1
+		jmp rt_next
+	end
+	ret rt_fd
+end
+
+# A socket of the kind rt_kind (1 a stream, 2 single messages) that does
+# not wait, as a descriptor with the mark rt_mark; the sockets of
+# Windows are started at the first.
+fn rt_sock rt_kind rt_mark
+	local rt_a 32
+	local rt_w 408
+	load rt_state+4472 as rt_r
+	ifz rt_r
+		store rt_a 0x202
+		store rt_a+8 rt_w
+		call rt_api rt_i_wsastartup rt_a 2
+		store rt_state+4472 1
+	end
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 2
+	store rt_a+8 rt_kind
+	store rt_a+16 0
+	call rt_api rt_i_socket rt_a 3 as rt_h
+	if rt_h==-1
+		tail rt_sockerror
+	end
+	call rt_nowait rt_h
+	store rt_state+360+rt_fd*8 rt_h+1
+	storeb rt_state+4480+rt_fd rt_mark
+	ret rt_fd
+end
+
+# make the socket rt_h one that does not wait
+fn rt_nowait rt_h
+	local rt_a 32
+	local rt_one 8
+	store rt_one 1
+	store rt_a rt_h
+	store rt_a+8 0x8004667e
+	store rt_a+16 rt_one
+	call rt_api rt_i_ioctlsocket rt_a 3
+end
+
+# the address of a socket of the internet, version 4, at rt_a
+fn rt_inet rt_a rt_ip rt_port
+	store rt_a 0
+	store rt_a+8 0
+	store2 rt_a 2
+	storeb rt_a+2 rt_port>>8
+	storeb rt_a+3 rt_port
+	storeb rt_a+4 rt_ip>>24
+	storeb rt_a+5 rt_ip>>16
+	storeb rt_a+6 rt_ip>>8
+	storeb rt_a+7 rt_ip
+end
+
+fn rt_socket
+	tail rt_sock 1 1
+end
+
+# a socket that listens on the port of the address, which does not wait
+fn rt_listen rt_ip rt_port rt_backlog
+	local rt_a 32
+	local rt_ad 16
+	call rt_sock 1 1 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	rt_h-=1
+	call rt_inet rt_ad rt_ip rt_port
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_bind rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		store rt_a rt_h
+		store rt_a+8 rt_backlog
+		call rt_api rt_i_listen rt_a 2 as rt_r
+	end
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		call rt_close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
+end
+
+# the next connection to a socket that listens; -11 if there is none now
+fn rt_accept rt_fd
+	local rt_a 32
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		ret -88
+	end
+	call rt_newfd as rt_new
+	ifslt rt_new 0
+		ret rt_new
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	store rt_a rt_h-1
+	store rt_a+8 0
+	store rt_a+16 0
+	call rt_api rt_i_accept rt_a 3 as rt_s
+	if rt_s==-1
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			storeb rt_state+4480+rt_fd rt_k&223
+		end
+		ret rt_r
+	end
+	call rt_nowait rt_s
+	store rt_state+360+rt_new*8 rt_s+1
+	storeb rt_state+4480+rt_new 1
+	ret rt_new
+end
+
+# connect it: 0, or -115 if that goes on
+fn rt_connect rt_fd rt_ip rt_port
+	local rt_a 32
+	local rt_ad 16
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&1
+		ret -88
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	call rt_inet rt_ad rt_ip rt_port
+	store rt_a rt_h-1
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_connect rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		if rt_r==-11
+			ret -115
+		end
+	end
+	ret rt_r
+end
+
+# the error that a socket has to report, as a negative number, or 0
+fn rt_sockerr rt_fd
+	local rt_a 40
+	local rt_v 16
+	call rt_handle rt_fd as rt_h
+	store rt_v 0
+	store rt_v+8 4
+	store rt_a rt_h
+	store rt_a+8 0xffff
+	store rt_a+16 0x1007
+	store rt_a+24 rt_v
+	store rt_a+32 rt_v+8
+	call rt_api rt_i_getsockopt rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		tail rt_sockerror
+	end
+	load4 rt_v as rt_e
+	ifz rt_e
+		ret 0
+	end
+	if rt_e==10061
+		ret -111
+	end
+	if rt_e==10060
+		ret -110
+	end
+	if rt_e==10054
+		ret -104
+	end
+	ret -5
+end
+
+# the port of a socket
+fn rt_port rt_fd
+	local rt_a 32
+	local rt_ad 24
+	call rt_handle rt_fd as rt_h
+	store rt_ad+16 16
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 rt_ad+16
+	call rt_api rt_i_getsockname rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		tail rt_sockerror
+	end
+	loadb rt_ad+2 as rt_hi
+	loadb rt_ad+3 as rt_lo
+	ret rt_hi<<8|rt_lo
+end
+
+# there is no signal to keep away: a pipe is written as any file
+fn rt_writeq rt_fd rt_p rt_n
+	tail rt_write rt_fd rt_p rt_n
+end
+
+# A poller is a descriptor of the runtime: the sockets it watches are
+# those marked so, with their tags. Windows says of a socket whether it
+# is ready, not when it becomes so, where the libraries want to be told
+# once. So a socket that was said to be ready is not asked about again
+# until a read, a write or an accept found it not ready, which takes the
+# mark of it away (rt_recv, rt_send, rt_accept).
+fn rt_poller
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_state+360+rt_fd*8 1
+	storeb rt_state+4480+rt_fd 4
+	ret rt_fd
+end
+
+# watch rt_fd for reading (rt_what 1), writing (2) or both; -1 for a
+# descriptor that is no socket, which is taken to be ready always
+fn rt_watch rt_ep rt_fd rt_what rt_tag
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	ifz rt_k&3
+		load rt_state+360+rt_fd*8 as rt_h
+		ifz rt_h
+			if rt_fd>2
+				ret -9
+			end
+		end
+		ret -1
+	end
+	storeb rt_state+4480+rt_fd rt_k&7|(rt_what&3)<<3
+	store rt_state+4736+rt_fd*8 rt_tag
+	ret 0
+end
+
+fn rt_unwatch rt_ep rt_fd
+	if rt_fd>255
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	storeb rt_state+4480+rt_fd rt_k&7
+	ret 0
+end
+
+# Wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
+# events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
+# read, 2 for may be written or their sum, and the tag. How many there
+# are, or an error. Windows is asked about the sockets that are watched
+# for something they were not yet said to be ready for, 16 bytes each:
+# the socket, what is asked (0x100 to read, 0x10 to write), and what it
+# answers, with 1, 2 and 4 for an error or a closed end. A waker that is
+# ready is emptied here and stays to be asked about.
+fn rt_poll rt_ep rt_out rt_max rt_ms
+	local rt_a 32
+	local rt_p 4096
+	local rt_f 256
+	local rt_b 16
+	if rt_max>64
+		rt_max=64
+	end
+	rt_n=0
+	rt_fd=3
+	while rt_fd<256
+		loadb rt_state+4480+rt_fd as rt_k
+		rt_w=0
+		if rt_k&8
+			ifz rt_k&32
+				rt_w|=0x100
+			end
+		end
+		if rt_k&16
+			ifz rt_k&64
+				rt_w|=0x10
+			end
+		end
+		if rt_w
+			load rt_state+360+rt_fd*8 as rt_h
+			store rt_p+rt_n*16 rt_h-1
+			store rt_p+rt_n*16+8 rt_w
+			storeb rt_f+rt_n rt_fd
+			rt_n+=1
+		end
+		rt_fd+=1
+	end
+	ifz rt_n
+		# nothing to ask about: the time alone
+		ifslt rt_ms 0
+			rt_ms=1000
+		end
+		store rt_a rt_ms
+		call rt_api rt_i_sleep rt_a 1
+		ret 0
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_n
+	store rt_a+16 rt_ms
+	call rt_api rt_i_wsapoll rt_a 3 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		tail rt_sockerror
+	end
+	rt_o=0
+	rt_i=0
+	while rt_i<rt_n
+		load2 rt_p+rt_i*16+10 as rt_w
+		if rt_w
+			loadb rt_f+rt_i as rt_fd
+			loadb rt_state+4480+rt_fd as rt_k
+			rt_e=0
+			if rt_k&8
+				if rt_w&0x107
+					ifz rt_k&32
+						rt_e|=1
+					end
+				end
+			end
+			if rt_k&16
+				if rt_w&0x17
+					ifz rt_k&64
+						rt_e|=2
+					end
+				end
+			end
+			if rt_e
+				if rt_o<rt_max
+					if rt_k&2
+						# a waker: take what was sent to it
+						load rt_state+360+rt_fd*8 as rt_h
+						label rt_drain
+						store rt_a rt_h-1
+						store rt_a+8 rt_b
+						store rt_a+16 16
+						store rt_a+24 0
+						call rt_api rt_i_recv rt_a 4 as rt_r
+						rt_r&=0xffffffff
+						jne rt_r 0xffffffff rt_drain
+					else
+						storeb rt_state+4480+rt_fd rt_k|rt_e<<5
+					end
+					load rt_state+4736+rt_fd*8 as rt_t
+					store rt_out+rt_o*16 rt_e
+					store rt_out+rt_o*16+8 rt_t
+					rt_o+=1
+				end
+			end
+		end
+		rt_i+=1
+	end
+	ret rt_o
+end
+
+# A waker is a socket for single messages that is connected to itself:
+# wakeup sends it a byte, which makes it ready to read in a poll.
+fn rt_waker
+	local rt_a 32
+	local rt_ad 24
+	call rt_sock 2 3 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	load rt_state+360+rt_fd*8 as rt_h
+	rt_h-=1
+	call rt_inet rt_ad 0x7f000001 0
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_bind rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		store rt_ad+16 16
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 rt_ad+16
+		call rt_api rt_i_getsockname rt_a 3 as rt_r
+	end
+	ifz rt_r&0xffffffff
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 16
+		call rt_api rt_i_connect rt_a 3 as rt_r
+	end
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		call rt_close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
+end
+fn rt_wakeup rt_fd
+	local rt_one 8
+	store rt_one 1
+	call rt_send rt_fd rt_one 1 as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	ret 8
 end
 
 # there is no signal for a closed pipe to keep away

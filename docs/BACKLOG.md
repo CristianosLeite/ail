@@ -1057,3 +1057,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   of the suite pass under Wine, and `tests/win/start.aiw` starts
   programs of Windows. [runtime.md](runtime.md) lists where a service
   cannot be on Windows what it is on Linux.
+- [x] Sockets and a poller on Windows (2026-11-26), the last of its
+  services: sockets of Winsock as descriptors of the runtime, a poller
+  made of `WSAPoll` that says once when a socket becomes ready, by a
+  note of what it has said that a read, a write or an accept takes away
+  when it finds the socket not ready, and a waker that is a socket
+  connected to itself. The tasks, `lib/async` and the HTTP client and
+  server pass their tests under Wine: 579 tests in all, tried twice
+  before one has failed, since a start under Wine fails now and then.
+  The services held as they were written for Linux; what is not the
+  same behind them is listed in [runtime.md](runtime.md).
