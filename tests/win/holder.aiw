@@ -1,0 +1,18 @@
+# start the program of the second argument with the third as its
+# argument, held if the first argument is "1", and end without waiting
+# for it: a held child ends with this process
+buf io 24
+buf argv 24
+args as p
+load p+16 as how
+load p+24 as prog
+load p+32 as arg
+loadb how as h
+store io -1
+store io+8 -1
+store io+16 -1
+store argv prog
+store argv+8 arg
+rt start argv 0 io h==49 as c
+rt sleep 200000000
+rt exit c>1

@@ -1111,3 +1111,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   ended the watch or took the event of the first; each poller now has a
   record of its own. `tests/rt_open_threads`, `tests/rt_poll_two`,
   which `tests/win.sh` always runs.
+- [x] `start` on Windows gives a child its three handles alone
+  (2026-11-26): it made the handles of this process inheritable and
+  left them so, so a later child got them too; and it put a held child
+  in its job after it ran, without looking whether that worked. The
+  child now gets copies made for it and a list that names them, and is
+  in the job by the same list from the moment it is made; a job that
+  cannot be made or a descriptor that is not open is a child that ends
+  with 127. `tests/win/inherit.aiw`, `tests/win/holder.aiw`.

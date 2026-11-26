@@ -11,6 +11,9 @@
 #   to the file it is itself: the fixed point of the port.
 # - tests/win/start.aiw must start programs of Windows, with their output
 #   in a file, a limit of time and an argument that has to be quoted.
+# - tests/win/inherit.aiw must find that a child got the descriptors it
+#   was given and no other handle, and tests/win/holder.aiw that a held
+#   child ends with the process that started it.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -70,6 +73,27 @@ for t in sleeper echoarg start; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; 
 timeout 60 wine $tmp/start.exe $tmp/hello.exe $tmp/sleeper.exe $tmp/echoarg.exe $tmp/out.txt > /dev/null 2>&1
 [ $? -eq 63 ] || r=1
 say win_processes $r
+
+# a child inherits what it was given and nothing else
+r=0
+for t in probe inherit; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/inherit.exe $tmp/hello.exe $tmp/probe.exe $tmp/one.txt $tmp/two.txt > /dev/null 2>&1
+[ $? -eq 31 ] || r=1
+say win_inherits $r
+
+# a held child ends with the process that started it, and one that is
+# not held goes on
+r=0
+for t in late holder; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/holder.exe 1 $tmp/late.exe $tmp/held.txt > /dev/null 2>&1
+[ $? -eq 1 ] || r=1
+timeout 60 wine $tmp/holder.exe 0 $tmp/late.exe $tmp/free.txt > /dev/null 2>&1
+[ $? -eq 1 ] || r=1
+i=0
+while [ ! -f $tmp/free.txt ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+[ -f $tmp/free.txt ] || r=1
+[ ! -f $tmp/held.txt ] || r=1
+say win_held $r
 
 # tests that are run whatever the count: threads that open at once, and
 # two pollers

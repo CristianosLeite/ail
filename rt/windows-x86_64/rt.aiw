@@ -810,6 +810,58 @@ fn rt_room rt_v
 	ret rt_n+2
 end
 
+# 1 + the job of Windows that the children held to this process are in,
+# made at the first of them, or 0 if Windows gives none: a job whose
+# processes end when its last handle is closed, which is when this
+# process ends. The limits are 144 bytes, the flags of the limit at 16.
+# Of two threads that make it one keeps its job and the other takes
+# that.
+fn rt_heldjob
+	local rt_a 32
+	local rt_job 144
+	load rt_state+4464 as rt_j
+	if rt_j
+		ret rt_j
+	end
+	store rt_a 0
+	store rt_a+8 0
+	call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
+	ifz rt_j
+		ret 0
+	end
+	zero rt_job 144
+	store4 rt_job+16 0x2000
+	store rt_a rt_j
+	store rt_a+8 9
+	store rt_a+16 rt_job
+	store rt_a+24 144
+	call rt_api rt_i_setinformationjobobject rt_a 4 as rt_r
+	if rt_r&0xffffffff
+		cas rt_state+4464 0 rt_j+1 as rt_r
+		if rt_r
+			ret rt_j+1
+		end
+	end
+	store rt_a rt_j
+	call rt_api rt_i_closehandle rt_a 1
+	load rt_state+4464 as rt_j
+	ret rt_j
+end
+
+# close those of the three handles at rt_p that are not 0
+fn rt_shut3 rt_p
+	local rt_a 32
+	rt_i=0
+	while rt_i<3
+		load rt_p+rt_i*8 as rt_h
+		if rt_h
+			store rt_a rt_h
+			call rt_api rt_i_closehandle rt_a 1
+		end
+		rt_i+=1
+	end
+end
+
 # Start a program as a child process: its number, or an error. rt_argv is
 # the address of the addresses of its arguments, strings with a zero at
 # the end, with a 0 after the last; the first is the program, which
@@ -819,12 +871,70 @@ end
 # and error output, -1 for the one of this process. With the flag 1 the
 # child is held: Windows ends it when this process ends. A program that
 # cannot be started is the number 1, which reap takes as a child that
-# ended with status 127.
+# ended with status 127, and so is one whose descriptors are not open
+# or that Windows does not hold.
+# The child gets copies of the three handles, made for it alone and
+# closed here once it is started, and a list that names them: it
+# inherits those and no other handle of this process, whatever another
+# thread starts meanwhile. A held child is put in the job by the same
+# list (Windows 10), so it never runs outside it.
 fn rt_start rt_argv rt_env rt_fds rt_flags
 	local rt_a 80
-	local rt_si 104
+	local rt_si 112
 	local rt_pi 24
-	local rt_job 144
+	local rt_al 256
+	local rt_dup 24
+	local rt_hl 24
+	local rt_jl 8
+	local rt_sz 8
+	rt_j=0
+	if rt_flags&1
+		call rt_heldjob as rt_j
+		ifz rt_j
+			ret 1
+		end
+	end
+	store rt_a 0
+	call rt_api rt_i_getcurrentprocess rt_a 0 as rt_me
+	rt_nh=0
+	rt_bad=0
+	rt_i=0
+	while rt_i<3
+		load rt_fds+rt_i*8 as rt_fd
+		rt_own=rt_fd!=-1
+		ifz rt_own
+			rt_fd=rt_i
+		end
+		call rt_handle rt_fd as rt_h
+		store rt_dup+rt_i*8 0
+		store rt_a rt_me
+		store rt_a+8 rt_h
+		store rt_a+16 rt_me
+		store rt_a+24 rt_dup+rt_i*8
+		store rt_a+32 0
+		store rt_a+40 1
+		store rt_a+48 2
+		rt_r=0
+		# no descriptor is -1, which Windows would take for this process
+		if rt_h<-4096
+			call rt_api rt_i_duplicatehandle rt_a 7 as rt_r
+		end
+		if rt_r&0xffffffff
+			load rt_dup+rt_i*8 as rt_h
+			store rt_hl+rt_nh*8 rt_h
+			rt_nh+=1
+		else
+			# one of this process that it has not is none in the child;
+			# one that was given and is no open file is an error
+			store rt_dup+rt_i*8 0
+			rt_bad|=rt_own
+		end
+		rt_i+=1
+	end
+	if rt_bad
+		call rt_shut3 rt_dup
+		ret 1
+	end
 	call rt_room rt_argv as rt_n
 	rt_m=0
 	if rt_env
@@ -832,6 +942,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	end
 	call rt_alloc rt_n+rt_m as rt_line
 	ifz rt_line
+		call rt_shut3 rt_dup
 		ret -12
 	end
 	rt_o=rt_line
@@ -881,74 +992,88 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 		storeb rt_o 0
 		storeb rt_o+1 0
 	end
-	rt_i=0
-	while rt_i<104
-		store rt_si+rt_i 0
-		rt_i+=8
-	end
+	zero rt_si 112
 	store4 rt_si 104
 	store4 rt_si+60 0x100
-	rt_i=0
-	while rt_i<3
-		load rt_fds+rt_i*8 as rt_fd
-		if rt_fd==-1
-			rt_fd=rt_i
+	load rt_dup as rt_h
+	store rt_si+80 rt_h
+	load rt_dup+8 as rt_h
+	store rt_si+88 rt_h
+	load rt_dup+16 as rt_h
+	store rt_si+96 rt_h
+	# the list of what the child gets: the handles, and the job
+	rt_ok=1
+	rt_cf=0
+	rt_list=0
+	if rt_nh|rt_j
+		store rt_sz 256
+		store rt_a rt_al
+		store rt_a+8 2
+		store rt_a+16 0
+		store rt_a+24 rt_sz
+		call rt_api rt_i_initializeprocthreadattributelist rt_a 4 as rt_ok
+		rt_ok&=0xffffffff
+		if rt_ok
+			rt_list=1
+			rt_cf=0x80000
+			store4 rt_si 112
+			store rt_si+104 rt_al
 		end
-		call rt_handle rt_fd as rt_h
-		# a handle goes to the child only if it may be inherited
-		store rt_a rt_h
-		store rt_a+8 1
-		store rt_a+16 1
-		call rt_api rt_i_sethandleinformation rt_a 3
-		store rt_si+80+rt_i*8 rt_h
-		rt_i+=1
 	end
-	store rt_a 0
-	store rt_a+8 rt_line
-	store rt_a+16 0
-	store rt_a+24 0
-	store rt_a+32 1
-	store rt_a+40 0
-	store rt_a+48 rt_eb
-	store rt_a+56 0
-	store rt_a+64 rt_si
-	store rt_a+72 rt_pi
-	call rt_api rt_i_createprocessa rt_a 10 as rt_r
+	if rt_ok
+		if rt_nh
+			store rt_a rt_al
+			store rt_a+8 0
+			store rt_a+16 0x20002
+			store rt_a+24 rt_hl
+			store rt_a+32 rt_nh*8
+			store rt_a+40 0
+			store rt_a+48 0
+			call rt_api rt_i_updateprocthreadattribute rt_a 7 as rt_ok
+			rt_ok&=0xffffffff
+		end
+	end
+	if rt_ok
+		if rt_j
+			store rt_jl rt_j-1
+			store rt_a rt_al
+			store rt_a+8 0
+			store rt_a+16 0x2000d
+			store rt_a+24 rt_jl
+			store rt_a+32 8
+			store rt_a+40 0
+			store rt_a+48 0
+			call rt_api rt_i_updateprocthreadattribute rt_a 7 as rt_ok
+			rt_ok&=0xffffffff
+		end
+	end
+	if rt_ok
+		store rt_a 0
+		store rt_a+8 rt_line
+		store rt_a+16 0
+		store rt_a+24 0
+		store rt_a+32 rt_nh!=0
+		store rt_a+40 rt_cf
+		store rt_a+48 rt_eb
+		store rt_a+56 0
+		store rt_a+64 rt_si
+		store rt_a+72 rt_pi
+		call rt_api rt_i_createprocessa rt_a 10 as rt_ok
+		rt_ok&=0xffffffff
+	end
+	if rt_list
+		store rt_a rt_al
+		call rt_api rt_i_deleteprocthreadattributelist rt_a 1
+	end
+	call rt_shut3 rt_dup
 	call rt_free rt_line
-	ifz rt_r&0xffffffff
+	ifz rt_ok
 		ret 1
 	end
 	load rt_pi+8 as rt_h
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1
 	load rt_pi as rt_p
-	if rt_flags&1
-		load rt_state+4464 as rt_j
-		ifz rt_j
-			# a job whose processes end when its last handle is closed,
-			# which is when this process ends: the limits are 144 bytes,
-			# the flags of the limit at 16
-			store rt_a 0
-			store rt_a+8 0
-			call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
-			rt_i=0
-			while rt_i<144
-				store rt_job+rt_i 0
-				rt_i+=8
-			end
-			store4 rt_job+16 0x2000
-			store rt_a rt_j
-			store rt_a+8 9
-			store rt_a+16 rt_job
-			store rt_a+24 144
-			call rt_api rt_i_setinformationjobobject rt_a 4
-			rt_j+=1
-			store rt_state+4464 rt_j
-		end
-		store rt_a rt_j-1
-		store rt_a+8 rt_p
-		call rt_api rt_i_assignprocesstojobobject rt_a 2
-	end
 	ret rt_p
 end
 

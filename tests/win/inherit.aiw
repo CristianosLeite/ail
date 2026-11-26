@@ -1,0 +1,53 @@
+# A child gets the three descriptors it was given and no other handle of
+# this process. The arguments are the paths of hello, of probe and of
+# two files to write to. hello is started with its output in the first
+# file, which stays open here; then probe, with its output in the
+# second, writes to every handle it has. The first file must hold what
+# hello wrote and nothing more. A descriptor that is not open cannot be
+# given: such a child ends with 127.
+buf io 24
+buf argv 16
+buf b 64
+fn len s
+	l=0
+	label next
+	loadb s+l as c
+	if c
+		l+=1
+		jmp next
+	end
+	ret l
+end
+args as p
+load p+16 as hello
+load p+24 as probe
+load p+32 as one
+load p+40 as two
+call len one as n1
+call len two as n2
+rt open one n1 0x241 0 as f1
+store io -1
+store io+8 f1
+store io+16 -1
+store argv hello
+rt start argv 0 io 0 as c
+rt reap c 0 as s1
+rt open two n2 0x241 0 as f2
+store io+8 f2
+store argv probe
+rt start argv 0 io 0 as c
+rt reap c 0 as s2
+rt close f1
+rt close f2
+rt open one n1 0 0 as f1
+rt read f1 b 64 as n
+rt close f1
+rt open two n2 0 0 as f2
+rt read f2 b 64 as m
+rt close f2
+store io+8 200
+rt start argv 0 io 0 as c
+rt reap c 0 as s3
+rt unlink one n1
+rt unlink two n2
+rt exit (s1==0)+(s2==0)*2+(n==12)*4+(m>0)*8+(s3==127)*16

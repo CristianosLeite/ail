@@ -206,9 +206,14 @@ Where a service cannot be on Windows what it is on Linux:
   function that needs more than its 8 MiB ends the process.
 - `start` gives the number 1 for a program that cannot be started, and
   `reap` takes it as a child that ended with 127, since there is no
-  child to end so. The program is found by a path with either slash.
-  A child that is held ends when the process that started it ends, not
-  the thread. `reap` gives a fault of the child as the signal Linux has
+  child to end so, and so is one given a descriptor that is not an open
+  file. The program is found by a path with either slash. The child
+  gets copies of the three handles, made for it and closed once it is
+  started, and a list that names them: it inherits those and no other
+  handle of the process. A child that is held ends when the process
+  that started it ends, not the thread: it is in a job of Windows from
+  the moment it is made, by the same list (Windows 10), and is not
+  started where Windows gives no such job. `reap` gives a fault of the child as the signal Linux has
   for it, negated: -11, -8, -4, or -6 for any other.
 - `clock` is the counter of Windows; `sleep` waits whole milliseconds.
 - A poller watches sockets and nothing else: `watch` gives -1 for any
