@@ -43,11 +43,13 @@ first that has them ([BACKLOG.md](BACKLOG.md)).
 [RUNTIME.md](RUNTIME.md) moves what a program asks of its platform behind
 a runtime, so that AIL runs on more than x86-64 Linux, at the speed of C
 with the calls of the runtime counted. Decided with it (user,
-2026-11-26): the runtime is one position-independent image that the
-compiler copies into each executable and calls by entry, with no linker
-and no object file; it is written in C first, built by `cc` in `make`,
-and then in AIL; one pull request when all of it is done, and the
-version 0.2.0 after it.
+2026-11-26): the runtime is part of each executable, put there by the
+compiler, with no linker and no object file; it is written in C first,
+built by `cc` in `make`, and then in AIL; one pull request when all of
+it is done, and the version 0.2.0 after it. The first two phases are
+done for x86-64 Linux ([BACKLOG.md](BACKLOG.md)): the runtime is AIL
+source that the compiler compiles with every program
+([runtime.md](runtime.md)), and the seeds 7 and 8 wait to be published.
 
 - [ ] The command `ail` and the tools without `sys`. `cli/tool.aiw`
   starts a test in a group of processes of its own, with a watcher that
@@ -60,8 +62,6 @@ version 0.2.0 after it.
   of the executable, a program in place of the process.
 - [ ] A second platform: the compiler split into shared and target
   files, a second backend and its runtime, the test suite there.
-- [ ] Workloads for startup, I/O and allocation in ail-bench against C
-  at `-O3`, measured before the runtime, with the C one and the AIL one.
 - [ ] The gaps to C closed, each change measured first. Known: every
   executable has all of the runtime, 11.7 KiB, where it could have the
   functions it reaches; a service compiled in place moves its values

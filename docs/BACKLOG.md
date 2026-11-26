@@ -1004,3 +1004,15 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   starts in 48.2 to 48.4 microseconds against 47.9 before there was a
   runtime, where the C runtime cost two. `iocopy`, `iosmall` and
   `allocs` of ail-bench take 0.85, 0.98 and 0.99 of the time of C.
+- [x] Seed 8 (2026-11-26): the compiler with the runtime in AIL. It is
+  built from its revision alone, with no C compiler, and the build from
+  it gives the same file. The releases `seed-7` (with its image
+  `rt-7`) and `seed-8` are to be published before the branch can be
+  built elsewhere; until then the build needs the local file
+  `seed/ailc-8`.
+- [x] Workloads of the runtime in ail-bench (2026-11-26, its branch
+  `runtime`): `iocopy`, `iosmall` and `allocs` beside C programs at
+  `-O3`, a table "Runtime" of `tools/perf`, and the start of `hello`
+  against the revision before the runtime. Measured with no runtime,
+  with the C one and with the AIL one; `docs/performance.md` there has
+  the figures.
