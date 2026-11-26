@@ -1,0 +1,29 @@
+# zero p n makes the n bytes at p zero and no other: none for n 0, an
+# odd number, and many
+buf b 4096
+i=0
+while i<4096
+	storeb b+i 255
+	i+=1
+end
+zero b+8 0
+zero b+16 5
+zero b+100 3000
+s=0
+i=0
+while i<4096
+	loadb b+i as c
+	s+=c
+	i+=1
+end
+loadb b+15 as a
+loadb b+21 as d
+loadb b+99 as e
+loadb b+3100 as f
+fn clear p n
+	zero p n
+	loadb p as x
+	ret x
+end
+call clear b 4096 as g
+rt exit (s==255*(4096-3005))+(a==255)*2+(d==255)*4+(e==255)*8+(f==255)*16+(g==0)*32

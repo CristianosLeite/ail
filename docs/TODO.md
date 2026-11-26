@@ -60,8 +60,9 @@ version 0.2.0 after it.
   of the executable, a program in place of the process.
 - [ ] The services in AIL one group at a time, tested against both
   (`make RTAIL=/dev/null` for the C ones). Done: `exit`, `args`,
-  `close`, `read`, `write`. To do: memory, `open` and the services of
-  directories, time, threads, the poller and sockets, processes.
+  `close`, `read`, `write`, `open` and the services of directories,
+  `pipeerr`, memory, threads. To do: time, the poller and sockets,
+  processes.
 - [ ] The C runtime removed, and seed 8.
 - [ ] A second platform: the compiler split into shared and target
   files, a second backend and its runtime, the test suite there.

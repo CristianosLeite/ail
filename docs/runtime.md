@@ -97,6 +97,8 @@ them; a runtime for another platform gives the same numbers:
 
 ## Memory on Linux
 
+Written in AIL (`rt_alloc`, `rt_free` of `rt.aiw`), as it was first in C, where the figures below were taken; in AIL the same program takes 0.99 of the time of C.
+
 A block has 16 bytes before its address, which say what it is. Up to 32
 KiB with those 16 it is one of 39 sizes, four for each doubling above 128
 bytes, cut from chunks of 256 KiB that are mapped as they are needed and

@@ -983,3 +983,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the runtime. `make test` passes with the AIL part and, but for the
   one case that expects a service in place, with
   `make RTAIL=/dev/null`.
+- [x] Paths, memory and threads in AIL (2026-11-26): `open`, `mkdir`,
+  `unlink`, `rmdir`, `rename`, `names`, `pipeerr`; `alloc` and `free`,
+  the same blocks and lists as in C, with the class of a block from a
+  table of 64 bytes; `wait`, `wake`, `cpus` and `thread`, whose new
+  thread comes out of the system call in the middle of an AIL function
+  and has all it needs in registers. The statement `zero`, the string
+  instruction that clears bytes, is new for it. On the programs of
+  ail-bench the AIL services take 0.87 (`iocopy`), 0.98 (`iosmall`) and
+  0.99 (`allocs`) of the time of C; the C services took 0.88, 0.99 and
+  1.03.

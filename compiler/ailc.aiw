@@ -948,6 +948,11 @@ r=r+7>>3<<3
 q=bsssz
 r+=q
 if r>0x7fffffff
+	# the state of the runtime no longer fits behind the buffers of the
+	# program: no line of the program is at fault
+	if rtt
+		epos=-1
+	end
 	call ebuf
 end
 bsssz=r

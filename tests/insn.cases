@@ -350,3 +350,4 @@ rt write 1 2 3 as x | b801000000bf02000000be03000000e8........4889c3 | mov eax, 
 rt exit 7 | b807000000e8........ | mov eax, 7 ; call 0
 fn f ; rt close 1 as x ; ret x ; end | e92e00000053554154b8010000004889c5b8030000004889ef0f054989c44c89e04889c34889d8415c5d5bc331c0415c5d5bc3 | {disp32} jmp 1f ; push rbx ; push rbp ; push r12 ; mov eax, 1 ; mov rbp, rax ; mov eax, 3 ; mov rdi, rbp ; syscall ; mov r12, rax ; mov rax, r12 ; mov rbx, rax ; mov rax, rbx ; pop r12 ; pop rbp ; pop rbx ; ret ; xor eax, eax ; pop r12 ; pop rbp ; pop rbx ; ret ; 1:
 buf b 8 ; stack b | 488d05<490f0000>488920 | lea rax, [rip + 3913] ; mov [rax], rsp
+zero 8 16 | b808000000bf100000004889f94889c731c0f3aa | mov eax, 8 ; mov edi, 16 ; mov rcx, rdi ; mov rdi, rax ; xor eax, eax ; rep stosb

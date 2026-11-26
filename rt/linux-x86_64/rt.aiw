@@ -7,8 +7,18 @@
 # function here is an entry of the image written in C, rt.c.
 #
 # The state is the buffer rt_state, which state.aiw declares behind the
-# buffers of the program: 0 the stack at the start. Every name of this
-# file starts with "rt_", and a program has no name that does.
+# buffers of the program:
+#    0  the stack at the start
+#    8  clock_gettime of the page of code the kernel maps, 1 if there is
+#       none, 0 before the first use
+#   16  not 0 once the runtime has started a thread
+#   24  the lock of the memory: 1 while a thread is in the cells below
+#   32  the memory of the chunk at hand that no block has had, and
+#   40  its end
+#   48  per class of small blocks, 8 bytes: the blocks given back, each
+#       with the next in its first 8 bytes
+# Every name of this file starts with "rt_", and a program has no name
+# that does.
 stack rt_state
 
 # end the process, every thread of it
@@ -39,5 +49,348 @@ end
 # up to rt_n bytes: how many were written, or an error
 fn rt_write rt_fd rt_p rt_n
 	sys write rt_fd rt_p rt_n as rt_r
+	ret rt_r
+end
+
+# system calls that the compiler has no name for
+const rt_getdents 217
+
+# the rt_n bytes of a path with a zero behind them, as the kernel takes
+# one, into the 4096 bytes at rt_z: 0, or the error of a path too long
+fn rt_path rt_p rt_n rt_z
+	if rt_n>4095
+		ret -36
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		storeb rt_z+rt_i rt_c
+		rt_i+=1
+	end
+	storeb rt_z+rt_n 0
+	ret 0
+end
+
+# open the file whose path is the rt_n bytes at rt_p: a descriptor, or an
+# error
+fn rt_open rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys open rt_z rt_flags rt_mode as rt_r
+	end
+	ret rt_r
+end
+
+# make a directory, remove a file, remove an empty directory
+fn rt_mkdir rt_p rt_n rt_mode
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys mkdir rt_z rt_mode as rt_r
+	end
+	ret rt_r
+end
+fn rt_unlink rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys unlink rt_z as rt_r
+	end
+	ret rt_r
+end
+fn rt_rmdir rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rmdir rt_z as rt_r
+	end
+	ret rt_r
+end
+
+# give a file another path, in place of a file that has it
+fn rt_rename rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_y 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		call rt_path rt_q rt_m rt_y as rt_r
+	end
+	ifz rt_r
+		sys rename rt_z rt_y as rt_r
+	end
+	ret rt_r
+end
+
+# The next names of the directory that rt_fd is open on, each with a zero
+# behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
+# least 512: the bytes written, 0 after the last name, or an error. A
+# name is shorter than its entry, so the names of what the kernel puts
+# into rt_n bytes fit rt_n bytes.
+fn rt_names rt_fd rt_p rt_n
+	local rt_d 4096
+	if rt_n<512
+		ret -22
+	end
+	if rt_n>4096
+		rt_n=4096
+	end
+	rt_o=0
+	label rt_more
+	sys rt_getdents rt_fd rt_d rt_n as rt_r
+	ifsle rt_r 0
+		ret rt_r
+	end
+	rt_i=0
+	while rt_i<rt_r
+		# an entry: 16 bytes, its length in 2, its kind in 1, the name
+		load2 rt_d+rt_i+16 as rt_l
+		rt_s=rt_d+rt_i+19
+		rt_i+=rt_l
+		load2 rt_s as rt_c
+		loadb rt_s+2 as rt_e
+		if (rt_c==46)|((rt_c==0x2e2e)&(rt_e==0))
+		else
+			label rt_copy
+			loadb rt_s as rt_c
+			storeb rt_p+rt_o rt_c
+			rt_o+=1
+			rt_s+=1
+			jnz rt_c rt_copy
+		end
+	end
+	jz rt_o rt_more
+	ret rt_o
+end
+
+# From now on a write to a pipe or a socket whose other end is closed is
+# the error -32 and no longer the end of the process: the signal of the
+# kernel for it is ignored, in this process and in those it starts.
+fn rt_pipeerr
+	local rt_a 32
+	store rt_a 1
+	store rt_a+8 0
+	store rt_a+16 0
+	store rt_a+24 0
+	sys rt_sigaction 13 rt_a 0 8 as rt_r
+	ret rt_r
+end
+
+# ---- memory
+# A block has 16 bytes before the address a program gets, the first 8 of
+# them saying what it is: the number of its class for a small block, the
+# length of its mapping for a large one, which is always more. A small
+# block is one of 39 sizes, from 32 bytes to 32 KiB with the 16 in them,
+# four sizes for each doubling above 128, so that at most a fifth of a
+# block is not asked for. Small blocks are cut from chunks of 256 KiB
+# that the kernel maps and that are never given back; a block that is
+# freed is the first of the list of its class and the next to be given
+# out, zeroed then. A large block is a mapping of its own.
+#
+# The lists are shared by the threads, and are only locked once the
+# runtime has started one: a program with one thread pays nothing for
+# the others.
+const rt_yield 24
+
+# the class of a block of up to 1024 bytes in all, by the bytes less one
+# over 16, and the size of each class as two bytes
+data rt_cls 0 0 1 2 3 4 5 6 7 7 8 8 9 9 10 10
+data 11 11 11 11 12 12 12 12 13 13 13 13 14 14 14 14
+data 15 15 15 15 15 15 15 15 16 16 16 16 16 16 16 16
+data 17 17 17 17 17 17 17 17 18 18 18 18 18 18 18 18
+data rt_csz 32 0 48 0 64 0 80 0 96 0 112 0 128 0 160 0
+data 192 0 224 0 0 1 64 1 128 1 192 1 0 2 128 2
+data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
+data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
+data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
+
+fn rt_lock
+	load rt_state+16 as rt_t
+	ifz rt_t
+		ret 0
+	end
+	label rt_again
+	cas rt_state+24 0 1 as rt_k
+	if rt_k
+		ret 0
+	end
+	rt_i=0
+	label rt_spin
+	load rt_state+24 as rt_k
+	if rt_k
+		rt_i+=1
+		if rt_i>200
+			sys rt_yield
+		end
+		jmp rt_spin
+	end
+	jmp rt_again
+end
+fn rt_unlock
+	load rt_state+16 as rt_t
+	if rt_t
+		store rt_state+24 0
+	end
+end
+
+# rt_n bytes of zeros at a multiple of 16, or 0
+fn rt_alloc rt_n
+	rt_t=rt_n+16
+	if rt_n>=-4096
+		ret 0
+	end
+	if rt_t>32768
+		sys mmap 0 rt_t 3 0x22 -1 0 as rt_p
+		if rt_p>-4096
+			ret 0
+		end
+		store rt_p rt_t
+		ret rt_p+16
+	end
+	if rt_t<32
+		rt_t=32
+	end
+	if rt_t<=1024
+		loadb rt_cls+(rt_t-1>>4) as rt_c
+	else
+		rt_s=10
+		while rt_t-1>>rt_s+1
+			rt_s+=1
+		end
+		rt_c=7+(rt_s-7)*4+(rt_t-1>>rt_s-2&3)
+	end
+	load2 rt_csz+rt_c*2 as rt_z
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_p
+	if rt_p
+		load rt_p as rt_x
+		store rt_q rt_x
+		call rt_unlock
+		# zeros again: the string instruction, but for the smallest blocks,
+		# which a loop clears before that instruction has started
+		rt_z-=16
+		if rt_z>96
+			zero rt_p rt_z
+		else
+			rt_i=0
+			while rt_i<rt_z
+				store rt_p+rt_i 0
+				rt_i+=8
+			end
+		end
+		ret rt_p
+	end
+	load rt_state+32 as rt_p
+	load rt_state+40 as rt_e
+	if rt_e-rt_p<rt_z
+		sys mmap 0 262144 3 0x22 -1 0 as rt_p
+		if rt_p>-4096
+			call rt_unlock
+			ret 0
+		end
+		store rt_state+40 rt_p+262144
+	end
+	store rt_state+32 rt_p+rt_z
+	call rt_unlock
+	store rt_p rt_c
+	ret rt_p+16
+end
+
+# give back what rt_alloc returned; 0 is nothing
+fn rt_free rt_p
+	ifz rt_p
+		ret 0
+	end
+	load rt_p-16 as rt_c
+	if rt_c>=39
+		sys munmap rt_p-16 rt_c
+		ret 0
+	end
+	rt_q=rt_state+48+rt_c*8
+	call rt_lock
+	load rt_q as rt_x
+	store rt_p rt_x
+	store rt_q rt_p
+	call rt_unlock
+	ret 0
+end
+
+# ---- threads
+# Sleep while the four bytes at rt_p are rt_v, until a wake of rt_p or
+# for rt_ns nanoseconds at most, -1 for no limit: 0 after a wake, -11 if
+# the bytes were another value, -110 after the time, -4 after a signal.
+fn rt_waitfor rt_p rt_v rt_ns
+	local rt_t 16
+	store rt_t rt_ns/1000000000
+	store rt_t+8 rt_ns%1000000000
+	sys futex rt_p 128 rt_v rt_t as rt_r
+	ret rt_r
+end
+fn rt_wait rt_p rt_v rt_ns
+	ifslt rt_ns 0
+		sys futex rt_p 128 rt_v 0 as rt_r
+		ret rt_r
+	end
+	call rt_waitfor rt_p rt_v rt_ns as rt_r
+	ret rt_r
+end
+
+# wake up to rt_n threads that sleep in a wait of rt_p: how many
+fn rt_wake rt_p rt_n
+	sys futex rt_p 129 rt_n as rt_r
+	ret rt_r
+end
+
+# the processors this process may run on; 1 if the kernel does not say
+fn rt_cpus
+	local rt_m 128
+	sys sched_getaffinity 0 128 rt_m as rt_r
+	if rt_r-1>127
+		ret 1
+	end
+	rt_c=0
+	while rt_r
+		rt_r-=1
+		loadb rt_m+rt_r as rt_b
+		while rt_b
+			rt_b&=rt_b-1
+			rt_c+=1
+		end
+	end
+	ifz rt_c
+		rt_c=1
+	end
+	ret rt_c
+end
+
+# Start a thread that calls the function at rt_f with the value rt_a and
+# ends when it returns: 0, or the error of the kernel for the memory, the
+# closed page or the thread. The stack is 8 MiB of its own whose lowest
+# page is closed before the thread exists, so that a function that needs
+# more faults; the thread gives it back at its end. The new thread comes
+# out of the system call on the new stack with the registers of this
+# one, so what it needs is in the four variables, which have registers,
+# and nothing of the frame; after it has given its stack back it makes
+# one system call more and touches no memory.
+fn rt_thread rt_f rt_a
+	store rt_state+16 1
+	sys mmap 0 8388608 3 0x22 -1 0 as rt_s
+	if rt_s>-4096
+		ret rt_s
+	end
+	sys mprotect rt_s 4096 0 as rt_r
+	ifz rt_r
+		sys clone 0x50f00 rt_s+8388608 0 0 0 as rt_r
+		ifz rt_r
+			callp rt_f rt_a
+			sys munmap rt_s 8388608
+			sys exit 0
+		end
+		if rt_r<-4095
+			ret 0
+		end
+	end
+	sys munmap rt_s 8388608
 	ret rt_r
 end
