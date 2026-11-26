@@ -322,12 +322,20 @@ Where a service cannot be on Windows what it is on Linux:
   its own, which a process it starts cannot leave and of which the
   process that started the child has the only handle: `reap` closes
   it, and Windows does when that process ends. On Linux the group is
-  one of the kernel, with a watcher in it, a process that waits for
-  the end of a pipe from the process that started the child and then
-  kills the group it is in; the child runs only once the watcher is
-  there and says so, and a watcher that cannot join the group ends
-  before it does, so that the child is one that ends with 127. The
-  watcher keeps no other descriptor: a kernel that closes them by a
+  one of the kernel, with a watcher, a process that waits for the end
+  of a pipe from the process that started the child and then kills
+  the group. The watcher joins the group, leaves a process of its own
+  there and goes into a group of its own, so that what stops the
+  group of the child, which stops every process in it, does not stop
+  the watcher: a stopped group ends with the process that started
+  its child too. The watcher kills the group by its number, which is
+  that group and no other as long as the process it left there has
+  not been taken, which the watcher alone can do; that process waits
+  for the end of the pipe as well and kills the group it is in, for
+  a watcher that was killed. The child runs only once the watcher
+  has done that and says so, and a watcher that cannot join the
+  group ends before, so that the child is one that ends with 127.
+  The watcher keeps no other descriptor: a kernel that closes them by a
   range does (Linux 5.9), and with another the watcher closes those
   that `/proc/self/fd` names, or ends where that cannot be read. A
   program that makes a group of its own (`setsid`, `setpgid`) is out
@@ -335,16 +343,16 @@ Where a service cannot be on Windows what it is on Linux:
   group by a descriptor of the child, kept since the start, which
   names that group and no other whatever becomes of the number
   (Linux 6.9). It then closes the pipe, and with an older kernel it
-  is the watcher that kills the group, the one it is in, woken first
-  in case the group was stopped: no signal goes to a number that was
-  the child's, which may be another group once the child is taken,
-  by `reap` or by anything else in the process that takes children.
-  `reap` keeps the child from every other `reap` until that is done,
-  and takes the watcher by a descriptor of it where the kernel has
-  one (Linux 5.4). It waits a second for the watcher: with an older
-  kernel a watcher that has not ended by then is killed, and what is
-  left of its group stays, as it does when something kills the
-  watcher alone.
+  is the watcher that kills the group: the process that called
+  `reap` sends no signal to a number that was the child's, which may
+  be another group once the child is taken, by `reap` or by anything
+  else in the process that takes children. `reap` keeps the child
+  from every other `reap` until that is done, and takes the watcher
+  by a descriptor of it where the kernel has one (Linux 5.4). It
+  waits a second for the watcher, woken first in case something
+  stopped it alone, and kills one that has not ended by then; the
+  process the watcher left in the group then kills the group, unless
+  the group is stopped and the kernel is an older one.
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform

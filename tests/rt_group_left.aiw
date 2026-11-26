@@ -1,0 +1,66 @@
+# a group that is stopped ends with the process that started its child,
+# with no reap: this program starts itself as "mid" with a pipe, which
+# starts "late" with the flag 2 and that pipe, waits until "late" has
+# stopped its group, says which process "late" is and ends. The pipe
+# must end then, so "late" must: within three seconds, after which this
+# program kills the group itself and fails. It first makes itself the
+# process that gets the children of "mid" at its end: with those in the
+# hands of a process of another session the kernel would wake a stopped
+# group that nobody of its session is left to wake, and the test would
+# show nothing. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf pf 8
+buf one 8
+buf info 128
+data mid "mid" 0
+data late "late" 0
+fn startself a out f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 out
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==109
+		call startself late -1 2 as c
+		# stopped, and not taken
+		sys 247 1 c info 0x1000002 0 as w
+		store one c
+		rt write 1 one 8
+		rt exit w!=0
+	end
+	sys 62 0 19
+	rt sleep 30000000000
+	rt exit 0
+end
+sys 157 36 1 0 0 0 as s
+sys 293 pp 0
+load4 pp as r
+load4 pp+4 as w
+call startself mid w 0 as c
+rt close w
+rt reap c 0 as k
+rt read r one 8 as e
+load one as g
+# the end of the pipe: nothing to read and no writer
+store4 pf r
+store4 pf+4 0
+sys 7 pf 1 3000 as t
+load2 pf+6 as v
+ifz t
+	sys 62 0-g 9
+end
+rt write 1 "left\n"
+rt exit (k==0)+(e==8)*2+(t==1)*4+(v==16)*8+(s==0)*16
