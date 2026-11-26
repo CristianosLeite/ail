@@ -1247,3 +1247,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   GitHub starts `make test` with the signal ignored, a child keeps
   that, and the write gave the error, so the test failed there alone.
   It now sets the default with `rt_sigaction` before the write.
+- [x] Six tests of the separators end their lines with CRLF again
+  (2026-11-26): the conversion of the tests from `sys` to `rt` wrote
+  `data_tabs_crlf`, `fn_separators`, `gvar_tabs_comment`,
+  `if_with_comment_tabs`, `separators_tab_crlf` and `use_tab_crlf`
+  with LF alone, so they still passed and no longer tested a CR
+  before the LF. Every line of them has its CR back, the lines with
+  `rt` included.
