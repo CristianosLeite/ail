@@ -1208,3 +1208,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   now a failure, with what the compiler said; the other tests are
   still left out, since the suite is those the compiler compiles.
   Checked with a compiler that refuses that one source.
+- [x] `tests/win.sh` fails when a test it always runs is not there to
+  run (2026-11-26): the list of those tests was only looked at for a
+  test the loop over `tests/*.out` had found and no filter had left
+  out, so without `tests/rt_reap_again.out` the test was not run and
+  the suite stayed green. Before the loop every name of the list must
+  now have its `.out` and its source, no `sys` and no line in
+  `tests/win.skip`, or the suite fails and says which. Checked in a
+  copy with each of the four made untrue.

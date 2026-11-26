@@ -110,6 +110,15 @@ say win_stale_watch $r
 # a child that was taken. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
 always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again"
+# each of them has to be a test the loop below finds and takes
+for t in $always; do
+    why=
+    [ -f tests/$t.out ] || why="no tests/$t.out"
+    [ -f tests/$t.aiw ] || why="no tests/$t.aiw"
+    [ -n "$why" ] || ! grep -q '^[[:space:]]*sys ' tests/$t.aiw || why="has a sys"
+    ! grep -q "^$t\$" tests/win.skip || why="named in tests/win.skip"
+    [ -z "$why" ] || { echo "FAIL win $t (not run: $why)"; fail=1; }
+done
 n=0
 ran=0
 for f in tests/*.out; do
