@@ -33,6 +33,8 @@
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
 # 6784  the children that were started and not yet taken (see rt_reap)
+# 6792  how many children were started, of which the number of the next
+#       is made
 # Every name of this file starts with "rt_".
 #
 # The first line goes to the last, past every function.
@@ -890,8 +892,9 @@ end
 # inherits those and no other handle of this process, whatever another
 # thread starts meanwhile. A held child is put in the job by the same
 # list (Windows 10), so it never runs outside it.
-# What is returned is the handle of Windows of the child, which is put
-# in the list of the children for reap.
+# What is returned is a number of the runtime that no child had before,
+# from 2 on, under which the handle of Windows of the child is put in
+# the list of the children for reap.
 fn rt_start rt_argv rt_env rt_fds rt_flags
 	local rt_a 80
 	local rt_si 112
@@ -959,7 +962,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 		call rt_shut3 rt_dup
 		ret -12
 	end
-	call rt_alloc 24 as rt_kid
+	call rt_alloc 32 as rt_kid
 	ifz rt_kid
 		call rt_free rt_line
 		call rt_shut3 rt_dup
@@ -1098,6 +1101,11 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	store rt_kid+8 rt_p
 	store rt_kid+16 0
 	call rt_lock
+	load rt_state+6792 as rt_p
+	rt_p+=1
+	store rt_state+6792 rt_p
+	rt_p+=1
+	store rt_kid+24 rt_p
 	load rt_state+6784 as rt_h
 	store rt_kid rt_h
 	store rt_state+6784 rt_kid
@@ -1113,12 +1121,14 @@ end
 # over, its error, the child being left as it is. rt_ms 0 waits without
 # limit.
 # A child is a handle of Windows, which is closed when the child is
-# taken and may then be the number of another thing, and a wait for a
-# handle that is closed meanwhile is not defined. So one thread alone
-# has a child: start puts each in a list (the cell at 6784 of the state;
-# 24 bytes each: the next, the handle, 1 while a reap has it), reap
-# takes one that is there and that no other reap has, and takes it out
-# of the list before it closes the handle. Anything else is no child.
+# taken and may then be the number of another thing, a later child too,
+# and a wait for a handle that is closed meanwhile is not defined. So
+# the program never has the handle, and one thread alone has a child:
+# start puts each in a list (the cell at 6784 of the state; 32 bytes
+# each: the next, the handle, 1 while a reap has it, the number start
+# gave, which no other child gets), reap takes the one of a number if
+# it is there and no other reap has it, and takes it out of the list
+# before it closes the handle. Anything else is no child.
 fn rt_reap rt_p rt_ms
 	local rt_a 32
 	if rt_p==1
@@ -1131,7 +1141,7 @@ fn rt_reap rt_p rt_ms
 		call rt_unlock
 		ret -1001
 	end
-	load rt_k+8 as rt_h
+	load rt_k+24 as rt_h
 	if rt_h!=rt_p
 		load rt_k as rt_k
 		jmp rt_find
@@ -1142,6 +1152,7 @@ fn rt_reap rt_p rt_ms
 		ret -1001
 	end
 	store rt_k+16 1
+	load rt_k+8 as rt_p
 	call rt_unlock
 	call rt_reaping rt_p rt_ms as rt_r rt_took
 	ifz rt_took
@@ -1165,7 +1176,7 @@ fn rt_reap rt_p rt_ms
 	ret rt_r
 end
 
-# reap for the thread that alone has the child rt_p: what reap gives,
+# reap for the thread that alone has the child of the handle rt_p: what reap gives,
 # and 1 if the child is taken, 0 if it is left. Windows counts the time
 # of a wait in 32 bits, of which the largest value means no limit, so a
 # long time is waited for in pieces, and what is left is counted from

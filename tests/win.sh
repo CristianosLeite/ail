@@ -106,8 +106,9 @@ say win_stale_watch $r
 
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
-# a long time of reap, and threads that reap one child
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many"
+# a long time of reap, threads that reap one child, and the number of
+# a child that was taken
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again"
 n=0
 ran=0
 for f in tests/*.out; do

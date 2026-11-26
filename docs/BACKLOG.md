@@ -1192,3 +1192,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   fails is now the case in which no signal is sent, and
   `docs/runtime.md` says that the answer is taken once, so a program
   must not change it during such a `reap`. `tests/rt_reap_blind`.
+- [x] A child on Windows is a number of the runtime, not its handle
+  (2026-11-26): `start` returned the handle, which `reap` closes and
+  Windows gives to the next child, so the number of a child that was
+  taken named a later one, and a `reap` with it took that. `start` now
+  gives a number counted from 2 that no other child gets, kept with
+  the handle in the list of the children, which is all that knows the
+  handle. `tests/rt_reap_again`, which `tests/win.sh` always runs: the
+  second child was taken by the number of the first before.

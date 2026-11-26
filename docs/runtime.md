@@ -215,11 +215,14 @@ Where a service cannot be on Windows what it is on Linux:
   the moment it is made, by the same list (Windows 10), and is not
   started where Windows gives no such job. `reap` gives a fault of the child as the signal Linux has
   for it, negated: -11, -8, -4, or -6 for any other.
-  A child is a handle there, which is closed when the child is taken,
-  so the runtime keeps a list of the children that `start` gave and
-  that are not yet taken: one `reap` at a time has a child, as on
-  Linux, and a number that is not in the list is no child, -1001,
-  whatever handle of Windows it may be.
+  A child is a handle there, which is closed when the child is taken
+  and which Windows then gives to a later child, so the program never
+  has it: `start` gives a number of the runtime, from 2 on, that no
+  other child of the process gets, and the runtime keeps a list of the
+  children that are not yet taken, each with its number and its
+  handle. One `reap` at a time has a child, as on Linux, and a number
+  that is not in the list is no child, -1001: the number of a child
+  that was taken stays that whatever is started afterwards.
 - `clock` is the counter of Windows; `sleep` waits whole milliseconds.
 - A poller watches sockets and nothing else: `watch` gives -1 for any
   other descriptor, as for a plain file, and a read of a pipe waits.
