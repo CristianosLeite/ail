@@ -33,6 +33,7 @@ long rt_open(struct rt *rt, const char *path, unsigned long n, long flags, long 
 long rt_close(struct rt *rt, long fd);
 long rt_read(struct rt *rt, long fd, void *p, unsigned long n);
 long rt_write(struct rt *rt, long fd, const void *p, unsigned long n);
+long rt_pipeerr(struct rt *rt);
 
 #endif
 #endif

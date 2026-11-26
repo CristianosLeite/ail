@@ -1,0 +1,10 @@
+# after pipeerr a write to a pipe that nobody reads is the error -32;
+# without it the process would end by the signal
+buf fd 8
+sys pipe fd
+load4 fd as r
+load4 fd+4 as w
+rt close r
+rt pipeerr as e
+rt write w "x" as n
+rt exit (e==0)+(n==-32)*2

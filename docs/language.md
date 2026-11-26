@@ -196,6 +196,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `close` | descriptor | 0, or an error |
 | `read` | descriptor, address, size | the bytes read, 0 at the end, or an error |
 | `write` | descriptor, address, size | the bytes written, or an error |
+| `pipeerr` | | 0, or an error; a `write` to a closed pipe is the error -32 from now on, not the end of the process |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

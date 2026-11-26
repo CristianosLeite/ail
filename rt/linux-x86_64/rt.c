@@ -19,10 +19,11 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 #define sys1(n, a) sys6(n, (long)(a), 0, 0, 0, 0, 0)
 #define sys2(n, a, b) sys6(n, (long)(a), (long)(b), 0, 0, 0, 0)
 #define sys3(n, a, b, c) sys6(n, (long)(a), (long)(b), (long)(c), 0, 0, 0)
+#define sys4(n, a, b, c, d) sys6(n, (long)(a), (long)(b), (long)(c), (long)(d), 0, 0)
 
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
-	SYS_munmap = 11, SYS_exit_group = 231
+	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_exit_group = 231
 };
 
 /* end the process, every thread of it */
@@ -99,4 +100,20 @@ long rt_write(struct rt *rt, long fd, const void *p, unsigned long n)
 {
 	(void)rt;
 	return sys3(SYS_write, fd, p, n);
+}
+
+/* from now on a write to a pipe or a socket whose other end is closed
+ * is the error -32 and no longer the end of the process: the signal of
+ * the kernel for it is ignored, in this process and in those it starts */
+long rt_pipeerr(struct rt *rt)
+{
+	struct {
+		long handler;
+		unsigned long flags;
+		long restorer;
+		unsigned long mask;
+	} act = { 1, 0, 0, 0 };
+
+	(void)rt;
+	return sys4(SYS_rt_sigaction, 13, &act, 0, 8);
 }

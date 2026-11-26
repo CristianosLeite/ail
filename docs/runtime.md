@@ -28,6 +28,7 @@ result is a value.
 | 6 | `close` | descriptor | 0, or an error |
 | 7 | `read` | descriptor, address, size | the bytes read, at most the size and 0 at the end, or an error |
 | 8 | `write` | descriptor, address, size | the bytes written, at most the size, or an error |
+| 9 | `pipeerr` | | 0, or an error. From now on a `write` to a pipe or a socket whose other end is closed gives the error -32; until it is called such a write ends the process on Linux. It holds for the programs the process starts too |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,

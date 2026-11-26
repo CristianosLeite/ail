@@ -182,6 +182,7 @@ data 4 "open" 5 4 1
 data 5 "close" 6 1 1
 data 4 "read" 7 3 1
 data 5 "write" 8 3 1
+data 7 "pipeerr" 9 0 1
 data 0
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195

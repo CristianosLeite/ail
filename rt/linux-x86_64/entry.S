@@ -31,6 +31,7 @@ rt_table:
 	.long e_close - rt_image
 	.long e_read - rt_image
 	.long e_write - rt_image
+	.long e_pipeerr - rt_image
 rt_table_end:
 
 	.text
@@ -68,3 +69,4 @@ e_start:
 	entry close
 	entry read
 	entry write
+	entry pipeerr
