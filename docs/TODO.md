@@ -37,3 +37,35 @@ first that has them ([BACKLOG.md](BACKLOG.md)).
   writer of JSON.
 - [ ] Left for later: a connection that is kept, TLS and names for the
   client; the server measured under many connections.
+
+## Runtime
+
+[RUNTIME.md](RUNTIME.md) moves what a program asks of its platform behind
+a runtime, so that AIL runs on more than x86-64 Linux, at the speed of C
+with the calls of the runtime counted. Decided with it (user,
+2026-11-26): the runtime is one position-independent image that the
+compiler copies into each executable and calls by entry, with no linker
+and no object file; it is written in C first, built by `cc` in `make`,
+and then in AIL; one pull request when all of it is done, and the
+version 0.2.0 after it.
+
+- [ ] The runtime image in C for x86-64 Linux: start, arguments, exit,
+  allocation, files and streams.
+- [ ] The statement `rt` and the image in every executable; `alloc`,
+  `free`, `args` and the end of a program as services.
+- [ ] `examples/hello.aiw` and `lib/std/io.aiw` through the runtime,
+  with size and startup measured.
+- [ ] Seed 7, which understands `rt`.
+- [ ] The compiler through the runtime, with its fixed point.
+- [ ] Services for files and directories, the clock, threads with
+  waiting and waking, readiness and sockets, and processes, each with
+  the library that needs it; no `sys` left in `lib/`, `cli/` and `tools/`.
+- [ ] An image as a form of output, for a runtime written in AIL.
+- [ ] The services in AIL one group at a time, tested against both.
+- [ ] The C runtime removed, and seed 8.
+- [ ] A second platform: the compiler split into shared and target
+  files, a second backend and its runtime, the test suite there.
+- [ ] Workloads for startup, I/O and allocation in ail-bench against C
+  at `-O3`, measured before the runtime, with the C one and the AIL one.
+- [ ] The gaps to C closed, each change measured first.
+- [ ] Version 0.2.0.

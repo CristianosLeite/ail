@@ -57,4 +57,4 @@ All three are done as of 2026-11-20: the corpus is 990 tokens (970 before it was
 
 ## Not planned
 
-- A second target architecture, linkable object files, a platform calling convention and dynamic linking were evaluated on 2026-11-20 and left out. Each would add a second code generator or a file format to both compilers, for no program that needs it. A second target, if ever wanted, would start as a cross-compiling backend in the compiler.
+- Linkable object files and dynamic linking were evaluated on 2026-11-20 and left out: each would add a file format to the compiler and a linker to every build. A second target architecture and a platform calling convention were left out with them and are planned since 2026-11-26, behind a runtime that the compiler copies into each executable ([RUNTIME.md](RUNTIME.md)).
