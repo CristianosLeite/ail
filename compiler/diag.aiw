@@ -166,6 +166,11 @@ fn efn
 	enamel=nl
 	call die "undefined function" 1
 end
+fn esvc
+	ename=ns
+	enamel=nl
+	call die "unknown service" 1
+end
 fn eargc
 	ename=ns
 	enamel=nl

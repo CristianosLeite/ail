@@ -1,0 +1,2 @@
+rt write 1 "ok\n"
+rt frobnicate 1

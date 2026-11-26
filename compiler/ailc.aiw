@@ -95,6 +95,9 @@ const lalign 64
 var nhn hbkt scope nscope snh
 # rwstart = where the writable segment starts in the image, known in fin
 var rwstart
+# the service of the runtime that the statement at hand calls: the number
+# of its entry, its values and its results
+var rte rta rtr
 # expressions: the nodes, values and operators of the one being parsed, and
 # whether it divides or shifts
 var nex nexv nexs exdm exsh
@@ -264,6 +267,12 @@ mainend=p
 ip=in
 op=out
 call cp hdr 176
+# the runtime behind the header, and the program behind that; the process
+# starts at the first entry of the image
+load4 rtimg+8 as r
+call cp rtimg r
+load4 rtimg+32 as r
+store out+24 r+176
 
 # ---- statement
 label next
@@ -383,6 +392,11 @@ if f&16
 	jmp tokend
 end
 jz f&4 arg
+loadb cur+2 as d
+if d&128
+	call rtname
+	jmp tokend
+end
 call pk as c
 call low c as d
 jz d num
@@ -814,7 +828,7 @@ jeq c 35 cp4
 loadb cur+1 as d
 jnz d&16 cp0
 loadb cur+2 as d
-jnz d&4 cp0
+jnz d&132 cp0
 call err
 label cp4
 call eol
@@ -1485,7 +1499,9 @@ end
 if nblk
 	call eend
 end
-call cp exit0 9
+call cp exit0 3
+load4 rtimg+36 as r
+call e4 out+176+r-op-4
 rwstart=op-out+4095>>12<<12
 call resolve
 call tailres
@@ -1623,7 +1639,12 @@ store out+96 q
 store out+104 q
 store out+136 rwstart
 store out+144 rwstart
+# the state of the runtime is behind the buffers; the image has its
+# distance from there
 c=ngv*8+bsssz
+store out+200 c+rwstart-176
+load4 rtimg+12 as r
+c+=r
 store out+160 c
 if c+rwstart>0x7fffffff
 	call ebuf
@@ -1641,3 +1662,4 @@ jnz q w1
 # ---- the read-only tables are a file of their own, compiled here: a data
 # name may be declared after its uses
 use "compiler/tables.aiw"
+use "build/rt/image.aiw"

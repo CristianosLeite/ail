@@ -1,0 +1,3 @@
+# a descriptor that is not open: the error of the kernel, negative
+rt write 77 "x" as n
+rt exit 0-n

@@ -27,9 +27,9 @@ The source of the compiler may only use what the pinned seed understands. A new 
 There is one pass over the top level and two over each function, and no intermediate representation.
 
 1. Ignore `SIGPIPE`, so that writing to a closed pipe fails with an error the compiler can report instead of killing it. Read all of stdin into an input buffer that holds 8 MiB plus one spare byte; filling the spare byte means the source is too big.
-2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer.
+2. Copy a 176-byte ELF header template to the start of the output buffer, which is 16 times the size of the input buffer, and behind it the image of the runtime.
 3. Scan the source. For each statement, append machine code directly to the output buffer. A `use` reads another file into the input buffer behind what is there and scans it before going on.
-4. Append the code for `exit_group(0)`.
+4. Append the end of the program, a jump to the service `exit` of the runtime with 0.
 5. Fill in the displacement of every top-level jump from the label table and of every call from the function table. Place the writable segment on the page after the code and fill in the distance to every buffer, data name and var cell, and the lengths of names used before their declaration.
 6. Patch the segment sizes and the address of the second segment in the header, write the buffer to stdout, exit.
 
@@ -125,12 +125,15 @@ The counters and the saved scope are `var`s too (`nbufs`, `bsssz`, `nlabels`, `i
 offset 0     ELF header            64 bytes   type ET_DYN
 offset 64    program header        56 bytes   PT_LOAD, flags R+X: the whole file
 offset 120   program header        56 bytes   PT_LOAD, flags R+W: cells and buffers, no file bytes
-offset 176   code, strings, data   entry point
+offset 176   the runtime           its image: header, table of entries, code; the process starts at its first entry
+behind it    code, strings, data   the program, from its first statement on
 ```
 
 The output is a position-independent executable. Its addresses are distances from the start of an image that the kernel loads wherever it chooses, at a different place on each run unless address randomisation is off. There are no sections, no symbol table, no dynamic section and no relocations: no instruction contains an address, only distances to other parts of the image.
 
-The whole file is the first segment, readable and executable but not writable: the byte at file offset `n` is at `n` in the image and the entry point is at 176. The second segment has a file size of zero and starts on the page after the code. It holds the 8-byte cells of the `var`s and of the top-level variables beyond the sixth, in the order they were made, and behind them the buffers in the order of their declaration; its memory size is the sum of both, which may be zero.
+The whole file is the first segment, readable and executable but not writable: the byte at file offset `n` is at `n` in the image. The second segment has a file size of zero and starts on the page after the code. It holds the 8-byte cells of the `var`s and of the top-level variables beyond the sixth, in the order they were made, behind them the buffers in the order of their declaration, and last the state of the runtime; its memory size is the sum of the three.
+
+**The runtime** ([runtime.md](runtime.md)) is an image that the compiler has as the data `rtimg`, from `build/rt/image.aiw`, which `make` writes from the image the C compiler built and which the last line of `compiler/ailc.aiw` names with `use`. The compiler copies it behind the header before it reads the source, so the place of every entry is known when a statement calls one: a call of a service is `E8` and the distance to `176` plus the offset of the entry in the table of the image, with no fixup. The image ends at a multiple of 64 bytes, so the code of the program stands where it would in a line of the cache without it. The entry point in the ELF header is the first entry, which notes the stack in the state and jumps to the end of the image, the first statement. `fin` writes into the eight bytes at 24 of the image the distance from the image to its state, behind the buffers, and adds the bytes of state, which the image names at 12, to the size of the segment.
 
 Where the second segment starts is only known when the code is complete. So everything that refers to it, and every global name that may still be declared later, is a fixup in `refs`: `fin` computes the start (`rwstart`) and writes the distances. The image must stay within 2 GiB less one byte, so that every such distance fits a `rel32`; `fin` reports `buffers too big` otherwise.
 
@@ -162,7 +165,7 @@ The bytes lie just behind the `lea`, at a distance that is known as soon as the 
 
 **End of statement.** The instruction bytes of the statement, copied from its `optab` entry by `eop`; for `sys` that is `syscall` (`0F 05`). With `as`, they are followed by `mov <variable register>, rax` in the same 3-byte encoding.
 
-**End of program.** `mov eax, 231` / `xor edi, edi` / `syscall`: `exit_group(0)`, which ends every thread of the process, where `exit` (60) would end only the one that reached the last line and leave a program with other threads running.
+**End of program.** `xor eax, eax` / `jmp rel32` to the entry of the service `exit` (the table `exit0` and the distance): it ends every thread of the process, where the syscall `exit` would end only the one that reached the last line and leave a program with other threads running.
 
 ## Operations
 
@@ -183,7 +186,6 @@ That is the general way, and what the table below shows. The statements that onl
 | `smod` | `cqo` / `idiv rdi` / `mov rax, rdx` |
 | `eq` `ne` `lt` `le` `gt` `ge` | `cmp rax, rdi` / `sete` `setne` `setb` `setbe` `seta` or `setae al` / `movzx eax, al` |
 | `slt` `sle` `sgt` `sge` | the same with `setl` `setle` `setg` or `setge` |
-| `args` | `mov rax, rsp` |
 | `len` | nothing: its operand is the length |
 | `load` | `mov rax, [rax]` |
 | `load4` | `mov eax, [rax]` |
@@ -201,8 +203,7 @@ That is the general way, and what the table below shows. The statements that onl
 | `fdot4` | the loop of `fdot` with `movss xmm1, [rdi]` / `cvtss2sd xmm1, xmm1` for the load, the first address stepped by 4. Not `cvtss2sd xmm1, [rdi]`: that form keeps the high half of `xmm1`, so every round would wait for the product of the one before |
 | `xadd` | `lock xadd [rax], rdi` / `mov rax, rdi` |
 | `cas` | `mov rcx, rax` / `mov rax, rdi` / `lock cmpxchg [rcx], rsi` / `sete al` / `movzx eax, al` |
-| `alloc` | `mmap` of the size plus 16, the length stored in front, 0 on failure: 58 bytes |
-| `free` | `munmap` of the mapping whose length lies 16 bytes before the address, unless it is 0: 19 bytes |
+| `alloc`, `free`, `args` | no instruction: the one byte of the row is the number of an entry of the runtime, which `eop` calls (`IS_RT`) |
 | `store` | `mov [rax], rdi` |
 | `store4` | `mov [rax], edi` |
 | `store2` | `mov [rax], di` |
@@ -224,7 +225,7 @@ The scratch registers `rax`, `rdi`, `rcx` and `rdx` are never variable registers
 
 A comparison uses the unsigned conditions and turns the flags into a value at once: `setcc` writes only `al`, and `movzx eax, al` clears the other 56 bits, which still hold the first operand. Nothing depends on the flags after the statement, so a comparison emits no jump and a `jz` or `jnz` on its result tests the value again; write the comparison and the jump as one statement.
 
-The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`, 32 `IS_LIB`, 64 `IS_AWT`; a new flag goes there, the first byte being full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` (`args`) is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function, because only at top level does `rsp` still point at what the kernel passed, the top level keeping its variables in registers and cells and pushing nothing between statements. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
+The two flag bytes are numbers in the table; this page gives the bits names. In the first byte: 1 `AS_REQ`, 2 `AS_NONE`, 4 `IS_SYS`, 8 `IS_JMP`, 16 `IS_CALL`, 32 `IS_RET`, 64 `IS_LEN`, 128 `IS_MEM`. In the second: 1 `IS_AT`, 2 `IS_REF`, 4 `IS_PTR`, 8 `IS_IF`, 16 `IS_TOP`, 32 `IS_LIB`, 64 `IS_AWT`, 128 `IS_RT`; both bytes are full. A first byte of 255 marks a statement parsed on its own. The flags say whether `as` is required (everything that produces a value), forbidden (the stores, the jumps and `ret`) or optional (`sys` and `call`), whether a label name follows the operands (the jumps), whether a function name precedes them (`call`), whether the statement needs an open function (`ret`), whether its operand is taken as a length (`len`) and whether it accesses memory (the loads and stores). `IS_TOP` is checked in `next` like `IS_RET`, the other way round: the statement is refused inside a function. No row has it since `args` is a service of the runtime, which notes the stack when the process starts. `IS_RT` marks a statement that is a call of an entry of the runtime: `rt`, which also has `IS_SYS`, so that its first word is read as a name (`rtname` looks it up in the table `rtnames` and keeps the number of the entry, of its values and of its results in `rte`, `rta` and `rtr`), a string is two values and the count of its values is checked by `eop` against the service instead of the row; and `args`, `alloc` and `free`, rows with a fixed number of operands whose one byte of code is the number of their entry. `eop` writes `E8` and the distance to the entry for all of them, and `capture` allows several names after `as` as for a call. The ninth flag, `IS_AT`, is in the second byte: the first value of `at` must be a name, and `atname` passes it as two values, its address and its size, so that the row has four operands in `rax`, `rdi`, `rsi` and `rdx`. A local gives both at once; for a global name the size is a fixup of kind 2 in `refs`, which `fin` fills with the declared size of a buffer or the bytes from a data name to the end of its run. `eop` rejects a statement whose operand count differs from the table; `sys` is exempt and takes one to seven values, and `call` takes any number, checked against the function when the call is resolved.
 
 ## Worked example
 
@@ -235,7 +236,7 @@ sys write 1 "hello world\n" as n
 sys exit n-12
 ```
 
-It compiles to 243 bytes: the 176-byte header followed by
+It compiles to the 176-byte header, the image of the runtime and 67 bytes, here with the offsets they would have behind the header alone:
 
 ```
 b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
@@ -250,12 +251,11 @@ dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
 e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
 e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
 e8:  0f 05               syscall
-ea:  b8 e7 00 00 00      mov  eax, 231        ; implicit exit_group(0), never reached here
-ef:  31 ff               xor  edi, edi
-f1:  0f 05               syscall
+ea:  31 c0               xor  eax, eax        ; the implicit end, never reached here:
+ec:  e9 .. .. .. ..      jmp  <exit>          ; the service exit of the runtime with 0
 ```
 
-The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit exit: 226 bytes.
+The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit end.
 
 To inspect any compiled program the same way:
 

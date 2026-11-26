@@ -12,7 +12,7 @@ AIL has a compiler written in AIL that compiles itself, a standard library (I/O,
 
 ## Install
 
-Requires x86-64 Linux, `make`, and `curl` or `gh` to fetch the released compiler the build starts from, once.
+Requires x86-64 Linux, `make`, a C compiler for the runtime, and `curl` or `gh` to fetch the released compiler the build starts from, once.
 
 ```
 git clone https://github.com/CristianosLeite/ail.git

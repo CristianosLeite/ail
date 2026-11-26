@@ -205,6 +205,29 @@ fn sname
 	r=r+l+2
 	jmp a
 end
+# the service of the runtime named at the cursor, one of the names in
+# rtnames: its entry in rte, its values in rta and its results in rtr
+fn rtname
+	call rdname
+	r=rtnames
+	label a
+	loadb r as l
+	ifz l
+		call esvc
+	end
+	r+=1
+	jne l nl t
+	call eqn r ns l as c
+	jz c t
+	r+=l
+	loadb r as rte
+	loadb r+1 as rta
+	loadb r+2 as rtr
+	ret 0
+	label t
+	r=r+l+3
+	jmp a
+end
 # the value of the const whose name is at the cursor
 fn cname
 	call rdname

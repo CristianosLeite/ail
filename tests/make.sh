@@ -17,7 +17,7 @@ say() {
 }
 # the files that the build of an example could leave behind, besides the target
 leftovers() {
-    ls "$d/build" | grep -v -e '^ailc[01]\{0,1\}$' -e '^good$' -e '^good\.saved$' -e '^tools$' | wc -l
+    ls "$d/build" | grep -v -e '^ailc[01]\{0,1\}$' -e '^good$' -e '^good\.saved$' -e '^tools$' -e '^rt$' | wc -l
 }
 # the same in build/tools, where only the tool t may be
 toolleftovers() {
@@ -32,6 +32,9 @@ cp -p tools/seed.sh "$d/tools/"
 # the seed and the compilers built from it, each newer than what it is
 # made from, so make keeps them
 cp -p build/ailc0 build/ailc1 build/ailc "$d/build/"
+# the runtime and its image, which the compilers are made from
+cp -pr rt "$d/"
+cp -pr build/rt "$d/build/"
 
 # a good example builds and runs
 printf 'sys exit 7\n' > "$d/examples/good.aiw"

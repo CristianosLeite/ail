@@ -1,0 +1,6 @@
+# a file that is not there, and a path of 4096 bytes, which is too long
+buf p 4096
+rt open "tests/no/such/file" 0 0 as f
+rt open p 4096 0 0 as g
+rt open p 4095 0 0 as h
+rt exit (f==-2)+(g==-36)*2+(h==-2)*4

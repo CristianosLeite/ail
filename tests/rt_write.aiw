@@ -1,0 +1,10 @@
+# the service write: the bytes of a string, of a buffer, and how many
+# were written
+buf b 8
+storeb b 111
+storeb b+1 107
+storeb b+2 10
+rt write 1 "a string\n" as n
+rt write 1 b 3 as m
+rt write 1 b 0 as z
+rt exit n+m+z

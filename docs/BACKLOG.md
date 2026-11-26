@@ -867,3 +867,29 @@ program that first needs them).
 - [x] The version 0.1.1 of AIL (user, 2026-11-22), the first with the
   four libraries: `Ailfile` says it and the tag `v0.1.1` names the merge
   of it, so that a package asks for them with `ail 0.1.1`.
+
+## Runtime
+
+From [RUNTIME.md](RUNTIME.md); what was decided with it is in
+[TODO.md](TODO.md).
+
+- [x] The runtime in C for x86-64 Linux and the statement `rt`
+  (2026-11-26). `rt/linux-x86_64/` is compiled by `cc` without a C
+  library into one image that may stand anywhere and has no writable
+  byte: a header, a table of entries, and an entry for each service
+  that takes the values of AIL to the convention of C. The compiler has
+  it as data and copies it behind the header of every executable, 960
+  bytes; the process starts at its first entry, and the program ends
+  with a jump to the service `exit`. `rt name` calls a service, with
+  its counts checked: `exit`, `args`, `alloc`, `free`, `open`, `close`,
+  `read`, `write`; the statements `alloc`, `free` and `args` are calls
+  of theirs, and `args` may stand in a function. The code of a program
+  stands where it did in a line of the cache, and no table of fixups
+  has a new kind: the place of an entry is known when it is called.
+  [runtime.md](runtime.md) has the services and the form of the image.
+  `tests/rt_*`; `tests/bytes.sh` computes the files with the image as
+  `cc` built it, and `tests/insn.cases` has a call of an entry and a
+  distance to the writable segment in a form that does not depend on
+  the size of the image. Two tests of `lib/nd` read behind their last
+  buffer, where the state of the runtime now is, and have a buffer of
+  zeros for it.

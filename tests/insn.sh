@@ -10,7 +10,14 @@
 #
 # with " ; " for a line end in the source. The source is compiled, by the
 # compiler named by AILC (default build/ailc), and the bytes between the
-# 176-byte header and the exit that ends every program must be the hex.
+# image of the runtime, which stands behind the 176-byte header, and the
+# end of every program, xor eax, eax and a jump to the service exit, must
+# be the hex. A call of a service is in the cases as "call" and four
+# bytes that are not compared, written as "........". Four bytes between
+# "<" and ">" are a distance to the writable segment, as the assembler
+# wrote it for a file of the header and that code alone; the image moves
+# the code and with it the segment, and the distance is moved as far
+# before it is compared.
 # The hex was written by GNU as from the instructions, Intel syntax; the
 # second form checks that it still is, and the third prints it for a new
 # case. Those two need as and objcopy; the first, which make test runs,
@@ -22,7 +29,9 @@ mkdir -p build/tests
 tmp=$(mktemp -d build/tests/insn.XXXXXX) || exit 1
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 1' HUP INT TERM
-exit0=b8e700000031ff0f05      # mov eax, 231 ; xor edi, edi ; syscall
+exit0=31c0e9                  # xor eax, eax ; jmp rel32
+# the size of the image: the four bytes at 8 of it
+isz=$(od -An -tu4 -j184 -N4 "$ailc" | tr -d ' ')
 
 hexof() {
     od -An -v -tx1 "$@" | tr -d ' \n'
@@ -55,13 +64,28 @@ while IFS= read -r line; do
     else
         printf '%s\n' "$src" | sed 's/ ; /\n/g' > "$tmp/src"
         timeout --signal=KILL 10 "$ailc" < "$tmp/src" > "$tmp/out" 2> /dev/null
-        got=$(tail -c +177 "$tmp/out" | hexof)
+        got=$(tail -c +$((177 + isz)) "$tmp/out" | hexof)
         case $got in
-        *$exit0) got=${got%$exit0};;
+        *$exit0????????) got=${got%$exit0????????};;
         *) got="no exit: $got";;
         esac
     fi
-    if [ "$got" = "$hex" ]; then
+    if [ "$mode" = asm ]; then
+        pat=$(printf '%s' "$hex" | sed 's/e8\.\{8\}/e800000000/g' | tr -d '<>')
+    else
+        pat=$(printf '%s' "$hex" | tr . '?')
+        # a distance to the writable segment: as far as the segment is
+        # from where it would be behind the code alone
+        delta=$(( ($(wc -c < "$tmp/out") + 4095) / 4096 * 4096 - 4096 - isz ))
+        while case $pat in *'<'*) true;; *) false;; esac; do
+            rest=${pat#*<}
+            d=$(printf '%s' "${rest%%>*}" | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/')
+            d=$(printf '%08x' $(( (0x$d + delta) & 0xffffffff )) | sed 's/\(..\)\(..\)\(..\)\(..\)/\4\3\2\1/')
+            pat=${pat%%<*}$d${rest#*>}
+        done
+    fi
+    case $got in $pat) same=1;; *) same=0;; esac
+    if [ $same -eq 1 ]; then
         echo "ok   $name"
     else
         echo "FAIL $name"; fail=1

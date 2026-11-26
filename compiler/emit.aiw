@@ -830,6 +830,27 @@ fn eop
 	call cp r+4+n c-n
 	jmp h
 	label m
+	loadb r+2 as c
+	if c&128
+		# a service of the runtime: a call of its entry in the image, which
+		# stands at 176. rt has read its name; any other row has the number
+		# of its entry where its code would be
+		if f&4
+			if ai!=rta
+				call ecount
+			end
+			if ncap>rtr
+				call eres
+			end
+		else
+			loadb r+4 as c
+			rte=c
+		end
+		call eb 232
+		load4 rte*4+rtimg+32 as c
+		call e4 out+176+c-op-4
+		ret 0
+	end
 	loadb r+3 as c
 	p=r+4+xskip
 	c-=xskip

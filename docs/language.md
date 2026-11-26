@@ -12,7 +12,7 @@ AIL is written by AI, so the cost that matters is tokens, not keystrokes or huma
 
 ## Program structure
 
-A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the syscall `exit_group` with status 0, which ends the whole process. A `sys exit` written in the program ends only the thread that runs it, which is the process when there is one thread; a program with other threads ends with `sys exit_group`.
+A program is a sequence of statements, one per line. Execution starts at the first statement and runs downwards unless a [jump](#control-flow) sends it elsewhere. After the last statement the compiler appends `exit(0)`: the service `exit` of the [runtime](#rt) with status 0, which ends the whole process, as `rt exit` written in the program does. A `sys exit` ends only the thread that runs it, which is the process when there is one thread.
 
 A [function](#functions) may stand anywhere between the statements. Execution passes around its body, which only runs when the function is called.
 
@@ -166,7 +166,7 @@ jslt fd 0 fail
 args as p
 ```
 
-Keeps in a variable the address of what the kernel passed to the program. At that address stands the number of arguments, 8 bytes; then one address for each argument, the first being the name the program was started with; then a zero; then one address for each environment string, and another zero. Every argument and environment string ends with a NUL byte.
+Keeps in a variable the address of what the program was started with, which the [runtime](#rt) noted at the start. At that address stands the number of arguments, 8 bytes; then one address for each argument, the first being the name the program was started with; then a zero; then one address for each environment string, and another zero. Every argument and environment string ends with a NUL byte.
 
 ```
 args as p
@@ -175,7 +175,36 @@ add p 8 as q
 load q as name          # address of the program's name
 ```
 
-`args` is a statement of the top level only: inside a function the stack no longer points there. Keep the address in a [`var`](#var) if functions need it; [`lib/std/io.aiw`](#the-io-library) does that and offers `argc` and `argv`.
+`args` may stand anywhere, in a function too, and gives the same address each time; it is the service `args` of the runtime. [`lib/std/io.aiw`](#the-io-library) offers `argc` and `argv`.
+
+### `rt`
+
+```
+rt name a b c
+rt name a b c as x y
+```
+
+Calls a service of the runtime: what a program asks of the platform it runs on, by a name that is the same on every platform, where [`sys`](#sys) is a system call of x86-64 Linux by its number. The runtime is code that the compiler puts into every executable; [runtime.md](runtime.md) describes it and each service. `name` is one of the names below and is a name only in that place: a variable, a `const` or a function of the program may be called the same. The values are [arguments](#arguments) like those of a `call`, a string being two, its address and its length. Their number is checked (`wrong operand count`), as is the number of names after `as`, which is optional and takes at most as many names as the service has results (`wrong result count`); a name that is no service is an `unknown service`.
+
+| Service | Values | Result |
+|---|---|---|
+| `exit` | status | none: ends the process with every thread |
+| `args` | | the address [`args`](#args) gives |
+| `alloc` | size | the address [`alloc`](#alloc-and-free) gives, or 0 |
+| `free` | address | none |
+| `open` | address and length of a path, flags, mode | a descriptor, or an error |
+| `close` | descriptor | 0, or an error |
+| `read` | descriptor, address, size | the bytes read, 0 at the end, or an error |
+| `write` | descriptor, address, size | the bytes written, or an error |
+
+An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
+
+```
+rt write 1 "hello\n" as n
+rt exit n!=6
+```
+
+A service is called like a function: it overwrites the registers of the [`sys`](#sys) arguments and leaves every variable.
 
 ### `set` and arithmetic
 
@@ -692,7 +721,7 @@ alloc size as p
 free p
 ```
 
-`alloc` asks the kernel for `size` bytes of memory at run time and keeps their address in a variable, or 0 if the kernel refuses. The bytes are zero-filled and the address is a multiple of 16. `free` gives back what one `alloc` returned; `free 0` does nothing. After `free` the address must not be used again.
+`alloc` asks the [runtime](#rt) for `size` bytes of memory at run time and keeps their address in a variable, or 0 if there are none to be had. The bytes are zero-filled and the address is a multiple of 16. `free` gives back what one `alloc` returned; `free 0` does nothing. After `free` the address must not be used again.
 
 ```
 alloc n as p
@@ -701,7 +730,7 @@ jz p fail
 free p
 ```
 
-Each `alloc` is a memory mapping of its own (`mmap` and `munmap`, with 16 bytes in front for the length), so it costs a system call and at least a page: use it for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
+The two statements are the services `alloc` and `free` of the runtime. On Linux each `alloc` is a memory mapping of its own (`mmap` and `munmap`, with 16 bytes in front for the length), so it costs a system call and at least a page: use it for storage whose size is only known at run time, a `buf` for what is fixed and a `local` for what a call needs. Both statements overwrite the registers of the [`sys`](#sys) arguments; variables are untouched.
 
 ### `var`
 
@@ -1788,12 +1817,12 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | Message | Status | Cause |
 |---|---|---|
 | `unknown statement` | 1 | a line that does not start with a statement keyword |
-| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn`, `use` or `args` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
+| `not allowed here` | 1 | `ret`, `tail` or `local` outside a function; `fn`, `async fn` or `use` inside one; `tail` in an async function; `end` with no block and no function open; `else` without an open block, in a `while`, or a second `else` in one |
 | `missing end` | 1 | the source, or a file named by `use`, ends inside a function or a block |
 | `missing as` | 1 | a statement that produces a value without `as`: `set`, `len`, the arithmetic statements, the comparisons, the loads, `at`, `alloc`, `ref`, `args` |
 | `unexpected as` | 1 | `as` on a store, a jump, an `if` form, `ret`, `tail` or `free` |
 | `missing label` | 1 | a jump whose values are not followed by a label name |
-| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys` |
+| `wrong operand count` | 1 | a statement with more or fewer values than it takes; `ret` without a value or with more than six; `tail` with more than six, where a string counts as two; `ref` with a value; `callp` without the address; an async function with more than six parameters; `await` of a handle with a second value; `spawn` with more than five values; more than seven values after `sys`; an `rt` with another number of values than its service takes |
 | `unterminated string` | 1 | a string, or the path of a `use`, with no closing quote |
 | `expected a name` | 1 | something else where a name must stand: after `fn`, `label`, `call`, `tail`, `ref`, `buf`, `var`, `const`, `local` or `as`; or the name `as` in one of those places |
 | `syntax error` | 1 | anything else that is not a statement of the language; see below |
@@ -1802,6 +1831,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `too many variables` | 1 | a 65th variable name at top level or in one function, parameters and locals included |
 | `duplicate name` *name* | 1 | `buf`, `data`, `var` or `const` with a name already in use (inside a function, also by a top-level variable), `as` at top level with the name of a buffer, of data or of a `const`, `as` with the name of a local, a `local` with a name the function already uses, a parameter with the name of a `var`, a parameter named twice, a second `label` with the same name in one scope, or a second `fn` with the same name |
 | `undefined label` *name* | 1 | a jump to a label that is not defined at top level or in the same function as the jump |
+| `unknown service` *name* | 1 | an [`rt`](#rt) whose name is no service of the runtime |
 | `undefined function` *name* | 1 | a `call`, `tail`, `ref` or `spawn` of a function that the program never defines; a `spawn` or `join` in a program without `lib/std/task.aiw`, with the name `spawn` or `join` |
 | `wrong argument count` *name* | 1 | a `call`, `tail` or `spawn` whose number of values differs from the number of parameters of the function named; a `join` without exactly one value |
 | `wrong result count` | 1 | two `ret` statements of one function with different numbers of values; a `ret` of an async function with more than one; with the name of the function, a `call` with more names after `as` than it has results, or a `tail` to a function whose number of results is not that of the function the `tail` stands in |

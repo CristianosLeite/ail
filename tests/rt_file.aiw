@@ -1,0 +1,16 @@
+# open, read up to the end and close a file; a path is its bytes, with
+# no zero behind them
+buf b 64
+data path "tests/lib/words.txtX"
+rt open path 19 0 0 as f
+rt read f b 5 as n
+rt write 1 b n
+rt write 1 "\n"
+t=n
+while n
+	rt read f b 64 as n
+	t+=n
+end
+rt close f as c
+rt close f as d
+rt exit (t>5)+(c==0)*2+(d==-9)*4

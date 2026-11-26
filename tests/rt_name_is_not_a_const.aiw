@@ -1,0 +1,8 @@
+# the name of a service is no name of the program: a const and a
+# function called like one change nothing
+const write 9
+fn close
+end
+rt write 1 "w\n" as a
+rt close 77 as b
+rt exit write+a+(b==-9)

@@ -54,6 +54,31 @@ $(B)/tools/randvars: $(TL) lib/std/proc.aiw tools/lib/rng.aiw
 $(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/proc.aiw $(B)/ailc
 	$(call compile,$(B)/ailc)
 
+# The runtime (docs/runtime.md): the services of the platform, compiled
+# without a C library into an image that may stand anywhere, which the
+# compiler has as data lines and copies into every executable. RT=<file>
+# takes an image built elsewhere instead of compiling one.
+RTDIR := rt/linux-x86_64
+RTFLAGS := -O2 -ffreestanding -fpie -fvisibility=hidden -fno-stack-protector \
+	-fno-asynchronous-unwind-tables -fcf-protection=none -nostdlib -Wall -Wextra -Werror
+RTIMG := $(B)/rt/image.aiw
+
+ifeq ($(RT),)
+$(B)/rt/image: $(RTDIR)/rt.c $(RTDIR)/entry.S $(RTDIR)/rt.h $(RTDIR)/image.ld
+	@mkdir -p $(@D)
+	$(CC) $(RTFLAGS) -c $(RTDIR)/rt.c -o $(B)/rt/rt.o
+	$(CC) $(RTFLAGS) -c $(RTDIR)/entry.S -o $(B)/rt/entry.o
+	$(LD) -T $(RTDIR)/image.ld -o $(B)/rt/image.elf $(B)/rt/entry.o $(B)/rt/rt.o
+	objcopy -O binary -j .image $(B)/rt/image.elf $@
+else
+$(B)/rt/image: $(RT)
+	@mkdir -p $(@D)
+	cp $(RT) $@
+endif
+
+$(RTIMG): $(B)/rt/image rt/image.sh
+	rt/image.sh $< > $@.tmp && mv $@.tmp $@
+
 # The compiler, compiler/ailc.aiw, in three generations: built by the seed
 # (ailc1), by that (ailc, the compiler everything else uses) and by itself
 # (ailc2). The seed may be an older compiler that writes other code for
@@ -64,13 +89,13 @@ $(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/p
 # compiler/ailc.aiw names the other files with use "compiler/<name>.aiw",
 # paths that the compiler opens from the directory make runs in. It is
 # the first of SRC because the recipes compile $<.
-$(B)/ailc1: $(SRC) $(B)/ailc0
+$(B)/ailc1: $(SRC) $(RTIMG) $(B)/ailc0
 	$(call compile,$(B)/ailc0)
 
-$(B)/ailc: $(SRC) $(B)/ailc1
+$(B)/ailc: $(SRC) $(RTIMG) $(B)/ailc1
 	$(call compile,$(B)/ailc1)
 
-$(B)/ailc2: $(SRC) $(B)/ailc
+$(B)/ailc2: $(SRC) $(RTIMG) $(B)/ailc
 	$(call compile,$(B)/ailc)
 
 # Each run names its compiler, so an AILC in the environment of make

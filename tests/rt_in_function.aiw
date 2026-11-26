@@ -1,0 +1,24 @@
+# a service called in a function, in one compiled in place, in a loop and
+# in a task: the variables of the caller stay
+use "lib/std/task.aiw"
+fn put c
+	local b 8
+	storeb b c
+	rt write 1 b 1 as n
+	ret n
+end
+fn line a
+	i=0
+	s=0
+	while i<3
+		call put a+i as n
+		s+=n
+		i+=1
+	end
+	call put 10 as n
+	ret s+n+a
+end
+call line 97 as r
+spawn line 120 as h
+join h as t
+rt exit r+t-217

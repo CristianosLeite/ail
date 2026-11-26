@@ -1,3 +1,8 @@
+# args in a function: the runtime kept what the process started with
 fn f
 	args as p
+	load p as n
+	ret n
 end
+call f as n
+sys exit n

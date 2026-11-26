@@ -1,0 +1,10 @@
+# the services alloc and free are the statements: zeros, a multiple of 16,
+# and 0 for what cannot be had
+rt alloc 4096 as p
+load p+4088 as z
+store p 7
+alloc 16 as q
+rt free p
+free q
+rt alloc -1 as n
+rt exit (p%16==0)+(z==0)*2+(n==0)*4+(p!=q)*8

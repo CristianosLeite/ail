@@ -43,7 +43,7 @@ data 3 "slt" 2 1 0 9 72 57 248 15 156 192 15 182 192
 data 3 "sle" 2 1 0 9 72 57 248 15 158 192 15 182 192
 data 3 "sgt" 2 1 0 9 72 57 248 15 159 192 15 182 192
 data 3 "sge" 2 1 0 9 72 57 248 15 157 192 15 182 192
-data 4 "args" 0 1 16 3 72 137 224
+data 4 "args" 0 1 128 1 2
 data 3 "len" 1 65 0 0
 data 4 "load" 1 129 0 3 72 139 0
 data 5 "loadb" 1 129 0 3 15 182 0
@@ -76,8 +76,8 @@ data 5 "fdot4" 4 1 0 44 102 72 15 110 192 72 133 210 116 29 243 15 16 15 243 15 
 data 4 "xadd" 2 129 0 8 240 72 15 193 56 72 137 248
 data 3 "cas" 3 129 0 17 72 137 193 72 137 248 240 72 15 177 49 15 148 192 15 182 192
 data 2 "at" 4 1 1 17 72 1 242 114 10 72 57 250 119 5 72 1 240 235 2 15 11
-data 5 "alloc" 1 1 0 58 72 61 0 240 255 255 115 48 72 141 112 16 49 255 186 3 0 0 0 65 186 34 0 0 0 73 131 200 255 69 49 201 184 9 0 0 0 15 5 72 61 0 240 255 255 119 9 72 137 48 72 131 192 16 235 2 49 192
-data 4 "free" 1 2 0 19 72 133 192 116 14 72 141 120 240 72 139 55 184 11 0 0 0 15 5
+data 5 "alloc" 1 1 128 1 3
+data 4 "free" 1 2 128 1 4
 data 3 "jmp" 0 10 0 1 233
 data 2 "jz" 1 10 0 5 72 133 192 15 132
 data 3 "jnz" 1 10 0 5 72 133 192 15 133
@@ -112,6 +112,9 @@ data 4 "tail" 0 50 0 11 65 95 65 94 65 93 65 92 93 91 233
 data 5 "spawn" 0 17 34 3 72 141 5
 data 4 "join" 0 16 32 1 232
 data 5 "await" 0 16 96 0
+# rt calls the service of the runtime named after it; args, alloc and free
+# are services too, their one byte of code the number of the entry
+data 2 "rt" 0 4 128 0
 data 2 "fn" 1 255 0 0
 data 3 "buf" 2 255 0 0
 data 3 "end" 3 255 0 0
@@ -168,6 +171,18 @@ data 10 "exit_group" 231 0
 data 6 "openat" 1 1
 data 9 "getrandom" 62 1
 data 0
+# the services of the runtime that rt names: name length, name, the number
+# of the entry in the image, how many values it takes, how many results
+# it gives
+data rtnames 4 "exit" 1 1 0
+data 4 "args" 2 0 1
+data 5 "alloc" 3 1 1
+data 4 "free" 4 1 0
+data 4 "open" 5 4 1
+data 5 "close" 6 1 1
+data 4 "read" 7 3 1
+data 5 "write" 8 3 1
+data 0
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195
 # function entry: six pushes
@@ -203,8 +218,8 @@ data regtab 0 184 0 191 0 190 0 186 65 186 65 184 65 185 65 187 0 185
 data argnum 0 7 6 2 10 8 9 11 1
 # per variable: x86 register number
 data varnum 3 5 12 13 14 15
-# mov eax,231 ; xor edi,edi ; syscall: exit_group, which ends every thread
-data exit0 184 231 0 0 0 49 255 15 5
+# xor eax,eax ; jmp: the end of a program, a jump to the service exit
+data exit0 49 192 233
 # the names of the comparisons, by operator number, three bytes each: the
 # statements that compare and jump are named with them
 data exkw "muldivmodaddsubshlshrandxoror_eq_ne_lt_le_gt_ge_"

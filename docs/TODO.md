@@ -49,10 +49,6 @@ and no object file; it is written in C first, built by `cc` in `make`,
 and then in AIL; one pull request when all of it is done, and the
 version 0.2.0 after it.
 
-- [ ] The runtime image in C for x86-64 Linux: start, arguments, exit,
-  allocation, files and streams.
-- [ ] The statement `rt` and the image in every executable; `alloc`,
-  `free`, `args` and the end of a program as services.
 - [ ] `examples/hello.aiw` and `lib/std/io.aiw` through the runtime,
   with size and startup measured.
 - [ ] Seed 7, which understands `rt`.
