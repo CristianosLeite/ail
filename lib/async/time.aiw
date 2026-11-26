@@ -13,13 +13,10 @@
 # many entries it has, 16 how many it has room for.
 buf asynctm 24
 
-# the clock (CLOCK_MONOTONIC), in nanoseconds
+# the clock that only goes forward, in nanoseconds
 fn asyncclock
-	local asyncts 16
-	sys clock_gettime 1 asyncts
-	load asyncts as asyncs
-	load asyncts+8 as asyncn
-	ret asyncs*1000000000+asyncn
+	rt clock as asyncn
+	ret asyncn
 end
 
 # put the entry (asyncd, asynce) where the entry asynci of the heap is,
@@ -134,10 +131,7 @@ fn asynctick asyncb
 		callp asyncf asyncms
 	else
 		if asyncms
-			local asyncts 16
-			store asyncts asyncms/1000
-			store asyncts+8 asyncms%1000*1000000
-			sys nanosleep asyncts 0
+			rt sleep asyncms*1000000
 		end
 	end
 	call asyncexpire

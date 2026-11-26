@@ -298,11 +298,8 @@ end
 # the time of the clock that only goes forward (CLOCK_MONOTONIC), in
 # nanoseconds since a moment that is the same for the whole run
 fn procnow
-	local proct 16
-	sys clock_gettime 1 proct
-	load proct as procs
-	load proct+8 as procn
-	ret procs*1000000000+procn
+	rt clock as procn
+	ret procn
 end
 
 # Let this thread, and the children it starts from now on, run only on

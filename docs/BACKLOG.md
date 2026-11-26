@@ -920,3 +920,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   form the kernel has for them. `lib/std/file.aiw` has no `sys` left
   and makes no copy of a path. `tests/rt_dirs`, and the `lib_file_*`
   tests as they were.
+- [x] Services for time (2026-11-26): `clock`, nanoseconds of the clock
+  that only goes forward, and `sleep`. On Linux the clock is read in
+  the page of code the kernel maps into every process, without a
+  system call, as C reads it: the runtime finds `clock_gettime` there
+  at the first call, through the hash table of either form, and keeps
+  it in its state. `procnow` and `lib/async/time.aiw` call them.
+  `tests/rt_clock`.

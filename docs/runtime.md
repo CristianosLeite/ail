@@ -34,6 +34,8 @@ result is a value.
 | 12 | `rmdir` | address and length of a path | 0, or an error (-39 if it is not empty): the empty directory is removed |
 | 13 | `rename` | address and length of a path, and of another | 0, or an error: the file has the second path, in place of a file that had it |
 | 14 | `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error (-22 for a size below 512): the next names of the directory, each with a NUL behind it, none of them `.` or `..` |
+| 15 | `clock` |  | nanoseconds of the clock that only goes forward, since a moment that is the same for the whole run |
+| 16 | `sleep` | nanoseconds | 0, or the error -4 of a wait that ended early |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,

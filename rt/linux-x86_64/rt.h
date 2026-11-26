@@ -7,13 +7,14 @@
 #define AIL_RT_H
 
 /* the bytes of state, which the header of the image names */
-#define RT_STATE 8
+#define RT_STATE 16
 
 #ifndef __ASSEMBLER__
 
 /* the state: bytes the compiler reserves, zero at the start */
 struct rt {
 	long sp;	/* the stack at the start: argc, the arguments, the environment */
+	long clock;	/* clock_gettime of the kernel's page of code, 1 if it has none, 0 before the first use */
 };
 
 /* two results: the first in rax, the second in rdx, which the entry
@@ -40,6 +41,8 @@ long rt_unlink(struct rt *rt, const char *path, unsigned long n);
 long rt_rmdir(struct rt *rt, const char *path, unsigned long n);
 long rt_rename(struct rt *rt, const char *path, unsigned long n, const char *to, unsigned long m);
 long rt_names(struct rt *rt, long fd, char *p, unsigned long n);
+long rt_clock(struct rt *rt);
+long rt_sleep(struct rt *rt, unsigned long ns);
 
 #endif
 #endif

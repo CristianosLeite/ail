@@ -37,6 +37,8 @@ rt_table:
 	.long e_rmdir - rt_image
 	.long e_rename - rt_image
 	.long e_names - rt_image
+	.long e_clock - rt_image
+	.long e_sleep - rt_image
 rt_table_end:
 
 	.text
@@ -80,3 +82,5 @@ e_start:
 	entry rmdir
 	entry rename
 	entry names
+	entry clock
+	entry sleep

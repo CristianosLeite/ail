@@ -93,7 +93,7 @@ A tool written in AIL is `tools/<name>.aiw`, compiled by `build/ailc` after the 
 - `use "path"`: compiles another file at this place, once per path as written; top level only. All files together share the source limit.
 
 - `sys n a b ...`: raw Linux syscall, up to 6 arguments; `n` is a number, a `const`, or one of the built-in syscall names (`read`, `write`, `open`, `close`, `mmap`, `exit`, ...; the list is in `docs/language.md`), which are names only in that place.
-- `rt name a b ... as x y`: a service of the runtime by its name (`exit`, `args`, `alloc`, `free`, `open`, `close`, `read`, `write`, `pipeerr`, `mkdir`, `unlink`, `rmdir`, `rename`, `names`; the table is in `docs/language.md`), values as for `call`, a string two of them, counts checked; an error is a negative result above -4096. `sys` is for what only x86-64 Linux has.
+- `rt name a b ... as x y`: a service of the runtime by its name (`exit`, `args`, `alloc`, `free`, `open`, `close`, `read`, `write`, `pipeerr`, `mkdir`, `unlink`, `rmdir`, `rename`, `names`, `clock`, `sleep`; the table is in `docs/language.md`), values as for `call`, a string two of them, counts checked; an error is a negative result above -4096. `sys` is for what only x86-64 Linux has.
 - `args as p`: the address of argc, the argument addresses and the environment; a service of the runtime, so allowed in a function too.
 - `x=e` keeps the expression `e` in `x` as `set e as x` does, and `x+=e`, with any of `* / % + - << >> & ^ |` before the `=`, changes `x` in place by the whole of `e`. One word, no space; the name is read before statements are looked up, so it may be a keyword.
 - `set a as x`, and `add sub mul div mod and or xor shl shr` as `op a b as x`: 64-bit, wrapping, unsigned division and shift.
