@@ -1254,3 +1254,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   with LF alone, so they still passed and no longer tested a CR
   before the LF. Every line of them has its CR back, the lines with
   `rt` included.
+- [x] The version 0.2.0 of AIL (user, 2026-11-26), the first with the
+  runtime, the pull request 36: the statement `rt` and its services,
+  `alloc`, `free` and `args` as services, the libraries without `sys`,
+  and the compiler for Windows on x86-64. `Ailfile` says it and the
+  tag `v0.2.0` names the merge of it, so that a package asks for them
+  with `ail 0.2.0`. A second number, which the user set with the plan
+  of the runtime: every executable is another file than 0.1.2 wrote.
+  The items of the runtime that are open stay in `docs/TODO.md`.

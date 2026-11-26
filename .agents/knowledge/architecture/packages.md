@@ -92,7 +92,12 @@ The rest is the open section of `docs/TODO.md`.
   (user, 2026-11-24) is the first with `lib/std/sha.aiw`, `procheld` of
   `lib/std/proc.aiw` and float literals (the pull requests 32, 33 and
   34), which aildb asked for: a third number again, since what was
-  written before it compiles and runs as it did.
+  written before it compiles and runs as it did. **0.2.0** (user,
+  2026-11-26) is the first with the runtime (the pull request 36): the
+  statement `rt`, the libraries without `sys` and the compiler for
+  Windows on x86-64. A second number, set by the user with the plan of
+  the runtime before it was written: every executable is another file
+  than 0.1.2 wrote, and `ail 0.1.2` of a package is still met.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 

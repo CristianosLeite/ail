@@ -49,7 +49,9 @@ built by `cc` in `make`, and then in AIL; one pull request when all of
 it is done, and the version 0.2.0 after it. The first two phases are
 done for x86-64 Linux ([BACKLOG.md](BACKLOG.md)): the runtime is AIL
 source that the compiler compiles with every program
-([runtime.md](runtime.md)), and the seeds 7 and 8 wait to be published.
+([runtime.md](runtime.md)), and the version 0.2.0 is that state, with
+the runtime of Windows as far as Wine shows it. The seed 8 is
+published; the seed 7, which had the runtime in C, is not.
 
 - [ ] The command `ail` and the tools without `sys`. `cli/tool.aiw`
   starts a test in a group of processes of its own, with a watcher that
@@ -89,4 +91,3 @@ source that the compiler compiles with every program
   through the variables of its function; a division by a constant is a
   division where C multiplies (`allocs` lost 13% to that before its
   sizes were a mask).
-- [ ] Version 0.2.0.
