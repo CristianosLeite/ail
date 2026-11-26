@@ -1496,6 +1496,12 @@ fn rt_reap rt_pid rt_ms
 		end
 	end
 	call rt_reaping rt_pid rt_ms rt_o as rt_r rt_k
+	# while the number is still in the list, so that no other reap sees
+	# the child that was asked about and left, nor takes it before the
+	# signal to its group
+	if rt_k&(rt_o!=0)
+		call rt_ungroup rt_pid rt_r!=-1001
+	end
 	call rt_mlock
 	rt_p=rt_state+360
 	label rt_next
@@ -1507,9 +1513,6 @@ fn rt_reap rt_pid rt_ms
 	load rt_me as rt_n
 	store rt_p rt_n
 	call rt_munlock
-	if rt_k&(rt_o!=0)
-		call rt_ungroup rt_pid rt_r!=-1001
-	end
 	ret rt_r
 end
 

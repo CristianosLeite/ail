@@ -1,24 +1,61 @@
 # one child and eight threads that reap it at once: one of them takes it
-# and gets its status, and it is no child to the seven others, nor to a
-# reap after all of them. This program, started again with an argument,
-# is that child. The threads stay until the process ends: under Wine a
-# thread that returns while the process exits can give its 0 as the
-# status of the process
+# and gets its status, and it is no child to the seven others, which ask
+# again and again until that one has returned, nor to a reap after all
+# of them; then the same with a child that leads a group, which the
+# runtime asks about before it takes it.
+# This program, started again with an argument, is that child. The
+# threads stay until the process ends: under Wine a thread that returns
+# while the process exits can give its 0 as the status of the process
 data mark "child" 0
 buf argv 24
 buf io 24
 buf res 64
 buf done 8
 buf hold 8
+buf taken 8
 var kid
 fn work i
+	label again
 	rt reap kid 0 as r
+	load taken as t
+	if (r==-1001)&(t==0)
+		jmp again
+	end
+	store taken 1
 	store res+i*8 r
 	xadd done 1 as o
 	rt wake done 1
 	while 1
 		rt wait hold 0 -1
 	end
+end
+fn round flags
+	rt start argv 0 io flags as c
+	set c as kid
+	store done 0
+	store taken 0
+	ref work as f
+	i=0
+	while i<8
+		rt thread f i
+		i+=1
+	end
+	load done as d
+	while d<8
+		rt wait done d -1
+		load done as d
+	end
+	got=0
+	none=0
+	i=0
+	while i<8
+		load res+i*8 as r
+		got+=r==42
+		none+=r==-1001
+		i+=1
+	end
+	rt reap c 0 as e
+	ret (got==1)+(none==7)*2+(e==-1001)*4
 end
 args as p
 load p as n
@@ -32,27 +69,6 @@ store argv+8 mark
 store io -1
 store io+8 -1
 store io+16 -1
-rt start argv 0 io 0 as c
-set c as kid
-ref work as f
-i=0
-while i<8
-	rt thread f i
-	i+=1
-end
-load done as d
-while d<8
-	rt wait done d -1
-	load done as d
-end
-got=0
-none=0
-i=0
-while i<8
-	load res+i*8 as r
-	got+=r==42
-	none+=r==-1001
-	i+=1
-end
-rt reap c 0 as e
-rt exit (got==1)+(none==7)*2+(e==-1001)*4
+call round 0 as a
+call round 2 as b
+rt exit a+b*8

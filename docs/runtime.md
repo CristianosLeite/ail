@@ -317,8 +317,9 @@ Where a service cannot be on Windows what it is on Linux:
   program that makes a group of its own (`setsid`, `setpgid`) is out
   of it. `reap` asks about such a child and leaves it where it is
   until the group is killed, so that the number of the group is no
-  other's by then, and takes the watcher by a descriptor of it where
-  the kernel has one (Linux 5.4).
+  other's by then, keeps the child from every other `reap` until it
+  is taken, and takes the watcher by a descriptor of it where the
+  kernel has one (Linux 5.4).
 - `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform
