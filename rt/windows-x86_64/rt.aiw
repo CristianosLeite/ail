@@ -722,17 +722,20 @@ end
 # that holds it until it is closed or the process ends, or an error.
 # Windows locks no directory, so the lock is a mutex of Windows named
 # by what the path leads to, however it is written: the file is opened,
-# for nothing but to be asked about, and the name is "Local\ail-" and
+# for nothing but to be asked about, and the name is "Global\ail-" and
 # 48 digits, the number of its volume and the number it has there, 64
 # and 128 bits, the whole of each: of the 64 bits that Windows has for
 # the number of a file too, some files of one volume have the same. A
 # number of the file that is all zeros is what a volume gives that has
-# none, for every file of it, and is the error -95. A
+# none, for every file of it, and is the error -95. The name is one
+# for all the sessions of the machine, and the mutex is made open to
+# every user, as the file is to those that can open it: a service and
+# a program of a user that lock one directory wait for each other. A
 # mutex belongs to a thread, which may take it again and which alone
 # gives it back: the thread that took the lock closes it.
 fn rt_lock rt_p rt_n
 	local rt_z 4096
-	local rt_y 56
+	local rt_y 64
 	local rt_a 56
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
@@ -771,9 +774,10 @@ fn rt_lock rt_p rt_n
 	ifz rt_i|rt_c
 		ret -95
 	end
-	# "Local\ail-", then the 8 bytes of the volume and the 16 of the file
-	store rt_z 0x69615c6c61636f4c
-	store2 rt_z+8 0x2d6c
+	# "Global\ail-", then the 8 bytes of the volume and the 16 of the file
+	store rt_z 0x615c6c61626f6c47
+	store2 rt_z+8 0x6c69
+	storeb rt_z+10 45
 	rt_i=0
 	while rt_i<48
 		loadb rt_y+rt_i/2 as rt_c
@@ -781,15 +785,24 @@ fn rt_lock rt_p rt_n
 		if rt_c>9
 			rt_c+=39
 		end
-		storeb rt_z+10+rt_i rt_c+48
+		storeb rt_z+11+rt_i rt_c+48
 		rt_i+=1
 	end
-	storeb rt_z+58 0
+	storeb rt_z+59 0
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
 	end
-	store rt_a 0
+	# who may open the mutex: 24 bytes that name a description of 40,
+	# which says that there is a list of who may and gives none, and
+	# that is everybody; without it a mutex made by a service is closed
+	# to the users
+	zero rt_y 64
+	store4 rt_y 24
+	store rt_y+8 rt_y+24
+	storeb rt_y+24 1
+	store2 rt_y+26 4
+	store rt_a rt_y
 	store rt_a+8 0
 	store rt_a+16 rt_z
 	call rt_api rt_i_createmutexa rt_a 3 as rt_h

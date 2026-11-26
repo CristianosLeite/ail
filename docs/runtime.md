@@ -300,7 +300,10 @@ Where a service cannot be on Windows what it is on Linux:
   opened file (`FileIdInfo`, Windows 8), so that two ways to write the
   path of one directory are one lock and two files never are; where
   Windows does not say them, or the volume has no number for its
-  files and gives zeros, the service is an error. A
+  files and gives zeros, the service is an error. The name is in the
+  names that all sessions of the machine share (`Global\`) and the
+  mutex is open to every user, so that a service and the program of
+  a user keep each other out. A
   mutex belongs to a thread, so the thread that took the lock closes
   it, and a second `lock` of the same file by that thread is given at
   once.
