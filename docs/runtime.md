@@ -36,6 +36,10 @@ result is a value.
 | 14 | `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error (-22 for a size below 512): the next names of the directory, each with a NUL behind it, none of them `.` or `..` |
 | 15 | `clock` |  | nanoseconds of the clock that only goes forward, since a moment that is the same for the whole run |
 | 16 | `sleep` | nanoseconds | 0, or the error -4 of a wait that ended early |
+| 17 | `wait` | address, value, nanoseconds or -1 | 0 after a `wake` of the address, -11 if the four bytes there were not the value, -110 after the time, -4 after a signal: the thread sleeps while the four bytes at the address are the value, and looks again whatever comes back |
+| 18 | `wake` | address, number | how many threads that sleep in a `wait` of the address were woken, at most the number |
+| 19 | `cpus` |  | the processors the process may run on, at least 1 |
+| 20 | `thread` | address of a function, value | 0, or an error: a thread calls the function with the value and ends when it returns. Its stack is 8 MiB with a closed page under it, so a function that needs more faults |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -62,6 +66,7 @@ them; a runtime for another platform gives the same numbers:
 | -32 | the other end is closed |
 | -22 | a value that the service does not take |
 | -36 | the path is too long |
+| -110 | the time is over |
 | -39 | the directory is not empty |
 
 ## How a program calls it

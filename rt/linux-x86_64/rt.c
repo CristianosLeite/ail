@@ -24,7 +24,7 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
 	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_nanosleep = 35, SYS_rename = 82, SYS_mkdir = 83,
-	SYS_rmdir = 84, SYS_unlink = 87, SYS_getdents64 = 217, SYS_clock_gettime = 228,
+	SYS_rmdir = 84, SYS_unlink = 87, SYS_futex = 202, SYS_sched_getaffinity = 204, SYS_getdents64 = 217, SYS_clock_gettime = 228,
 	SYS_exit_group = 231
 };
 
@@ -317,4 +317,43 @@ long rt_sleep(struct rt *rt, unsigned long ns)
 	t[0] = ns / 1000000000;
 	t[1] = ns % 1000000000;
 	return sys2(SYS_nanosleep, t, 0);
+}
+
+/* Sleep while the four bytes at p are v, until a wake of p or for ns
+ * nanoseconds at most, -1 for no limit: 0 after a wake, -11 if the
+ * bytes were another value, -110 after the time, -4 after a signal. A
+ * caller looks at the bytes again whatever comes back. */
+long rt_wait(struct rt *rt, unsigned *p, unsigned long v, long ns)
+{
+	long t[2];
+
+	(void)rt;
+	if (ns < 0)
+		return sys4(SYS_futex, p, 128, v, 0);
+	t[0] = ns / 1000000000;
+	t[1] = ns % 1000000000;
+	return sys4(SYS_futex, p, 128, v, t);
+}
+
+/* wake up to n threads that sleep in a wait of p: how many were woken */
+long rt_wake(struct rt *rt, unsigned *p, unsigned long n)
+{
+	(void)rt;
+	return sys3(SYS_futex, p, 129, n);
+}
+
+/* the processors this process may run on; 1 if the kernel does not say */
+long rt_cpus(struct rt *rt)
+{
+	unsigned char m[128];
+	long r, c = 0;
+
+	(void)rt;
+	r = sys3(SYS_sched_getaffinity, 0, sizeof m, m);
+	if (r <= 0 || r > (long)sizeof m)
+		return 1;
+	while (r--)
+		for (; m[r]; m[r] &= m[r] - 1)
+			c++;
+	return c ? c : 1;
 }

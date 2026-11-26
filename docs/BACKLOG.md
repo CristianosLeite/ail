@@ -927,3 +927,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   at the first call, through the hash table of either form, and keeps
   it in its state. `procnow` and `lib/async/time.aiw` call them.
   `tests/rt_clock`.
+- [x] Services for threads (2026-11-26): `thread`, which runs a function
+  of the program with a value on a stack of its own and gives the stack
+  back when the function returns, `wait` and `wake` on the four bytes
+  at an address, and `cpus`. `lib/std/task.aiw` has no `sys` left: its
+  lock, its idle workers and its joins sleep in `wait`, and a worker is
+  a `thread`. `tests/rt_thread`, and the `spawn_*`, `join_*` and
+  `task_*` tests as they were, the stack overflow that must fault among
+  them.

@@ -204,6 +204,10 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `names` | descriptor of a directory, address, size | the bytes written, 0 after the last name, or an error |
 | `clock` |  | nanoseconds of the clock that only goes forward, since a moment that is the same for the whole run |
 | `sleep` | nanoseconds | 0, or the error -4 of a wait that ended early |
+| `wait` | address, value, nanoseconds or -1 | 0 after a `wake`, -11 if the four bytes at the address were not the value, -110 after the time, -4 |
+| `wake` | address, number | how many threads that sleep in a `wait` of the address were woken, at most the number |
+| `cpus` |  | the processors the process may run on, at least 1 |
+| `thread` | address of a function, value | 0, or an error: a thread calls the function with the value and ends when it returns |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

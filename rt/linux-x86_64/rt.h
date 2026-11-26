@@ -43,6 +43,9 @@ long rt_rename(struct rt *rt, const char *path, unsigned long n, const char *to,
 long rt_names(struct rt *rt, long fd, char *p, unsigned long n);
 long rt_clock(struct rt *rt);
 long rt_sleep(struct rt *rt, unsigned long ns);
+long rt_wait(struct rt *rt, unsigned *p, unsigned long v, long ns);
+long rt_wake(struct rt *rt, unsigned *p, unsigned long n);
+long rt_cpus(struct rt *rt);
 
 #endif
 #endif

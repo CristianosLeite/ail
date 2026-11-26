@@ -1,0 +1,35 @@
+# a thread of the runtime runs a function with a value; wait sleeps while
+# a cell has a value and wake ends it; a wait on another value returns at
+# once, and one with a time ends by itself
+buf cell 8
+buf done 8
+fn work v
+	store cell v
+	rt wake cell 1
+	# go on when the starter has seen it
+	c=v
+	while c==v
+		rt wait cell v -1
+		load cell as c
+	end
+	store done 1
+	rt wake done 1
+end
+ref work as f
+rt thread f 7 as t
+a=0
+while a==0
+	rt wait cell 0 -1
+	load cell as a
+end
+store cell 9
+rt wake cell 1
+d=0
+while d==0
+	rt wait done 0 -1
+	load done as d
+end
+rt wait cell 5 -1 as e
+rt wait cell 9 1000000 as l
+rt cpus as n
+rt exit (t==0)+(a==7)*2+(e==-11)*4+(l==-110)*8+(n>0)*16
