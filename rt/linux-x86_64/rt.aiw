@@ -72,7 +72,6 @@ const rt_fcntl 72
 const rt_flock 73
 const rt_getcwd 79
 const rt_chdir 80
-const rt_fchdir 81
 const rt_readlink 89
 const rt_fchmod 91
 const rt_setpgid 109
@@ -182,31 +181,56 @@ end
 
 # The directory at the path as the kernel names it, from the root and
 # with no link and no ".." in it, into the rt_m bytes at rt_q as rt_cwd
-# writes one: its length, or an error. The kernel says that of the
-# directory a process is in, so the process goes there and comes back,
-# by a descriptor, which a directory that may be entered and not listed
-# gives as well; the lock keeps two threads from doing so at once, and
-# a thread that names a file from the directory of the process must not
-# do it meanwhile.
+# writes one: its length, or an error, -34 if it does not fit. The
+# kernel says that of a descriptor, as what the link of its number in
+# /proc/self/fd leads to, so the directory is opened, as a place alone,
+# which one that may be entered and not listed gives as well, and the
+# process stays in the directory it is in.
 fn rt_real rt_p rt_n rt_q rt_m
 	local rt_z 4096
+	local rt_b 40
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
 		ret rt_r
 	end
-	set ".\0" as rt_d
-	call rt_mlock
-	sys open rt_d 0x290000 0 as rt_fd
-	rt_r=rt_fd
-	ifsge rt_fd 0
-		sys rt_chdir rt_z as rt_r
-		ifz rt_r
-			call rt_cwd rt_q rt_m as rt_r
-			sys rt_fchdir rt_fd
-		end
-		sys close rt_fd
+	ifz rt_m
+		ret -34
 	end
-	call rt_munlock
+	sys open rt_z 0x290000 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	set "/proc/self/fd/" as rt_d
+	rt_i=0
+	while rt_i<14
+		loadb rt_d+rt_i as rt_c
+		storeb rt_b+rt_i rt_c
+		rt_i+=1
+	end
+	# the number, its last digit at 33
+	rt_i=34
+	storeb rt_b+rt_i 0
+	rt_v=rt_fd
+	label rt_digit
+	rt_i-=1
+	storeb rt_b+rt_i rt_v%10+48
+	rt_v/=10
+	jnz rt_v rt_digit
+	rt_j=14
+	while rt_i<35
+		loadb rt_b+rt_i as rt_c
+		storeb rt_b+rt_j rt_c
+		rt_i+=1
+		rt_j+=1
+	end
+	sys rt_readlink rt_b rt_q rt_m as rt_r
+	sys close rt_fd
+	if rt_r==rt_m
+		ret -34
+	end
+	ifsge rt_r 0
+		storeb rt_q+rt_r 0
+	end
 	ret rt_r
 end
 

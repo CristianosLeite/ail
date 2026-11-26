@@ -1,0 +1,32 @@
+# real leaves the process where it is: the kernel refuses every change
+# of the directory of the process, by a path and by a descriptor, and
+# real still names a directory, with the process in the one it was in.
+# Linux alone.
+buf a 4096
+buf b 4096
+buf c 4096
+buf prog 16
+# the calls 80 and 81: the error 13, else as ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 1 0 80 0 0 0
+data 21 0 0 1 81 0 0 0
+data 6 0 0 0 13 0 5 0
+data 6 0 0 0 0 0 255 127
+rt cwd a 4096 as n
+sys 157 38 1 0 0 0 as p
+store prog 5
+store prog+8 flt
+sys 157 22 2 prog 0 0 as q
+rt chdir "build" as d
+rt real "build/.." c 4096 as k
+x=k==n
+i=0
+while i<n
+	loadb a+i as u
+	loadb c+i as v
+	x=x&(u==v)
+	i+=1
+end
+rt cwd b 4096 as m
+rt write 1 "stay\n"
+rt exit (p==0)+(q==0)*2+(d==-13)*4+x*8+(m==n)*16
