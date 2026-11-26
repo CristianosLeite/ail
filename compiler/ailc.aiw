@@ -255,6 +255,7 @@ buf refs 201457696    # 4194305 uses of a name not declared yet, and 2097152 mor
 
 # ---- the functions are files of their own, compiled here in this order:
 # errors, input, tables of names, expressions and their code, output
+use "target:target.aiw"
 use "compiler/diag.aiw"
 use "compiler/lex.aiw"
 use "compiler/names.aiw"
@@ -286,7 +287,7 @@ srcend=p
 mainend=p
 ip=in
 op=out
-call cp hdr 176
+call cp thdr thdrn
 # the runtime is compiled first, behind the header, the program behind it
 call rtinit
 load4 rtsrcn as r
@@ -1700,10 +1701,6 @@ while r
 end
 epos=-1
 q=op-out
-store out+96 q
-store out+104 q
-store out+136 rwstart
-store out+144 rwstart
 c=ngv*8+bsssz
 # The first line of the runtime keeps the stack the process starts
 # with. If no service that reads it is called it does nothing instead,
@@ -1711,15 +1708,23 @@ c=ngv*8+bsssz
 # of the buffers, the segment ends before it: a program that keeps
 # nothing in memory has no writable segment, as before the runtime.
 ifz rtuse&1
-	call mv nops+36 out+176 9
-	storeb out+185 144
+	p=out+thdrn
+	r=tbootn
+	while r>9
+		call mv nops+36 p 9
+		p+=9
+		r-=9
+	end
+	if r
+		call mv r*(r-1)/2+nops p r
+	end
 end
 ifz rtuse
 	if rtt
 		c=ngv*8+rtbss
 	end
 end
-store out+160 c
+call tfin q rwstart c as q
 if c+rwstart>0x7fffffff
 	call ebuf
 end
@@ -1736,4 +1741,4 @@ jnz q w1
 # ---- the read-only tables are a file of their own, compiled here: a data
 # name may be declared after its uses
 use "compiler/tables.aiw"
-use "build/rt/source.aiw"
+use "rt:source.aiw"

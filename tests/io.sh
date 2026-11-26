@@ -46,7 +46,10 @@ expect io_closed_stdin "ailc: read error"
 # its stdout sets both properties; they belong to the open pipe, so they
 # outlast it. The compiler must write the first 4096 bytes of an executable
 # larger than that, then fail on the rest.
+# the source of the compiler, which names its target and its runtime as
+# packages
 src=compiler/ailc.aiw
+pk="target=compiler/linux-x86_64 rt=build/rt/linux-x86_64"
 mkfifo $tmp/short
 exec 4<> $tmp/short
 $ailc > $tmp/setup << 'EOF2'
@@ -61,8 +64,8 @@ label good
 EOF2
 chmod +x $tmp/setup
 $tmp/setup >&4 || echo "FAIL io_short_write: no small pipe"
-$ailc < $src > $tmp/full
-$ailc < $src >&4 2> $tmp/err
+$ailc $pk < $src > $tmp/full
+$ailc $pk < $src >&4 2> $tmp/err
 rc=$?
 dd bs=4096 count=1 <&4 > $tmp/got 2> /dev/null
 exec 4>&-

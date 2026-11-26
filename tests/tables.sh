@@ -23,7 +23,7 @@ function bytes(line,    i, w, n, k, s) {
     }
 }
 BEGIN {
-    size["hdr"] = 176; size["retc"] = 11; size["fnpush"] = 10; size["zeroes"] = 14
+    size["retc"] = 11; size["fnpush"] = 10; size["zeroes"] = 14
     size["zerolen"] = 6; size["pushlen"] = 7; size["probe"] = 36; size["asytst"] = 5; size["asypoll"] = 15; size["asyret"] = 11; size["asyawt"] = 23; size["asysus"] = 9; size["regtab"] = 18
     size["argnum"] = 9; size["varnum"] = 6; size["exit0"] = 3; size["callkw"] = 4
     size["exkw"] = 48; size["xopc"] = 48; size["xord"] = 13; size["nops"] = 45
@@ -110,6 +110,10 @@ END {
     if (nrows < 80) bad("optab has only " nrows " rows")
     exit nbad != 0
 }' compiler/tables.aiw)
+# the header of the target, a table of its own file
+n=$(awk '/^data thdr / { t = 1; sub(/^data thdr/, "data") } /^data / && t { n += NF - 1; next } t && !/^data / { t = 0 } END { print n + 0 }' compiler/linux-x86_64/target.aiw)
+[ "$n" -eq 176 ] || out="$out
+the header of linux-x86_64 has $n bytes, not 176"
 if [ $? -eq 0 ] && [ -z "$out" ]
 then echo "ok   tables_form"
 else echo "FAIL tables_form"; [ -n "$out" ] && echo "$out" | sed 's/^/     /'; exit 1

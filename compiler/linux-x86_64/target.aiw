@@ -1,0 +1,41 @@
+# ailc -- what the compiler knows of its target, x86-64 Linux, beyond the
+# instructions: the form of an executable, and what the runtime of that
+# platform asks of the compiler. compiler/ailc.aiw names this file with
+# use "target:target.aiw", and the build says which directory "target"
+# is; another platform is another directory with the same names.
+
+# the bytes of the header, behind which the code of the runtime starts,
+# and where in a line of the cache, 64 bytes, that is
+const thdrn 176
+const talign 48
+# the bytes of the first line of the runtime, which keeps the stack the
+# process starts with: fin makes them do nothing in a program that calls
+# no service that reads it. 0 for a runtime without such a line.
+const tbootn 10
+# 1 if the statement sys means something here
+const tsys 1
+# the ELF header (type 3: loaded anywhere) and the two program headers
+data thdr 127 69 76 70 2 1 1 0 0 0 0 0 0 0 0 0
+data 3 0 62 0 1 0 0 0 176 0 0 0 0 0 0 0
+data 64 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 64 0 56 0 2 0 64 0 0 0 0 0
+data 1 0 0 0 5 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 16 0 0 0 0 0 0 1 0 0 0 6 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+data 0 0 0 0 0 0 0 0 0 16 0 0 0 0 0 0
+
+# The code and the layout are complete: write into the header the bytes
+# of the file, q, where the writable segment starts, rw, and its bytes,
+# m. The bytes of the file to write, which may be more than q where the
+# form wants the file to end at a boundary.
+fn tfin q rw m
+	store out+96 q
+	store out+104 q
+	store out+136 rw
+	store out+144 rw
+	store out+160 m
+	ret q
+end

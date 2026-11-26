@@ -57,8 +57,15 @@ $(B)/ail: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/p
 # The runtime (docs/runtime.md): the services of the platform, written in
 # AIL. The compiler has its source as data lines and compiles it with
 # every program, rt.aiw in front of the program and state.aiw behind it.
-RTDIR := rt/linux-x86_64
-RTSRC := $(B)/rt/source.aiw
+# What the compiler is built for: compiler/$(TARGET)/target.aiw says how
+# an executable of that platform is made and rt/$(TARGET) is its
+# runtime. The source names both through packages, "target" and "rt",
+# which each compiler that compiles it is told here.
+TARGET := linux-x86_64
+RTDIR := rt/$(TARGET)
+RTSRC := $(B)/rt/$(TARGET)/source.aiw
+PKGS := target=compiler/$(TARGET) rt=$(B)/rt/$(TARGET)
+TSRC := compiler/$(TARGET)/target.aiw
 
 $(RTSRC): $(RTDIR)/rt.aiw $(RTDIR)/state.aiw rt/source.sh
 	@mkdir -p $(@D)
@@ -74,14 +81,14 @@ $(RTSRC): $(RTDIR)/rt.aiw $(RTDIR)/state.aiw rt/source.sh
 # compiler/ailc.aiw names the other files with use "compiler/<name>.aiw",
 # paths that the compiler opens from the directory make runs in. It is
 # the first of SRC because the recipes compile $<.
-$(B)/ailc1: $(SRC) $(RTSRC) $(B)/ailc0
-	$(call compile,$(B)/ailc0)
+$(B)/ailc1: $(SRC) $(TSRC) $(RTSRC) $(B)/ailc0
+	$(call compile,$(B)/ailc0 $(PKGS))
 
-$(B)/ailc: $(SRC) $(RTSRC) $(B)/ailc1
-	$(call compile,$(B)/ailc1)
+$(B)/ailc: $(SRC) $(TSRC) $(RTSRC) $(B)/ailc1
+	$(call compile,$(B)/ailc1 $(PKGS))
 
-$(B)/ailc2: $(SRC) $(RTSRC) $(B)/ailc
-	$(call compile,$(B)/ailc)
+$(B)/ailc2: $(SRC) $(TSRC) $(RTSRC) $(B)/ailc
+	$(call compile,$(B)/ailc $(PKGS))
 
 # Each run names its compiler, so an AILC in the environment of make
 # changes nothing.

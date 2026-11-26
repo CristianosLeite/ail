@@ -27,6 +27,7 @@ toolleftovers() {
 mkdir "$d/compiler" "$d/seed" "$d/tools" "$d/examples" "$d/build"
 cp -p Makefile "$d/"
 cp -p compiler/*.aiw "$d/compiler/"
+cp -pr compiler/linux-x86_64 "$d/compiler/"
 cp -p seed/MANIFEST "$d/seed/"
 cp -p tools/seed.sh "$d/tools/"
 # the seed and the compilers built from it, each newer than what it is

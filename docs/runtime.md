@@ -112,7 +112,7 @@ mapping for every block took 79 times as long.
 ## How the runtime is part of a program
 
 `rt/linux-x86_64/rt.aiw` is AIL source that the compiler has as data
-(`build/rt/source.aiw`, written by `rt/source.sh` without its comments)
+(`build/rt/linux-x86_64/source.aiw`, written by `rt/source.sh` without its comments)
 and compiles in front of every program, as if the program began with
 it. A function `rt_<name>` there is the service `name`: it takes the
 values of the service and returns its results, and a statement that

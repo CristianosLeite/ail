@@ -284,7 +284,7 @@ fn rtready
 		r+=4
 		jmp a
 	end
-	n=(out+48-op)&63
+	n=(out+talign-op)&63
 	while n>9
 		call cp nops+36 9
 		n-=9
