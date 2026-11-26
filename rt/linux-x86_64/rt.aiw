@@ -53,7 +53,25 @@ fn rt_write rt_fd rt_p rt_n
 end
 
 # system calls that the compiler has no name for
+const rt_poll7 7
+const rt_sigprocmask 14
+const rt_dup2 33
+const rt_sendto 44
+const rt_getsockname 51
+const rt_setsockopt 54
+const rt_getsockopt 55
+const rt_fcntl 72
+const rt_getppid 110
+const rt_sigtimedwait 128
+const rt_prctl 157
+const rt_setaffinity 203
 const rt_getdents 217
+const rt_epollwait 232
+const rt_epollctl 233
+const rt_accept4 288
+const rt_eventfd2 290
+const rt_epollcreate1 291
+const rt_pidfdopen 434
 
 # the rt_n bytes of a path with a zero behind them, as the kernel takes
 # one, into the 4096 bytes at rt_z: 0, or the error of a path too long
@@ -393,4 +411,689 @@ fn rt_thread rt_f rt_a
 	end
 	sys munmap rt_s 8388608
 	ret rt_r
+end
+
+# ---- time
+# 1 if the strings at rt_a and rt_b, each with a zero at its end, are the
+# same
+fn rt_same rt_a rt_b
+	label rt_next
+	loadb rt_a as rt_c
+	loadb rt_b as rt_d
+	if rt_c!=rt_d
+		ret 0
+	end
+	ifz rt_c
+		ret 1
+	end
+	rt_a+=1
+	rt_b+=1
+	jmp rt_next
+end
+
+data rt_want "__vdso_clock_gettime" 0
+
+# The kernel maps a small shared object into every process, whose
+# clock_gettime reads the clock without a system call. Its address is
+# among the pairs behind the environment (the pair 33); the function is
+# found by its name in the table of symbols, 24 bytes a symbol, which
+# the hash table of either form leads to. 1 if anything is not as
+# expected: the system call is used then.
+fn rt_vdso
+	load rt_state as rt_p
+	load rt_p as rt_n
+	rt_p+=16+rt_n*8
+	label rt_env
+	load rt_p as rt_k
+	rt_p+=8
+	jnz rt_k rt_env
+	rt_base=0
+	label rt_aux
+	load rt_p as rt_k
+	if rt_k
+		if rt_k==33
+			load rt_p+8 as rt_base
+		end
+		rt_p+=16
+		jmp rt_aux
+	end
+	ifz rt_base
+		ret 1
+	end
+	# the header: where the program headers are, how large, how many
+	load rt_base+32 as rt_p
+	rt_p+=rt_base
+	load2 rt_base+54 as rt_z
+	load2 rt_base+56 as rt_n
+	rt_bias=rt_base
+	rt_dyn=0
+	while rt_n
+		load4 rt_p as rt_k
+		load rt_p+8 as rt_o
+		if rt_k==1
+			# loaded: file offset, address
+			load rt_p+16 as rt_v
+			rt_bias=rt_base+rt_o-rt_v
+		end
+		if rt_k==2
+			# the dynamic table
+			rt_dyn=rt_base+rt_o
+		end
+		rt_p+=rt_z
+		rt_n-=1
+	end
+	ifz rt_dyn
+		ret 1
+	end
+	rt_hash=0
+	rt_str=0
+	rt_tab=0
+	rt_gnu=0
+	label rt_tags
+	load rt_dyn as rt_k
+	if rt_k
+		load rt_dyn+8 as rt_v
+		rt_v+=rt_bias
+		if rt_k==4
+			rt_hash=rt_v
+		end
+		if rt_k==5
+			rt_str=rt_v
+		end
+		if rt_k==6
+			rt_tab=rt_v
+		end
+		if rt_k==0x6ffffef5
+			rt_gnu=rt_v
+		end
+		rt_dyn+=16
+		jmp rt_tags
+	end
+	if (rt_str==0)|(rt_tab==0)
+		ret 1
+	end
+	if rt_hash
+		# the old form says how many symbols there are
+		load4 rt_hash+4 as rt_n
+		rt_i=0
+		while rt_i<rt_n
+			rt_s=rt_tab+rt_i*24
+			load2 rt_s+6 as rt_k
+			if rt_k
+				load4 rt_s as rt_k
+				call rt_same rt_str+rt_k rt_want as rt_e
+				if rt_e
+					load rt_s+8 as rt_v
+					ret rt_bias+rt_v
+				end
+			end
+			rt_i+=1
+		end
+		ret 1
+	end
+	ifz rt_gnu
+		ret 1
+	end
+	# the new form: buckets, first symbol, words of a filter, then the
+	# filter, the buckets and a chain whose last entry of a bucket is odd
+	load4 rt_gnu as rt_n
+	load4 rt_gnu+4 as rt_o
+	load4 rt_gnu+8 as rt_z
+	rt_b=rt_gnu+16+rt_z*8
+	rt_c=rt_b+rt_n*4
+	rt_j=0
+	while rt_j<rt_n
+		load4 rt_b+rt_j*4 as rt_i
+		if rt_i>=rt_o
+			label rt_sym
+			rt_s=rt_tab+rt_i*24
+			load2 rt_s+6 as rt_k
+			if rt_k
+				load4 rt_s as rt_k
+				call rt_same rt_str+rt_k rt_want as rt_e
+				if rt_e
+					load rt_s+8 as rt_v
+					ret rt_bias+rt_v
+				end
+			end
+			load4 rt_c+(rt_i-rt_o)*4 as rt_k
+			ifz rt_k&1
+				rt_i+=1
+				jmp rt_sym
+			end
+		end
+		rt_j+=1
+	end
+	ret 1
+end
+
+# the clock that only goes forward, in nanoseconds since a moment that is
+# the same for the whole run. The function of the kernel's page takes its
+# values where C has them, the second and third of a call here.
+fn rt_clock
+	local rt_t 16
+	load rt_state+8 as rt_f
+	ifz rt_f
+		call rt_vdso as rt_f
+		store rt_state+8 rt_f
+	end
+	rt_r=1
+	if rt_f!=1
+		callp rt_f 0 1 rt_t as rt_r
+		rt_r&=0xffffffff
+	end
+	if rt_r
+		sys clock_gettime 1 rt_t
+	end
+	load rt_t as rt_s
+	load rt_t+8 as rt_n
+	ret rt_s*1000000000+rt_n
+end
+
+# wait that many nanoseconds: 0, or the error of a wait that a signal
+# ended early
+fn rt_sleep rt_ns
+	local rt_t 16
+	store rt_t rt_ns/1000000000
+	store rt_t+8 rt_ns%1000000000
+	sys nanosleep rt_t 0 as rt_r
+	ret rt_r
+end
+
+# ---- readiness and sockets
+# A poller tells which of the descriptors it watches may be read or
+# written without waiting; on Linux it is an epoll object, which says so
+# once for each time a descriptor becomes ready. An event of the kernel
+# is 12 bytes: what, 4 bytes, and the tag.
+fn rt_poller
+	sys rt_epollcreate1 0x80000 as rt_r
+	ret rt_r
+end
+
+# watch rt_fd for reading (rt_what 1), writing (2) or both, and make it a
+# descriptor that does not wait; rt_tag comes back with its events. -1
+# for a descriptor that is always ready, a plain file.
+fn rt_watch rt_ep rt_fd rt_what rt_tag
+	local rt_e 16
+	sys rt_fcntl rt_fd 3 as rt_f
+	ifslt rt_f 0
+		ret rt_f
+	end
+	ifz rt_f&0x800
+		sys rt_fcntl rt_fd 4 rt_f|0x800
+	end
+	rt_w=0x80000000
+	if rt_what&1
+		rt_w|=0x2001
+	end
+	if rt_what&2
+		rt_w|=4
+	end
+	store4 rt_e rt_w
+	store rt_e+4 rt_tag
+	sys rt_epollctl rt_ep 1 rt_fd rt_e as rt_r
+	ret rt_r
+end
+
+fn rt_unwatch rt_ep rt_fd
+	sys rt_epollctl rt_ep 2 rt_fd 0 as rt_r
+	ret rt_r
+end
+
+# wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
+# events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
+# read, 2 for may be written or their sum, an error or a closed end
+# counting as both, and the tag. How many there are, or an error.
+fn rt_poll rt_ep rt_out rt_max rt_ms
+	local rt_e 768
+	if rt_max>64
+		rt_max=64
+	end
+	sys rt_epollwait rt_ep rt_e rt_max rt_ms as rt_r
+	if rt_r>64
+		ret rt_r
+	end
+	rt_i=0
+	while rt_i<rt_r
+		load4 rt_e+rt_i*12 as rt_w
+		load rt_e+rt_i*12+4 as rt_tag
+		store rt_out+rt_i*16 (rt_w&0x2019!=0)+(rt_w&28!=0)*2
+		store rt_out+rt_i*16+8 rt_tag
+		rt_i+=1
+	end
+	ret rt_r
+end
+
+# a descriptor that a poller watches for reading and that wakeup makes
+# ready, from any thread: what ends a poll that waits
+fn rt_waker
+	sys rt_eventfd2 0 0x80800 as rt_r
+	ret rt_r
+end
+fn rt_wakeup rt_fd
+	local rt_one 8
+	store rt_one 1
+	sys write rt_fd rt_one 8 as rt_r
+	ret rt_r
+end
+
+# the address of a socket of the internet, version 4, at rt_a: the
+# family, the port and the address with their high bytes first, zeros
+fn rt_inet rt_a rt_ip rt_port
+	store rt_a 0
+	store rt_a+8 0
+	store2 rt_a 2
+	storeb rt_a+2 rt_port>>8
+	storeb rt_a+3 rt_port
+	storeb rt_a+4 rt_ip>>24
+	storeb rt_a+5 rt_ip>>16
+	storeb rt_a+6 rt_ip>>8
+	storeb rt_a+7 rt_ip
+end
+
+# a socket that listens on the port of the address, 0 for every address
+# of the machine and port 0 for one the kernel chooses, that does not
+# wait and may take the port of a socket just closed: the descriptor
+fn rt_listen rt_ip rt_port rt_backlog
+	local rt_a 16
+	sys socket 2 0x80801 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 1
+	sys rt_setsockopt rt_fd 1 2 rt_a 4
+	call rt_inet rt_a rt_ip rt_port
+	sys bind rt_fd rt_a 16 as rt_r
+	ifz rt_r
+		sys listen rt_fd rt_backlog as rt_r
+	end
+	if rt_r
+		sys close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
+end
+
+# the next connection to a socket that listens, as a descriptor that does
+# not wait; -11 if there is none now
+fn rt_accept rt_fd
+	sys rt_accept4 rt_fd 0 0 0x80800 as rt_r
+	ret rt_r
+end
+
+# a socket for a stream, which does not wait
+fn rt_socket
+	sys socket 2 0x80801 0 as rt_r
+	ret rt_r
+end
+
+# connect it: 0, or -115 if that goes on, after which the socket may be
+# written when it is done and sockerr says how it ended
+fn rt_connect rt_fd rt_ip rt_port
+	local rt_a 16
+	call rt_inet rt_a rt_ip rt_port
+	sys connect rt_fd rt_a 16 as rt_r
+	ret rt_r
+end
+
+# the error that a socket has to report, as a negative number, or 0
+fn rt_sockerr rt_fd
+	local rt_v 16
+	store rt_v 0
+	store rt_v+8 4
+	sys rt_getsockopt rt_fd 1 4 rt_v rt_v+8 as rt_r
+	ifz rt_r
+		load4 rt_v as rt_r
+		rt_r=0-rt_r
+	end
+	ret rt_r
+end
+
+# the port of a socket
+fn rt_port rt_fd
+	local rt_a 24
+	store rt_a+16 16
+	sys rt_getsockname rt_fd rt_a rt_a+16 as rt_r
+	if rt_r
+		ret rt_r
+	end
+	loadb rt_a+2 as rt_h
+	loadb rt_a+3 as rt_l
+	ret rt_h<<8|rt_l
+end
+
+# write to a socket; the error -32 if the other end is closed, without
+# the signal, and -88 for a descriptor that is no socket
+fn rt_send rt_fd rt_p rt_n
+	sys rt_sendto rt_fd rt_p rt_n 0x4000 0 0 as rt_r
+	ret rt_r
+end
+
+# write to a pipe with the error -32 if nobody reads it, without the
+# signal: it is blocked for this thread around the write, and one that
+# the write made is taken back, unless the program had blocked it
+fn rt_writeq rt_fd rt_p rt_n
+	local rt_m 32
+	store rt_m 4096
+	store rt_m+8 0
+	sys rt_sigprocmask 0 rt_m rt_m+8 8
+	sys write rt_fd rt_p rt_n as rt_r
+	if rt_r==-32
+		load rt_m+8 as rt_o
+		ifz rt_o&4096
+			store rt_m+16 0
+			store rt_m+24 0
+			sys rt_sigtimedwait rt_m 0 rt_m+16 8
+		end
+	end
+	sys rt_sigprocmask 2 rt_m+8 0 8
+	ret rt_r
+end
+
+# ---- processes
+# in the child: end it unless rt_fd is -1 or an open descriptor. Asked
+# of all three before any copy is made, since a copy may take the number
+# of a descriptor that was not open and so pass for it.
+fn rt_fdok rt_fd
+	if rt_fd!=-1
+		sys rt_fcntl rt_fd 1 as rt_r
+		ifslt rt_r 0
+			sys exit 127
+		end
+	end
+end
+
+# in the child: make the three descriptors given its 0, 1 and 2, or end
+# it. One that is 0, 1 or 2 itself must be read before another is put on
+# its number, so each round puts in place those whose number no other
+# still reads. When none is left to do so they read one another in a
+# ring, and only then one of them is copied to a number from 3 up, which
+# is closed when the program starts: without a ring no descriptor is
+# needed beyond the three.
+fn rt_place rt_in rt_out rt_err
+	local rt_m 24
+	store rt_m rt_in
+	store rt_m+8 rt_out
+	store rt_m+16 rt_err
+	rt_i=0
+	while rt_i<3
+		load rt_m+rt_i*8 as rt_s
+		if rt_s==rt_i
+			store rt_m+rt_i*8 -1
+		end
+		rt_i+=1
+	end
+	label rt_round
+	rt_n=0
+	rt_d=0
+	rt_i=0
+	while rt_i<3
+		load rt_m+rt_i*8 as rt_s
+		if rt_s!=-1
+			rt_n+=1
+			rt_b=0
+			rt_j=0
+			while rt_j<3
+				load rt_m+rt_j*8 as rt_x
+				if rt_x==rt_i
+					rt_b=1
+				end
+				rt_j+=1
+			end
+			ifz rt_b
+				sys rt_dup2 rt_s rt_i as rt_r
+				ifslt rt_r 0
+					sys exit 127
+				end
+				store rt_m+rt_i*8 -1
+				rt_d=1
+			end
+		end
+		rt_i+=1
+	end
+	ifz rt_n
+		ret 0
+	end
+	jnz rt_d rt_round
+	rt_i=0
+	label rt_ring
+	load rt_m+rt_i*8 as rt_s
+	if rt_s==-1
+		rt_i+=1
+		jmp rt_ring
+	end
+	sys rt_fcntl rt_s 1030 3 as rt_s
+	ifslt rt_s 0
+		sys exit 127
+	end
+	store rt_m+rt_i*8 rt_s
+	jmp rt_round
+end
+
+
+# the length of the string at rt_p, which has a zero at its end
+fn rt_strlen rt_p
+	rt_q=rt_p
+	label rt_next
+	loadb rt_q as rt_c
+	if rt_c
+		rt_q+=1
+		jmp rt_next
+	end
+	ret rt_q-rt_p
+end
+
+# in the child: put the three descriptors in place and become the
+# program of rt_argv, with the environment rt_env; nothing here returns.
+# The first argument is the program, a path if it has a slash and else a
+# name looked for in the directories of PATH, as this process has it.
+fn rt_child rt_argv rt_env rt_in rt_out rt_err
+	local rt_z 4096
+	call rt_fdok rt_in
+	call rt_fdok rt_out
+	call rt_fdok rt_err
+	call rt_place rt_in rt_out rt_err
+	load rt_argv as rt_p
+	call rt_strlen rt_p as rt_n
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		if rt_c==47
+			sys execve rt_p rt_argv rt_env
+			sys exit 127
+		end
+		rt_i+=1
+	end
+	set "/usr/bin:/bin" as rt_s
+	load rt_state as rt_e
+	load rt_e as rt_c
+	rt_e+=16+rt_c*8
+	label rt_var
+	load rt_e as rt_q
+	if rt_q
+		load4 rt_q as rt_c
+		loadb rt_q+4 as rt_d
+		# "PATH="
+		if (rt_c==0x48544150)&(rt_d==61)
+			rt_s=rt_q+5
+		end
+		rt_e+=8
+		jmp rt_var
+	end
+	# each directory of the list, an empty one being this directory
+	label rt_dir
+	rt_q=rt_s
+	label rt_scan
+	loadb rt_q as rt_c
+	if rt_c
+		if rt_c!=58
+			rt_q+=1
+			jmp rt_scan
+		end
+	end
+	rt_d=rt_q-rt_s
+	if rt_d+rt_n<4094
+		rt_i=0
+		while rt_i<rt_d
+			loadb rt_s+rt_i as rt_c
+			storeb rt_z+rt_i rt_c
+			rt_i+=1
+		end
+		if rt_d
+			storeb rt_z+rt_d 47
+			rt_d+=1
+		end
+		rt_i=0
+		while rt_i<=rt_n
+			loadb rt_p+rt_i as rt_c
+			storeb rt_z+rt_d+rt_i rt_c
+			rt_i+=1
+		end
+		sys execve rt_z rt_argv rt_env
+	end
+	loadb rt_q as rt_c
+	if rt_c
+		rt_s=rt_q+1
+		jmp rt_dir
+	end
+	sys exit 127
+end
+
+# Start a program as a child process: its number, or an error. rt_argv is
+# the address of the addresses of its arguments, strings with a zero at
+# the end, with a 0 after the last. rt_env is its environment in the same
+# form, 0 for that of this process; rt_fds the address of three
+# descriptors that become its 0, 1 and 2, -1 for the one of this process.
+# With the flag 1 the child is held: the kernel kills it when the thread
+# that started it ends. A program that cannot be started is a child that
+# ends with status 127.
+fn rt_start rt_argv rt_env rt_fds rt_flags
+	ifz rt_env
+		load rt_state as rt_p
+		load rt_p as rt_n
+		rt_env=rt_p+16+rt_n*8
+	end
+	rt_me=0
+	if rt_flags&1
+		sys getpid as rt_me
+	end
+	sys fork as rt_pid
+	if rt_pid
+		ret rt_pid
+	end
+	if rt_flags&1
+		# a kernel that refuses would leave a child nothing holds; a parent
+		# that ended before that line sends nothing
+		sys rt_prctl 1 9 0 0 0 as rt_r
+		if rt_r
+			sys exit 127
+		end
+		sys rt_getppid as rt_r
+		if rt_r!=rt_me
+			sys exit 127
+		end
+	end
+	load rt_fds as rt_in
+	load rt_fds+8 as rt_out
+	load rt_fds+16 as rt_err
+	call rt_child rt_argv rt_env rt_in rt_out rt_err
+	sys exit 127
+end
+
+# Wait for the child to end and take it from the kernel: its exit status,
+# 0 to 255; or the signal that ended it, negated; or -1000 if it still
+# ran after rt_ms milliseconds, in which case it was killed and taken; or
+# -1001 if there is no such child. rt_ms 0 waits without limit.
+fn rt_reap rt_pid rt_ms
+	local rt_st 8
+	local rt_pf 8
+	if rt_ms
+		sys rt_pidfdopen rt_pid 0 as rt_fd
+		ifsge rt_fd 0
+			store4 rt_pf rt_fd
+			store4 rt_pf+4 1
+			label rt_again
+			sys rt_poll7 rt_pf 1 rt_ms as rt_r
+			jeq rt_r -4 rt_again
+			sys close rt_fd
+			jz rt_r rt_late
+		else
+			# no descriptor to be had for the child: ask every millisecond
+			# whether it has ended
+			call rt_clock as rt_t
+			label rt_ask
+			store rt_st 0
+			sys wait4 rt_pid rt_st 1 0 as rt_r
+			jeq rt_r -4 rt_ask
+			jnz rt_r rt_took
+			call rt_clock as rt_n
+			jge (rt_n-rt_t)/1000000 rt_ms rt_late
+			call rt_sleep 1000000
+			jmp rt_ask
+		end
+	end
+	label rt_wait4
+	store rt_st 0
+	sys wait4 rt_pid rt_st 0 0 as rt_r
+	jeq rt_r -4 rt_wait4
+	label rt_took
+	ifslt rt_r 0
+		ret -1001
+	end
+	load4 rt_st as rt_r
+	if rt_r&127
+		ret 0-(rt_r&127)
+	end
+	ret rt_r>>8&255
+	label rt_late
+	sys kill rt_pid 9
+	label rt_gone
+	sys wait4 rt_pid 0 0 0 as rt_r
+	jeq rt_r -4 rt_gone
+	ret -1000
+end
+
+# Let this thread, and the children it starts from now on, run only on
+# the processor rt_cpu, or on the lowest one it may run on if that is not
+# among them: the processor it is now bound to, or an error.
+fn rt_pin rt_cpu
+	local rt_m 128
+	rt_i=0
+	while rt_i<128
+		store rt_m+rt_i 0
+		rt_i+=8
+	end
+	sys sched_getaffinity 0 128 rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	rt_c=0
+	if rt_cpu<1024
+		loadb rt_m+rt_cpu/8 as rt_c
+		rt_c=rt_c>>(rt_cpu&7)&1
+	end
+	ifz rt_c
+		rt_cpu=0
+		label rt_next
+		if rt_cpu>=1024
+			ret -22
+		end
+		loadb rt_m+rt_cpu/8 as rt_c
+		rt_c=rt_c>>(rt_cpu&7)&1
+		ifz rt_c
+			rt_cpu+=1
+			jmp rt_next
+		end
+	end
+	rt_i=0
+	while rt_i<128
+		store rt_m+rt_i 0
+		rt_i+=8
+	end
+	storeb rt_m+rt_cpu/8 1<<(rt_cpu&7)
+	sys rt_setaffinity 0 128 rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	ret rt_cpu
 end
