@@ -43,6 +43,20 @@ rt_table:
 	.long e_wake - rt_image
 	.long e_cpus - rt_image
 	.long e_thread - rt_image
+	.long e_poller - rt_image
+	.long e_watch - rt_image
+	.long e_unwatch - rt_image
+	.long e_poll - rt_image
+	.long e_waker - rt_image
+	.long e_wakeup - rt_image
+	.long e_listen - rt_image
+	.long e_accept - rt_image
+	.long e_socket - rt_image
+	.long e_connect - rt_image
+	.long e_sockerr - rt_image
+	.long e_port - rt_image
+	.long e_send - rt_image
+	.long e_writeq - rt_image
 rt_table_end:
 
 	.text
@@ -91,6 +105,20 @@ e_start:
 	entry wait
 	entry wake
 	entry cpus
+	entry poller
+	entry watch
+	entry unwatch
+	entry poll
+	entry waker
+	entry wakeup
+	entry listen
+	entry accept
+	entry socket
+	entry connect
+	entry sockerr
+	entry port
+	entry send
+	entry writeq
 
 /* thread: start a thread that calls the function in rax with the value
  * in rdi, by the convention of AIL, and ends when it returns. 0, or the

@@ -1,0 +1,25 @@
+# a waker ends the poll of another thread; a pipe written with writeq
+# gives -32 when nobody reads, and the signal stays away
+buf ev 32
+buf fds 8
+buf st 16
+fn other w
+	rt sleep 30000000
+	rt wakeup w
+end
+rt poller as ep
+rt waker as w
+rt watch ep w 1 7 as a
+rt poll ep ev 2 0 as none
+ref other as f
+rt thread f w
+rt poll ep ev 2 5000 as n
+load ev as what
+load ev+8 as tag
+sys pipe fds
+load4 fds as r
+load4 fds+4 as wr
+rt writeq wr "ab" as ok
+rt close r
+rt writeq wr "ab" as gone
+rt exit (a==0)+(none==0)*2+(n==1)*4+(what==1)*8+(tag==7)*16+(ok==2)*32+(gone==-32)*64

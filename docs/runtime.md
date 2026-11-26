@@ -40,6 +40,20 @@ result is a value.
 | 18 | `wake` | address, number | how many threads that sleep in a `wait` of the address were woken, at most the number |
 | 19 | `cpus` |  | the processors the process may run on, at least 1 |
 | 20 | `thread` | address of a function, value | 0, or an error: a thread calls the function with the value and ends when it returns. Its stack is 8 MiB with a closed page under it, so a function that needs more faults |
+| 21 | `poller` |  | a poller, which tells which of the descriptors it watches may be read or written without waiting, or an error. It is closed with `close` |
+| 22 | `watch` | poller, descriptor, 1 to read, 2 to write or 3, tag | 0, or an error; -1 for a descriptor that is always ready, a plain file. The descriptor no longer waits from then on: a `read` or `write` that cannot go on gives -11, and the poller says once when it can |
+| 23 | `unwatch` | poller, descriptor | 0, or an error |
+| 24 | `poll` | poller, address, most events (up to 64), milliseconds or -1 | the number of events written at the address, 16 bytes each: 1 for may be read, 2 for may be written or 3, an error or a closed end counting as both, and the tag of the descriptor. 0 after the time, or an error |
+| 25 | `waker` |  | a descriptor that a poller watches to read and that `wakeup` makes ready from any thread, or an error |
+| 26 | `wakeup` | waker | 8, or an error |
+| 27 | `listen` | IPv4 address as a number (0 for every address), port (0 for any), most connections that wait | a socket that listens and does not wait, or an error |
+| 28 | `accept` | socket that listens | the next connection, a socket that does not wait; -11 if there is none now |
+| 29 | `socket` |  | a socket for a stream that does not wait, or an error |
+| 30 | `connect` | socket, IPv4 address, port | 0, or -115 while it goes on: the socket may be written when it is done and `sockerr` says how it ended |
+| 31 | `sockerr` | socket | 0, or the error the socket has to report |
+| 32 | `port` | socket | its port, or an error |
+| 33 | `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
+| 34 | `writeq` | descriptor, address, size | the bytes written, or an error: a `write` that gives -32 for a pipe nobody reads without ending the process, whether `pipeerr` was called or not |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -66,7 +80,12 @@ them; a runtime for another platform gives the same numbers:
 | -32 | the other end is closed |
 | -22 | a value that the service does not take |
 | -36 | the path is too long |
+| -88 | not a socket |
+| -98 | the port is taken |
+| -104 | the other end broke the connection |
 | -110 | the time is over |
+| -111 | nobody listens there |
+| -115 | it goes on |
 | -39 | the directory is not empty |
 
 ## How a program calls it

@@ -46,6 +46,20 @@ long rt_sleep(struct rt *rt, unsigned long ns);
 long rt_wait(struct rt *rt, unsigned *p, unsigned long v, long ns);
 long rt_wake(struct rt *rt, unsigned *p, unsigned long n);
 long rt_cpus(struct rt *rt);
+long rt_poller(struct rt *rt);
+long rt_watch(struct rt *rt, long ep, long fd, long what, unsigned long tag);
+long rt_unwatch(struct rt *rt, long ep, long fd);
+long rt_poll(struct rt *rt, long ep, unsigned long *out, unsigned long max, long ms);
+long rt_waker(struct rt *rt);
+long rt_wakeup(struct rt *rt, long fd);
+long rt_listen(struct rt *rt, unsigned long ip, unsigned long port, long backlog);
+long rt_accept(struct rt *rt, long fd);
+long rt_socket(struct rt *rt);
+long rt_connect(struct rt *rt, long fd, unsigned long ip, unsigned long port);
+long rt_sockerr(struct rt *rt, long fd);
+long rt_port(struct rt *rt, long fd);
+long rt_send(struct rt *rt, long fd, const void *p, unsigned long n);
+long rt_writeq(struct rt *rt, long fd, const void *p, unsigned long n);
 
 #endif
 #endif

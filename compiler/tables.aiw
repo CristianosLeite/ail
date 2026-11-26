@@ -194,6 +194,20 @@ data 4 "wait" 17 3 1
 data 4 "wake" 18 2 1
 data 4 "cpus" 19 0 1
 data 6 "thread" 20 2 1
+data 6 "poller" 21 0 1
+data 5 "watch" 22 4 1
+data 7 "unwatch" 23 2 1
+data 4 "poll" 24 4 1
+data 5 "waker" 25 0 1
+data 6 "wakeup" 26 1 1
+data 6 "listen" 27 3 1
+data 6 "accept" 28 1 1
+data 6 "socket" 29 0 1
+data 7 "connect" 30 3 1
+data 7 "sockerr" 31 1 1
+data 4 "port" 32 1 1
+data 4 "send" 33 3 1
+data 6 "writeq" 34 3 1
 data 0
 # the code of ret: six pops and ret
 data retc 65 95 65 94 65 93 65 92 93 91 195

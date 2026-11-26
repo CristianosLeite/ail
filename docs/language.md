@@ -208,6 +208,20 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `wake` | address, number | how many threads that sleep in a `wait` of the address were woken, at most the number |
 | `cpus` |  | the processors the process may run on, at least 1 |
 | `thread` | address of a function, value | 0, or an error: a thread calls the function with the value and ends when it returns |
+| `poller` |  | a poller, which tells which of the descriptors it watches may be read or written without waiting, or an error. It is closed with `close` |
+| `watch` | poller, descriptor, 1 to read, 2 to write or 3, tag | 0, or an error, -1 for a plain file |
+| `unwatch` | poller, descriptor | 0, or an error |
+| `poll` | poller, address, most events (up to 64), milliseconds or -1 | the number of events at the address, 16 bytes each (what, tag), or an error |
+| `waker` |  | a descriptor that a poller watches to read and that `wakeup` makes ready from any thread, or an error |
+| `wakeup` | waker | 8, or an error |
+| `listen` | IPv4 address as a number (0 for every address), port (0 for any), most connections that wait | a socket that listens and does not wait, or an error |
+| `accept` | socket that listens | the next connection, a socket that does not wait; -11 if there is none now |
+| `socket` |  | a socket for a stream that does not wait, or an error |
+| `connect` | socket, IPv4 address, port | 0, or -115 while it goes on: the socket may be written when it is done and `sockerr` says how it ended |
+| `sockerr` | socket | 0, or the error the socket has to report |
+| `port` | socket | its port, or an error |
+| `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
+| `writeq` | descriptor, address, size | the bytes written, or an error, -32 for a pipe nobody reads |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

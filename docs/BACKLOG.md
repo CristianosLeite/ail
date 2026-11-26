@@ -935,3 +935,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   a `thread`. `tests/rt_thread`, and the `spawn_*`, `join_*` and
   `task_*` tests as they were, the stack overflow that must fault among
   them.
+- [x] Services for readiness and sockets (2026-11-26): a poller with
+  `watch`, `unwatch` and `poll`, whose events are 16 bytes of the
+  runtime's own, what may be done and a tag; a `waker` that ends a poll
+  from another thread; `listen`, `accept`, `socket`, `connect`,
+  `sockerr`, `port`; `send` and `writeq`, the writes without the signal
+  of a closed end. `lib/async/io.aiw` and `lib/async/pool.aiw` have no
+  `sys` and no number of a system call left, and no address of a socket
+  in the form of the kernel. `tests/rt_sockets`, `tests/rt_waker`; the
+  `async_*`, `lib_http_*` and `lib_httpd_*` tests as they were, but for
+  `async_write_closed`, which has the two numbers it took from the
+  library as constants of its own.

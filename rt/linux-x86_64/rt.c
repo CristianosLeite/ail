@@ -20,12 +20,17 @@ static inline long sys6(long n, long a, long b, long c, long d, long e, long f)
 #define sys2(n, a, b) sys6(n, (long)(a), (long)(b), 0, 0, 0, 0)
 #define sys3(n, a, b, c) sys6(n, (long)(a), (long)(b), (long)(c), 0, 0, 0)
 #define sys4(n, a, b, c, d) sys6(n, (long)(a), (long)(b), (long)(c), (long)(d), 0, 0)
+#define sys5(n, a, b, c, d, e) sys6(n, (long)(a), (long)(b), (long)(c), (long)(d), (long)(e), 0)
 
 enum {
 	SYS_read = 0, SYS_write = 1, SYS_open = 2, SYS_close = 3, SYS_mmap = 9,
-	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_nanosleep = 35, SYS_rename = 82, SYS_mkdir = 83,
-	SYS_rmdir = 84, SYS_unlink = 87, SYS_futex = 202, SYS_sched_getaffinity = 204, SYS_getdents64 = 217, SYS_clock_gettime = 228,
-	SYS_exit_group = 231
+	SYS_munmap = 11, SYS_rt_sigaction = 13, SYS_rt_sigprocmask = 14,
+	SYS_nanosleep = 35, SYS_socket = 41, SYS_connect = 42, SYS_sendto = 44, SYS_bind = 49,
+	SYS_listen = 50, SYS_getsockname = 51, SYS_setsockopt = 54, SYS_getsockopt = 55,
+	SYS_fcntl = 72, SYS_rename = 82, SYS_mkdir = 83,
+	SYS_rmdir = 84, SYS_unlink = 87, SYS_rt_sigtimedwait = 128, SYS_futex = 202, SYS_sched_getaffinity = 204, SYS_getdents64 = 217, SYS_clock_gettime = 228,
+	SYS_exit_group = 231, SYS_epoll_wait = 232, SYS_epoll_ctl = 233, SYS_accept4 = 288,
+	SYS_eventfd2 = 290, SYS_epoll_create1 = 291
 };
 
 /* end the process, every thread of it */
@@ -356,4 +361,193 @@ long rt_cpus(struct rt *rt)
 		for (; m[r]; m[r] &= m[r] - 1)
 			c++;
 	return c ? c : 1;
+}
+
+/* A poller tells which of the descriptors it watches may be read or
+ * written without waiting; on Linux it is an epoll object, which says
+ * so once for each time a descriptor becomes ready. */
+struct event {
+	unsigned what;
+	unsigned long tag;
+} __attribute__((packed));
+
+long rt_poller(struct rt *rt)
+{
+	(void)rt;
+	return sys1(SYS_epoll_create1, 0x80000);
+}
+
+/* watch fd for reading (what 1), writing (2) or both, and make it a
+ * descriptor that does not wait; tag comes back with its events. -1
+ * for a descriptor that is always ready, a plain file. */
+long rt_watch(struct rt *rt, long ep, long fd, long what, unsigned long tag)
+{
+	struct event e;
+	long f;
+
+	(void)rt;
+	f = sys2(SYS_fcntl, fd, 3);
+	if (f < 0)
+		return f;
+	if (!(f & 0x800))
+		sys3(SYS_fcntl, fd, 4, f | 0x800);
+	e.what = 0x80000000u | (what & 1 ? 0x2001 : 0) | (what & 2 ? 4 : 0);
+	e.tag = tag;
+	return sys4(SYS_epoll_ctl, ep, 1, fd, &e);
+}
+
+long rt_unwatch(struct rt *rt, long ep, long fd)
+{
+	(void)rt;
+	return sys4(SYS_epoll_ctl, ep, 2, fd, 0);
+}
+
+/* wait at most ms milliseconds, -1 for no limit, for up to max events,
+ * at most 64, and write each as 16 bytes at out: 1 for may be read, 2
+ * for may be written or their sum, an error or a closed end counting as
+ * both, and the tag. How many there are, or an error. */
+long rt_poll(struct rt *rt, long ep, unsigned long *out, unsigned long max, long ms)
+{
+	struct event e[64];
+	long r, i;
+
+	(void)rt;
+	r = sys4(SYS_epoll_wait, ep, e, max > 64 ? 64 : max, ms);
+	for (i = 0; i < r; i++) {
+		out[2 * i] = (e[i].what & 0x2019 ? 1 : 0) | (e[i].what & 28 ? 2 : 0);
+		out[2 * i + 1] = e[i].tag;
+	}
+	return r;
+}
+
+/* a descriptor that a poller watches for reading and that wakeup makes
+ * ready, from any thread: what ends a poll that waits */
+long rt_waker(struct rt *rt)
+{
+	(void)rt;
+	return sys2(SYS_eventfd2, 0, 0x80800);
+}
+
+long rt_wakeup(struct rt *rt, long fd)
+{
+	unsigned long one = 1;
+
+	(void)rt;
+	return sys3(SYS_write, fd, &one, 8);
+}
+
+/* the address of a socket of the internet, version 4: the family, the
+ * port and the address with their high bytes first, zeros */
+static void inet(unsigned char *a, unsigned long ip, unsigned long port)
+{
+	int i;
+
+	for (i = 0; i < 16; i++)
+		a[i] = 0;
+	a[0] = 2;
+	a[2] = port >> 8;
+	a[3] = port;
+	a[4] = ip >> 24;
+	a[5] = ip >> 16;
+	a[6] = ip >> 8;
+	a[7] = ip;
+}
+
+/* a socket that listens on the port of the address, 0 for every address
+ * of the machine and port 0 for one the kernel chooses, that does not
+ * wait and may take the port of a socket just closed: the descriptor */
+long rt_listen(struct rt *rt, unsigned long ip, unsigned long port, long backlog)
+{
+	unsigned char a[16];
+	int one = 1;
+	long fd, r;
+
+	(void)rt;
+	fd = sys3(SYS_socket, 2, 0x80801, 0);
+	if (fd < 0)
+		return fd;
+	sys5(SYS_setsockopt, fd, 1, 2, &one, 4);
+	inet(a, ip, port);
+	r = sys3(SYS_bind, fd, a, 16);
+	if (!r)
+		r = sys2(SYS_listen, fd, backlog);
+	if (r) {
+		sys1(SYS_close, fd);
+		return r;
+	}
+	return fd;
+}
+
+/* the next connection to a socket that listens, as a descriptor that
+ * does not wait; -11 if there is none now */
+long rt_accept(struct rt *rt, long fd)
+{
+	(void)rt;
+	return sys4(SYS_accept4, fd, 0, 0, 0x80800);
+}
+
+/* a socket for a stream, which does not wait */
+long rt_socket(struct rt *rt)
+{
+	(void)rt;
+	return sys3(SYS_socket, 2, 0x80801, 0);
+}
+
+/* connect it: 0, or -115 if that goes on, after which the socket may be
+ * written when it is done and sockerr says how it ended */
+long rt_connect(struct rt *rt, long fd, unsigned long ip, unsigned long port)
+{
+	unsigned char a[16];
+
+	(void)rt;
+	inet(a, ip, port);
+	return sys3(SYS_connect, fd, a, 16);
+}
+
+/* the error that a socket has to report, as a negative number, or 0 */
+long rt_sockerr(struct rt *rt, long fd)
+{
+	int v = 0, n = 4;
+	long r;
+
+	(void)rt;
+	r = sys5(SYS_getsockopt, fd, 1, 4, &v, &n);
+	return r ? r : -(long)v;
+}
+
+/* the port of a socket */
+long rt_port(struct rt *rt, long fd)
+{
+	unsigned char a[16];
+	int n = 16;
+	long r;
+
+	(void)rt;
+	r = sys3(SYS_getsockname, fd, a, &n);
+	return r ? r : a[2] << 8 | a[3];
+}
+
+/* write to a socket; the error -32 if the other end is closed, without
+ * the signal, and -88 for a descriptor that is no socket */
+long rt_send(struct rt *rt, long fd, const void *p, unsigned long n)
+{
+	(void)rt;
+	return sys6(SYS_sendto, fd, (long)p, n, 0x4000, 0, 0);
+}
+
+/* write to a pipe with the error -32 if nobody reads it, without the
+ * signal: it is blocked for this thread around the write, and one that
+ * the write made is taken back, unless the program had blocked it */
+long rt_writeq(struct rt *rt, long fd, const void *p, unsigned long n)
+{
+	unsigned long set = 4096, old = 0;
+	long t[2] = { 0, 0 }, r;
+
+	(void)rt;
+	sys4(SYS_rt_sigprocmask, 0, &set, &old, 8);
+	r = sys3(SYS_write, fd, p, n);
+	if (r == -32 && !(old & 4096))
+		sys4(SYS_rt_sigtimedwait, &set, 0, t, 8);
+	sys4(SYS_rt_sigprocmask, 2, &old, 0, 8);
+	return r;
 }

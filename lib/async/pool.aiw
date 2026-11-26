@@ -24,11 +24,9 @@
 #
 # asyncpl: 0 the records that are done, a list that workers put theirs
 # at the head of with cas and the polling thread takes whole; 8 not zero
-# while the polling thread sleeps or is about to; 16 the eventfd, plus
+# while the polling thread sleeps or is about to; 16 the waker, plus
 # 1, that a worker writes to then, which ends the sleep.
 buf asyncpl 24
-data asyncone 1 0 0 0 0 0 0 0
-const asynceventfd 290
 
 # what a worker runs: the function, then the record to the list, and a
 # word to the polling thread if it sleeps
@@ -52,7 +50,7 @@ fn asyncjob asyncj
 	load asyncpl+8 as asyncx
 	if asyncx
 		load asyncpl+16 as asyncfd
-		sys write asyncfd-1 asyncone 8
+		rt wakeup asyncfd-1
 	end
 end
 
@@ -127,12 +125,12 @@ fn asyncjoboff asynch
 	ret 1
 end
 
-# what asyncstop calls: give back the eventfd, then what the file of the
+# what asyncstop calls: give back the waker, then what the file of the
 # descriptors holds. Work that still runs ends in the list, which the
 # next asyncblock looks at.
 fn asyncplend
 	load asyncpl+16 as asyncfd
-	sys close asyncfd-1
+	rt close asyncfd-1
 	store asyncpl+16 0
 	tail asyncioend
 end
@@ -155,15 +153,12 @@ fn asyncblock asyncp asynca asyncb asyncc asyncd
 			call asyncfinish asynch asyncep
 			ret asynch
 		end
-		sys asynceventfd 0 0x80800 as asyncfd
+		rt waker as asyncfd
 		if asyncfd>-4096
 			call asyncfinish asynch asyncfd
 			ret asynch
 		end
-		local asynce 16
-		store4 asynce 0x80000001
-		store asynce+4 asyncfd
-		sys asyncepollctl asyncep-1 1 asyncfd asynce
+		rt watch asyncep-1 asyncfd 1 asyncfd
 		store asyncpl+16 asyncfd+1
 		ref asyncpsleep as asyncf
 		store asyncq+104 asyncf
