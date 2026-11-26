@@ -296,8 +296,10 @@ Where a service cannot be on Windows what it is on Linux:
 - `lock` is a mutex of Windows, since Windows locks no directory: it
   keeps out the programs that ask the runtime for the lock and nothing
   else. Its name is made of the number of the volume and the number
-  the file has there, which the runtime asks of the opened file, so
-  that two ways to write the path of one directory are one lock. A
+  the file has there, 64 and 128 bits, which the runtime asks of the
+  opened file (`FileIdInfo`, Windows 8), so that two ways to write the
+  path of one directory are one lock and two files never are; where
+  Windows does not say them the service is an error. A
   mutex belongs to a thread, so the thread that took the lock closes
   it, and a second `lock` of the same file by that thread is given at
   once.

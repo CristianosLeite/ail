@@ -723,7 +723,9 @@ end
 # Windows locks no directory, so the lock is a mutex of Windows named
 # by what the path leads to, however it is written: the file is opened,
 # for nothing but to be asked about, and the name is "Local\ail-" and
-# 24 digits, the number of its volume and the number it has there. A
+# 48 digits, the number of its volume and the number it has there, 64
+# and 128 bits, the whole of each: of the 64 bits that Windows has for
+# the number of a file too, some files of one volume have the same. A
 # mutex belongs to a thread, which may take it again and which alone
 # gives it back: the thread that took the lock closes it.
 fn rt_lock rt_p rt_n
@@ -747,9 +749,12 @@ fn rt_lock rt_p rt_n
 		call rt_error as rt_r
 		tail rt_long rt_z rt_r
 	end
+	# what Windows calls FileIdInfo, 18: 24 bytes
 	store rt_a rt_h
-	store rt_a+8 rt_y
-	call rt_api rt_i_getfileinformationbyhandle rt_a 2 as rt_r
+	store rt_a+8 18
+	store rt_a+16 rt_y
+	store rt_a+24 24
+	call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
 	rt_e=0
 	ifz rt_r&0xffffffff
 		call rt_error as rt_e
@@ -759,25 +764,20 @@ fn rt_lock rt_p rt_n
 	if rt_e
 		ret rt_e
 	end
-	# "Local\ail-", then the volume at 28 and the number at 44 and 48
+	# "Local\ail-", then the 8 bytes of the volume and the 16 of the file
 	store rt_z 0x69615c6c61636f4c
 	store2 rt_z+8 0x2d6c
-	load4 rt_y+28 as rt_s
-	rt_j=0
-	while rt_j<3
-		rt_i=0
-		while rt_i<8
-			rt_c=rt_s>>(28-rt_i*4)&15
-			if rt_c>9
-				rt_c+=39
-			end
-			storeb rt_z+10+rt_j*8+rt_i rt_c+48
-			rt_i+=1
+	rt_i=0
+	while rt_i<48
+		loadb rt_y+rt_i/2 as rt_c
+		rt_c=rt_c>>(4-rt_i%2*4)&15
+		if rt_c>9
+			rt_c+=39
 		end
-		load4 rt_y+44+rt_j*4 as rt_s
-		rt_j+=1
+		storeb rt_z+10+rt_i rt_c+48
+		rt_i+=1
 	end
-	storeb rt_z+34 0
+	storeb rt_z+58 0
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
