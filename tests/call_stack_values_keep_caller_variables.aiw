@@ -14,4 +14,4 @@ add v r as v
 add v s as v
 add v t as v
 add v u as v
-sys 60 v
+rt exit v

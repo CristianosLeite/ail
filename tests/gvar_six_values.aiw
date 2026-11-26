@@ -14,4 +14,4 @@ set 8 as d
 set 16 as e
 set 32 as g
 call sum a b c d e g as x
-sys 60 x
+rt exit x

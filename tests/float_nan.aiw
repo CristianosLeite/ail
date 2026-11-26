@@ -11,4 +11,4 @@ or a c as a
 or a d as a
 shl e 1 as e
 or a e as a
-sys exit a
+rt exit a

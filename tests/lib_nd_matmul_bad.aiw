@@ -50,4 +50,4 @@ call ndfree a
 call ndfree b
 call ndfree c
 call ndfree q
-sys exit r
+rt exit r

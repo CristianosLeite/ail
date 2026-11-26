@@ -33,4 +33,4 @@ while i
 end
 load peak as p
 load taskq+48 as w
-sys exit_group (p>=2)+(p<=4)*2+(w<=3)*4+(w>=1)*8
+rt exit (p>=2)+(p<=4)*2+(w<=3)*4+(w>=1)*8

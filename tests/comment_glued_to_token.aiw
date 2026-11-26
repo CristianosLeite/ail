@@ -1,2 +1,2 @@
-sys 1 1 "a\n"#c
-sys 60 5#c
+rt write 1 "a\n"#c
+rt exit 5#c

@@ -60,8 +60,13 @@ source that the compiler compiles with every program
   meant and not how Linux does it: a program started in a group that
   ends with it, a lock of a directory, the directory of the process and
   of the executable, a program in place of the process.
-- [ ] A second platform: the compiler split into shared and target
-  files, a second backend and its runtime, the test suite there.
+- [ ] A second platform, and a third (user, 2026-11-26). First Windows
+  on x86-64, run under Wine: the same instructions, another form of
+  executable, another convention for calls, and no system calls, so
+  that every service is the runtime's. Then Linux on aarch64, a second
+  set of instructions, run under an emulator that is to be installed.
+  For each: the compiler with a target, its runtime in `rt/`, a small
+  program, then the test suite.
 - [ ] The gaps to C closed, each change measured first. Known: every
   executable has all of the runtime, 11.7 KiB, where it could have the
   functions it reaches; a service compiled in place moves its values

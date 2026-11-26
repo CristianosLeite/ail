@@ -1,7 +1,7 @@
 use "lib/std/task.aiw"
 spawn work 5 as h
 join h as x
-sys exit_group x
+rt exit x
 fn work a
 	ret a+1
 end

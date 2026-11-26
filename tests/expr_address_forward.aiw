@@ -2,4 +2,4 @@
 store b+8 77
 load 4+b+4 as x
 buf b 16
-sys exit x
+rt exit x

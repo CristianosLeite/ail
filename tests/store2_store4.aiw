@@ -14,4 +14,4 @@ and y 3 as y
 loadb p as z
 add x y as x
 add x z as x
-sys 60 x
+rt exit x

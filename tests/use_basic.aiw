@@ -2,5 +2,5 @@
 # then names of this program
 use "tests/lib/twice.aiw"
 call twice seven as r
-sys 1 1 word 4
-sys 60 r
+rt write 1 word 4
+rt exit r

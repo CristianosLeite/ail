@@ -26,4 +26,4 @@ call mapget b 1
 call mapdel b 1
 call mapget b 1
 call mapfree b
-sys exit m+k+v+p+c+h+d+s+t+x+n+q+i+f+u+new
+rt exit m+k+v+p+c+h+d+s+t+x+n+q+i+f+u+new

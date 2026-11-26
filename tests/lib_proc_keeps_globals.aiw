@@ -26,4 +26,4 @@ call procstart av -1 -1 -1 as x
 call procwait x 5000 as y
 call procvar "PATH" as a b
 call procenv as f
-sys exit n+e+s+i+c+d+l+p+q+z+pid+st+pf+fd+r+argv+y
+rt exit n+e+s+i+c+d+l+p+q+z+pid+st+pf+fd+r+argv+y

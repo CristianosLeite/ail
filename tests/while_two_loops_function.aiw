@@ -16,4 +16,4 @@ fn f n
 	ret s
 end
 call f 5 as r
-sys exit r
+rt exit r

@@ -4,5 +4,5 @@ fn f
 	ret d
 end
 call f as p
-sys 1 1 p 3
-sys 1 1 d 3
+rt write 1 p 3
+rt write 1 d 3

@@ -62,4 +62,4 @@ call putn o
 call putn n
 call print "\n"
 call ndfree a
-sys exit r+s+u+v+w+h
+rt exit r+s+u+v+w+h

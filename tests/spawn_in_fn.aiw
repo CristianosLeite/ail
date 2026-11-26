@@ -10,4 +10,4 @@ fn both a b
 	ret x+y
 end
 call both 3 4 as r
-sys exit_group r
+rt exit r

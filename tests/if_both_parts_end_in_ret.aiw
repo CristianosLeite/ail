@@ -8,5 +8,5 @@ fn f a
 	add nope1 1 as q
 end
 call f 0 as r
-sys 60 r
+rt exit r
 buf nope1 8

@@ -106,4 +106,4 @@ call ndfree a
 call ndfree b
 call ndfree o
 # the threads of the pool are still there: end them all
-sys exit_group r+s+u+f
+rt exit r+s+u+f

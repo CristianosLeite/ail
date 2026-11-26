@@ -8,4 +8,4 @@ call fileread "tests/lib/words.txt" b as r
 load b as p
 load b+8 as n
 call print p n
-sys exit r
+rt exit r

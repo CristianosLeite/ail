@@ -6,4 +6,4 @@ fn f x
 end
 data b 1
 sub b a as n
-sys 60 n
+rt exit n

@@ -2,7 +2,7 @@
 # call may name any results, and a function with a ret may tail to them
 fn ping n
 	ifz n
-		sys exit 7
+		rt exit 7
 	end
 	tail pong n-1
 end

@@ -15,4 +15,4 @@ end
 call f 0 1 1 1 1 1 as p
 call f 1 1 1 1 1 1 as q
 add p q as p
-sys 60 p
+rt exit p

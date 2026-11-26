@@ -21,4 +21,4 @@ set 2 as q
 call f 1 2 3 4 5 6 as r
 add r p as r
 add r q as r
-sys 60 r
+rt exit r

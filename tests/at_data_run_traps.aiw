@@ -4,4 +4,4 @@ sys 39 as i
 or i 6 as i
 and i 6 as i
 at t i 1 as p
-sys 60 3
+rt exit 3

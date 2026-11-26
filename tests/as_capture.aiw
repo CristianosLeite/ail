@@ -1,2 +1,2 @@
-sys 1 1 "abc\n" as n
-sys 60 n
+rt write 1 "abc\n" as n
+rt exit n

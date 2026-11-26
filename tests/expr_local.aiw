@@ -8,4 +8,4 @@ fn f n
 	ret a*b
 end
 call f 4 as r
-sys exit r
+rt exit r

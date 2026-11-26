@@ -15,7 +15,7 @@ store lim 0x4000000
 store lim+8 0x4000000
 sys setrlimit 9 lim as r
 if r
-	sys exit 1
+	rt exit 1
 end
 # a buffer filled to one byte below its room
 call byadd b "x"

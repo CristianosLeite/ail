@@ -12,4 +12,4 @@ fn f a b c d e g
 	ret k
 end
 call f 1 2 3 4 5 6 as r
-sys exit r
+rt exit r

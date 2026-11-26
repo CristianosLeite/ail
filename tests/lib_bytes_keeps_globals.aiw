@@ -26,4 +26,4 @@ call byaddn x 12345
 call byneed x 10000
 call bycut x 2
 call byfree x
-sys exit b+p+n+i+w+c+d+len+cap+new+old+ok+v+digits+dst+src
+rt exit b+p+n+i+w+c+d+len+cap+new+old+ok+v+digits+dst+src

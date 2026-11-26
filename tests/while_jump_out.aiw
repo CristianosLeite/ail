@@ -11,4 +11,4 @@ while j<100
 	j+=30
 	jlt j 50 again
 end
-sys exit i+j
+rt exit i+j

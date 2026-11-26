@@ -21,4 +21,4 @@ fn g a b c d e
 	ret r
 end
 call g 0 0 0 0 0 as r
-sys 60 r
+rt exit r

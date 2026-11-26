@@ -12,4 +12,4 @@ async fn f k
 	ret y
 end
 await f 1 as r
-sys exit_group r
+rt exit r

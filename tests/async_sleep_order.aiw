@@ -37,4 +37,4 @@ call print "\n"
 call await a 0
 call await b 0
 call await c 0
-sys exit_group n*2+(t1-t0<30000000)
+rt exit n*2+(t1-t0<30000000)

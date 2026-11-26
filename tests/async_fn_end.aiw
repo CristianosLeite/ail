@@ -12,4 +12,4 @@ call none as h
 call six 1 2 3 4 5 6 as g
 call await g 0 as x
 call await h 0 as y
-sys exit_group sum+x+y
+rt exit sum+x+y

@@ -61,4 +61,4 @@ load rq+112 as yy
 call httpfield xx yy "transfer-encoding"
 call httpurl "http://127.0.0.1:80/x"
 call httpstatus xx yy as st2
-sys exit a+b+c+d+e+eof+fd+h+i+j+k+l+m+max+ms+n+nobody+ok+p+port+q+r+v+w+g+o+t+s+st+st2-400
+rt exit a+b+c+d+e+eof+fd+h+i+j+k+l+m+max+ms+n+nobody+ok+p+port+q+r+v+w+g+o+t+s+st+st2-400

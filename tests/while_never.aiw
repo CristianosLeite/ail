@@ -7,4 +7,4 @@ end
 while i>3
 	s=2
 end
-sys exit s
+rt exit s

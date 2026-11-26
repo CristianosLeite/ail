@@ -8,4 +8,4 @@ fn fact n
 	ret 1
 end
 call fact 5 as x
-sys 60 x
+rt exit x

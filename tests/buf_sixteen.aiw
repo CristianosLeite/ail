@@ -18,4 +18,4 @@ storeb b15 7
 loadb b15 as v
 sub b15 b0 as d
 add d v as d
-sys 60 d
+rt exit d

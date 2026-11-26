@@ -58,4 +58,4 @@ call putn 0-x
 call print " "
 call putn s
 call print "\n"
-sys exit r
+rt exit r

@@ -6,4 +6,4 @@ set 1 as e
 set 1 as f
 set -1 as g
 shr g 60 as h
-sys 60 h
+rt exit h

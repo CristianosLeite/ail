@@ -27,4 +27,4 @@ ref other as p
 call async 64 p as g
 call asyncrun as n
 call print "\n"
-sys exit_group n
+rt exit n

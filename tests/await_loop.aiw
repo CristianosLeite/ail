@@ -25,4 +25,4 @@ call count 119 3 as b
 await a as x
 await b as y
 call print "\n"
-sys exit_group x+y
+rt exit x+y

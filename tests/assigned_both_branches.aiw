@@ -5,4 +5,4 @@ jmp b
 label a
 set 4 as x
 label b
-sys 60 x
+rt exit x

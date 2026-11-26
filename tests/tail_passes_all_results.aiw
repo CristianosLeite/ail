@@ -6,4 +6,4 @@ fn f
 end
 call f as a b
 add a b as a
-sys 60 a
+rt exit a

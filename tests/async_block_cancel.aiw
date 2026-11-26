@@ -37,4 +37,4 @@ load ran as ran1
 e=(t1-t0)/1000000>80
 e+=((t2-t0)/1000000<95)*2
 e+=(x!=-125)*4+(y!=-125)*8+n*16
-sys exit_group e*8+c+d*2+back1*4+(back2==1)*16+(ran1==1)*32
+rt exit e*8+c+d*2+back1*4+(back2==1)*16+(ran1==1)*32

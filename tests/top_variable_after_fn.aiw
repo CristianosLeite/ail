@@ -13,4 +13,4 @@ set 7 as h
 call f as i
 add g h as r
 add r i as r
-sys 60 r
+rt exit r

@@ -8,7 +8,7 @@ i=0
 while i<100000
 	call mapput m i*0x9e3779b97f4a7c15 i as r
 	ifz r
-		sys exit 1
+		rt exit 1
 	end
 	i+=1
 end
@@ -22,7 +22,7 @@ i=0
 while i<100000
 	call mapget m i*0x9e3779b97f4a7c15 as v r
 	ifz r&(v==i)
-		sys exit 2
+		rt exit 2
 	end
 	i+=1
 end
@@ -60,4 +60,4 @@ load m+8 as c
 call mapput m 1 2 as g
 call mapget m 1 as v h
 call mapfree m
-sys exit a+e+p+c+b+f+g+h+v
+rt exit a+e+p+c+b+f+g+h+v

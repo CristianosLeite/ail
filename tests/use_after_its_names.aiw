@@ -2,5 +2,5 @@
 call twice 5 as r
 loadb word as c
 add r c as r
-sys 60 r
+rt exit r
 use "tests/lib/twice.aiw"

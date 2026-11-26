@@ -36,4 +36,4 @@ call putn k
 call putn z
 call putn e+s+t
 call print "\n"
-sys exit r+(p==m)+(o==0)+f+g+u
+rt exit r+(p==m)+(o==0)+f+g+u

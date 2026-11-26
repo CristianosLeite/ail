@@ -27,4 +27,4 @@ call print " "
 call putn x
 call print "\n"
 call queuefree q
-sys exit a+b+d+h+l+c+e+f+g+i+j+k
+rt exit a+b+d+h+l+c+e+f+g+i+j+k

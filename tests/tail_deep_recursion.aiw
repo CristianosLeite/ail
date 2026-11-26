@@ -10,4 +10,4 @@ fn count n acc
 end
 call count 10000000 0 as r
 shr r 16 as r
-sys 60 r
+rt exit r

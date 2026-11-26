@@ -12,7 +12,7 @@ store lim 0x4000000
 store lim+8 0x4000000
 sys setrlimit 9 lim as r
 if r
-	sys exit 1
+	rt exit 1
 end
 call ndvec a 1000 as r
 store ix 999
@@ -34,4 +34,4 @@ call putn x
 call putn n
 call putn t+u+v+w
 call print "\n"
-sys exit r+s+(p==q)+f+y+z
+rt exit r+s+(p==q)+f+y+z

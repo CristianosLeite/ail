@@ -3,4 +3,4 @@ fn add2 a b
 	ret c
 end
 call add2 3 4 as x
-sys 60 x
+rt exit x

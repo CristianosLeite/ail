@@ -19,4 +19,4 @@ while i
 	join h
 end
 load cell as c
-sys exit_group c==1000000
+rt exit c==1000000

@@ -17,4 +17,4 @@ call byadd b "again\n"
 load b as q
 load b+8 as m
 call print q m
-sys exit p+n+c
+rt exit p+n+c

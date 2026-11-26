@@ -3,4 +3,4 @@ sdiv -8 2 as s
 shr u 62 as u
 add s 4 as s
 add u s as u
-sys 60 u
+rt exit u

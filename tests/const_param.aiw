@@ -5,4 +5,4 @@ fn f k
 end
 call f 5 as x
 add x k as x
-sys 60 x
+rt exit x

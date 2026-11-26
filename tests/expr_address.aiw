@@ -5,4 +5,4 @@ storeb 1+b+11-4 20
 loadb b+7 as x
 loadb b+8 as y
 add x y as x
-sys exit x
+rt exit x

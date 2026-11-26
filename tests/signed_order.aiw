@@ -22,4 +22,4 @@ shl g 6 as t
 or x t as x
 shl h 7 as t
 or x t as x
-sys 60 x
+rt exit x

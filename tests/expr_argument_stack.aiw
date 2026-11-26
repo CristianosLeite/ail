@@ -8,6 +8,6 @@ call f x y x+y y*y x+y*y y*3 x*7 y<<2 9/x as r
 jne r 285 bad
 call f 1 2 3 4 5 6 7 80/(x+y*4+1) 9 as r
 jne r 285 bad
-sys exit 0
+rt exit 0
 label bad
-sys exit 1
+rt exit 1

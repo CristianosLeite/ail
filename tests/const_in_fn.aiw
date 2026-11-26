@@ -4,4 +4,4 @@ fn f
 end
 call f as x
 add x k as x
-sys 60 x
+rt exit x

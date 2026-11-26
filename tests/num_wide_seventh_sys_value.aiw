@@ -3,4 +3,4 @@
 sys 9 0 4096 3 34 -1 0x100000000 as p
 gt p -4096 as x
 storeb p 1
-sys 60 x
+rt exit x

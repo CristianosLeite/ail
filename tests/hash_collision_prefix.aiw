@@ -6,4 +6,4 @@ data q 4
 loadb q as x
 loadb qeept as y
 add x y as x
-sys exit x
+rt exit x

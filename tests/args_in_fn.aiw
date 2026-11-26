@@ -5,4 +5,4 @@ fn f
 	ret n
 end
 call f as n
-sys exit n
+rt exit n

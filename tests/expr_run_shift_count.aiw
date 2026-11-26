@@ -9,12 +9,12 @@ jne v0<<v1 1 f1
 jne v0<<v2 2 f2
 jne v3>>v4 1 f3
 jne v0<<v5 9223372036854775808 f4
-sys exit 0
+rt exit 0
 label f1
-sys exit 1
+rt exit 1
 label f2
-sys exit 2
+rt exit 2
 label f3
-sys exit 3
+rt exit 3
 label f4
-sys exit 4
+rt exit 4

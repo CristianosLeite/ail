@@ -8,4 +8,4 @@ fn apply p v
 end
 ref sq as p
 call apply p 7 as r
-sys 60 r
+rt exit r

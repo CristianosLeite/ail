@@ -7,4 +7,4 @@ sub b mark as e
 add d e as d
 len mark as n
 add d n as d
-sys 60 d
+rt exit d

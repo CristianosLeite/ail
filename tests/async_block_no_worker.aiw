@@ -18,4 +18,4 @@ ref mul as p
 await asyncblock p 6 7 0 0 as x
 await f as y
 call asyncstop as n
-sys exit_group x+y+n
+rt exit x+y+n

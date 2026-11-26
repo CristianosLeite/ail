@@ -1,4 +1,4 @@
 store b 5
 load b as x
-sys 60 x
+rt exit x
 buf b 8

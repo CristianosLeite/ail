@@ -49,4 +49,4 @@ fsum 0 a+32 4 8 as x
 r+=x>>51==0xfff
 call sums 0 a 7 8 1 2 3 4 0 as x
 call sums 0x3ff0000000000000 a+48 7 -8 1 2 3 4 0 as y
-sys exit r+x+y
+rt exit r+x+y

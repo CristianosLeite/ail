@@ -16,4 +16,4 @@ label l
 jz a^6 m
 c+=16
 label m
-sys exit c
+rt exit c

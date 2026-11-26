@@ -37,4 +37,4 @@ call print "\n"
 call ndfree a
 call ndfree b
 call ndfree t
-sys exit r+(p==q)
+rt exit r+(p==q)

@@ -9,4 +9,4 @@ async fn down n
 	ret x+1
 end
 await down 10000 as r
-sys exit_group r==10000
+rt exit r==10000

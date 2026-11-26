@@ -8,4 +8,4 @@ add s x as s
 free p
 sub n 1 as n
 jnz n l
-sys 60 s
+rt exit s

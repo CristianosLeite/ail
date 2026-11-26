@@ -76,4 +76,4 @@ call ndfree a
 call ndfree i
 call ndfree j
 call ndfree f
-sys exit r+s+t+u+v+w+y+b+c+d+e
+rt exit r+s+t+u+v+w+y+b+c+d+e

@@ -24,4 +24,4 @@ mul i 8 as i
 at t i 8 as q
 load q as p
 callp p as r
-sys 60 r
+rt exit r

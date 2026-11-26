@@ -28,4 +28,4 @@ call asyncwake h
 call asyncrun
 x=x*10+polls
 call await h 0
-sys exit_group x-11000
+rt exit x-11000

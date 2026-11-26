@@ -25,4 +25,4 @@ call fileread "tests/lib/words.txt" x
 call filewrite "build/tests/lib_file_keeps_globals.tmp" "x"
 set "build/tests/lib_file_keeps_globals.tmp\x00" as y
 sys unlink y
-sys exit p+n+fd+b+r+z+i+c+flags+mode+sum+ok+len+cap+d+dn
+rt exit p+n+fd+b+r+z+i+c+flags+mode+sum+ok+len+cap+d+dn

@@ -9,4 +9,4 @@ fn f a
 	ret x
 end
 call f 9 as r
-sys 60 r
+rt exit r

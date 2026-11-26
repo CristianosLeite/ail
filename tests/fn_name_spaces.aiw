@@ -8,6 +8,6 @@ end
 set 0 as x
 call x x as x
 jmp x
-sys 60 1
+rt exit 1
 label x
-sys 60 x
+rt exit x

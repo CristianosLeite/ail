@@ -12,4 +12,4 @@ end
 ifz a*b==b*a
 	c+=100
 end
-sys exit c
+rt exit c

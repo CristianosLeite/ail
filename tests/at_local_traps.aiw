@@ -4,4 +4,4 @@ fn f i
 	ret 3
 end
 call f 12 as r
-sys 60 r
+rt exit r

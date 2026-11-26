@@ -27,4 +27,4 @@ end
 call print "\n"
 call heappop h as x f
 call heapfree h
-sys exit a+b+f+x+c+d
+rt exit a+b+f+x+c+d

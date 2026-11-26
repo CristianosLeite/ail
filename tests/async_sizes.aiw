@@ -28,4 +28,4 @@ end
 call async 0 0 as h
 call asyncfinish h 3
 call await h 0 as x
-sys exit_group n+x
+rt exit n+x

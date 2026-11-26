@@ -13,4 +13,4 @@ fn wait v
 	ret x+y
 end
 call wait 10 as r
-sys exit_group r
+rt exit r

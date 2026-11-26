@@ -6,14 +6,14 @@ jne (k) 5 f2
 jne m-k 95 f3
 jne k<<1|1 11 f4
 jne k==5 1 f5
-sys exit 0
+rt exit 0
 label f1
-sys exit 1
+rt exit 1
 label f2
-sys exit 2
+rt exit 2
 label f3
-sys exit 3
+rt exit 3
 label f4
-sys exit 4
+rt exit 4
 label f5
-sys exit 5
+rt exit 5

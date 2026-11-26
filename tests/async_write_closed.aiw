@@ -32,7 +32,7 @@ call print " "
 sys pipe fds
 load4 fds as rd
 load4 fds+4 as wr
-sys close rd
+rt close rd
 await asyncwrite wr "x" as r
 await asyncwriteall wr "xyz" as q
 call putn 0-r

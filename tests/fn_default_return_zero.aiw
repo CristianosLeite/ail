@@ -10,7 +10,7 @@ jnz x bad
 set 7 as x
 call side 5 as x
 jnz x bad
-sys 1 1 "ok\n"
-sys 60 0
+rt write 1 "ok\n"
+rt exit 0
 label bad
-sys 60 1
+rt exit 1

@@ -81,4 +81,4 @@ call ndfree a
 call ndfree v
 call ndfree c
 call ndfree e
-sys exit r+s+t+u+h+k+l+w+x+y+z+b
+rt exit r+s+t+u+h+k+l+w+x+y+z+b

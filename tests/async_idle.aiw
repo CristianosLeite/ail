@@ -31,4 +31,4 @@ len taskq as n
 call zero taskq n as e
 sys pipe asyncev as r
 load4 asyncev as fd
-sys exit_group ((a|b|c|d|e|r)!=0)|fd<<1
+rt exit ((a|b|c|d|e|r)!=0)|fd<<1

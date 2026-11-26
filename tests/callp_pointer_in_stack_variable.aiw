@@ -10,4 +10,4 @@ set 1 as g
 ref f as p
 callp p 7 as r
 add r a as r
-sys 60 r
+rt exit r

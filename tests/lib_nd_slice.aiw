@@ -77,4 +77,4 @@ call ndsize v as m
 call putn c+d+g+h+k+m
 call print "\n"
 call ndfree a
-sys exit r+s+t+u+x+y+b
+rt exit r+s+t+u+x+y+b

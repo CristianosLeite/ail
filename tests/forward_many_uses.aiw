@@ -5,5 +5,5 @@ loadb b as x
 add b 1 as p
 loadb p as y
 add x y as x
-sys 60 x
+rt exit x
 buf b 8

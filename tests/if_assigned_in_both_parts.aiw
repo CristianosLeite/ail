@@ -4,4 +4,4 @@ if p
 else
 	set 4 as x
 end
-sys 60 x
+rt exit x

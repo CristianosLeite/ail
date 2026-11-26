@@ -1016,3 +1016,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   against the revision before the runtime. Measured with no runtime,
   with the C one and with the AIL one; `docs/performance.md` there has
   the figures.
+- [x] The tests on the runtime (2026-11-26): 571 tests that end with a
+  status, write or read by `sys` do so by `rt exit`, `rt write`,
+  `rt read` and `rt close`, with their expected outputs as they were,
+  so that they can run where the system calls of x86-64 Linux are not.
+  The tests named `sys_*`, those that must fail to compile, the
+  generated ones and four that depend on what a raw system call leaves
+  in a register keep `sys`; 150 test sources still have one, for what
+  only Linux has.

@@ -12,4 +12,4 @@ if r
 end
 add r 100 as r
 label out
-sys 60 r
+rt exit r

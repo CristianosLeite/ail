@@ -2,4 +2,4 @@
 x=5
 y=x*x+1
 x=y-x
-sys exit x
+rt exit x

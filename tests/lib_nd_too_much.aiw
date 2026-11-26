@@ -35,4 +35,4 @@ call putn n
 call putn t+u+v+w+x+y+z
 call print "\n"
 call ndfree a
-sys exit r+s+(p==q)+f
+rt exit r+s+(p==q)+f

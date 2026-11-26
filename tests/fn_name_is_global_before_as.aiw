@@ -8,4 +8,4 @@ end
 call f as x
 loadb b as y
 add x y as x
-sys 60 x
+rt exit x

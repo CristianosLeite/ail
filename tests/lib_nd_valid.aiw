@@ -44,4 +44,4 @@ call ndvalid m as f
 call putn b+c+d+e+w
 call print "\n"
 call ndfree a
-sys exit r+s+t+u+x+y+f
+rt exit r+s+t+u+x+y+f

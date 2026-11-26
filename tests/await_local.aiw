@@ -15,4 +15,4 @@ call f 10 as a
 call f 20 as c
 await a as x
 await c as y
-sys exit_group x+y
+rt exit x+y

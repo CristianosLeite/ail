@@ -7,4 +7,4 @@ store x 0
 add x 8 as p
 store p 0
 add a b as r
-sys 60 r
+rt exit r

@@ -4,4 +4,4 @@ add p 4095 as q
 storeb q 9
 loadb q as x
 free p
-sys 60 x
+rt exit x

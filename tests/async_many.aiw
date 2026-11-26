@@ -23,4 +23,4 @@ while i<100000
 	s+=x
 	i+=1
 end
-sys exit_group s==4999950000
+rt exit s==4999950000

@@ -20,4 +20,4 @@ add x p as x
 add x q as x
 add x r as x
 add x s as x
-sys 60 x
+rt exit x

@@ -22,50 +22,50 @@ jne 7-2-1 4 f20
 jne 64/4/2 8 f21
 jne 100%7%3 2 f22
 jne 1<<2<<3 32 f23
-sys exit 0
+rt exit 0
 label f1
-sys exit 1
+rt exit 1
 label f2
-sys exit 2
+rt exit 2
 label f3
-sys exit 3
+rt exit 3
 label f4
-sys exit 4
+rt exit 4
 label f5
-sys exit 5
+rt exit 5
 label f6
-sys exit 6
+rt exit 6
 label f7
-sys exit 7
+rt exit 7
 label f8
-sys exit 8
+rt exit 8
 label f9
-sys exit 9
+rt exit 9
 label f10
-sys exit 10
+rt exit 10
 label f11
-sys exit 11
+rt exit 11
 label f12
-sys exit 12
+rt exit 12
 label f13
-sys exit 13
+rt exit 13
 label f14
-sys exit 14
+rt exit 14
 label f15
-sys exit 15
+rt exit 15
 label f16
-sys exit 16
+rt exit 16
 label f17
-sys exit 17
+rt exit 17
 label f18
-sys exit 18
+rt exit 18
 label f19
-sys exit 19
+rt exit 19
 label f20
-sys exit 20
+rt exit 20
 label f21
-sys exit 21
+rt exit 21
 label f22
-sys exit 22
+rt exit 22
 label f23
-sys exit 23
+rt exit 23

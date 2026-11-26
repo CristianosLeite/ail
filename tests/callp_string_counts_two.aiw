@@ -1,7 +1,7 @@
 fn pr s n
-	sys 1 1 s n as w
+	rt write 1 s n as w
 	ret w
 end
 ref pr as p
 callp p "ptr\n" as r
-sys 60 r
+rt exit r

@@ -13,4 +13,4 @@ async fn both a b
 end
 call both 3 4 as h
 await h as x
-sys exit_group x
+rt exit x

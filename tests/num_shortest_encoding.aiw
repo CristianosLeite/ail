@@ -9,4 +9,4 @@ data c 1
 set 0x100000000 as v
 data d 1
 sub d a as n
-sys 60 n
+rt exit n

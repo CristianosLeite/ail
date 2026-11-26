@@ -12,4 +12,4 @@ async fn count
 	ret n
 end
 await count as c
-sys exit c
+rt exit c

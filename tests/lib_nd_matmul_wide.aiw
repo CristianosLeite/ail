@@ -84,4 +84,4 @@ end
 call wide 33 as x
 call putn x
 call print "\n"
-sys exit_group 0
+rt exit 0

@@ -45,4 +45,4 @@ fn f v0 v1 v2 v3 v4 v5 v6 v7
 	ret 14
 end
 call f 3 5 4 2 6 7 0 1 as r
-sys exit r
+rt exit r

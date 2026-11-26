@@ -4,4 +4,4 @@ load p as n
 add p 16 as q
 load q as z
 add n z as n
-sys exit n
+rt exit n

@@ -7,4 +7,4 @@ fn f a b c d e g h i
 end
 ref f as p
 callp p 1 0 0 0 0 0 4 5 as r
-sys 60 r
+rt exit r

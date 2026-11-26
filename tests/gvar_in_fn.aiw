@@ -5,4 +5,4 @@ fn inc k
 end
 call inc 4
 call inc 5
-sys 60 n
+rt exit n

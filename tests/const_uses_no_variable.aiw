@@ -6,4 +6,4 @@ set 4 as d
 set 5 as e
 set 6 as f
 add f k as f
-sys 60 f
+rt exit f

@@ -1,5 +1,5 @@
 # len is the length of the statement that has the name, not of its run
 len t as n
-sys 60 n
+rt exit n
 data t 1 2 3
 data 4 5 6

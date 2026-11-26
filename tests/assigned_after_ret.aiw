@@ -6,4 +6,4 @@ fn f a
 	ret x
 end
 call f 0 as r
-sys 60 r
+rt exit r

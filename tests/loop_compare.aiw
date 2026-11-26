@@ -6,4 +6,4 @@ add s i as s
 add i 1 as i
 lt i 10 as c
 jnz c top
-sys 60 s
+rt exit s

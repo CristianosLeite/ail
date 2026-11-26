@@ -1,7 +1,7 @@
 # x is three different labels; the first jump is recorded before the
 # functions and resolved after them
 jmp x
-sys 60 1
+rt exit 1
 fn f a
 	jz a x
 	ret 1
@@ -19,6 +19,6 @@ call f 0 as r
 call g 0 as s
 add r s as r
 jmp y
-sys 60 3
+rt exit 3
 label y
-sys 60 r
+rt exit r

@@ -22,4 +22,4 @@ shl r4 3 as r4
 or r1 r2 as r1
 or r1 r3 as r1
 or r1 r4 as r1
-sys exit r1
+rt exit r1

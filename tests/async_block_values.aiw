@@ -30,4 +30,4 @@ call again 5 as a
 call again 256 as b
 call again 0xff00 as c
 call again -1 as d
-sys exit_group (x==1234)+a*2+b*4+c*8+d*16
+rt exit (x==1234)+a*2+b*4+c*8+d*16

@@ -35,4 +35,4 @@ ref parent as p
 call async 72 p as h
 call await h 0 as x
 call print "\n"
-sys exit_group x
+rt exit x

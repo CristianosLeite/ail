@@ -16,4 +16,4 @@ itof 1000 as m
 fmul x m as x
 ftoi x as i
 sub i 2990 as i
-sys exit i
+rt exit i

@@ -8,4 +8,4 @@ set 6 as f
 set 7 as g
 add g a as h
 add h f as h
-sys 60 h
+rt exit h

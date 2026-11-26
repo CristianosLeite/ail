@@ -21,4 +21,4 @@ jgt 1 -1 x
 jge 1 -1 x
 add r 16 as r
 label x
-sys 60 r
+rt exit r

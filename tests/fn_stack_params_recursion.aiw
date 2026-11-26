@@ -11,4 +11,4 @@ fn f n a b c d e g h
 	ret r
 end
 call f 5 1 0 0 0 0 10 20 as r
-sys 60 r
+rt exit r

@@ -1,2 +1,2 @@
 set "abc\n" as p
-sys 1 1 p 4
+rt write 1 p 4

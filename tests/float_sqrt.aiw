@@ -7,4 +7,4 @@ fmul r m as r
 ftoi r as i
 sub i 1414213 as i
 add i ok as i
-sys exit i
+rt exit i

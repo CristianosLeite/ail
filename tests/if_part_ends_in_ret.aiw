@@ -10,4 +10,4 @@ end
 call f 0 as r
 call f 1 as s
 add r s as r
-sys 60 r
+rt exit r

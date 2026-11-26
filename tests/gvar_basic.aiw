@@ -3,4 +3,4 @@ var a b
 set 5 as a
 add a 2 as b
 mul a b as x
-sys 60 x
+rt exit x

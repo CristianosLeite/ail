@@ -7,4 +7,4 @@ set 4 as d
 set 5 as e
 set 6 as f
 add a f as g
-sys 60 g
+rt exit g

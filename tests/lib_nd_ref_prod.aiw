@@ -55,4 +55,4 @@ call near p q as n
 call putn n
 call print "\n"
 call ndfree o
-sys exit r+s+t+u+c+d+e+f+g
+rt exit r+s+t+u+c+d+e+f+g

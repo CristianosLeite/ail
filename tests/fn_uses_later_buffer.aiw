@@ -4,4 +4,4 @@ end
 call f
 loadb b as x
 buf b 8
-sys 60 x
+rt exit x

@@ -41,4 +41,4 @@ call numint "-12"
 call numdouble "0.5"
 call numdouble "123456789012345678901234567890e-40"
 call numdouble "1e400"
-sys exit a+any+b+c+d+dig+dot+e+eneg+f+hi+i+j+k+l+ln+lo+m+more+n+nd+neg+p+q+r+s+sh+sign+t+v+w+x+y+z
+rt exit a+any+b+c+d+dig+dot+e+eneg+f+hi+i+j+k+l+ln+lo+m+more+n+nd+neg+p+q+r+s+sh+sign+t+v+w+x+y+z

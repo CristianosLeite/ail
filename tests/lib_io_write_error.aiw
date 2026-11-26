@@ -2,4 +2,4 @@
 use "lib/std/io.aiw"
 call fdwrite 99 "x" as ok
 add ok 4 as ok
-sys exit ok
+rt exit ok

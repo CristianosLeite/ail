@@ -12,4 +12,4 @@ call byaddb b 10
 load b as p
 load b+8 as n
 call print p n
-sys exit r+s+t+u
+rt exit r+s+t+u

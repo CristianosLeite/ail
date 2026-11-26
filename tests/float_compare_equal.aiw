@@ -4,4 +4,4 @@ flt a a as x
 fle a a as y
 shl y 1 as y
 or x y as x
-sys exit x
+rt exit x

@@ -5,4 +5,4 @@ fn f
 end
 call f
 load b as n
-sys 60 n
+rt exit n

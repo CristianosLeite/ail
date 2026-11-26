@@ -13,7 +13,7 @@ store lim 0x4000000
 store lim+8 0x4000000
 sys setrlimit 9 lim as r
 if r
-	sys exit 1
+	rt exit 1
 end
 n=0
 r=1
@@ -32,7 +32,7 @@ i=0
 while i<n
 	call vecget v i as x r
 	ifz r&(x==i*3)
-		sys exit 2
+		rt exit 2
 	end
 	i+=1
 end
@@ -56,4 +56,4 @@ call putn m==c
 call putn k==n
 call putn x+y
 call print "\n"
-sys exit a+s+(p==q)+(m==d)+(c==e)+b+f+(g==t)+u+w
+rt exit a+s+(p==q)+(m==d)+(c==e)+b+f+(g==t)+u+w

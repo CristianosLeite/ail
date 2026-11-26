@@ -1,5 +1,5 @@
 # a string is two values for call: address and length
 fn f a b
-	sys 1 1 a b
+	rt write 1 a b
 end
 call f "ab\n"

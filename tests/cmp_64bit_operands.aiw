@@ -19,4 +19,4 @@ or r t as r
 ge 0 h as t    # 0
 shl r 1 as r
 or r t as r
-sys 60 r
+rt exit r

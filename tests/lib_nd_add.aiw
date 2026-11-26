@@ -54,4 +54,4 @@ call print "\n"
 call ndfree a
 call ndfree b
 call ndfree c
-sys exit r+s+t+x+y+z+d+e+f+g+h+k+l+m+n
+rt exit r+s+t+x+y+z+d+e+f+g+h+k+l+m+n

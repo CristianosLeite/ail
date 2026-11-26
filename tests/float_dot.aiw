@@ -49,4 +49,4 @@ fdot 0x4000000000000000 a b 0 as x
 r+=x==0x4000000000000000
 call dots 0 a b 7 1 2 3 4 0 as x
 call dots 0x3ff0000000000000 a a 7 1 2 3 4 0 as y
-sys exit r+x+y
+rt exit r+x+y

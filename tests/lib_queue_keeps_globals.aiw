@@ -17,4 +17,4 @@ call queuepush b 6
 call queuepop b
 call queuepop b
 call queuefree b
-sys exit q+n+p+c+i+x+h
+rt exit q+n+p+c+i+x+h

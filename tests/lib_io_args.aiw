@@ -8,4 +8,4 @@ add n l as n
 add n p as n
 add n q as n
 add n m as n
-sys exit n
+rt exit n

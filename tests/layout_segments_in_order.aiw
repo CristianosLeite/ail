@@ -12,4 +12,4 @@ shl y 5 as y
 shl z 6 as z
 or x y as x
 or x z as x
-sys exit x
+rt exit x

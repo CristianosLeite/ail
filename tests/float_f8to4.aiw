@@ -61,4 +61,4 @@ r+=x==0x40490fdb
 # than registers
 call narrow 0x3fb999999999999a 1 2 3 4 5 as x
 r+=x==0x3dcccccd
-sys exit r
+rt exit r

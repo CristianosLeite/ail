@@ -46,4 +46,4 @@ end
 call direct 30 4 as x y
 call through 5 6 as z w
 call count 10000000 0 as c
-sys exit_group x+y+z+w+(c==10000000)
+rt exit x+y+z+w+(c==10000000)

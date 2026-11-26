@@ -69,4 +69,4 @@ call differ o w 0 as n
 call putn n
 call print "\n"
 call ndfree o
-sys exit r+s+t+u+v+c+d+e+f+g+h+l
+rt exit r+s+t+u+v+c+d+e+f+g+h+l

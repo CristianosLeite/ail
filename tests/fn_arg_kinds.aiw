@@ -8,4 +8,4 @@ fn f p v n
 end
 set 30 as v
 call f b v 12 as x
-sys 60 x
+rt exit x

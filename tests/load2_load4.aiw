@@ -6,4 +6,4 @@ load4 b as y
 shr x 8 as x
 shr y 24 as y
 add x y as x
-sys 60 x
+rt exit x
