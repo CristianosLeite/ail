@@ -41,6 +41,13 @@ $ailc <&- > /dev/null 2> $tmp/err
 rc=$?
 expect io_closed_stdin "ailc: read error"
 
+# Memory that the kernel refuses: the limit has room for the image of the
+# compiler and none for the nodes of its names, which it asks for when it
+# starts.
+(ulimit -v 1700000 && $ailc < $src > /dev/null 2> $tmp/err)
+rc=$?
+expect io_no_memory "ailc: no memory"
+
 # A short write: stdout is a pipe that takes 4096 bytes and no more, since
 # nobody reads it, and does not block. A helper program run with the pipe as
 # its stdout sets both properties; they belong to the open pipe, so they

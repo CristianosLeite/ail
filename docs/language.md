@@ -1938,6 +1938,7 @@ Status 1 means the source is at fault; status 2 means the environment is.
 | `usage: ailc [name=directory]... < source > executable` | 2 | an argument of the compiler that names no [package](#packages), or a name given twice; no place |
 | `read error` | 2 | reading stdin failed; no place |
 | `write error` | 2 | writing the executable to stdout failed, a pipe closed by its reader included; no place |
+| `no memory` | 2 | the compiler did not get the memory it asks for when it starts, 484937472 bytes for the names of the program; no place |
 
 What remains a plain `syntax error`:
 

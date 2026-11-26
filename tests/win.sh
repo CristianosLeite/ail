@@ -8,7 +8,8 @@
 # - The compiler compiled for Windows, run under Wine, must write the
 #   same hello as the compiler that runs here, report an error of a
 #   source with its message and the status 1, and compile its own source
-#   to the file it is itself: the fixed point of the port.
+#   to the file it is itself: the fixed point of the port. Its image must
+#   be one that Windows loads, which is not for Wine to say.
 # - tests/win/start.aiw must start programs of Windows, with their output
 #   in a file, a limit of time and an argument that has to be quoted.
 # - tests/win/inherit.aiw must find that a child got the descriptors it
@@ -49,6 +50,11 @@ r=0
 timeout $limit wine $tmp/ailc.exe < examples/hello.aiw > $tmp/hello2.exe 2> /dev/null || r=1
 cmp -s $tmp/hello.exe $tmp/hello2.exe || r=1
 say win_compiler_runs $r
+
+# the size of its image, at 144 of the file: Windows loads no image above
+# 0x77000000 bytes, and Wine loads any
+[ "$(od -An -tu4 -j144 -N4 $tmp/ailc.exe | tr -d ' ')" -le 1996488704 ]
+say win_compiler_loads $?
 
 echo frob | timeout $limit wine $tmp/ailc.exe > /dev/null 2> $tmp/err
 [ $? -eq 1 ] && [ "$(tr -d '\r' < $tmp/err)" = "ailc: 1: unknown statement" ]

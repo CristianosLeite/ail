@@ -207,10 +207,15 @@ buf blks 67108880     # 1677722 open blocks of 40 bytes: address of the rel32 th
 # and for a while the address of its first line and the place of
 # its value in the source, else 0
 buf buckets 8388608 # 1048576 buckets of the hash of names: the first node of each, from 1
-buf hnodes 484937472 # 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
+# 7573052 nodes of 64 bytes: name, asg of the jumps to a label not
 # yet defined, length, next node, scope, index in the table of
 # its kind, bucket, kind (1 global, 2 function, 3 label, 4 a
-# label with jumps but no definition yet)
+# label with jumps but no definition yet). They are the largest
+# table and no buffer: hnodes is the address of hnsz bytes that the
+# compiler asks for when it starts, so that its image stays below
+# the 0x77000000 bytes above which Windows loads none
+const hnsz 484937472
+var hnodes
 buf ustart 9587112  # per file of use: where its bytes start,
 buf uendp 9587112   # and end
 buf ucur 9587112    # per use being compiled: curunit outside it
@@ -266,6 +271,10 @@ use "compiler/emit.aiw"
 
 # ---- start: a closed output pipe must be a write error, not a death
 rt pipeerr
+alloc hnsz as hnodes
+ifz hnodes
+	call enomem
+end
 args as p
 call pkargs p
 p=in

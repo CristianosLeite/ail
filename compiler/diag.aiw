@@ -201,6 +201,10 @@ fn ewr
 	epos=-1
 	call die "write error" 2
 end
+fn enomem
+	epos=-1
+	call die "no memory" 2
+end
 # syntax error unless c is not zero
 fn ok c
 	ifz c
