@@ -131,7 +131,7 @@ say win_stale_watch $r
 # executable, the lock, a program in place of the process and a group
 # of processes. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group"
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds"
 # each of them has to be a test the loop below finds and takes
 for t in $always; do
     why=

@@ -1,0 +1,30 @@
+# a descriptor given to a child must be open, for one that leads a
+# group as for any other: the descriptor 3 is closed here, and a start
+# with it is a child that ends with 127, not one that got a descriptor
+# the runtime made for itself
+buf exe 4096
+buf argv 24
+buf io 24
+data child "child" 0
+args as p
+load p as n
+if n>1
+	rt exit 0
+end
+rt close 3
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 child
+store io 3
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0 as a
+rt start argv 0 io 2 as c
+rt reap c 0 as b
+store io -1
+rt start argv 0 io 2 as c
+rt reap c 0 as d
+rt write 1 "fds\n"
+rt exit (a==127)+(b==127)*2+(d==0)*4

@@ -75,6 +75,7 @@ const rt_chdir 80
 const rt_fchdir 81
 const rt_readlink 89
 const rt_fchmod 91
+const rt_getrlimit 97
 const rt_setpgid 109
 const rt_getppid 110
 const rt_sigtimedwait 128
@@ -1191,21 +1192,23 @@ end
 # it starts is in unless it leaves: the group is killed when the child
 # is taken by reap, and when this process ends, however it ends. The
 # record of such a child, in the list at 368 of the state: the next, its
-# number, the number of its watcher, a descriptor.
+# number, the number of its watcher, a descriptor of a pipe, and a
+# descriptor of the watcher, or -1 where the kernel has none.
 # Two pipes, both closed in a program that is started. Only this
 # process writes to the first, and the descriptor of the record is that
 # end: the watcher, a process in the group of the child, where a signal
 # for the group of this process does not reach it, waits for the end of
 # that pipe, which comes when this process closes it or is gone, and
-# then kills the group, itself with it. It keeps no other descriptor of
+# then kills its group, itself with it. It keeps no other descriptor of
 # this process. The second pipe holds the child back until the watcher
-# is there, so that the program never runs without one; if this process
-# is gone before that, the pipe ends without a byte and so does the
-# child.
+# is there, so that the program never runs without one: the watcher
+# writes the byte, when it is in the group and has closed what it is
+# not to keep; if it cannot, or this process is gone before that, the
+# pipe ends without a byte and so does the child, with 127.
 fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	local rt_pp 8
 	local rt_info 128
-	call rt_alloc 32 as rt_g
+	call rt_alloc 40 as rt_g
 	ifz rt_g
 		ret -12
 	end
@@ -1236,6 +1239,10 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 		if rt_r!=1
 			sys exit 127
 		end
+		# before the descriptors of the program are looked at: one of
+		# them that is closed must not be an end of these pipes
+		sys close rt_grd
+		sys close rt_rd
 		if rt_flags&1
 			call rt_hold rt_me
 		end
@@ -1246,71 +1253,44 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 		sys exit 127
 	end
 	rt_wd=-1
+	rt_wf=-1
 	rt_e=rt_pid
 	ifsgt rt_pid 0
 		# the same from here, in case the child has not come to it yet
 		sys rt_setpgid rt_pid rt_pid
-		sys fork as rt_wd
+		# a fork that gives a descriptor of the child too, which is that
+		# child whatever becomes of its number (0x1000, and the signal 17
+		# at its end); a kernel that has none refuses
+		store4 rt_pp -1
+		sys clone 0x1011 0 rt_pp 0 0 as rt_wd
+		ifsgt rt_wd 0
+			load4 rt_pp as rt_wf
+		end
+		if rt_wd==-22
+			sys fork as rt_wd
+		end
 		ifz rt_wd
-			sys rt_setpgid 0 rt_pid
-			rt_r=0
-			if rt_rd
-				sys rt_closerange 0 rt_rd-1 0 as rt_r
-			end
-			ifz rt_r
-				sys rt_closerange rt_rd+1 0xffffffff 0 as rt_r
-			end
-			if rt_r
-				# a kernel without that call: the descriptors a process
-				# has unless it asked for more
-				rt_i=0
-				while rt_i<1024
-					if rt_i!=rt_rd
-						sys close rt_i
-					end
-					rt_i+=1
-				end
-			end
-			label rt_wait
-			sys read rt_rd rt_pp 1 as rt_r
-			jeq rt_r -4 rt_wait
-			sys kill 0-rt_pid 9
-			sys exit 0
+			call rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 		end
 		rt_e=rt_wd
-		ifsgt rt_wd 0
-			# the same from here, and known to be done before the child
-			# gets its byte: a watcher still in the group of this process
-			# would go with it at a signal for that group
-			sys rt_setpgid rt_wd rt_pid as rt_r
-			if rt_r
-				sys kill rt_wd 9
-				call rt_take 1 rt_wd rt_info 4
-				rt_wd=-1
-				rt_e=rt_r
-			end
-		end
 	end
 	sys close rt_rd
 	sys close rt_grd
+	sys close rt_gwr
 	ifsle rt_wd 0
-		# no child, or no watcher in its group: the child, which still
-		# waits for its byte, ends when the pipe does
-		sys close rt_gwr
+		# no child, or no watcher: the child, which still waits for its
+		# byte, ends when the pipe does, which is now
 		sys close rt_wr
 		ifsgt rt_pid 0
-			sys kill 0-rt_pid 9
 			call rt_take 1 rt_pid rt_info 4
 		end
 		call rt_free rt_g
 		ret rt_e
 	end
-	storeb rt_pp 0
-	sys write rt_gwr rt_pp 1
-	sys close rt_gwr
 	store rt_g+8 rt_pid
 	store rt_g+16 rt_wd
 	store rt_g+24 rt_wr
+	store rt_g+32 rt_wf
 	call rt_mlock
 	load rt_state+368 as rt_p
 	store rt_g rt_p
@@ -1319,10 +1299,69 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 	ret rt_pid
 end
 
-# The child rt_pid was taken: if it led a group, whatever it started
-# and left behind ends with it, the watcher too, which is taken.
-fn rt_ungroup rt_pid
-	local rt_info 128
+# in the watcher of the group rt_pid: nothing here returns. It joins the
+# group, closes every descriptor but the end rt_rd it waits at, those of
+# the pipes by their numbers, whatever the kernel can do, and the others
+# all at once or, with a kernel that cannot, one after the other up to
+# the number the process may have. Then it lets the child go with the
+# byte, and after the end of its pipe kills the group it is in, which
+# is that of the child as long as the watcher is there.
+fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
+	local rt_b 16
+	sys rt_setpgid 0 rt_pid as rt_e
+	sys close rt_wr
+	sys close rt_grd
+	# the two it keeps, the lower first
+	rt_lo=rt_rd
+	rt_hi=rt_gwr
+	if rt_lo>rt_hi
+		rt_lo=rt_gwr
+		rt_hi=rt_rd
+	end
+	rt_r=0
+	if rt_lo
+		sys rt_closerange 0 rt_lo-1 0 as rt_r
+	end
+	ifz rt_r
+		if rt_lo+1<rt_hi
+			sys rt_closerange rt_lo+1 rt_hi-1 0 as rt_r
+		end
+	end
+	ifz rt_r
+		sys rt_closerange rt_hi+1 0xffffffff 0 as rt_r
+	end
+	if rt_r
+		rt_n=1024
+		sys rt_getrlimit 7 rt_b as rt_r
+		ifz rt_r
+			load rt_b as rt_n
+			if rt_n>0x100000
+				rt_n=0x100000
+			end
+		end
+		rt_i=0
+		while rt_i<rt_n
+			if (rt_i!=rt_rd)&(rt_i!=rt_gwr)
+				sys close rt_i
+			end
+			rt_i+=1
+		end
+	end
+	ifz rt_e
+		storeb rt_b 0
+		sys write rt_gwr rt_b 1
+	end
+	sys close rt_gwr
+	label rt_wait
+	sys read rt_rd rt_b 1 as rt_r
+	jeq rt_r -4 rt_wait
+	sys kill 0 9
+	sys exit 0
+end
+
+# the record of the child rt_pid if it leads a group, or 0; taken out
+# of the list if rt_cut says so
+fn rt_grp rt_pid rt_cut
 	call rt_mlock
 	rt_q=rt_state+368
 	label rt_next
@@ -1333,19 +1372,46 @@ fn rt_ungroup rt_pid
 			rt_q=rt_g
 			jmp rt_next
 		end
-		load rt_g as rt_n
-		store rt_q rt_n
+		if rt_cut
+			load rt_g as rt_n
+			store rt_q rt_n
+		end
 	end
 	call rt_munlock
+	ret rt_g
+end
+
+# The child rt_pid, which led a group, has ended: whatever it started
+# and left behind ends, the watcher too, which is taken. The kernel
+# gives the number of a group to nothing else while a process of the
+# group is there, ended or not, so the signal goes from here only while
+# the child is held (rt_held): ended, asked about and not yet taken,
+# and taken here after the signal. A child that is gone, taken by
+# something else, gets no signal by its number: the pipe ends and the
+# watcher kills the group it is in. The watcher is taken by its
+# descriptor, and by its number where the kernel has no such thing.
+fn rt_ungroup rt_pid rt_held
+	local rt_info 128
+	call rt_grp rt_pid 1 as rt_g
 	ifz rt_g
 		ret 0
 	end
 	load rt_g+16 as rt_wd
 	load rt_g+24 as rt_wr
-	sys kill 0-rt_pid 9
+	load rt_g+32 as rt_wf
+	if rt_held
+		sys kill 0-rt_pid 9
+		call rt_take 1 rt_pid rt_info 4
+	end
 	sys close rt_wr
-	sys kill rt_wd 9
-	call rt_take 1 rt_wd rt_info 4
+	rt_r=-22
+	ifsge rt_wf 0
+		call rt_take 3 rt_wf rt_info 4 as rt_r
+		sys close rt_wf
+	end
+	if rt_r==-22
+		call rt_take 1 rt_wd rt_info 4
+	end
 	call rt_free rt_g
 end
 
@@ -1418,7 +1484,18 @@ fn rt_reap rt_pid rt_ms
 	store rt_me+8 rt_pid
 	store rt_state+360 rt_me
 	call rt_munlock
-	call rt_reaping rt_pid rt_ms as rt_r rt_k
+	# a child that leads a group is asked about and left where it is,
+	# so that its number, which is that of the group, stays its own
+	# until the group is killed
+	rt_o=0
+	load rt_state+368 as rt_n
+	if rt_n
+		call rt_grp rt_pid 0 as rt_n
+		if rt_n
+			rt_o=0x1000000
+		end
+	end
+	call rt_reaping rt_pid rt_ms rt_o as rt_r rt_k
 	call rt_mlock
 	rt_p=rt_state+360
 	label rt_next
@@ -1430,22 +1507,20 @@ fn rt_reap rt_pid rt_ms
 	load rt_me as rt_n
 	store rt_p rt_n
 	call rt_munlock
-	if rt_k
-		load rt_state+368 as rt_n
-		if rt_n
-			call rt_ungroup rt_pid
-		end
+	if rt_k&(rt_o!=0)
+		call rt_ungroup rt_pid rt_r!=-1001
 	end
 	ret rt_r
 end
 
 # reap for the thread that alone takes the child rt_pid: what reap
-# gives, and 1 if the child is taken or gone, 0 if it is left
-fn rt_reaping rt_pid rt_ms
+# gives, and 1 if the child is taken or gone, 0 if it is left. With
+# rt_o 0x1000000 a child that has ended is asked about and not taken.
+fn rt_reaping rt_pid rt_ms rt_o
 	local rt_info 128
 	local rt_pf 8
 	ifz rt_ms
-		call rt_take 1 rt_pid rt_info 4 as rt_r
+		call rt_take 1 rt_pid rt_info 4|rt_o as rt_r
 		ifslt rt_r 0
 			ret -1001 1
 		end
@@ -1463,7 +1538,7 @@ fn rt_reaping rt_pid rt_ms
 	sys rt_pidfdopen rt_pid 0 as rt_fd
 	rt_e=rt_fd
 	ifsge rt_fd 0
-		call rt_take 3 rt_fd rt_info 5 as rt_r
+		call rt_take 3 rt_fd rt_info 5|rt_o as rt_r
 		if rt_r==-22
 			# a kernel that takes no child by a descriptor
 			sys close rt_fd
@@ -1494,13 +1569,13 @@ fn rt_reaping rt_pid rt_ms
 			sys rt_pidfdsignal rt_fd 9 0 0 as rt_s
 			jmp rt_late
 		end
-		call rt_take 3 rt_fd rt_info 4 as rt_r
+		call rt_take 3 rt_fd rt_info 4|rt_o as rt_r
 		jmp rt_took
 	end
 	# no descriptor to be had for the child: ask every millisecond
 	# whether it has ended
 	label rt_ask
-	call rt_take 1 rt_pid rt_info 5 as rt_r
+	call rt_take 1 rt_pid rt_info 5|rt_o as rt_r
 	load4 rt_info+16 as rt_n
 	jnz rt_r|rt_n rt_took
 	call rt_clock as rt_n
@@ -1526,7 +1601,7 @@ fn rt_reaping rt_pid rt_ms
 	label rt_late
 	ifz rt_s
 		# the signal is one that nothing keeps from ending it
-		call rt_take rt_w rt_id rt_info 4 as rt_r
+		call rt_take rt_w rt_id rt_info 4|rt_o as rt_r
 		ifsge rt_r 0
 			call rt_ended rt_info 1 as rt_r
 			jmp rt_out
@@ -1536,7 +1611,7 @@ fn rt_reaping rt_pid rt_ms
 	end
 	# the signal was refused: the child is taken if it has ended since,
 	# and else left
-	call rt_take rt_w rt_id rt_info 5 as rt_r
+	call rt_take rt_w rt_id rt_info 5|rt_o as rt_r
 	load4 rt_info+16 as rt_n
 	ifz rt_r|rt_n
 		rt_r=rt_s
