@@ -1,5 +1,9 @@
-# without pipeerr a write to a pipe that nobody reads ends the process
+# without pipeerr a write to a pipe that nobody reads ends the process.
+# The signal is first given back what it does by default: a process that
+# was started with it ignored would get the error instead
 buf fd 8
+buf act 32
+sys rt_sigaction 13 act 0 8
 sys pipe fd
 load4 fd as r
 load4 fd+4 as w

@@ -1241,3 +1241,9 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `mkdir`, `unlink`, `rmdir` and `rename` now ask `GetFullPathNameA`
   (`rt_long`), which fails for such a path with the error that is -36.
   Checked on Windows 11, where the test now gives its output.
+- [x] `tests/rt_pipe_signal` passes where the signal is ignored
+  (2026-11-26): it expected a write to a pipe that nobody reads to end
+  the process, which is what the signal does by default. The runner of
+  GitHub starts `make test` with the signal ignored, a child keeps
+  that, and the write gave the error, so the test failed there alone.
+  It now sets the default with `rt_sigaction` before the write.
