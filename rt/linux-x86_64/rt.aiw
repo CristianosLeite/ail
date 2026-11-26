@@ -1189,7 +1189,8 @@ end
 
 # Start a child that leads a group of processes of its own, which what
 # it starts is in unless it leaves: the group is killed when the child
-# is taken by reap, and when this process ends, however it ends. The
+# is taken by reap, and when this process ends, however it ends, both
+# by its watcher. The
 # record of such a child, in the list at 368 of the state: the next, its
 # number, the number of its watcher, a descriptor of a pipe, and a
 # descriptor of the watcher, or -1 where the kernel has none.
@@ -1383,50 +1384,50 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	sys exit 0
 end
 
-# the record of the child rt_pid if it leads a group, or 0; taken out
-# of the list if rt_cut says so
-fn rt_grp rt_pid rt_cut
+# the record of the child rt_pid if it leads a group, or 0
+fn rt_grp rt_pid
+	call rt_mlock
+	load rt_state+368 as rt_g
+	while rt_g
+		load rt_g+8 as rt_n
+		if rt_n==rt_pid
+			call rt_munlock
+			ret rt_g
+		end
+		load rt_g as rt_g
+	end
+	call rt_munlock
+	ret 0
+end
+
+# The child of the record rt_g, which led a group, was taken or is
+# gone: whatever it started and left behind ends, the watcher too,
+# which is taken. No signal goes from here, by no number: the number of
+# the child is free once the child is taken, by this runtime or by
+# anything else, and may be another process or group by now. The pipe
+# is closed, and the watcher kills the group it is in, which is that of
+# the child for as long as the watcher lives, since the kernel gives
+# the number of a group to nothing else while a process is in it. The
+# watcher is taken by its descriptor, which is of that process alone,
+# and by its number only where the kernel has no such thing. A watcher
+# that something killed by itself kills nothing: what is left of its
+# group then stays.
+fn rt_ungroup rt_g
+	local rt_info 128
 	call rt_mlock
 	rt_q=rt_state+368
 	label rt_next
-	load rt_q as rt_g
-	if rt_g
-		load rt_g+8 as rt_n
-		if rt_n!=rt_pid
-			rt_q=rt_g
-			jmp rt_next
-		end
-		if rt_cut
-			load rt_g as rt_n
-			store rt_q rt_n
-		end
+	load rt_q as rt_n
+	if rt_n!=rt_g
+		rt_q=rt_n
+		jmp rt_next
 	end
+	load rt_g as rt_n
+	store rt_q rt_n
 	call rt_munlock
-	ret rt_g
-end
-
-# The child rt_pid, which led a group, has ended: whatever it started
-# and left behind ends, the watcher too, which is taken. The kernel
-# gives the number of a group to nothing else while a process of the
-# group is there, ended or not, so the signal goes from here only while
-# the child is held (rt_held): ended, asked about and not yet taken,
-# and taken here after the signal. A child that is gone, taken by
-# something else, gets no signal by its number: the pipe ends and the
-# watcher kills the group it is in. The watcher is taken by its
-# descriptor, and by its number where the kernel has no such thing.
-fn rt_ungroup rt_pid rt_held
-	local rt_info 128
-	call rt_grp rt_pid 1 as rt_g
-	ifz rt_g
-		ret 0
-	end
 	load rt_g+16 as rt_wd
 	load rt_g+24 as rt_wr
 	load rt_g+32 as rt_wf
-	if rt_held
-		sys kill 0-rt_pid 9
-		call rt_take 1 rt_pid rt_info 4
-	end
 	sys close rt_wr
 	rt_r=-22
 	ifsge rt_wf 0
@@ -1441,7 +1442,7 @@ end
 
 # Ask the kernel about a child, by its number (rt_which 1) or by a
 # descriptor of it (3), with the options rt_opt of waitid (4 one that has
-# ended, 1 without waiting, 0x1000000 leaving it where it is): what
+# ended, 1 without waiting): what
 # waitid returns, with the bytes at rt_info saying which child and how
 # it ended, or 0 at 16 of them if it still runs and nothing waited.
 fn rt_take rt_which rt_id rt_info rt_opt
@@ -1508,23 +1509,18 @@ fn rt_reap rt_pid rt_ms
 	store rt_me+8 rt_pid
 	store rt_state+360 rt_me
 	call rt_munlock
-	# a child that leads a group is asked about and left where it is,
-	# so that its number, which is that of the group, stays its own
-	# until the group is killed
-	rt_o=0
+	# the record of a child that leads a group, looked for while the
+	# number is that child's: the group ends once the child is taken or
+	# gone, and while the number is still in the list, so that a reap of
+	# another thread finds no child that is taken and not yet done with
+	rt_g=0
 	load rt_state+368 as rt_n
 	if rt_n
-		call rt_grp rt_pid 0 as rt_n
-		if rt_n
-			rt_o=0x1000000
-		end
+		call rt_grp rt_pid as rt_g
 	end
-	call rt_reaping rt_pid rt_ms rt_o as rt_r rt_k
-	# while the number is still in the list, so that no other reap sees
-	# the child that was asked about and left, nor takes it before the
-	# signal to its group
-	if rt_k&(rt_o!=0)
-		call rt_ungroup rt_pid rt_r!=-1001
+	call rt_reaping rt_pid rt_ms as rt_r rt_k
+	if rt_k&(rt_g!=0)
+		call rt_ungroup rt_g
 	end
 	call rt_mlock
 	rt_p=rt_state+360
@@ -1541,13 +1537,12 @@ fn rt_reap rt_pid rt_ms
 end
 
 # reap for the thread that alone takes the child rt_pid: what reap
-# gives, and 1 if the child is taken or gone, 0 if it is left. With
-# rt_o 0x1000000 a child that has ended is asked about and not taken.
-fn rt_reaping rt_pid rt_ms rt_o
+# gives, and 1 if the child is taken or gone, 0 if it is left.
+fn rt_reaping rt_pid rt_ms
 	local rt_info 128
 	local rt_pf 8
 	ifz rt_ms
-		call rt_take 1 rt_pid rt_info 4|rt_o as rt_r
+		call rt_take 1 rt_pid rt_info 4 as rt_r
 		ifslt rt_r 0
 			ret -1001 1
 		end
@@ -1565,7 +1560,7 @@ fn rt_reaping rt_pid rt_ms rt_o
 	sys rt_pidfdopen rt_pid 0 as rt_fd
 	rt_e=rt_fd
 	ifsge rt_fd 0
-		call rt_take 3 rt_fd rt_info 5|rt_o as rt_r
+		call rt_take 3 rt_fd rt_info 5 as rt_r
 		if rt_r==-22
 			# a kernel that takes no child by a descriptor
 			sys close rt_fd
@@ -1596,13 +1591,13 @@ fn rt_reaping rt_pid rt_ms rt_o
 			sys rt_pidfdsignal rt_fd 9 0 0 as rt_s
 			jmp rt_late
 		end
-		call rt_take 3 rt_fd rt_info 4|rt_o as rt_r
+		call rt_take 3 rt_fd rt_info 4 as rt_r
 		jmp rt_took
 	end
 	# no descriptor to be had for the child: ask every millisecond
 	# whether it has ended
 	label rt_ask
-	call rt_take 1 rt_pid rt_info 5|rt_o as rt_r
+	call rt_take 1 rt_pid rt_info 5 as rt_r
 	load4 rt_info+16 as rt_n
 	jnz rt_r|rt_n rt_took
 	call rt_clock as rt_n
@@ -1628,7 +1623,7 @@ fn rt_reaping rt_pid rt_ms rt_o
 	label rt_late
 	ifz rt_s
 		# the signal is one that nothing keeps from ending it
-		call rt_take rt_w rt_id rt_info 4|rt_o as rt_r
+		call rt_take rt_w rt_id rt_info 4 as rt_r
 		ifsge rt_r 0
 			call rt_ended rt_info 1 as rt_r
 			jmp rt_out
@@ -1638,7 +1633,7 @@ fn rt_reaping rt_pid rt_ms rt_o
 	end
 	# the signal was refused: the child is taken if it has ended since,
 	# and else left
-	call rt_take rt_w rt_id rt_info 5|rt_o as rt_r
+	call rt_take rt_w rt_id rt_info 5 as rt_r
 	load4 rt_info+16 as rt_n
 	ifz rt_r|rt_n
 		rt_r=rt_s
