@@ -9,6 +9,8 @@
 #   same hello as the compiler that runs here, report an error of a
 #   source with its message and the status 1, and compile its own source
 #   to the file it is itself: the fixed point of the port.
+# - tests/win/start.aiw must start programs of Windows, with their output
+#   in a file, a limit of time and an argument that has to be quoted.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -61,6 +63,13 @@ want=4989c34989fa4889f1554889e5b8040000004839c1480f42c8488d04cd0f0000004883e0f04
 got=$(sed -n 's/^data tccrow 3 0 0 [0-9]* //p' compiler/windows-x86_64/target.aiw | tr ' ' '\n' | while read b; do printf '%02x' "$b"; done)
 [ "$got" = "$want" ]
 say win_ccall_row $?
+
+# the services of processes, with programs of Windows to start
+r=0
+for t in sleeper echoarg start; do $wc < tests/win/$t.aiw > $tmp/$t.exe || r=1; done
+timeout 60 wine $tmp/start.exe $tmp/hello.exe $tmp/sleeper.exe $tmp/echoarg.exe $tmp/out.txt > /dev/null 2>&1
+[ $? -eq 63 ] || r=1
+say win_processes $r
 
 n=0
 ran=0

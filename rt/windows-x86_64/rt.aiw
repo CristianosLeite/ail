@@ -18,6 +18,12 @@
 #  360  per descriptor, 256 of them, 8 bytes: 1 + the handle of Windows
 #       that it is, or 0 for none. 0, 1 and 2 are the input, the output
 #       and the error output, asked of Windows when they are first used.
+# 2408  per descriptor, 8 bytes: for one that is a directory, the record
+#       of its names (see rt_names), else 0
+# 4456  the ticks a second of the clock of Windows (0 before the first
+#       use)
+# 4464  1 + the job of Windows that the children held to this process
+#       are in, or 0 before the first of them
 # Every name of this file starts with "rt_".
 #
 # The first line goes to the last, past every function.
@@ -35,7 +41,8 @@ end
 # the error that Windows has for the call that just failed, as the
 # number of the runtime: -2 no such file, -13 not allowed, -17 it is
 # there, -9 no such descriptor, -32 the other end is closed, -12 no
-# memory, -39 not empty, -28 no room, and -5 for any other
+# memory, -39 not empty, -28 no room, -36 a path too long, -20 not a
+# directory, and -5 for any other
 fn rt_error
 	local rt_a 32
 	call rt_api rt_i_getlasterror rt_a 0 as rt_e
@@ -60,6 +67,12 @@ fn rt_error
 	end
 	if rt_e==145
 		ret -39
+	end
+	if rt_e==206
+		ret -36
+	end
+	if rt_e==267
+		ret -20
 	end
 	if (rt_e==39)|(rt_e==112)
 		ret -28
@@ -159,6 +172,20 @@ fn rt_close rt_fd
 		ret -9
 	end
 	store rt_state+360+rt_fd*8 0
+	load rt_state+2408+rt_fd*8 as rt_d
+	if rt_d
+		# a directory: the search of its names, if one was begun, and
+		# the record
+		store rt_state+2408+rt_fd*8 0
+		load rt_d as rt_h
+		load rt_d+8 as rt_s
+		if rt_s
+			store rt_a rt_h
+			call rt_api rt_i_findclose rt_a 1
+		end
+		call rt_free rt_d
+		ret 0
+	end
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1 as rt_r
 	ifz rt_r&0xffffffff
@@ -230,10 +257,35 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 			rt_how=1
 		end
 	end
-	rt_attr=0x80
 	if rt_flags&0x10000
-		rt_attr=0x02000000
+		# a directory is opened for its names: a record with its path
+		# and "\*" behind it, which the search of Windows takes
+		store rt_a rt_z
+		call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+		rt_r&=0xffffffff
+		if rt_r==0xffffffff
+			tail rt_error
+		end
+		ifz rt_r&16
+			ret -20
+		end
+		call rt_alloc 336+rt_n+3 as rt_d
+		ifz rt_d
+			ret -12
+		end
+		rt_i=0
+		while rt_i<rt_n
+			loadb rt_z+rt_i as rt_c
+			storeb rt_d+336+rt_i rt_c
+			rt_i+=1
+		end
+		storeb rt_d+336+rt_n 92
+		storeb rt_d+337+rt_n 42
+		store rt_state+2408+rt_fd*8 rt_d
+		store rt_state+360+rt_fd*8 1
+		ret rt_fd
 	end
+	rt_attr=0x80
 	store rt_a rt_z
 	store rt_a+8 rt_acc
 	store rt_a+16 7
@@ -243,10 +295,591 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 	store rt_a+48 0
 	call rt_api rt_i_createfilea rt_a 7 as rt_h
 	if rt_h==-1
-		tail rt_error
+		call rt_error as rt_r
+		if rt_r==-13
+			# Windows does not allow a directory to be opened as a file,
+			# which is the error -21 of a directory
+			store rt_a rt_z
+			call rt_api rt_i_getfileattributesa rt_a 1 as rt_c
+			rt_c&=0xffffffff
+			if rt_c!=0xffffffff
+				if rt_c&16
+					ret -21
+				end
+			end
+		end
+		ret rt_r
 	end
 	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
+end
+
+# make a directory, remove a file, remove an empty directory; the mode
+# means nothing here
+fn rt_mkdir rt_p rt_n rt_mode
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	store rt_a+8 0
+	call rt_api rt_i_createdirectorya rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+fn rt_unlink rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_deletefilea rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+fn rt_rmdir rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_removedirectorya rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
+# give a file another path, in place of a file that has it
+fn rt_rename rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_y 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		call rt_path rt_q rt_m rt_y as rt_r
+	end
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_y
+	store rt_a+16 1
+	call rt_api rt_i_movefileexa rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
+# The next names of the directory that rt_fd is open on, each with a zero
+# behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
+# least 512: the bytes written, 0 after the last name, or an error. The
+# record of the directory: 0 the search of Windows; 8 its state, 0 not
+# begun, 1 with a name that waits at 16, where Windows writes an entry of
+# 320 bytes with the name at 44, 2 at its end; 336 the path.
+fn rt_names rt_fd rt_p rt_n
+	local rt_a 32
+	if rt_n<512
+		ret -22
+	end
+	if rt_fd>255
+		ret -9
+	end
+	load rt_state+2408+rt_fd*8 as rt_d
+	ifz rt_d
+		ret -20
+	end
+	load rt_d+8 as rt_s
+	ifz rt_s
+		store rt_a rt_d+336
+		store rt_a+8 rt_d+16
+		call rt_api rt_i_findfirstfilea rt_a 2 as rt_h
+		if rt_h==-1
+			tail rt_error
+		end
+		store rt_d rt_h
+		rt_s=1
+		store rt_d+8 1
+	end
+	rt_o=0
+	label rt_more
+	if rt_s!=1
+		ret rt_o
+	end
+	rt_e=rt_d+60
+	load2 rt_e as rt_c
+	loadb rt_e+2 as rt_x
+	if (rt_c==46)|((rt_c==0x2e2e)&(rt_x==0))
+	else
+		rt_l=0
+		label rt_len
+		loadb rt_e+rt_l as rt_c
+		if rt_c
+			rt_l+=1
+			jmp rt_len
+		end
+		if rt_o+rt_l+1>rt_n
+			ret rt_o
+		end
+		rt_i=0
+		while rt_i<=rt_l
+			loadb rt_e+rt_i as rt_c
+			storeb rt_p+rt_o+rt_i rt_c
+			rt_i+=1
+		end
+		rt_o+=rt_l+1
+	end
+	load rt_d as rt_h
+	store rt_a rt_h
+	store rt_a+8 rt_d+16
+	call rt_api rt_i_findnextfilea rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		rt_s=2
+		store rt_d+8 2
+	end
+	jmp rt_more
+end
+
+# ---- time
+# The clock that only goes forward, in nanoseconds: the counter of
+# Windows, whose ticks a second it says once, as whole seconds and the
+# rest of a second, so that no product leaves 64 bits.
+fn rt_clock
+	local rt_a 32
+	local rt_t 8
+	load rt_state+4456 as rt_f
+	ifz rt_f
+		store rt_a rt_t
+		call rt_api rt_i_queryperformancefrequency rt_a 1
+		load rt_t as rt_f
+		store rt_state+4456 rt_f
+	end
+	store rt_a rt_t
+	call rt_api rt_i_queryperformancecounter rt_a 1
+	load rt_t as rt_c
+	ret rt_c/rt_f*1000000000+rt_c%rt_f*1000000000/rt_f
+end
+
+# wait that many nanoseconds, in whole milliseconds and not fewer
+fn rt_sleep rt_ns
+	local rt_a 32
+	store rt_a (rt_ns+999999)/1000000
+	call rt_api rt_i_sleep rt_a 1
+	ret 0
+end
+
+# ---- threads
+# the processors of the machine
+fn rt_cpus
+	local rt_a 32
+	local rt_i 64
+	store rt_a rt_i
+	call rt_api rt_i_getsysteminfo rt_a 1
+	load4 rt_i+32 as rt_n
+	ifz rt_n
+		rt_n=1
+	end
+	ret rt_n
+end
+
+# Sleep while the four bytes at rt_p are rt_v, until a wake of rt_p or
+# for rt_ns nanoseconds at most, -1 for no limit: 0 after a wake or for
+# no reason, -11 if the bytes were another value, -110 after the time.
+fn rt_wait rt_p rt_v rt_ns
+	local rt_a 32
+	local rt_c 8
+	load4 rt_p as rt_x
+	if rt_x!=rt_v&0xffffffff
+		ret -11
+	end
+	store rt_c rt_v
+	rt_ms=0xffffffff
+	ifsge rt_ns 0
+		rt_ms=(rt_ns+999999)/1000000
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_c
+	store rt_a+16 4
+	store rt_a+24 rt_ms
+	call rt_api rt_i_waitonaddress rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		ret -110
+	end
+	ret 0
+end
+
+# wake one thread that sleeps in a wait of rt_p, or with a larger rt_n
+# all of them; how many there were Windows does not say
+fn rt_wake rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	if rt_n==1
+		call rt_api rt_i_wakebyaddresssingle rt_a 1
+	else
+		call rt_api rt_i_wakebyaddressall rt_a 1
+	end
+	ret 0
+end
+
+# What a thread of Windows runs first, as bytes: Windows calls it with
+# its one value in rcx and wants rsi and rdi kept, which a function of
+# AIL does not keep. The value is the address of two cells, the function
+# of AIL to call, rt_run, and its value, the block that has the function
+# and the value the thread was started with behind them. push rsi / push rdi / push rbx /
+# mov rax, [rcx+8] / call [rcx] / pop rbx / pop rdi / pop rsi /
+# xor eax, eax / ret
+data rt_enter 86 87 83 72 139 65 8 255 17 91 95 94 49 192 195
+
+# what the thread runs in AIL: the function and its value from the two
+# cells, which are given back
+fn rt_run rt_b
+	load rt_b+16 as rt_f
+	load rt_b+24 as rt_v
+	call rt_free rt_b
+	callp rt_f rt_v
+end
+
+# Start a thread that calls the function at rt_f with the value rt_v and
+# ends when it returns: 0, or an error. Its stack is 8 MiB that Windows
+# keeps and gives back.
+fn rt_thread rt_f rt_v
+	local rt_a 48
+	store rt_state+16 1
+	call rt_alloc 32 as rt_b
+	ifz rt_b
+		ret -12
+	end
+	ref rt_run as rt_r
+	store rt_b rt_r
+	store rt_b+8 rt_b
+	store rt_b+16 rt_f
+	store rt_b+24 rt_v
+	store rt_a 0
+	store rt_a+8 8388608
+	store rt_a+16 rt_enter
+	store rt_a+24 rt_b
+	store rt_a+32 0x10000
+	store rt_a+40 0
+	call rt_api rt_i_createthread rt_a 6 as rt_h
+	ifz rt_h
+		call rt_free rt_b
+		tail rt_error
+	end
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	ret 0
+end
+
+# ---- processes
+# add the argument at rt_s, a string with a zero, to the line at rt_o as
+# Windows wants an argument that rt_args is to read as it is: in quotes
+# if it is empty or has a blank or a quote, a quote with a backslash
+# before it, and backslashes doubled before a quote. The end of what was
+# written.
+fn rt_quote rt_s rt_o
+	rt_q=0
+	rt_i=0
+	label rt_look
+	loadb rt_s+rt_i as rt_c
+	if rt_c
+		if (rt_c==32)|(rt_c==9)|(rt_c==34)
+			rt_q=1
+		end
+		rt_i+=1
+		jmp rt_look
+	end
+	ifz rt_i
+		rt_q=1
+	end
+	if rt_q
+		storeb rt_o 34
+		rt_o+=1
+	end
+	rt_k=0
+	label rt_next
+	loadb rt_s as rt_c
+	if rt_c
+		if rt_c==92
+			rt_k+=1
+		else
+			if rt_c==34
+				# the backslashes before a quote once more, and one for it
+				rt_k+=1
+				while rt_k
+					storeb rt_o 92
+					rt_o+=1
+					rt_k-=1
+				end
+			end
+			rt_k=0
+		end
+		storeb rt_o rt_c
+		rt_o+=1
+		rt_s+=1
+		jmp rt_next
+	end
+	if rt_q
+		# and those before the quote that ends the argument
+		while rt_k
+			storeb rt_o 92
+			rt_o+=1
+			rt_k-=1
+		end
+		storeb rt_o 34
+		rt_o+=1
+	end
+	ret rt_o
+end
+
+# the bytes that the strings at the addresses at rt_v take, a zero
+# counted with each, twice over and 3 more for each: enough for the line
+# of arguments, whatever has to be quoted
+fn rt_room rt_v
+	rt_n=0
+	label rt_next
+	load rt_v as rt_s
+	if rt_s
+		label rt_len
+		loadb rt_s as rt_c
+		rt_s+=1
+		rt_n+=2
+		jnz rt_c rt_len
+		rt_n+=3
+		rt_v+=8
+		jmp rt_next
+	end
+	ret rt_n+2
+end
+
+# Start a program as a child process: its number, or an error. rt_argv is
+# the address of the addresses of its arguments, strings with a zero at
+# the end, with a 0 after the last; the first is the program, which
+# Windows looks for in the directories of PATH if it is a name. rt_env
+# is its environment in the same form, 0 for that of this process;
+# rt_fds the address of three descriptors that become its input, output
+# and error output, -1 for the one of this process. With the flag 1 the
+# child is held: Windows ends it when this process ends. A program that
+# cannot be started is the number 1, which reap takes as a child that
+# ended with status 127.
+fn rt_start rt_argv rt_env rt_fds rt_flags
+	local rt_a 80
+	local rt_si 104
+	local rt_pi 24
+	local rt_job 144
+	call rt_room rt_argv as rt_n
+	rt_m=0
+	if rt_env
+		call rt_room rt_env as rt_m
+	end
+	call rt_alloc rt_n+rt_m as rt_line
+	ifz rt_line
+		ret -12
+	end
+	rt_o=rt_line
+	rt_v=rt_argv
+	label rt_arg
+	load rt_v as rt_s
+	if rt_s
+		if rt_v!=rt_argv
+			storeb rt_o 32
+			rt_o+=1
+		end
+		call rt_quote rt_s rt_o as rt_o
+		if rt_v==rt_argv
+			# the program: Windows finds it by a path with backslashes
+			rt_i=rt_line
+			while rt_i<rt_o
+				loadb rt_i as rt_c
+				if rt_c==47
+					storeb rt_i 92
+				end
+				rt_i+=1
+			end
+		end
+		rt_v+=8
+		jmp rt_arg
+	end
+	storeb rt_o 0
+	rt_o+=1
+	# the environment as Windows takes one: the strings one behind the
+	# other, each with its zero, and a zero more
+	rt_eb=0
+	if rt_env
+		rt_eb=rt_o
+		rt_v=rt_env
+		label rt_var
+		load rt_v as rt_s
+		if rt_s
+			label rt_copy
+			loadb rt_s as rt_c
+			storeb rt_o rt_c
+			rt_o+=1
+			rt_s+=1
+			jnz rt_c rt_copy
+			rt_v+=8
+			jmp rt_var
+		end
+		storeb rt_o 0
+		storeb rt_o+1 0
+	end
+	rt_i=0
+	while rt_i<104
+		store rt_si+rt_i 0
+		rt_i+=8
+	end
+	store4 rt_si 104
+	store4 rt_si+60 0x100
+	rt_i=0
+	while rt_i<3
+		load rt_fds+rt_i*8 as rt_fd
+		if rt_fd==-1
+			rt_fd=rt_i
+		end
+		call rt_handle rt_fd as rt_h
+		# a handle goes to the child only if it may be inherited
+		store rt_a rt_h
+		store rt_a+8 1
+		store rt_a+16 1
+		call rt_api rt_i_sethandleinformation rt_a 3
+		store rt_si+80+rt_i*8 rt_h
+		rt_i+=1
+	end
+	store rt_a 0
+	store rt_a+8 rt_line
+	store rt_a+16 0
+	store rt_a+24 0
+	store rt_a+32 1
+	store rt_a+40 0
+	store rt_a+48 rt_eb
+	store rt_a+56 0
+	store rt_a+64 rt_si
+	store rt_a+72 rt_pi
+	call rt_api rt_i_createprocessa rt_a 10 as rt_r
+	call rt_free rt_line
+	ifz rt_r&0xffffffff
+		ret 1
+	end
+	load rt_pi+8 as rt_h
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	load rt_pi as rt_p
+	if rt_flags&1
+		load rt_state+4464 as rt_j
+		ifz rt_j
+			# a job whose processes end when its last handle is closed,
+			# which is when this process ends: the limits are 144 bytes,
+			# the flags of the limit at 16
+			store rt_a 0
+			store rt_a+8 0
+			call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
+			rt_i=0
+			while rt_i<144
+				store rt_job+rt_i 0
+				rt_i+=8
+			end
+			store4 rt_job+16 0x2000
+			store rt_a rt_j
+			store rt_a+8 9
+			store rt_a+16 rt_job
+			store rt_a+24 144
+			call rt_api rt_i_setinformationjobobject rt_a 4
+			rt_j+=1
+			store rt_state+4464 rt_j
+		end
+		store rt_a rt_j-1
+		store rt_a+8 rt_p
+		call rt_api rt_i_assignprocesstojobobject rt_a 2
+	end
+	ret rt_p
+end
+
+# Wait for the child to end and take it: its exit status, the low 8 bits
+# of what it ended with; or the fault that ended it as the signal Linux
+# has for it, negated; or -1000 if it still ran after rt_ms
+# milliseconds, in which case it was ended and taken; or -1001 if there
+# is no such child. rt_ms 0 waits without limit.
+fn rt_reap rt_p rt_ms
+	local rt_a 32
+	local rt_c 8
+	if rt_p==1
+		ret 127
+	end
+	ifz rt_ms
+		rt_ms=0xffffffff
+	end
+	store rt_a rt_p
+	store rt_a+8 rt_ms
+	call rt_api rt_i_waitforsingleobject rt_a 2 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==258
+		store rt_a rt_p
+		store rt_a+8 1
+		call rt_api rt_i_terminateprocess rt_a 2
+		store rt_a rt_p
+		store rt_a+8 0xffffffff
+		call rt_api rt_i_waitforsingleobject rt_a 2
+		store rt_a rt_p
+		call rt_api rt_i_closehandle rt_a 1
+		ret -1000
+	end
+	if rt_r
+		ret -1001
+	end
+	store rt_c 0
+	store rt_a rt_p
+	store rt_a+8 rt_c
+	call rt_api rt_i_getexitcodeprocess rt_a 2
+	store rt_a rt_p
+	call rt_api rt_i_closehandle rt_a 1
+	load4 rt_c as rt_r
+	if rt_r>=0xc0000000
+		# a fault: a place of memory that is none, a division by zero, an
+		# instruction that is none, any other
+		if rt_r==0xc0000005
+			ret -11
+		end
+		if (rt_r==0xc0000094)|(rt_r==0xc0000095)
+			ret -8
+		end
+		if rt_r==0xc000001d
+			ret -4
+		end
+		ret -6
+	end
+	ret rt_r&255
+end
+
+# Let this thread run only on the processor rt_cpu, or on the lowest one
+# if it may not run there: the processor it is now bound to, or an error
+fn rt_pin rt_cpu
+	local rt_a 32
+	call rt_api rt_i_getcurrentthread rt_a 0 as rt_t
+	if rt_cpu<64
+		store rt_a rt_t
+		store rt_a+8 1<<rt_cpu
+		call rt_api rt_i_setthreadaffinitymask rt_a 2 as rt_r
+		if rt_r
+			ret rt_cpu
+		end
+	end
+	store rt_a rt_t
+	store rt_a+8 1
+	call rt_api rt_i_setthreadaffinitymask rt_a 2 as rt_r
+	ifz rt_r
+		tail rt_error
+	end
+	ret 0
 end
 
 # there is no signal for a closed pipe to keep away

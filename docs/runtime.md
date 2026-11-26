@@ -189,12 +189,29 @@ the arguments, as its C library does, at its first call; memory comes
 from `VirtualAlloc`, in the same blocks; an error of Windows becomes
 the number of this page. The statement `sys` is no statement there.
 
-The runtime has `exit`, `args`, `alloc`, `free`, `open`, `close`,
-`read`, `write` and `pipeerr` so far, which is what the compiler needs:
-compiled for Windows it runs under Wine, and compiles its own source to
-the file it is. Of the tests that have no `sys`, 522 give their output
-and status there; 64 call a service that is still to be written, and 14
-are of Linux alone (`tests/win.skip`).
+The runtime has every service but those of the poller and the sockets.
+The compiler compiled for Windows runs under Wine and compiles its own
+source to the file it is. Of the tests that have no `sys`, 567 give
+their output and status there; 14 call a service that is still to be
+written, and 19 are of Linux alone (`tests/win.skip`).
+
+Where a service cannot be on Windows what it is on Linux:
+
+- A directory is opened for its names only, and is no handle of
+  Windows: `names` is a search of its path. Names are in the code page
+  of the process, not UTF-8.
+- `wake` does not say how many threads it woke, and gives 0. `wait`
+  returns 0 also when the bytes changed while it slept.
+- A thread is one of Windows, with a stack that Windows keeps; a
+  function that needs more than its 8 MiB ends the process.
+- `start` gives the number 1 for a program that cannot be started, and
+  `reap` takes it as a child that ended with 127, since there is no
+  child to end so. The program is found by a path with either slash.
+  A child that is held ends when the process that started it ends, not
+  the thread. `reap` gives a fault of the child as the signal Linux has
+  for it, negated: -11, -8, -4, or -6 for any other.
+- `clock` is the counter of Windows; `sleep` waits whole milliseconds.
+- `pipeerr` has nothing to do: there is no signal.
 
 ## Another platform
 ## Another platform

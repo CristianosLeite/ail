@@ -21,3 +21,9 @@ base_address
 ccall_basic
 # the stack at the start of a process of Linux
 stack_keeps
+# programs of Linux that they start (sh, true, cat, a path with /bin)
+lib_proc_closed
+lib_proc_keeps_globals
+lib_proc_path
+lib_proc_redirect
+lib_proc_status

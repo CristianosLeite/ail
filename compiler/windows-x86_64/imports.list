@@ -2,4 +2,5 @@
 # name, then the functions. compiler/windows-x86_64/imports.sh makes of
 # this list the import tables of an executable and, for the runtime, the
 # place of each function's address in them.
-kernel32.dll ExitProcess GetStdHandle WriteFile ReadFile CreateFileA CloseHandle GetLastError GetCommandLineA GetEnvironmentStringsA VirtualAlloc VirtualFree
+kernel32.dll ExitProcess GetStdHandle WriteFile ReadFile CreateFileA CloseHandle GetLastError GetCommandLineA GetEnvironmentStringsA VirtualAlloc VirtualFree CreateDirectoryA DeleteFileA RemoveDirectoryA MoveFileExA GetFileAttributesA FindFirstFileA FindNextFileA FindClose QueryPerformanceCounter QueryPerformanceFrequency Sleep GetSystemInfo CreateThread CreateProcessA WaitForSingleObject GetExitCodeProcess TerminateProcess SetHandleInformation CreateJobObjectA SetInformationJobObject AssignProcessToJobObject SetThreadAffinityMask GetCurrentThread
+api-ms-win-core-synch-l1-2-0.dll WaitOnAddress WakeByAddressSingle WakeByAddressAll

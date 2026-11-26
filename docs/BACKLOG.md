@@ -1046,3 +1046,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   there. `tests/win.sh` is in `make test` and is skipped without wine.
   The interface held: no service changed its values, its results or
   its errors for Windows.
+- [x] Directories, time, threads and processes on Windows (2026-11-26):
+  `mkdir`, `unlink`, `rmdir`, `rename`, `names` as a search of the
+  path of a directory; `clock` and `sleep`; `cpus`, `wait` and `wake`
+  on `WaitOnAddress`, `thread` on a thread of Windows that enters AIL
+  through fifteen bytes of code, since Windows calls with another
+  convention; `start`, which writes the arguments as one line, quoted
+  so that `args` reads them as they were, with the three handles and
+  an environment, and holds a child in a job; `reap`; `pin`. 567 tests
+  of the suite pass under Wine, and `tests/win/start.aiw` starts
+  programs of Windows. [runtime.md](runtime.md) lists where a service
+  cannot be on Windows what it is on Linux.

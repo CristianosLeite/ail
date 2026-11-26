@@ -1,0 +1,75 @@
+# The services of processes on Windows. The arguments are the paths of
+# hello, of a program that runs for ten seconds, of a program that
+# writes its second argument, and of a file to write to. A program is
+# started with its output in the file and ends with its status; one that
+# is not there ends with 127; one that runs too long is ended; an
+# argument with blanks, quotes and backslashes arrives as it was sent.
+buf io 24
+buf argv 32
+buf b 64
+data none "no-such-program-here.exe" 0
+data odd "a b \"c\" d\\" 0
+fn same p q n
+	i=0
+	while i<n
+		loadb p+i as c
+		loadb q+i as d
+		if c!=d
+			ret 0
+		end
+		i+=1
+	end
+	ret 1
+end
+fn len s
+	l=0
+	label next
+	loadb s+l as c
+	if c
+		l+=1
+		jmp next
+	end
+	ret l
+end
+args as p
+load p+16 as hello
+load p+24 as sleeper
+load p+32 as echo
+load p+40 as file
+call len file as fl
+rt open file fl 0x241 0 as f
+store io -1
+store io+8 f
+store io+16 -1
+store argv hello
+store argv+8 0
+rt start argv 0 io 0 as c
+rt reap c 0 as s
+rt close f
+rt open file fl 0 0 as f
+rt read f b 64 as n
+rt close f
+call same b "hello world\n" as ok
+ok&=n==12
+store io+8 -1
+store argv none
+rt start argv 0 io 0 as c
+rt reap c 0 as missing
+store argv sleeper
+rt start argv 0 io 1 as c
+rt reap c 300 as late
+rt open file fl 0x241 0 as f
+store io+8 f
+store argv echo
+store argv+8 odd
+store argv+16 0
+rt start argv 0 io 0 as c
+rt reap c 0 as two
+rt close f
+rt open file fl 0 0 as f
+rt read f b 64 as n
+rt close f
+call same b odd 10 as arg
+arg&=n==10
+rt unlink file fl
+rt exit (s==0)+ok*2+(missing==127)*4+(late==-1000)*8+(two==2)*16+arg*32

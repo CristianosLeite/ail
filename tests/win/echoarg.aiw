@@ -1,0 +1,13 @@
+# write the second argument as it is and end with the count of arguments
+args as p
+load p as n
+load p+16 as s
+l=0
+while n>1
+	loadb s+l as c
+	jz c out
+	l+=1
+end
+label out
+rt write 1 s l
+rt exit n

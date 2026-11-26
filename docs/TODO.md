@@ -66,11 +66,10 @@ source that the compiler compiles with every program
   that every service is the runtime's. Then Linux on aarch64, a second
   set of instructions, run under an emulator that is to be installed.
   For each: the compiler with a target, its runtime in `rt/`, a small
-  program, then the test suite. Windows has its compiler, the services
-  the compiler needs and its fixed point under Wine
-  ([BACKLOG.md](BACKLOG.md)); to do there: the services of directories,
-  time, threads, the poller and sockets, processes, which 64 tests wait
-  for, and what the 14 tests of faults are to expect on Windows.
+  program, then the test suite. Windows has its compiler, its fixed
+  point under Wine and every service but the poller and the sockets
+  ([BACKLOG.md](BACKLOG.md)); to do there: those, which 14 tests wait
+  for, and what the tests of faults are to expect on Windows.
 - [ ] The gaps to C closed, each change measured first. Known: every
   executable has all of the runtime, 11.7 KiB, where it could have the
   functions it reaches; a service compiled in place moves its values
