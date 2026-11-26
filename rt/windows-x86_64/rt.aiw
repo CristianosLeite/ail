@@ -303,8 +303,19 @@ fn rt_close rt_fd
 	loadb rt_state+4480+rt_fd as rt_k
 	storeb rt_state+4480+rt_fd 0
 	rt_r=0
-	# a poller is a descriptor of the runtime alone
-	jnz rt_k&4 rt_done
+	if rt_k&4
+		# a poller is a descriptor of the runtime, with a socket of its
+		# own, and watches nothing from here on
+		load rt_state+4736+rt_fd*8 as rt_d
+		call rt_plock rt_d
+		load rt_d+2312 as rt_s
+		store rt_d+2312 0
+		zero rt_d 256
+		call rt_punlock rt_d
+		store rt_a rt_s
+		call rt_api rt_i_closesocket rt_a 1
+		jmp rt_done
+	end
 	if rt_k&3
 		# no poller watches it any more
 		call rt_marks rt_fd 0
@@ -1187,6 +1198,34 @@ fn rt_rec rt_ep
 	ret rt_d
 end
 
+# The record of a poller is shared by the threads: one at a time reads
+# and changes it, between these two, and makes no call of Windows that
+# waits meanwhile.
+fn rt_plock rt_d
+	label rt_again
+	cas rt_d+2304 0 1 as rt_k
+	jz rt_k rt_again
+end
+fn rt_punlock rt_d
+	store rt_d+2304 0
+end
+
+# end the wait of the poller whose record is rt_d, which the caller has
+# locked: a byte to its socket
+fn rt_pwake rt_d
+	local rt_a 32
+	local rt_one 8
+	load rt_d+2312 as rt_h
+	if rt_h
+		store rt_one 1
+		store rt_a rt_h
+		store rt_a+8 rt_one
+		store rt_a+16 1
+		store rt_a+24 0
+		call rt_api rt_i_send rt_a 4
+	end
+end
+
 # in every poller, keep of what it notes of the descriptor rt_fd the
 # bits of rt_mask: 223 and 191 when it was found not ready to read and
 # to write, 0 when it is closed
@@ -1198,17 +1237,19 @@ fn rt_marks rt_fd rt_mask
 			load rt_state+4736+rt_ep*8 as rt_d
 			loadb rt_d+rt_fd as rt_k
 			if rt_k
+				# what it notes now, which may be nothing since
+				call rt_plock rt_d
+				loadb rt_d+rt_fd as rt_k
 				storeb rt_d+rt_fd rt_k&rt_mask
+				call rt_punlock rt_d
 			end
 		end
 		rt_ep+=1
 	end
 end
 
-# A socket of the kind rt_kind (1 a stream, 2 single messages) that does
-# not wait, as a descriptor with the mark rt_mark; the sockets of
-# Windows are started at the first.
-fn rt_sock rt_kind rt_mark
+# the sockets of Windows are started before the first
+fn rt_wsa
 	local rt_a 32
 	local rt_w 408
 	load rt_state+4472 as rt_r
@@ -1218,6 +1259,56 @@ fn rt_sock rt_kind rt_mark
 		call rt_api rt_i_wsastartup rt_a 2
 		store rt_state+4472 1
 	end
+end
+
+# A socket for single messages that is connected to itself and does not
+# wait, as Windows has it, or an error: a byte sent to it makes it ready
+# to read.
+fn rt_selfsock
+	local rt_a 32
+	local rt_ad 24
+	call rt_wsa
+	store rt_a 2
+	store rt_a+8 2
+	store rt_a+16 0
+	call rt_api rt_i_socket rt_a 3 as rt_h
+	if rt_h==-1
+		tail rt_sockerror
+	end
+	call rt_nowait rt_h
+	call rt_inet rt_ad 0x7f000001 0
+	store rt_a rt_h
+	store rt_a+8 rt_ad
+	store rt_a+16 16
+	call rt_api rt_i_bind rt_a 3 as rt_r
+	ifz rt_r&0xffffffff
+		store rt_ad+16 16
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 rt_ad+16
+		call rt_api rt_i_getsockname rt_a 3 as rt_r
+	end
+	ifz rt_r&0xffffffff
+		store rt_a rt_h
+		store rt_a+8 rt_ad
+		store rt_a+16 16
+		call rt_api rt_i_connect rt_a 3 as rt_r
+	end
+	if rt_r&0xffffffff
+		call rt_sockerror as rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closesocket rt_a 1
+		ret rt_r
+	end
+	ret rt_h
+end
+
+# A socket of the kind rt_kind (1 a stream, 2 single messages) that does
+# not wait, as a descriptor with the mark rt_mark; the sockets of
+# Windows are started at the first.
+fn rt_sock rt_kind rt_mark
+	local rt_a 32
+	call rt_wsa
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
@@ -1405,33 +1496,53 @@ fn rt_writeq rt_fd rt_p rt_n
 	tail rt_write rt_fd rt_p rt_n
 end
 
-# A poller is a descriptor of the runtime with a record of its own: for
-# each descriptor a byte, 128 if the poller watches it, 8 and 16 for
-# reading and for writing, 32 and 64 once it was said to be ready to
-# read and to write; and from 256 on 8 bytes for each, the tag it is
-# watched with. Windows says of a socket whether it is ready, not when
-# it becomes so, where the libraries want to be told once. So a socket
-# that a poller said to be ready is not asked about again by it until a
-# read, a write or an accept found it not ready, which takes the mark of
-# it away in every poller (rt_recv, rt_send, rt_accept; rt_marks). The
-# record is not freed when the poller is closed, since a thread that
-# found a socket not ready may be writing to it: it stays with the
-# number, and is made zero for the next poller that gets it.
+# A poller is a descriptor of the runtime with a record of its own:
+#    0  for each descriptor a byte: 128 if the poller watches it, 8 and
+#       16 for reading and for writing, 32 and 64 once it was said to be
+#       ready to read and to write, 1 for a waker that was woken and not
+#       yet said so
+#  256  for each descriptor 8 bytes, the tag it is watched with
+# 2304  the lock of the record (rt_plock)
+# 2312  the socket of the poller, as Windows has it, or 0 once it is
+#       closed: every wait of the poller asks about it too, so a byte
+#       sent to it ends the wait (rt_pwake)
+# 2320  how many times a descriptor was given to this record to watch
+# 2328  for each descriptor 8 bytes, that count when it was given: what
+#       tells a watch from a later one of the same number
+# Windows says of a socket whether it is ready, not when it becomes so,
+# where the libraries want to be told once. So a socket that a poller
+# said to be ready is not asked about again by it until a read, a write
+# or an accept found it not ready, which takes the mark of it away in
+# every poller (rt_recv, rt_send, rt_accept; rt_marks). A waker is not
+# asked about: wakeup notes it in every poller that watches it and ends
+# the wait of each, so each says it once, whichever looks first. The
+# record is not freed when the poller is closed, since another thread
+# may be at it: it stays with the number, lock and counts as they are,
+# for the next poller that gets it.
 fn rt_poller
+	local rt_a 32
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
 	end
+	call rt_selfsock as rt_h
+	if rt_h>-4096
+		tail rt_unfd rt_fd rt_h
+	end
 	load rt_state+4736+rt_fd*8 as rt_d
-	if rt_d
-		zero rt_d 2304
-	else
-		call rt_alloc 2304 as rt_d
+	ifz rt_d
+		call rt_alloc 4384 as rt_d
 		ifz rt_d
+			store rt_a rt_h
+			call rt_api rt_i_closesocket rt_a 1
 			tail rt_unfd rt_fd -12
 		end
 		store rt_state+4736+rt_fd*8 rt_d
 	end
+	call rt_plock rt_d
+	zero rt_d 2304
+	store rt_d+2312 rt_h
+	call rt_punlock rt_d
 	storeb rt_state+4480+rt_fd 4
 	store rt_state+360+rt_fd*8 1
 	ret rt_fd
@@ -1441,6 +1552,8 @@ end
 # or both; -1 for a descriptor that is no socket, which is taken to be
 # ready always, and -17 for one that this poller watches already
 fn rt_watch rt_ep rt_fd rt_what rt_tag
+	local rt_a 32
+	local rt_p 16
 	call rt_rec rt_ep as rt_d
 	ifz rt_d
 		ret -9
@@ -1448,8 +1561,8 @@ fn rt_watch rt_ep rt_fd rt_what rt_tag
 	if rt_fd>255
 		ret -9
 	end
-	loadb rt_state+4480+rt_fd as rt_k
-	ifz rt_k&3
+	loadb rt_state+4480+rt_fd as rt_x
+	ifz rt_x&3
 		load rt_state+360+rt_fd*8 as rt_h
 		ifz rt_h
 			if rt_fd>2
@@ -1458,13 +1571,54 @@ fn rt_watch rt_ep rt_fd rt_what rt_tag
 		end
 		ret -1
 	end
+	call rt_plock rt_d
 	loadb rt_d+rt_fd as rt_k
 	if rt_k
+		call rt_punlock rt_d
 		ret -17
 	end
+	load rt_d+2320 as rt_s
+	store rt_d+2320 rt_s+1
+	store rt_d+2328+rt_fd*8 rt_s+1
 	store rt_d+256+rt_fd*8 rt_tag
 	storeb rt_d+rt_fd 128|(rt_what&3)<<3
+	call rt_punlock rt_d
+	if rt_x>>1&rt_what&1
+		# a waker that was woken before it was watched is said so too.
+		# It is asked after it is noted, so that a wakeup of this moment
+		# finds the note or is found here
+		call rt_handle rt_fd as rt_h
+		store rt_p rt_h
+		store rt_p+8 0x100
+		store rt_a rt_p
+		store rt_a+8 1
+		store rt_a+16 0
+		call rt_api rt_i_wsapoll rt_a 3
+		load2 rt_p+10 as rt_r
+		if rt_r&0x100
+			call rt_woken rt_d rt_fd rt_s+1
+		end
+	end
 	ret 0
+end
+
+# note in the record rt_d that the waker rt_fd was woken, and end the
+# wait of its poller, if it watches the waker to read and has no such
+# note yet; rt_s is 0, or what the watch must be (see 2328)
+fn rt_woken rt_d rt_fd rt_s
+	call rt_plock rt_d
+	loadb rt_d+rt_fd as rt_k
+	if rt_s
+		load rt_d+2328+rt_fd*8 as rt_n
+		if rt_n!=rt_s
+			rt_k=0
+		end
+	end
+	if rt_k&9==8
+		storeb rt_d+rt_fd rt_k|1
+		call rt_pwake rt_d
+	end
+	call rt_punlock rt_d
 end
 
 # the poller rt_ep watches rt_fd no longer; -2 if it did not
@@ -1476,27 +1630,46 @@ fn rt_unwatch rt_ep rt_fd
 	if rt_fd>255
 		ret -9
 	end
+	call rt_plock rt_d
 	loadb rt_d+rt_fd as rt_k
+	storeb rt_d+rt_fd 0
+	call rt_punlock rt_d
 	ifz rt_k
 		ret -2
 	end
-	storeb rt_d+rt_fd 0
 	ret 0
+end
+
+# take what was sent to the socket rt_h
+fn rt_drain rt_h
+	local rt_a 32
+	local rt_b 16
+	label rt_more
+	store rt_a rt_h
+	store rt_a+8 rt_b
+	store rt_a+16 16
+	store rt_a+24 0
+	call rt_api rt_i_recv rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	jne rt_r 0xffffffff rt_more
 end
 
 # Wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
 # events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
 # read, 2 for may be written or their sum, and the tag. How many there
-# are, or an error. Windows is asked about the sockets that the poller
-# watches for something it has not yet said them to be ready for, 16
-# bytes each: the socket, what is asked (0x100 to read, 0x10 to write),
-# and what it answers, with 1, 2 and 4 for an error or a closed end. A
-# waker that is ready is emptied here and stays to be asked about.
+# are, or an error. Windows is asked about the socket of the poller and
+# about the sockets that the poller watches for something it has not yet
+# said them to be ready for, 16 bytes each: the socket, what is asked
+# (0x100 to read, 0x10 to write), and what it answers, with 1, 2 and 4
+# for an error or a closed end. What it answers of a socket counts for
+# the watch there was when it was asked (rt_q), not for one that took
+# the number since. A wait that the socket of the poller ended with
+# nothing to say goes on for the rest of the time.
 fn rt_poll rt_ep rt_out rt_max rt_ms
 	local rt_a 32
-	local rt_p 4096
+	local rt_p 4112
 	local rt_f 256
-	local rt_b 16
+	local rt_q 2048
 	call rt_rec rt_ep as rt_d
 	ifz rt_d
 		ret -9
@@ -1504,10 +1677,18 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 	if rt_max>64
 		rt_max=64
 	end
+	call rt_clock as rt_t
+	label rt_round
+	call rt_plock rt_d
+	load rt_d+2312 as rt_s
 	rt_n=0
+	rt_now=0
 	rt_fd=3
 	while rt_fd<256
 		loadb rt_d+rt_fd as rt_k
+		if rt_k&1
+			rt_now=1
+		end
 		rt_w=0
 		if rt_k&8
 			ifz rt_k&32
@@ -1520,37 +1701,80 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 			end
 		end
 		if rt_w
+			loadb rt_state+4480+rt_fd as rt_x
 			load rt_state+360+rt_fd*8 as rt_h
-			store rt_p+rt_n*16 rt_h-1
-			store rt_p+rt_n*16+8 rt_w
-			storeb rt_f+rt_n rt_fd
-			rt_n+=1
+			ifz rt_x&2
+				if rt_h>2
+					load rt_d+2328+rt_fd*8 as rt_x
+					store rt_p+rt_n*16 rt_h-1
+					store rt_p+rt_n*16+8 rt_w
+					storeb rt_f+rt_n rt_fd
+					store rt_q+rt_n*8 rt_x
+					rt_n+=1
+				end
+			end
 		end
 		rt_fd+=1
 	end
-	ifz rt_n
-		# nothing to ask about: the time alone
-		ifslt rt_ms 0
-			rt_ms=1000
+	call rt_punlock rt_d
+	ifz rt_s
+		ret -9
+	end
+	store rt_p+rt_n*16 rt_s
+	store rt_p+rt_n*16+8 0x100
+	rt_w=rt_ms
+	if rt_now
+		rt_w=0
+	else
+		ifsge rt_ms 0
+			call rt_clock as rt_x
+			rt_x=(rt_x-rt_t)/1000000
+			rt_w=0
+			if rt_x<rt_ms
+				rt_w=rt_ms-rt_x
+			end
 		end
-		store rt_a rt_ms
-		call rt_api rt_i_sleep rt_a 1
-		ret 0
 	end
 	store rt_a rt_p
-	store rt_a+8 rt_n
-	store rt_a+16 rt_ms
+	store rt_a+8 rt_n+1
+	store rt_a+16 rt_w
 	call rt_api rt_i_wsapoll rt_a 3 as rt_r
 	rt_r&=0xffffffff
 	if rt_r==0xffffffff
 		tail rt_sockerror
 	end
+	load2 rt_p+rt_n*16+10 as rt_w
+	if rt_w
+		# before the notes are read: a byte that is taken here was sent
+		# after its note was written
+		call rt_drain rt_s
+	end
 	rt_o=0
+	call rt_plock rt_d
+	rt_fd=3
+	while rt_fd<256
+		loadb rt_d+rt_fd as rt_k
+		if rt_k&1
+			if rt_o<rt_max
+				storeb rt_d+rt_fd rt_k&254
+				load rt_d+256+rt_fd*8 as rt_x
+				store rt_out+rt_o*16 1
+				store rt_out+rt_o*16+8 rt_x
+				rt_o+=1
+			end
+		end
+		rt_fd+=1
+	end
 	rt_i=0
 	while rt_i<rt_n
 		load2 rt_p+rt_i*16+10 as rt_w
+		loadb rt_f+rt_i as rt_fd
+		load rt_d+2328+rt_fd*8 as rt_x
+		load rt_q+rt_i*8 as rt_k
+		if rt_x!=rt_k
+			rt_w=0
+		end
 		if rt_w
-			loadb rt_f+rt_i as rt_fd
 			loadb rt_d+rt_fd as rt_k
 			rt_e=0
 			if rt_k&8
@@ -1569,67 +1793,41 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 			end
 			if rt_e
 				if rt_o<rt_max
-					loadb rt_state+4480+rt_fd as rt_x
-					if rt_x&2
-						# a waker: take what was sent to it
-						load rt_state+360+rt_fd*8 as rt_h
-						label rt_drain
-						store rt_a rt_h-1
-						store rt_a+8 rt_b
-						store rt_a+16 16
-						store rt_a+24 0
-						call rt_api rt_i_recv rt_a 4 as rt_r
-						rt_r&=0xffffffff
-						jne rt_r 0xffffffff rt_drain
-					else
-						storeb rt_d+rt_fd rt_k|rt_e<<5
-					end
-					load rt_d+256+rt_fd*8 as rt_t
+					storeb rt_d+rt_fd rt_k|rt_e<<5
+					load rt_d+256+rt_fd*8 as rt_x
 					store rt_out+rt_o*16 rt_e
-					store rt_out+rt_o*16+8 rt_t
+					store rt_out+rt_o*16+8 rt_x
 					rt_o+=1
 				end
 			end
 		end
 		rt_i+=1
 	end
-	ret rt_o
+	call rt_punlock rt_d
+	if rt_o
+		ret rt_o
+	end
+	jslt rt_ms 0 rt_round
+	call rt_clock as rt_x
+	jlt (rt_x-rt_t)/1000000 rt_ms rt_round
+	ret 0
 end
 
 # A waker is a socket for single messages that is connected to itself:
-# wakeup sends it a byte, which makes it ready to read in a poll.
+# wakeup sends it a byte, which nothing takes, so that a poller that is
+# given it to watch later is told so, and notes it in every poller that
+# watches it now.
 fn rt_waker
-	local rt_a 32
-	local rt_ad 24
-	call rt_sock 2 3 as rt_fd
+	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
 	end
-	load rt_state+360+rt_fd*8 as rt_h
-	rt_h-=1
-	call rt_inet rt_ad 0x7f000001 0
-	store rt_a rt_h
-	store rt_a+8 rt_ad
-	store rt_a+16 16
-	call rt_api rt_i_bind rt_a 3 as rt_r
-	ifz rt_r&0xffffffff
-		store rt_ad+16 16
-		store rt_a rt_h
-		store rt_a+8 rt_ad
-		store rt_a+16 rt_ad+16
-		call rt_api rt_i_getsockname rt_a 3 as rt_r
+	call rt_selfsock as rt_h
+	if rt_h>-4096
+		tail rt_unfd rt_fd rt_h
 	end
-	ifz rt_r&0xffffffff
-		store rt_a rt_h
-		store rt_a+8 rt_ad
-		store rt_a+16 16
-		call rt_api rt_i_connect rt_a 3 as rt_r
-	end
-	if rt_r&0xffffffff
-		call rt_sockerror as rt_r
-		call rt_close rt_fd
-		ret rt_r
-	end
+	storeb rt_state+4480+rt_fd 3
+	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
 end
 fn rt_wakeup rt_fd
@@ -1637,7 +1835,25 @@ fn rt_wakeup rt_fd
 	store rt_one 1
 	call rt_send rt_fd rt_one 1 as rt_r
 	ifslt rt_r 0
-		ret rt_r
+		# full of the bytes of earlier times, which say the same
+		if rt_r!=-11
+			ret rt_r
+		end
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&2
+		rt_ep=3
+		while rt_ep<256
+			loadb rt_state+4480+rt_ep as rt_k
+			if rt_k&4
+				load rt_state+4736+rt_ep*8 as rt_d
+				loadb rt_d+rt_fd as rt_k
+				if rt_k&9==8
+					call rt_woken rt_d rt_fd 0
+				end
+			end
+			rt_ep+=1
+		end
 	end
 	ret 8
 end

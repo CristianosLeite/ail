@@ -96,8 +96,8 @@ while [ ! -f $tmp/free.txt ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
 say win_held $r
 
 # tests that are run whatever the count: threads that open at once, and
-# two pollers
-always="rt_open_threads rt_poll_two"
+# pollers that share nothing or a waker
+always="rt_open_threads rt_poll_two rt_poll_shared"
 n=0
 ran=0
 for f in tests/*.out; do

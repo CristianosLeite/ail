@@ -1131,3 +1131,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   kernel gives no descriptor the signal goes to the number under the
   lock that every taking of a child holds, which is done after the
   waiting. `tests/rt_reap_wide`.
+- [x] Pollers on Windows that share a waker, and threads at one poller
+  (2026-11-26): the poller that reported a waker emptied its socket,
+  so a second poller that watched it was not told; and what a poller
+  notes of a socket was read and written back with nothing between, so
+  a watch that had just ended could come back, and an answer of
+  Windows could get the tag of a later watch. The record of a poller
+  has a lock and a number for each watch, a poller a socket of its own
+  that ends its wait, and `wakeup` notes the waker in every poller
+  that watches it. `tests/rt_poll_shared`, which `tests/win.sh` always
+  runs.

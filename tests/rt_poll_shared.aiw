@@ -1,0 +1,31 @@
+# a waker that two pollers watch wakes both: one wakeup is an event in
+# each, with the tag given there, whichever is asked first, and once; a
+# poller that is given the waker after the wakeup is told so too, and
+# one that watches it no longer is not
+buf ev 32
+rt poller as p1
+rt poller as p2
+rt poller as p3
+rt waker as w
+rt watch p1 w 1 11
+rt watch p2 w 1 22
+rt wakeup w
+rt poll p1 ev 2 1000 as n1
+load ev+8 as t1
+rt poll p2 ev 2 1000 as n2
+load ev+8 as t2
+rt poll p1 ev 2 0 as m1
+rt poll p2 ev 2 0 as m2
+rt watch p3 w 1 33
+rt poll p3 ev 2 1000 as n3
+load ev+8 as t3
+rt unwatch p1 w
+rt wakeup w
+rt poll p1 ev 2 0 as m3
+rt poll p2 ev 2 1000 as n4
+load ev+8 as t4
+both=(n1==1)&(t1==11)&(n2==1)&(t2==22)
+once=(m1==0)&(m2==0)
+late=(n3==1)&(t3==33)
+gone=(m3==0)&(n4==1)&(t4==22)
+rt exit both+once*2+late*4+gone*8

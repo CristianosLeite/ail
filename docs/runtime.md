@@ -224,9 +224,17 @@ Where a service cannot be on Windows what it is on Linux:
   write or an accept finds the socket not ready, which is when a caller
   waits for it. Each poller has its own record of what it watches, with
   the tags, so two pollers take nothing from each other, and a socket
-  that is closed is watched by none. A waker is a socket for single
-  messages connected to itself, which the poller that reports it
-  empties.
+  that is closed is watched by none. The record has a lock, which
+  `watch`, `unwatch`, `poll` and the forgetting hold while they read
+  and change it, and each watch has a number, so what Windows answered
+  of a socket counts only for the watch there was when it was asked. A
+  poller has a socket of its own, for single messages and connected to
+  itself, that every wait of it asks about too. A waker is such a
+  socket, and is not asked about: `wakeup` notes it in every poller
+  that watches it and sends a byte to the socket of each, so one
+  `wakeup` is one event in each of them, and a poller that waits with
+  no limit waits until there is an event. A `watch` that another
+  thread makes while a poller waits counts from its next wait on.
 - A descriptor is one of 256, a socket too. Its number is taken with
   one atomic step before Windows is asked for the handle, and given
   back only when a close has finished, so threads that open at once get
