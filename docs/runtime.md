@@ -214,11 +214,18 @@ Where a service cannot be on Windows what it is on Linux:
 - A poller watches sockets and nothing else: `watch` gives -1 for any
   other descriptor, as for a plain file, and a read of a pipe waits.
   Windows says of a socket whether it is ready and not when it becomes
-  so; the runtime keeps for each what it has said, asks Windows about
-  the others, and forgets what it said when a read, a write or an
-  accept finds the socket not ready, which is when a caller waits for
-  it. A waker is a socket for single messages connected to itself.
-- A descriptor is one of 256, a socket too. A write to a socket takes
+  so; a poller keeps for each socket it watches what it has said, asks
+  Windows about the others, and forgets what it said when a read, a
+  write or an accept finds the socket not ready, which is when a caller
+  waits for it. Each poller has its own record of what it watches, with
+  the tags, so two pollers take nothing from each other, and a socket
+  that is closed is watched by none. A waker is a socket for single
+  messages connected to itself, which the poller that reports it
+  empties.
+- A descriptor is one of 256, a socket too. Its number is taken with
+  one atomic step before Windows is asked for the handle, and given
+  back only when a close has finished, so threads that open at once get
+  different numbers. A write to a socket takes
   all its bytes where Linux takes part of many.
 - `pipeerr` has nothing to do: there is no signal.
 

@@ -1103,3 +1103,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   closed in the child when it already had the number it was given as,
   since nothing was copied. The mark is taken away there.
   `tests/rt_start_cloexec`.
+- [x] Descriptors and pollers on Windows that threads share
+  (2026-11-26): two threads that opened at once could get one number,
+  since it was taken only when Windows had given the handle; it is now
+  taken with `cas` first and given back last by `close`. What a poller
+  watched was kept with the socket, so a second poller changed the tag,
+  ended the watch or took the event of the first; each poller now has a
+  record of its own. `tests/rt_open_threads`, `tests/rt_poll_two`,
+  which `tests/win.sh` always runs.

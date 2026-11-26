@@ -16,7 +16,10 @@
 #   40  its end
 #   48  per class of small blocks, 8 bytes: the blocks given back
 #  360  per descriptor, 256 of them, 8 bytes: 1 + the handle of Windows
-#       that it is, or 0 for none. 0, 1 and 2 are the input, the output
+#       that it is, or 0 for none, or 2 while it is taken and not yet,
+#       or no longer, anything: a number is taken with cas (rt_newfd),
+#       gets what is known of it and its handle last, and is given back
+#       last when it is closed. 0, 1 and 2 are the input, the output
 #       and the error output, asked of Windows when they are first used.
 # 2408  per descriptor, 8 bytes: for one that is a directory, the record
 #       of its names (see rt_names), else 0
@@ -25,10 +28,10 @@
 # 4464  1 + the job of Windows that the children held to this process
 #       are in, or 0 before the first of them
 # 4472  1 once the sockets of Windows are started
-# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller; 8 and
-#       16 watched for reading and for writing; 32 and 64 said to be
-#       ready to read and to write since it last was not
-# 4736  per descriptor, 8 bytes: the tag it is watched with
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller
+# 4736  per descriptor, 8 bytes: the record of the poller that it is or
+#       was, which is kept for the next poller of that number (see
+#       rt_poller), or 0
 # Every name of this file starts with "rt_".
 #
 # The first line goes to the last, past every function.
@@ -141,8 +144,7 @@ fn rt_recv rt_fd rt_h rt_p rt_n
 	if rt_r==0xffffffff
 		call rt_sockerror as rt_r
 		if rt_r==-11
-			loadb rt_state+4480+rt_fd as rt_k
-			storeb rt_state+4480+rt_fd rt_k&223
+			call rt_marks rt_fd 223
 		end
 		if rt_r==-32
 			ret 0
@@ -181,7 +183,7 @@ fn rt_send rt_fd rt_p rt_n
 	if rt_r==0xffffffff
 		call rt_sockerror as rt_r
 		if rt_r==-11
-			storeb rt_state+4480+rt_fd rt_k&191
+			call rt_marks rt_fd 191
 		end
 		if rt_r==-104
 			ret -32
@@ -206,6 +208,9 @@ fn rt_handle rt_fd
 		ret -1
 	end
 	load rt_state+360+rt_fd*8 as rt_h
+	if rt_h==2
+		ret -1
+	end
 	ifz rt_h
 		if rt_fd>2
 			ret -1
@@ -289,20 +294,27 @@ fn rt_close rt_fd
 	if rt_h>-4096
 		ret -9
 	end
-	store rt_state+360+rt_fd*8 0
+	# one thread of those that close it does, and its number is not
+	# given out again before what is known of it is gone
+	cas rt_state+360+rt_fd*8 rt_h+1 2 as rt_r
+	ifz rt_r
+		ret -9
+	end
 	loadb rt_state+4480+rt_fd as rt_k
 	storeb rt_state+4480+rt_fd 0
-	if rt_k&4
-		# a poller is a descriptor of the runtime alone
-		ret 0
-	end
+	rt_r=0
+	# a poller is a descriptor of the runtime alone
+	jnz rt_k&4 rt_done
 	if rt_k&3
+		# no poller watches it any more
+		call rt_marks rt_fd 0
 		store rt_a rt_h
 		call rt_api rt_i_closesocket rt_a 1 as rt_r
-		if rt_r&0xffffffff
-			tail rt_sockerror
+		rt_r&=0xffffffff
+		if rt_r
+			call rt_sockerror as rt_r
 		end
-		ret 0
+		jmp rt_done
 	end
 	load rt_state+2408+rt_fd*8 as rt_d
 	if rt_d
@@ -316,14 +328,23 @@ fn rt_close rt_fd
 			call rt_api rt_i_findclose rt_a 1
 		end
 		call rt_free rt_d
-		ret 0
+		jmp rt_done
 	end
 	store rt_a rt_h
-	call rt_api rt_i_closehandle rt_a 1 as rt_r
-	ifz rt_r&0xffffffff
-		tail rt_error
+	call rt_api rt_i_closehandle rt_a 1 as rt_x
+	ifz rt_x&0xffffffff
+		call rt_error as rt_r
 	end
-	ret 0
+	label rt_done
+	store rt_state+360+rt_fd*8 0
+	ret rt_r
+end
+
+# give back the descriptor rt_fd, which was taken and has become
+# nothing: rt_r
+fn rt_unfd rt_fd rt_r
+	store rt_state+360+rt_fd*8 0
+	ret rt_r
 end
 
 # the rt_n bytes of a path with a zero behind them into the 4096 bytes at
@@ -354,15 +375,9 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 	if rt_r
 		ret rt_r
 	end
-	rt_fd=3
-	label rt_slot
-	if rt_fd>255
-		ret -24
-	end
-	load rt_state+360+rt_fd*8 as rt_h
-	if rt_h
-		rt_fd+=1
-		jmp rt_slot
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
 	end
 	# what may be done with it: read, write, or append alone
 	rt_acc=0x80000000
@@ -396,14 +411,15 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 		call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
 		rt_r&=0xffffffff
 		if rt_r==0xffffffff
-			tail rt_error
+			call rt_error as rt_r
+			tail rt_unfd rt_fd rt_r
 		end
 		ifz rt_r&16
-			ret -20
+			tail rt_unfd rt_fd -20
 		end
 		call rt_alloc 336+rt_n+3 as rt_d
 		ifz rt_d
-			ret -12
+			tail rt_unfd rt_fd -12
 		end
 		rt_i=0
 		while rt_i<rt_n
@@ -436,11 +452,11 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 			rt_c&=0xffffffff
 			if rt_c!=0xffffffff
 				if rt_c&16
-					ret -21
+					rt_r=-21
 				end
 			end
 		end
-		ret rt_r
+		tail rt_unfd rt_fd rt_r
 	end
 	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
@@ -1015,19 +1031,53 @@ fn rt_pin rt_cpu
 end
 
 # ---- sockets and readiness
-# the lowest descriptor that is free, from 3 on, or -24
+# The lowest descriptor that is free, from 3 on, or -24. It is taken:
+# no other thread gets it, and it is no descriptor yet. Who took it
+# writes what is known of it and then 1 + its handle, or gives it back
+# (rt_unfd).
 fn rt_newfd
 	rt_fd=3
 	label rt_next
 	if rt_fd>255
 		ret -24
 	end
-	load rt_state+360+rt_fd*8 as rt_h
-	if rt_h
+	cas rt_state+360+rt_fd*8 0 2 as rt_r
+	ifz rt_r
 		rt_fd+=1
 		jmp rt_next
 	end
 	ret rt_fd
+end
+
+# the record of the poller rt_ep, or 0 if it is none
+fn rt_rec rt_ep
+	if rt_ep>255
+		ret 0
+	end
+	loadb rt_state+4480+rt_ep as rt_k
+	ifz rt_k&4
+		ret 0
+	end
+	load rt_state+4736+rt_ep*8 as rt_d
+	ret rt_d
+end
+
+# in every poller, keep of what it notes of the descriptor rt_fd the
+# bits of rt_mask: 223 and 191 when it was found not ready to read and
+# to write, 0 when it is closed
+fn rt_marks rt_fd rt_mask
+	rt_ep=3
+	while rt_ep<256
+		loadb rt_state+4480+rt_ep as rt_k
+		if rt_k&4
+			load rt_state+4736+rt_ep*8 as rt_d
+			loadb rt_d+rt_fd as rt_k
+			if rt_k
+				storeb rt_d+rt_fd rt_k&rt_mask
+			end
+		end
+		rt_ep+=1
+	end
 end
 
 # A socket of the kind rt_kind (1 a stream, 2 single messages) that does
@@ -1052,11 +1102,12 @@ fn rt_sock rt_kind rt_mark
 	store rt_a+16 0
 	call rt_api rt_i_socket rt_a 3 as rt_h
 	if rt_h==-1
-		tail rt_sockerror
+		call rt_sockerror as rt_r
+		tail rt_unfd rt_fd rt_r
 	end
 	call rt_nowait rt_h
-	store rt_state+360+rt_fd*8 rt_h+1
 	storeb rt_state+4480+rt_fd rt_mark
+	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
 end
 
@@ -1138,13 +1189,13 @@ fn rt_accept rt_fd
 	if rt_s==-1
 		call rt_sockerror as rt_r
 		if rt_r==-11
-			storeb rt_state+4480+rt_fd rt_k&223
+			call rt_marks rt_fd 223
 		end
-		ret rt_r
+		tail rt_unfd rt_new rt_r
 	end
 	call rt_nowait rt_s
-	store rt_state+360+rt_new*8 rt_s+1
 	storeb rt_state+4480+rt_new 1
+	store rt_state+360+rt_new*8 rt_s+1
 	ret rt_new
 end
 
@@ -1229,25 +1280,46 @@ fn rt_writeq rt_fd rt_p rt_n
 	tail rt_write rt_fd rt_p rt_n
 end
 
-# A poller is a descriptor of the runtime: the sockets it watches are
-# those marked so, with their tags. Windows says of a socket whether it
-# is ready, not when it becomes so, where the libraries want to be told
-# once. So a socket that was said to be ready is not asked about again
-# until a read, a write or an accept found it not ready, which takes the
-# mark of it away (rt_recv, rt_send, rt_accept).
+# A poller is a descriptor of the runtime with a record of its own: for
+# each descriptor a byte, 128 if the poller watches it, 8 and 16 for
+# reading and for writing, 32 and 64 once it was said to be ready to
+# read and to write; and from 256 on 8 bytes for each, the tag it is
+# watched with. Windows says of a socket whether it is ready, not when
+# it becomes so, where the libraries want to be told once. So a socket
+# that a poller said to be ready is not asked about again by it until a
+# read, a write or an accept found it not ready, which takes the mark of
+# it away in every poller (rt_recv, rt_send, rt_accept; rt_marks). The
+# record is not freed when the poller is closed, since a thread that
+# found a socket not ready may be writing to it: it stays with the
+# number, and is made zero for the next poller that gets it.
 fn rt_poller
 	call rt_newfd as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
 	end
-	store rt_state+360+rt_fd*8 1
+	load rt_state+4736+rt_fd*8 as rt_d
+	if rt_d
+		zero rt_d 2304
+	else
+		call rt_alloc 2304 as rt_d
+		ifz rt_d
+			tail rt_unfd rt_fd -12
+		end
+		store rt_state+4736+rt_fd*8 rt_d
+	end
 	storeb rt_state+4480+rt_fd 4
+	store rt_state+360+rt_fd*8 1
 	ret rt_fd
 end
 
-# watch rt_fd for reading (rt_what 1), writing (2) or both; -1 for a
-# descriptor that is no socket, which is taken to be ready always
+# let the poller rt_ep watch rt_fd for reading (rt_what 1), writing (2)
+# or both; -1 for a descriptor that is no socket, which is taken to be
+# ready always, and -17 for one that this poller watches already
 fn rt_watch rt_ep rt_fd rt_what rt_tag
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
 	if rt_fd>255
 		ret -9
 	end
@@ -1261,40 +1333,56 @@ fn rt_watch rt_ep rt_fd rt_what rt_tag
 		end
 		ret -1
 	end
-	storeb rt_state+4480+rt_fd rt_k&7|(rt_what&3)<<3
-	store rt_state+4736+rt_fd*8 rt_tag
+	loadb rt_d+rt_fd as rt_k
+	if rt_k
+		ret -17
+	end
+	store rt_d+256+rt_fd*8 rt_tag
+	storeb rt_d+rt_fd 128|(rt_what&3)<<3
 	ret 0
 end
 
+# the poller rt_ep watches rt_fd no longer; -2 if it did not
 fn rt_unwatch rt_ep rt_fd
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
 	if rt_fd>255
 		ret -9
 	end
-	loadb rt_state+4480+rt_fd as rt_k
-	storeb rt_state+4480+rt_fd rt_k&7
+	loadb rt_d+rt_fd as rt_k
+	ifz rt_k
+		ret -2
+	end
+	storeb rt_d+rt_fd 0
 	ret 0
 end
 
 # Wait at most rt_ms milliseconds, -1 for no limit, for up to rt_max
 # events, at most 64, and write each as 16 bytes at rt_out: 1 for may be
 # read, 2 for may be written or their sum, and the tag. How many there
-# are, or an error. Windows is asked about the sockets that are watched
-# for something they were not yet said to be ready for, 16 bytes each:
-# the socket, what is asked (0x100 to read, 0x10 to write), and what it
-# answers, with 1, 2 and 4 for an error or a closed end. A waker that is
-# ready is emptied here and stays to be asked about.
+# are, or an error. Windows is asked about the sockets that the poller
+# watches for something it has not yet said them to be ready for, 16
+# bytes each: the socket, what is asked (0x100 to read, 0x10 to write),
+# and what it answers, with 1, 2 and 4 for an error or a closed end. A
+# waker that is ready is emptied here and stays to be asked about.
 fn rt_poll rt_ep rt_out rt_max rt_ms
 	local rt_a 32
 	local rt_p 4096
 	local rt_f 256
 	local rt_b 16
+	call rt_rec rt_ep as rt_d
+	ifz rt_d
+		ret -9
+	end
 	if rt_max>64
 		rt_max=64
 	end
 	rt_n=0
 	rt_fd=3
 	while rt_fd<256
-		loadb rt_state+4480+rt_fd as rt_k
+		loadb rt_d+rt_fd as rt_k
 		rt_w=0
 		if rt_k&8
 			ifz rt_k&32
@@ -1338,7 +1426,7 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 		load2 rt_p+rt_i*16+10 as rt_w
 		if rt_w
 			loadb rt_f+rt_i as rt_fd
-			loadb rt_state+4480+rt_fd as rt_k
+			loadb rt_d+rt_fd as rt_k
 			rt_e=0
 			if rt_k&8
 				if rt_w&0x107
@@ -1356,7 +1444,8 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 			end
 			if rt_e
 				if rt_o<rt_max
-					if rt_k&2
+					loadb rt_state+4480+rt_fd as rt_x
+					if rt_x&2
 						# a waker: take what was sent to it
 						load rt_state+360+rt_fd*8 as rt_h
 						label rt_drain
@@ -1368,9 +1457,9 @@ fn rt_poll rt_ep rt_out rt_max rt_ms
 						rt_r&=0xffffffff
 						jne rt_r 0xffffffff rt_drain
 					else
-						storeb rt_state+4480+rt_fd rt_k|rt_e<<5
+						storeb rt_d+rt_fd rt_k|rt_e<<5
 					end
-					load rt_state+4736+rt_fd*8 as rt_t
+					load rt_d+256+rt_fd*8 as rt_t
 					store rt_out+rt_o*16 rt_e
 					store rt_out+rt_o*16+8 rt_t
 					rt_o+=1

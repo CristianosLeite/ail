@@ -71,6 +71,9 @@ timeout 60 wine $tmp/start.exe $tmp/hello.exe $tmp/sleeper.exe $tmp/echoarg.exe 
 [ $? -eq 63 ] || r=1
 say win_processes $r
 
+# tests that are run whatever the count: threads that open at once, and
+# two pollers
+always="rt_open_threads rt_poll_two"
 n=0
 ran=0
 for f in tests/*.out; do
@@ -79,7 +82,7 @@ for f in tests/*.out; do
     grep -q '^[[:space:]]*sys ' tests/$t.aiw && continue
     grep -q "^$t\$" tests/win.skip && continue
     n=$((n + 1))
-    [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue
+    case " $always " in *" $t "*) ;; *) [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue ;; esac
     $wc < tests/$t.aiw > $tmp/t.exe 2> /dev/null || continue
     want=0
     [ -f tests/$t.code ] && want=$(cat tests/$t.code)
