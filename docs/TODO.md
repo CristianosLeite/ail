@@ -49,8 +49,6 @@ and no object file; it is written in C first, built by `cc` in `make`,
 and then in AIL; one pull request when all of it is done, and the
 version 0.2.0 after it.
 
-- [ ] `examples/hello.aiw` and `lib/std/io.aiw` through the runtime,
-  with size and startup measured.
 - [ ] Seed 7, which understands `rt`.
 - [ ] The compiler through the runtime, with its fixed point.
 - [ ] Services for files and directories, the clock, threads with

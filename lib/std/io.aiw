@@ -1,14 +1,12 @@
 # lib/std/io.aiw -- output, decimal numbers and the arguments of the process.
 # Put  use "lib/std/io.aiw"  at the top of a program compiled from the top of the
-# repository. The line below runs where the use stands, so use it before
-# the first call of argc or argv.
+# repository. It asks the runtime for everything, so it is the same on
+# every platform, and has no line that runs where the use stands.
 #
 # Every variable and parameter of this file has a name that starts with
 # "io": "as" on the name of a var writes that var in any function, so a
 # short name here would be a var of a program that declared one before
-# the use, and a variable named like the var below would write it.
-var ioargp
-args as ioargp
+# the use.
 
 # write the ion bytes at iop to the file iofd, in as many writes as it
 # takes:
@@ -18,7 +16,7 @@ fn fdwrite iofd iop ion
 	ifz ion
 		ret 1
 	end
-	sys write iofd iop ion as iow
+	rt write iofd iop ion as iow
 	jsle iow 0 bad
 	iop+=iow
 	ion-=iow
@@ -39,7 +37,7 @@ end
 # every thread of it
 fn die iop ion
 	call fdwrite 2 iop ion
-	sys exit_group 1
+	rt exit 1
 end
 
 # the length of the NUL-terminated string at iop
@@ -69,18 +67,20 @@ end
 
 # the number of arguments of the process, its own name included
 fn argc
-	load ioargp as ion
+	args as iop
+	load iop as ion
 	ret ion
 end
 
 # argument ioi as two results, its address and its length, or 0 and 0 if the
 # process has no such argument; argument 0 is the name of the program
 fn argv ioi
-	load ioargp as ion
+	args as iop
+	load iop as ion
 	ifge ioi ion
 		ret 0 0
 	end
-	load ioargp+8+ioi*8 as ios
+	load iop+8+ioi*8 as ios
 	call strlen ios as iol
 	ret ios iol
 end

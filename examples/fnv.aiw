@@ -6,7 +6,7 @@ buf d size
 buf b 8
 n=0
 label more
-sys read 0 d+n size-n as r  # 0 at the end of the input or of the buffer
+rt read 0 d+n size-n as r  # 0 at the end of the input or of the buffer
 jgt r size fail             # unsigned: a negative r is far above size
 n+=r
 jnz r more
@@ -22,8 +22,8 @@ while k
 	k-=1
 end
 store b h
-sys write 1 b 8 as r
+rt write 1 b 8 as r
 jne r 8 fail
-sys exit 0
+rt exit 0
 label fail
-sys exit 1
+rt exit 1

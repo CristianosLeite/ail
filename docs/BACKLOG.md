@@ -893,3 +893,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the size of the image. Two tests of `lib/nd` read behind their last
   buffer, where the state of the runtime now is, and have a buffer of
   zeros for it.
+- [x] The examples and `lib/std/io.aiw` through the runtime
+  (2026-11-26): `rt read`, `rt write` and `rt exit` where `sys` stood,
+  with names or numbers. The library no longer has a `var` or a line
+  that runs where its `use` stands: `argc`, `argv` and `procenv` of
+  `lib/std/proc.aiw` ask `args` when they are called. `build/hello` is
+  1197 bytes, 243 before, of which 960 are the image; started 1000
+  times in a row, seven times over, a run takes 121 microseconds in the
+  median against 114 before and 389 for C with its library (a rough
+  figure, with the time of the starting process in it; the benchmarks
+  are to measure it properly). The executable now has a writable
+  segment in any case, for the state.

@@ -2,15 +2,15 @@
 # exit status 1 if reading or printing fails
 buf in 4096
 buf out 8
-sys 0 0 in 4096 as n    # n = bytes read, or a negative error
+rt read 0 in 4096 as n    # n = bytes read, or a negative error
 jgt n 4096 fail         # unsigned: a negative n is far above 4096
 storeb out 48+n/1000    # 48 is "0"
 storeb out+1 48+n/100%10
 storeb out+2 48+n/10%10
 storeb out+3 48+n%10
 storeb out+4 10         # newline
-sys 1 1 out 5 as w      # w = bytes written, or a negative error
+rt write 1 out 5 as w      # w = bytes written, or a negative error
 jne w 5 fail            # a short write counts as a failure
-sys 60 0
+rt exit 0
 label fail
-sys 60 1
+rt exit 1

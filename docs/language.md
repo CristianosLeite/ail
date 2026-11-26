@@ -1020,7 +1020,7 @@ call print p n
 call print "\n"
 ```
 
-A string literal is the two values that `print` takes. The library defines the var `ioargp` besides its functions, and no other global name. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function, and no variable named `ioargp`, which would write the library's.
+A string literal is the two values that `print` takes. The library defines no global name besides its functions, has no line that runs where the `use` stands, and asks the [runtime](#rt) for everything it does, so it is the same on every platform. All its variables and parameters have names that start with `io`: a program has no `var` of such a name, since `as` on the name of a `var` writes the cell in any function.
 
 ## The bytes library
 

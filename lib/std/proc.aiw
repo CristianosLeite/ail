@@ -19,8 +19,9 @@ const procgetppid 110
 # the addresses of its strings, "NAME=value" with a NUL byte at the end,
 # with a 0 after the last
 fn procenv
-	load ioargp as procn
-	ret ioargp+16+procn*8
+	args as procp
+	load procp as procn
+	ret procp+16+procn*8
 end
 
 # the value of the variable of the environment whose name is the procn

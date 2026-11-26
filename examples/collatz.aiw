@@ -2,7 +2,7 @@
 # 8-byte number read from stdin (at most 10000000), and write the sum
 # as 8 bytes; exit status 1 on failure
 buf b 8
-sys read 0 b 8 as n
+rt read 0 b 8 as n
 jne n 8 fail
 load b as n
 jgt n 10000000 fail
@@ -20,8 +20,8 @@ while n
 	n-=1
 end
 store b c
-sys write 1 b 8 as n
+rt write 1 b 8 as n
 jne n 8 fail
-sys exit 0
+rt exit 0
 label fail
-sys exit 1
+rt exit 1

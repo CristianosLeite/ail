@@ -232,30 +232,28 @@ The two flag bytes are numbers in the table; this page gives the bits names. In 
 `examples/hello.aiw` writes a line and exits with status 0 only if all 12 bytes went out:
 
 ```
-sys write 1 "hello world\n" as n
-sys exit n-12
+rt write 1 "hello world\n" as n
+rt exit n-12
 ```
 
-It compiles to the 176-byte header, the image of the runtime and 67 bytes, here with the offsets they would have behind the header alone:
+It compiles to the 176-byte header, the image of the runtime and 61 bytes, here with the offsets they would have behind the header alone:
 
 ```
-b0:  b8 01 00 00 00      mov  eax, 1          ; syscall number: write
-b5:  bf 01 00 00 00      mov  edi, 1          ; fd: stdout
-ba:  e9 0c 00 00 00      jmp  0xcb            ; skip the 12 string bytes
-bf:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
-cb:  48 8d 35 ed ff ff ff   lea  rsi, [rip-19]   ; address of the string: 0xbf
-d2:  ba 0c 00 00 00      mov  edx, 12         ; its length
-d7:  0f 05               syscall
-d9:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
-dc:  b8 3c 00 00 00      mov  eax, 60         ; syscall number: exit
-e1:  48 89 df            mov  rdi, rbx        ; n-12, computed in the register of
-e4:  48 83 ef 0c         sub  rdi, 12         ; its position: n, then the number
-e8:  0f 05               syscall
-ea:  31 c0               xor  eax, eax        ; the implicit end, never reached here:
-ec:  e9 .. .. .. ..      jmp  <exit>          ; the service exit of the runtime with 0
+b0:  b8 01 00 00 00      mov  eax, 1          ; the first value: stdout
+b5:  e9 0c 00 00 00      jmp  0xc6            ; skip the 12 string bytes
+ba:  68 65 6c 6c 6f 20 77 6f 72 6c 64 0a      ; "hello world\n"
+c6:  48 8d 3d ed ff ff ff   lea  rdi, [rip-19]   ; address of the string: 0xba
+cd:  be 0c 00 00 00      mov  esi, 12         ; its length
+d2:  e8 .. .. .. ..      call <write>         ; the entry of the service in the image
+d7:  48 89 c3            mov  rbx, rax        ; as n: n is the first variable, rbx
+da:  48 89 d8            mov  rax, rbx        ; n-12, computed in the register of
+dd:  48 83 e8 0c         sub  rax, 12         ; its position: n, then the number
+e1:  e8 .. .. .. ..      call <exit>
+e6:  31 c0               xor  eax, eax        ; the implicit end, never reached here:
+e8:  e9 .. .. .. ..      jmp  <exit>          ; the service exit of the runtime with 0
 ```
 
-The one-line program `sys write 1 "hello world\n"` is the first seven lines plus the implicit end.
+The one-line program `rt write 1 "hello world\n"` is the first six lines plus the implicit end.
 
 To inspect any compiled program the same way:
 
