@@ -107,7 +107,8 @@ say win_stale_watch $r
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
 # a long time of reap, threads that reap one child, and the number of
-# a child that was taken
+# a child that was taken. One of them that does not compile fails the
+# suite; any other test that does not compile is left out
 always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again"
 n=0
 ran=0
@@ -117,8 +118,16 @@ for f in tests/*.out; do
     grep -q '^[[:space:]]*sys ' tests/$t.aiw && continue
     grep -q "^$t\$" tests/win.skip && continue
     n=$((n + 1))
-    case " $always " in *" $t "*) ;; *) [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue ;; esac
-    $wc < tests/$t.aiw > $tmp/t.exe 2> /dev/null || continue
+    must=0
+    case " $always " in *" $t "*) must=1 ;; *) [ "${1:-}" = all ] || [ $((n % 20)) -eq 0 ] || continue ;; esac
+    if ! $wc < tests/$t.aiw > $tmp/t.exe 2> $tmp/cerr; then
+        # a test of the list has to compile: what the compiler said is
+        # shown and the suite fails
+        [ $must -eq 1 ] || continue
+        cat $tmp/cerr
+        echo "FAIL win $t (does not compile)"; fail=1
+        continue
+    fi
     want=0
     [ -f tests/$t.code ] && want=$(cat tests/$t.code)
     ran=$((ran + 1))

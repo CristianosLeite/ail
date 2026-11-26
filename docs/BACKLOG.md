@@ -1200,3 +1200,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the handle in the list of the children, which is all that knows the
   handle. `tests/rt_reap_again`, which `tests/win.sh` always runs: the
   second child was taken by the number of the first before.
+- [x] `tests/win.sh` fails when a test it always runs does not compile
+  (2026-11-26): the runner left out every test the compiler for
+  Windows refused, without a word, and only asked that one program
+  had run, so a change that broke the compiling of `rt_reap_again`
+  left the suite green. A test of that list which does not compile is
+  now a failure, with what the compiler said; the other tests are
+  still left out, since the suite is those the compiler compiles.
+  Checked with a compiler that refuses that one source.
