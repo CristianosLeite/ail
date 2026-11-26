@@ -76,6 +76,7 @@ const rt_epollctl 233
 const rt_accept4 288
 const rt_eventfd2 290
 const rt_epollcreate1 291
+const rt_pidfdsignal 424
 const rt_pidfdopen 434
 
 # the rt_n bytes of a path with a zero behind them, as the kernel takes
@@ -1015,7 +1016,20 @@ end
 fn rt_reap rt_pid rt_ms
 	local rt_st 8
 	local rt_pf 8
+	# a number that is no process is no child; 0 and the negative ones
+	# would mean a group of processes to the kernel
+	ifsle rt_pid 0
+		ret -1001
+	end
 	if rt_ms
+		# only a child of this process is waited for and killed: the
+		# kernel says here whether the number is one, and whether it has
+		# ended already
+		label rt_mine
+		store rt_st 0
+		sys wait4 rt_pid rt_st 1 0 as rt_r
+		jeq rt_r -4 rt_mine
+		jnz rt_r rt_took
 		sys rt_pidfdopen rt_pid 0 as rt_fd
 		ifsge rt_fd 0
 			store4 rt_pf rt_fd
@@ -1023,8 +1037,14 @@ fn rt_reap rt_pid rt_ms
 			label rt_again
 			sys rt_poll7 rt_pf 1 rt_ms as rt_r
 			jeq rt_r -4 rt_again
+			ifz rt_r
+				# through the descriptor, which is that child and no
+				# process that got its number since
+				sys rt_pidfdsignal rt_fd 9 0 0
+				sys close rt_fd
+				jmp rt_gone
+			end
 			sys close rt_fd
-			jz rt_r rt_late
 		else
 			# no descriptor to be had for the child: ask every millisecond
 			# whether it has ended
@@ -1054,10 +1074,15 @@ fn rt_reap rt_pid rt_ms
 	end
 	ret rt_r>>8&255
 	label rt_late
+	# the kernel just said that it is a child that runs
 	sys kill rt_pid 9
 	label rt_gone
 	sys wait4 rt_pid 0 0 0 as rt_r
 	jeq rt_r -4 rt_gone
+	ifslt rt_r 0
+		# another thread took it meanwhile
+		ret -1001
+	end
 	ret -1000
 end
 

@@ -1091,3 +1091,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   before one has failed, since a start under Wine fails now and then.
   The services held as they were written for Linux; what is not the
   same behind them is listed in [runtime.md](runtime.md).
+- [x] `reap` on Linux takes only a child (2026-11-26): with a limit of
+  time it asked for a descriptor of the process, which the kernel gives
+  for any process, and killed the number when the time was over, so a
+  number that was no child was killed. It now asks the kernel first
+  whether the number is a child that runs, kills through the
+  descriptor, which is that child whatever got its number since, and
+  takes no number below 1. `tests/rt_reap_not_child`.
