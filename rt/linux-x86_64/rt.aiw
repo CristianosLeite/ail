@@ -192,7 +192,8 @@ end
 # removed, which a process may still be in, has none either, -2: the
 # link would lead to the name it had, with a note of the kernel behind
 # it, so the descriptor is asked how many names the directory has,
-# which is none from its removal on.
+# which is none from its removal on, after the link was read: a
+# directory removed up to then is not named.
 fn rt_real rt_p rt_n rt_q rt_m
 	local rt_z 4096
 	local rt_b 144
@@ -214,17 +215,6 @@ fn rt_real rt_p rt_n rt_q rt_m
 		ret rt_r
 	end
 	sys close rt_r
-	# what the kernel says of it: the count of its names in the 8 bytes
-	# at 16
-	sys fstat rt_fd rt_b as rt_r
-	ifz rt_r
-		load rt_b+16 as rt_r
-		rt_r=(rt_r==0)*-2
-	end
-	if rt_r
-		sys close rt_fd
-		ret rt_r
-	end
 	set "/proc/self/fd/" as rt_d
 	rt_i=0
 	while rt_i<14
@@ -249,7 +239,18 @@ fn rt_real rt_p rt_n rt_q rt_m
 		rt_j+=1
 	end
 	sys rt_readlink rt_b rt_q rt_m as rt_r
+	# what the kernel says of it, asked once the path is read, so that
+	# a directory removed before that names nothing: the count of its
+	# names in the 8 bytes at 16
+	sys fstat rt_fd rt_b as rt_v
+	ifz rt_v
+		load rt_b+16 as rt_v
+		rt_v=(rt_v==0)*-2
+	end
 	sys close rt_fd
+	if rt_v
+		ret rt_v
+	end
 	if rt_r==rt_m
 		ret -34
 	end
