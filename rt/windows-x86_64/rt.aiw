@@ -755,7 +755,8 @@ fn rt_lock rt_p rt_n
 		end
 		# "\.ail-lock" and a zero, and made if it is not there, 4
 		store rt_z+rt_i 0x6f6c2d6c69612e5c
-		store4 rt_z+rt_i+8 0x6b63
+		store2 rt_z+rt_i+8 0x6b63
+		storeb rt_z+rt_i+10 0
 		rt_how=4
 	end
 	call rt_newfd as rt_fd
