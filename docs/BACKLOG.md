@@ -1303,4 +1303,9 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `tests/win.sh` always runs them. `win_stale_watch` failed once in
   the first run of `make test`: of 40 runs under Wine it ended with
   another status 2 times with these services and 5 times without
-  them, so it is a test that depends on its sleeps, as it was.
+  them, so it is a test that depends on its sleeps, as it was. A
+  review of the pull request 40 at `0fd8e8e` (2026-11-27) had six
+  findings, each fixed in its commit on the same branch. A place
+  below zero given to `pwrite` was the end of the file to Windows,
+  which wrote there: it is the error -22 as on Linux (test
+  `rt_pwrite`).

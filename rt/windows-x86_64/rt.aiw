@@ -758,6 +758,10 @@ fn rt_pwrite rt_fd rt_p rt_n rt_o
 	if rt_at>-4096
 		ret rt_at
 	end
+	# a place below zero is the end of the file to Windows
+	ifslt rt_o 0
+		ret -22
+	end
 	call rt_handle rt_fd as rt_h
 	if rt_n>0x40000000
 		rt_n=0x40000000
