@@ -5,8 +5,10 @@
 # sleeps four seconds, and ends. The copy has the end of the pipe of
 # the runtime that the watcher of the group waits for, so that pipe
 # does not end with "mid"; the pipe of the test must end all the same,
-# within two seconds, which it does when "late" was killed. Linux
-# alone.
+# within two seconds, which it does when "late" was killed. A kernel
+# that gives no descriptor of a process (the call 434, Linux 5.3)
+# leaves the watcher the pipe alone: the pipe of the test must then
+# last those two seconds and end with the copy. Linux alone.
 buf exe 4096
 buf argv 24
 buf io 24
@@ -56,6 +58,14 @@ rt reap c 0 as k
 store4 pf r
 store4 pf+4 0
 sys 7 pf 1 2000 as t
+sys 39 as m
+sys 434 m 0 as d
+ifslt d 0
+	# no such descriptor: the group lives while the copy does
+	t=(t==0)
+	sys 7 pf 1 6000 as u
+	t&=u
+end
 load2 pf+6 as v
 rt write 1 "kept\n"
 rt exit (k==0)+(t==1)*2+(v==16)*4
