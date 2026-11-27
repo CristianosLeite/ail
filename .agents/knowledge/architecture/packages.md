@@ -97,7 +97,12 @@ The rest is the open section of `docs/TODO.md`.
   statement `rt`, the libraries without `sys` and the compiler for
   Windows on x86-64. A second number, set by the user with the plan of
   the runtime before it was written: every executable is another file
-  than 0.1.2 wrote, and `ail 0.1.2` of a package is still met.
+  than 0.1.2 wrote, and `ail 0.1.2` of a package is still met. **0.2.1**
+  (user, 2026-11-26) is the first with the services the command `ail`
+  and the tools needed to have no `sys` (the pull request 38: `lock`,
+  `cwd`, `chdir`, `real`, `self`, `become`, `kind`, `pid`, `chmod` and
+  the flag 2 of `start`): a third number, since what was written
+  before it compiles and runs as it did.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 
