@@ -1322,4 +1322,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   to a descriptor opened to write at the end wrote at the end on
   both platforms and said it had written at the place: it is the
   error -9, which Linux learns of the flags of the descriptor
-  (`fcntl`) before it writes (test `rt_pwrite`).
+  (`fcntl`) before it writes (test `rt_pwrite`). `seek` of a pipe
+  was -5 on Windows, what `SetFilePointerEx` said of it: `seek` and
+  `pwrite` ask the kind of the handle (`GetFileType`) and answer -29
+  for what is no file on a disk (`win_pipe` of `tests/win.sh`, and
+  the test `rt_seek_pipe` for Linux).

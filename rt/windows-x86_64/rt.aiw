@@ -738,13 +738,31 @@ fn rt_file rt_fd
 	ret rt_h
 end
 
+# The handle of the descriptor rt_fd if what it is open on has places,
+# a file on a disk (1 of the kinds of Windows), or the error: those of
+# rt_file, and -29 for a pipe, a console and whatever else has none,
+# of which Windows says other things when it is asked for a place.
+fn rt_placed rt_fd
+	local rt_a 32
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		ret -29
+	end
+	ret rt_h
+end
+
 # The place in the open file that the next read or write is at, set to
 # rt_o bytes from its start (rt_w 0), from where it is (1) or from its
 # end (2): the place from the start, or an error.
 fn rt_seek rt_fd rt_o rt_w
 	local rt_a 32
 	local rt_s 8
-	call rt_file rt_fd as rt_h
+	call rt_placed rt_fd as rt_h
 	if rt_h>-4096
 		ret rt_h
 	end
@@ -774,7 +792,7 @@ fn rt_pwrite rt_fd rt_p rt_n rt_o
 	local rt_a 40
 	local rt_v 32
 	local rt_got 8
-	call rt_file rt_fd as rt_h
+	call rt_placed rt_fd as rt_h
 	if rt_h>-4096
 		ret rt_h
 	end

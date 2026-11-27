@@ -304,7 +304,9 @@ Where a service cannot be on Windows what it is on Linux:
   3 for whatever Windows keeps as a reparse point. `chmod` has nothing
   to do and gives 0 for a descriptor that is open.
 - `seek`, `pwrite` and `truncate` are for a file that Windows has a
-  handle for: -29 for a socket, -21 for a directory. A write of
+  handle for: -29 for a socket, -21 for a directory; `seek` and
+  `pwrite` ask Windows what kind the handle is and answer -29 for all
+  that is no file on a disk, a pipe and a console among it. A write of
   Windows moves the place of the handle it is given, so `pwrite` opens
   a second handle of the same file (`ReOpenFile`), writes with it and
   closes it: the place of the descriptor is not touched, whichever
