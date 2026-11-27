@@ -1308,4 +1308,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   findings, each fixed in its commit on the same branch. A place
   below zero given to `pwrite` was the end of the file to Windows,
   which wrote there: it is the error -22 as on Linux (test
-  `rt_pwrite`).
+  `rt_pwrite`). `fstat` of a directory asked Windows by the path the
+  directory was opened with, which is another thing once the process
+  is in another directory or the directory has another name: a
+  descriptor of a directory has a handle there now, from `open` to
+  `close`, and `fstat` asks it (test `rt_fstat_dir`).

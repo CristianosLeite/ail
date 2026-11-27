@@ -343,14 +343,13 @@ fn rt_close rt_fd
 		# a directory: the search of its names, if one was begun, and
 		# the record
 		store rt_state+2408+rt_fd*8 0
-		load rt_d as rt_h
+		load rt_d as rt_x
 		load rt_d+8 as rt_s
 		if rt_s
-			store rt_a rt_h
+			store rt_a rt_x
 			call rt_api rt_i_findclose rt_a 1
 		end
 		call rt_free rt_d
-		jmp rt_done
 	end
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1 as rt_x
@@ -450,7 +449,9 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 	end
 	if rt_flags&0x10000
 		# a directory is opened for its names: a record with its path
-		# and "\*" behind it, which the search of Windows takes
+		# and "\*" behind it, which the search of Windows takes, and a
+		# handle for what is known of it (0x80), which stays on the
+		# directory when its path leads elsewhere
 		store rt_a rt_z
 		call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
 		rt_r&=0xffffffff
@@ -474,8 +475,22 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 		end
 		storeb rt_d+336+rt_n 92
 		storeb rt_d+337+rt_n 42
+		store rt_a rt_z
+		store rt_a+8 0x80
+		store rt_a+16 7
+		store rt_a+24 0
+		store rt_a+32 3
+		store rt_a+40 0x02000000
+		store rt_a+48 0
+		call rt_api rt_i_createfilea rt_a 7 as rt_h
+		if rt_h==-1
+			call rt_error as rt_r
+			call rt_long rt_z rt_r as rt_r
+			call rt_free rt_d
+			tail rt_unfd rt_fd rt_r
+		end
 		store rt_state+2408+rt_fd*8 rt_d
-		store rt_state+360+rt_fd*8 1
+		store rt_state+360+rt_fd*8 rt_h+1
 		ret rt_fd
 	end
 	rt_attr=0x80
@@ -705,7 +720,8 @@ end
 
 # The handle of the descriptor rt_fd if it is a file that Windows has a
 # handle for, or the error: -9 for none, -29 for a socket, a waker or a
-# poller, and -21 for a directory, which is a path here.
+# poller, and -21 for a directory, whose handle is for what is known
+# of it alone.
 fn rt_file rt_fd
 	call rt_handle rt_fd as rt_h
 	if rt_h>-4096
@@ -917,26 +933,14 @@ fn rt_stat rt_p rt_n rt_q
 	tail rt_statz rt_z rt_q
 end
 
-# the same of what the descriptor is open on; a directory is asked by
-# its path, which its record has with "\*" behind it
+# the same of what the descriptor is open on, a directory too, which
+# has a handle since it was opened
 fn rt_fstat rt_fd rt_q
-	local rt_z 4096
 	call rt_handle rt_fd as rt_h
 	if rt_h>-4096
 		ret -9
 	end
-	load rt_state+2408+rt_fd*8 as rt_d
-	ifz rt_d
-		tail rt_stat4 rt_h rt_q
-	end
-	rt_i=0
-	label rt_more
-	loadb rt_d+336+rt_i as rt_c
-	storeb rt_z+rt_i rt_c
-	rt_i+=1
-	jne rt_c 0 rt_more
-	storeb rt_z+rt_i-3 0
-	tail rt_statz rt_z rt_q
+	tail rt_stat4 rt_h rt_q
 end
 
 # the mode of a file means nothing here: 0 for a descriptor that is open
