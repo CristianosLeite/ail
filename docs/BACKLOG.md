@@ -1318,4 +1318,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   at the wrong place: it writes with a second handle of the file
   (`ReOpenFile`) and leaves the place alone, and answers -9 for a
   descriptor that may not write, which it asks of
-  `NtQueryInformationFile` (test `rt_pwrite_threads`).
+  `NtQueryInformationFile` (test `rt_pwrite_threads`). A `pwrite`
+  to a descriptor opened to write at the end wrote at the end on
+  both platforms and said it had written at the place: it is the
+  error -9, which Linux learns of the flags of the descriptor
+  (`fcntl`) before it writes (test `rt_pwrite`).
