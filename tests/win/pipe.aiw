@@ -1,10 +1,23 @@
 # for a pipe as the input and one as the output: neither has a place,
-# so seek and pwrite answer -29, and the input is read as it was
+# so seek and pwrite answer -29, and the input is read as it was; and
+# fstat says of each that it is no file, the kind 4 with no size
 buf b 8
+buf f 32
+buf g 32
+store f 9
+store f+8 9
+store g 9
+store g+8 9
+rt fstat 0 f as i
+rt fstat 1 g as o
+load f as ik
+load f+8 as iz
+load g as jk
+load g+8 as jz
 rt seek 0 0 1 as a
 rt seek 0 0 0 as s
 rt seek 0 0 2 as e
 rt pwrite 1 "X" 0 as w
 rt read 0 b 8 as n
 loadb b as c
-rt exit (a==-29)+(s==-29)*2+(e==-29)*4+(w==-29)*8+((n==2)&(c==112))*16
+rt exit (a==-29)+(s==-29)*2+(e==-29)*4+(w==-29)*8+((n==2)&(c==112))*16+((i==0)&(ik==4)&(iz==0))*32+((o==0)&(jk==4)&(jz==0))*64

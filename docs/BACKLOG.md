@@ -1329,3 +1329,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the test `rt_seek_pipe` for Linux). And the test `rt_stat` gave
   `fstat` an address 8 bytes into its 32, so the last number was
   written behind them: every call has 32 bytes now.
+  A second review, at `ab402b5` (2026-11-27), had one finding, fixed
+  in a commit on the same branch. `fstat` of a pipe was 1, a plain
+  file, on Windows, which says of a pipe what it says of a file when
+  it is asked for the attributes: `stat` and `fstat` ask the kind of
+  the handle first, as `seek` does, and give the kind 4 with no size
+  and no times for a pipe, a socket and a console, the kind Linux
+  gives a pipe (`win_pipe` of `tests/win.sh`, which asks `fstat` of
+  its input and of its output, and the test `rt_seek_pipe` for
+  Linux). On Windows 11 itself, the program of `win_pipe` run with a
+  pipe at each end, it ended with 31 before the change and with 127
+  after it.

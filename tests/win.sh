@@ -20,7 +20,8 @@
 # - tests/win/stale.aiw must find that a watch which waited while its
 #   socket was closed watches nothing.
 # - tests/win/pipe.aiw must find that a pipe as its input and one as
-#   its output have no place.
+#   its output have no place, and that fstat says of each that it is
+#   no file.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -126,12 +127,12 @@ timeout 60 wine $tmp/stale.exe > /dev/null 2>&1
 [ $? -eq 3 ] || r=1
 say win_stale_watch $r
 
-# seek and pwrite of a pipe, which the program has as its input and
-# its output
+# seek, pwrite and fstat of a pipe, which the program has as its input
+# and its output
 r=0
 $wc < tests/win/pipe.aiw > $tmp/pipe.exe || r=1
 { echo p | timeout 60 wine $tmp/pipe.exe 2> /dev/null; echo $? > $tmp/pipe.code; } | cat > /dev/null
-[ "$(cat $tmp/pipe.code)" = 31 ] || r=1
+[ "$(cat $tmp/pipe.code)" = 127 ] || r=1
 say win_pipe $r
 
 # tests that are run whatever the count: threads that open at once,

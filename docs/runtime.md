@@ -315,7 +315,11 @@ Where a service cannot be on Windows what it is on Linux:
   `sync` flushes a file that was opened to be written, -13 for one
   that was not, and gives 0 for a directory, which Windows does not
   flush. The time of `stat` at which anything of a file changed is the
-  one NTFS keeps for it; the size is 0 for what is no file.
+  one NTFS keeps for it; the size is 0 for what is no file. `stat`
+  and `fstat` ask Windows what kind the handle is, as `seek` does, and
+  give the kind 4 for a pipe, a socket and a console, with 0 for the
+  size and for both times: Windows keeps none for them, and says of a
+  pipe what it says of a plain file.
 - `lock` is a lock that Windows keeps on a file (`LockFileEx`), for
   one byte far behind any the file has, so that the file is read and
   written as ever: it keeps out the programs that ask the runtime for

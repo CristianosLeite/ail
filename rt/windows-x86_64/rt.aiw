@@ -900,11 +900,24 @@ end
 # What the handle rt_h is open on, as the four numbers at rt_q: its
 # kind as rt_kind gives it, the size of a file in bytes, and the
 # nanoseconds since 1970 at which its bytes and at which anything of
-# it last changed. 0, or an error.
+# it last changed. 0, or an error. What is no file on a disk, a
+# console (2 of the kinds of Windows) or a pipe or a socket (3), is of
+# the kind 4 and has no size and no times: Windows answers what is
+# asked below for a pipe too, with the attributes of a plain file.
 fn rt_stat4 rt_h rt_q
 	local rt_a 32
 	local rt_b 40
 	local rt_s 8
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if (rt_r==2)|(rt_r==3)
+		store rt_q 4
+		store rt_q+8 0
+		store rt_q+16 0
+		store rt_q+24 0
+		ret 0
+	end
 	# the times and the attributes, 0 of the things that are asked by a
 	# handle: made, read, written, changed, 8 bytes each, and 4
 	store rt_a rt_h
