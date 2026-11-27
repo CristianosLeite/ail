@@ -17,6 +17,7 @@
 #   48  per class of small blocks, 8 bytes: the blocks given back, each
 #       with the next in its first 8 bytes
 #  360  the children that a reap waits for (see rt_reap)
+#  368  the children that lead a group (see rt_group)
 # Every name of this file starts with "rt_", and a program has no name
 # that does.
 #
@@ -61,12 +62,19 @@ end
 # system calls that the compiler has no name for
 const rt_poll7 7
 const rt_sigprocmask 14
+const rt_lstat 6
 const rt_dup2 33
 const rt_sendto 44
 const rt_getsockname 51
 const rt_setsockopt 54
 const rt_getsockopt 55
 const rt_fcntl 72
+const rt_flock 73
+const rt_getcwd 79
+const rt_chdir 80
+const rt_readlink 89
+const rt_fchmod 91
+const rt_setpgid 109
 const rt_getppid 110
 const rt_sigtimedwait 128
 const rt_prctl 157
@@ -75,11 +83,13 @@ const rt_getdents 217
 const rt_epollwait 232
 const rt_epollctl 233
 const rt_accept4 288
+const rt_pipe2 293
 const rt_eventfd2 290
 const rt_epollcreate1 291
 const rt_waitid 247
 const rt_pidfdsignal 424
 const rt_pidfdopen 434
+const rt_closerange 436
 
 # the rt_n bytes of a path with a zero behind them, as the kernel takes
 # one, into the 4096 bytes at rt_z: 0, or the error of a path too long
@@ -146,6 +156,184 @@ fn rt_rename rt_p rt_n rt_q rt_m
 		sys rename rt_z rt_y as rt_r
 	end
 	ret rt_r
+end
+
+# The directory of the process into the rt_n bytes at rt_p, with a zero
+# behind it that is not counted: its length, or an error, -34 if it does
+# not fit.
+fn rt_cwd rt_p rt_n
+	sys rt_getcwd rt_p rt_n as rt_r
+	ifsgt rt_r 0
+		rt_r-=1
+	end
+	ret rt_r
+end
+
+# make the directory at the path the one of the process
+fn rt_chdir rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_chdir rt_z as rt_r
+	end
+	ret rt_r
+end
+
+# The directory at the path as the kernel names it, from the root and
+# with no link and no ".." in it, into the rt_m bytes at rt_q as rt_cwd
+# writes one: its length, or an error, -34 if it does not fit. The
+# kernel says that of a descriptor, as what the link of its number in
+# /proc/self/fd leads to, so the directory is opened, as a place alone,
+# which one that may be entered and not listed gives as well, and the
+# process stays in the directory it is in. A place is opened whatever
+# the directory lets its user do, and a directory that cannot be
+# entered has no name here, -13: "." is looked for in it, which the
+# kernel allows where it allows the entering. A directory that was
+# removed, which a process may still be in, has none either, -2: the
+# link would lead to the name it had, with a note of the kernel behind
+# it, so the descriptor is asked how many names the directory has,
+# which is none from its removal on, after the link was read: a
+# directory removed up to then is not named.
+fn rt_real rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_b 144
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	ifz rt_m
+		ret -34
+	end
+	sys open rt_z 0x290000 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	set ".\0" as rt_d
+	sys openat rt_fd rt_d 0x290000 0 as rt_r
+	ifslt rt_r 0
+		sys close rt_fd
+		ret rt_r
+	end
+	sys close rt_r
+	set "/proc/self/fd/" as rt_d
+	rt_i=0
+	while rt_i<14
+		loadb rt_d+rt_i as rt_c
+		storeb rt_b+rt_i rt_c
+		rt_i+=1
+	end
+	# the number, its last digit at 33
+	rt_i=34
+	storeb rt_b+rt_i 0
+	rt_v=rt_fd
+	label rt_digit
+	rt_i-=1
+	storeb rt_b+rt_i rt_v%10+48
+	rt_v/=10
+	jnz rt_v rt_digit
+	rt_j=14
+	while rt_i<35
+		loadb rt_b+rt_i as rt_c
+		storeb rt_b+rt_j rt_c
+		rt_i+=1
+		rt_j+=1
+	end
+	sys rt_readlink rt_b rt_q rt_m as rt_r
+	# what the kernel says of it, asked once the path is read, so that
+	# a directory removed before that names nothing: the count of its
+	# names in the 8 bytes at 16
+	sys fstat rt_fd rt_b as rt_v
+	ifz rt_v
+		load rt_b+16 as rt_v
+		rt_v=(rt_v==0)*-2
+	end
+	sys close rt_fd
+	if rt_v
+		ret rt_v
+	end
+	if rt_r==rt_m
+		ret -34
+	end
+	ifsge rt_r 0
+		storeb rt_q+rt_r 0
+	end
+	ret rt_r
+end
+
+# The path of the executable of the process into the rt_n bytes at rt_p:
+# its length, or an error, -36 for a path that does not fit.
+fn rt_self rt_p rt_n
+	set "/proc/self/exe\0" as rt_d
+	sys rt_readlink rt_d rt_p rt_n as rt_r
+	if rt_r==rt_n
+		ret -36
+	end
+	ret rt_r
+end
+
+# What is at the path: 1 a file, 2 a directory, 3 a link, which is not
+# followed, 4 anything else, or an error, -2 if nothing is there.
+fn rt_kind rt_p rt_n
+	local rt_z 4096
+	local rt_s 144
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_lstat rt_z rt_s as rt_r
+	end
+	if rt_r
+		ret rt_r
+	end
+	load4 rt_s+24 as rt_r
+	rt_r&=0xf000
+	if rt_r==0x8000
+		ret 1
+	end
+	if rt_r==0x4000
+		ret 2
+	end
+	if rt_r==0xa000
+		ret 3
+	end
+	ret 4
+end
+
+# give the open file the mode rt_mode, whatever the process leaves out
+# of the mode of a file it makes
+fn rt_chmod rt_fd rt_mode
+	sys rt_fchmod rt_fd rt_mode as rt_r
+	ret rt_r
+end
+
+# a number that no other process has while this one runs
+fn rt_pid
+	sys getpid as rt_r
+	ret rt_r
+end
+
+# Take the lock of the directory or file at the path, which one process
+# at a time has, after waiting for the one that has it: a descriptor
+# that holds it until it is closed or the process ends, or an error. A
+# program that is started does not get the descriptor. The lock is the
+# kernel's own of what is at the path, so a process that has it and
+# asks again waits for itself.
+fn rt_lock rt_p rt_n
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	sys open rt_z 0x80000 0 as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	label rt_again
+	sys rt_flock rt_fd 2 as rt_r
+	jeq rt_r -4 rt_again
+	if rt_r
+		sys close rt_fd
+		ret rt_r
+	end
+	ret rt_fd
 end
 
 # The next names of the directory that rt_fd is open on, each with a zero
@@ -230,7 +418,7 @@ data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
 data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
 data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
 
-fn rt_lock
+fn rt_mlock
 	load rt_state+16 as rt_t
 	ifz rt_t
 		ret 0
@@ -252,7 +440,7 @@ fn rt_lock
 	end
 	jmp rt_again
 end
-fn rt_unlock
+fn rt_munlock
 	load rt_state+16 as rt_t
 	if rt_t
 		store rt_state+24 0
@@ -287,12 +475,12 @@ fn rt_alloc rt_n
 	end
 	load2 rt_csz+rt_c*2 as rt_z
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_p
 	if rt_p
 		load rt_p as rt_x
 		store rt_q rt_x
-		call rt_unlock
+		call rt_munlock
 		# zeros again: the string instruction, but for the smallest blocks,
 		# which a loop clears before that instruction has started
 		rt_z-=16
@@ -312,13 +500,13 @@ fn rt_alloc rt_n
 	if rt_e-rt_p<rt_z
 		sys mmap 0 262144 3 0x22 -1 0 as rt_p
 		if rt_p>-4096
-			call rt_unlock
+			call rt_munlock
 			ret 0
 		end
 		store rt_state+40 rt_p+262144
 	end
 	store rt_state+32 rt_p+rt_z
-	call rt_unlock
+	call rt_munlock
 	store rt_p rt_c
 	ret rt_p+16
 end
@@ -334,11 +522,11 @@ fn rt_free rt_p
 		ret 0
 	end
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_x
 	store rt_p rt_x
 	store rt_q rt_p
-	call rt_unlock
+	call rt_munlock
 	ret 0
 end
 
@@ -897,24 +1085,21 @@ fn rt_strlen rt_p
 	ret rt_q-rt_p
 end
 
-# in the child: put the three descriptors in place and become the
-# program of rt_argv, with the environment rt_env; nothing here returns.
-# The first argument is the program, a path if it has a slash and else a
-# name looked for in the directories of PATH, as this process has it.
-fn rt_child rt_argv rt_env rt_in rt_out rt_err
+# Become the program of rt_argv, with the environment rt_env: nothing
+# here returns unless that fails, and then it is the error. The first
+# argument is the program, a path if it has a slash and else a name
+# looked for in the directories of PATH, as this process has it; of the
+# errors of those the first that is not "no such file" is given.
+fn rt_exec rt_argv rt_env
 	local rt_z 4096
-	call rt_fdok rt_in
-	call rt_fdok rt_out
-	call rt_fdok rt_err
-	call rt_place rt_in rt_out rt_err
 	load rt_argv as rt_p
 	call rt_strlen rt_p as rt_n
 	rt_i=0
 	while rt_i<rt_n
 		loadb rt_p+rt_i as rt_c
 		if rt_c==47
-			sys execve rt_p rt_argv rt_env
-			sys exit 127
+			sys execve rt_p rt_argv rt_env as rt_r
+			ret rt_r
 		end
 		rt_i+=1
 	end
@@ -934,6 +1119,7 @@ fn rt_child rt_argv rt_env rt_in rt_out rt_err
 		rt_e+=8
 		jmp rt_var
 	end
+	rt_e=-2
 	# each directory of the list, an empty one being this directory
 	label rt_dir
 	rt_q=rt_s
@@ -963,14 +1149,57 @@ fn rt_child rt_argv rt_env rt_in rt_out rt_err
 			storeb rt_z+rt_d+rt_i rt_c
 			rt_i+=1
 		end
-		sys execve rt_z rt_argv rt_env
+		sys execve rt_z rt_argv rt_env as rt_r
+		if (rt_e==-2)&(rt_r!=-20)
+			rt_e=rt_r
+		end
 	end
 	loadb rt_q as rt_c
 	if rt_c
 		rt_s=rt_q+1
 		jmp rt_dir
 	end
+	ret rt_e
+end
+
+# in the child: put the three descriptors in place and become the
+# program of rt_argv, with the environment rt_env; nothing here returns.
+fn rt_child rt_argv rt_env rt_in rt_out rt_err
+	call rt_fdok rt_in
+	call rt_fdok rt_out
+	call rt_fdok rt_err
+	call rt_place rt_in rt_out rt_err
+	call rt_exec rt_argv rt_env
 	sys exit 127
+end
+
+# The program of rt_argv in place of this process, with the environment
+# rt_env, 0 for that of the process, and the descriptors the process
+# has that were not opened to be closed then: the service returns only
+# if the program cannot be started, with the error. The arguments are
+# those of rt_start.
+fn rt_become rt_argv rt_env
+	ifz rt_env
+		load rt_state as rt_p
+		load rt_p as rt_n
+		rt_env=rt_p+16+rt_n*8
+	end
+	tail rt_exec rt_argv rt_env
+end
+
+# in a child that is held: the kernel is to kill it when the thread
+# that started it, of the process rt_me, ends. A kernel that refuses
+# would leave a child nothing holds; a parent that ended before that
+# line sends nothing
+fn rt_hold rt_me
+	sys rt_prctl 1 9 0 0 0 as rt_r
+	if rt_r
+		sys exit 127
+	end
+	sys rt_getppid as rt_r
+	if rt_r!=rt_me
+		sys exit 127
+	end
 end
 
 # Start a program as a child process: its number, or an error. rt_argv is
@@ -979,8 +1208,8 @@ end
 # form, 0 for that of this process; rt_fds the address of three
 # descriptors that become its 0, 1 and 2, -1 for the one of this process.
 # With the flag 1 the child is held: the kernel kills it when the thread
-# that started it ends. A program that cannot be started is a child that
-# ends with status 127.
+# that started it ends. With the flag 2 it leads a group (rt_group). A
+# program that cannot be started is a child that ends with status 127.
 fn rt_start rt_argv rt_env rt_fds rt_flags
 	ifz rt_env
 		load rt_state as rt_p
@@ -991,21 +1220,15 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	if rt_flags&1
 		sys getpid as rt_me
 	end
+	if rt_flags&2
+		tail rt_group rt_argv rt_env rt_fds rt_flags rt_me
+	end
 	sys fork as rt_pid
 	if rt_pid
 		ret rt_pid
 	end
 	if rt_flags&1
-		# a kernel that refuses would leave a child nothing holds; a parent
-		# that ended before that line sends nothing
-		sys rt_prctl 1 9 0 0 0 as rt_r
-		if rt_r
-			sys exit 127
-		end
-		sys rt_getppid as rt_r
-		if rt_r!=rt_me
-			sys exit 127
-		end
+		call rt_hold rt_me
 	end
 	load rt_fds as rt_in
 	load rt_fds+8 as rt_out
@@ -1014,9 +1237,400 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	sys exit 127
 end
 
+# Start a child that leads a group of processes of its own, which what
+# it starts is in unless it leaves: the group is killed when the child
+# is taken by reap (rt_ungroup), and by its watcher when this process
+# ends, however it ends. The
+# record of such a child, in the list at 368 of the state: the next, its
+# number, the number of its watcher, a descriptor of a pipe, a
+# descriptor of the watcher and one of the child, each -1 where the
+# kernel has none.
+# Two pipes, both closed in a program that is started. Only this
+# process writes to the first, and the descriptor of the record is that
+# end: the watcher, a process in the group of the child, where a signal
+# for the group of this process does not reach it, waits for the end of
+# that pipe, which comes when this process closes it or is gone, and
+# then kills its group, itself with it. It keeps no other descriptor of
+# this process. The second pipe holds the child back until the watcher
+# is there, so that the program never runs without one: the watcher
+# writes the byte, when it is in the group and has closed what it is
+# not to keep; if it cannot, or this process is gone before that, the
+# pipe ends without a byte and so does the child, with 127.
+fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
+	local rt_pp 8
+	local rt_info 128
+	call rt_alloc 48 as rt_g
+	ifz rt_g
+		ret -12
+	end
+	sys rt_pipe2 rt_pp 0x80000 as rt_r
+	if rt_r
+		call rt_free rt_g
+		ret rt_r
+	end
+	load4 rt_pp as rt_rd
+	load4 rt_pp+4 as rt_wr
+	sys rt_pipe2 rt_pp 0x80000 as rt_r
+	if rt_r
+		sys close rt_rd
+		sys close rt_wr
+		call rt_free rt_g
+		ret rt_r
+	end
+	load4 rt_pp as rt_grd
+	load4 rt_pp+4 as rt_gwr
+	# a fork that gives a descriptor of the child too, which is that
+	# child whatever becomes of its number (0x1000, and the signal 17
+	# at its end); a kernel that has none refuses
+	store4 rt_pp -1
+	sys clone 0x1011 0 rt_pp 0 0 as rt_pid
+	if rt_pid==-22
+		sys fork as rt_pid
+	end
+	ifz rt_pid
+		sys rt_setpgid 0 0
+		sys close rt_wr
+		sys close rt_gwr
+		label rt_go
+		sys read rt_grd rt_pp 1 as rt_r
+		jeq rt_r -4 rt_go
+		if rt_r!=1
+			sys exit 127
+		end
+		# before the descriptors of the program are looked at: one of
+		# them that is closed must not be an end of these pipes
+		sys close rt_grd
+		sys close rt_rd
+		if rt_flags&1
+			call rt_hold rt_me
+		end
+		load rt_fds as rt_in
+		load rt_fds+8 as rt_out
+		load rt_fds+16 as rt_err
+		call rt_child rt_argv rt_env rt_in rt_out rt_err
+		sys exit 127
+	end
+	rt_wd=-1
+	rt_wf=-1
+	rt_lf=-1
+	rt_e=rt_pid
+	ifsgt rt_pid 0
+		load4 rt_pp as rt_n
+		if rt_n!=0xffffffff
+			rt_lf=rt_n
+		end
+		# the same from here, in case the child has not come to it yet
+		sys rt_setpgid rt_pid rt_pid
+		# and such a fork for the watcher, which is told what process
+		# this is
+		sys getpid as rt_own
+		store4 rt_pp -1
+		sys clone 0x1011 0 rt_pp 0 0 as rt_wd
+		ifsgt rt_wd 0
+			load4 rt_pp as rt_wf
+		end
+		if rt_wd==-22
+			sys fork as rt_wd
+		end
+		ifz rt_wd
+			call rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr rt_own
+		end
+		rt_e=rt_wd
+	end
+	sys close rt_rd
+	sys close rt_grd
+	sys close rt_gwr
+	ifsle rt_wd 0
+		# no child, or no watcher: the child, which still waits for its
+		# byte, ends when the pipe does, which is now
+		sys close rt_wr
+		ifsgt rt_pid 0
+			call rt_take 1 rt_pid rt_info 4
+		end
+		ifsge rt_lf 0
+			sys close rt_lf
+		end
+		call rt_free rt_g
+		ret rt_e
+	end
+	store rt_g+8 rt_pid
+	store rt_g+16 rt_wd
+	store rt_g+24 rt_wr
+	store rt_g+32 rt_wf
+	store rt_g+40 rt_lf
+	call rt_mlock
+	load rt_state+368 as rt_p
+	store rt_g rt_p
+	store rt_state+368 rt_g
+	call rt_munlock
+	ret rt_pid
+end
+
+# in the watcher of the group rt_pid: nothing here returns. It joins the
+# group, and ends at once if it cannot: it would kill the group it is
+# in, which must be no other than that of the child. It closes every
+# descriptor but the end rt_rd it waits at, those of the pipes by their
+# numbers, whatever the kernel can do, and the others all at once or,
+# with a kernel that cannot, those the kernel lists as open, one after
+# the other; without that list it ends too, since a descriptor it did
+# not close may be what another process waits for the end of. Then it
+# makes a process that stays in the group and leaves the group itself,
+# for one of its own, so that what stops the group does not stop it,
+# and lets the child go with the byte. It waits for the end of its
+# pipe or a byte in it, and for the end of the process that started
+# it, by a descriptor of that process: the end of the pipe alone comes
+# late where that process left a copy of itself, which has the pipe
+# too. Then it
+# kills the group by its number, which names no other group while the
+# process it left there is not taken, alive or not; that one waits for
+# the end of the pipe as well and kills the group it is in, for the
+# case that this one was killed. The process it left is kept by the
+# kernel after its end only where the signal of a child that ends has
+# its first meaning, which the watcher gives it: the process that
+# started the watcher may ignore that signal, and the kernel would
+# then take the process itself and the number be free. A watcher that
+# cannot do one of these, or that the process which started it has
+# left already, ends before the byte, which ends the pipe of
+# the child, and the child then ends with 127: no program runs in a
+# group that nothing outside it would end.
+fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr rt_own
+	local rt_b 1024
+	sys rt_setpgid 0 rt_pid as rt_r
+	if rt_r
+		sys exit 127
+	end
+	sys close rt_wr
+	sys close rt_grd
+	# the two it keeps, the lower first
+	rt_lo=rt_rd
+	rt_hi=rt_gwr
+	if rt_lo>rt_hi
+		rt_lo=rt_gwr
+		rt_hi=rt_rd
+	end
+	rt_r=0
+	if rt_lo
+		sys rt_closerange 0 rt_lo-1 0 as rt_r
+	end
+	ifz rt_r
+		if rt_lo+1<rt_hi
+			sys rt_closerange rt_lo+1 rt_hi-1 0 as rt_r
+		end
+	end
+	ifz rt_r
+		sys rt_closerange rt_hi+1 0xffffffff 0 as rt_r
+	end
+	if rt_r
+		# the names of that directory are the descriptors that are open,
+		# whatever number the process may have now; the kernel goes on
+		# from the number it came to, so one that is closed is not missed
+		set "/proc/self/fd\0" as rt_d
+		sys open rt_d 0x10000 0 as rt_fd
+		ifslt rt_fd 0
+			sys exit 127
+		end
+		label rt_more
+		sys rt_getdents rt_fd rt_b 1024 as rt_r
+		ifslt rt_r 0
+			sys exit 127
+		end
+		rt_i=0
+		while rt_i<rt_r
+			# an entry: 16 bytes, its length in 2, its kind in 1, the name
+			load2 rt_b+rt_i+16 as rt_l
+			rt_s=rt_b+rt_i+19
+			rt_i+=rt_l
+			rt_n=0
+			loadb rt_s as rt_c
+			while (rt_c>47)&(rt_c<58)
+				rt_n=rt_n*10+rt_c-48
+				rt_s+=1
+				loadb rt_s as rt_c
+			end
+			# "." and ".." are no number
+			ifz rt_c
+				if (rt_n!=rt_rd)&(rt_n!=rt_gwr)&(rt_n!=rt_fd)
+					sys close rt_n
+				end
+			end
+		end
+		jnz rt_r rt_more
+		sys close rt_fd
+	end
+	# a child that has ended is kept until this process takes it,
+	# whatever the process that started this one does with the signal
+	# of its children (17): the number of the group is safe by that
+	zero rt_b 32
+	sys rt_sigaction 17 rt_b 0 8 as rt_r
+	if rt_r
+		sys exit 127
+	end
+	# a descriptor of the process that started this one, which is that
+	# process if it is still the one this process is a child of. The
+	# end of the pipe alone does not say that it is gone: a process it
+	# made as a copy of itself has the other end too, for as long as
+	# it runs no program. A kernel that has no such descriptor (before
+	# Linux 5.3) leaves -1, which is waited for as nothing
+	sys rt_pidfdopen rt_own 0 as rt_pf
+	sys rt_getppid as rt_r
+	if rt_r!=rt_own
+		sys exit 127
+	end
+	ifslt rt_pf 0
+		rt_pf=-1
+	end
+	# what is waited for, by both: the pipe, which ends or has a byte,
+	# and that process, which ends
+	store4 rt_b+16 rt_rd
+	store4 rt_b+20 1
+	store4 rt_b+24 rt_pf
+	store4 rt_b+28 1
+	# the one that stays in the group, and this one out of it
+	sys fork as rt_in
+	ifz rt_in
+		sys close rt_gwr
+		label rt_inner
+		sys rt_poll7 rt_b+16 2 -1 as rt_r
+		jeq rt_r -4 rt_inner
+		ifslt rt_r 0
+			# a kernel that cannot wait for two: for the pipe alone
+			label rt_ipipe
+			sys read rt_rd rt_b 1 as rt_r
+			jeq rt_r -4 rt_ipipe
+		end
+		sys kill 0 9
+		sys exit 0
+	end
+	ifsle rt_in 0
+		sys exit 127
+	end
+	sys rt_setpgid 0 0 as rt_r
+	if rt_r
+		sys kill rt_in 9
+		sys wait4 rt_in 0 0 0
+		sys exit 127
+	end
+	storeb rt_b 0
+	sys write rt_gwr rt_b 1
+	sys close rt_gwr
+	label rt_wait
+	sys rt_poll7 rt_b+16 2 -1 as rt_r
+	jeq rt_r -4 rt_wait
+	ifslt rt_r 0
+		label rt_pipe
+		sys read rt_rd rt_b 1 as rt_r
+		jeq rt_r -4 rt_pipe
+	end
+	# the number of the group is that group while the one in it is not
+	# taken, which only this process can do
+	sys kill 0-rt_pid 9
+	sys wait4 rt_in 0 0 0
+	sys exit 0
+end
+
+# the record of the child rt_pid if it leads a group, or 0
+fn rt_grp rt_pid
+	call rt_mlock
+	load rt_state+368 as rt_g
+	while rt_g
+		load rt_g+8 as rt_n
+		if rt_n==rt_pid
+			call rt_munlock
+			ret rt_g
+		end
+		load rt_g as rt_g
+	end
+	call rt_munlock
+	ret 0
+end
+
+# a signal for the watcher, by its descriptor rt_wf, or by its number
+# rt_wd where there is none
+fn rt_poke rt_wf rt_wd rt_sig
+	ifsge rt_wf 0
+		sys rt_pidfdsignal rt_wf rt_sig 0 0 as rt_r
+		ret rt_r
+	end
+	sys kill rt_wd rt_sig as rt_r
+	ret rt_r
+end
+
+# The child of the record rt_g, which led a group, was taken or is
+# gone: whatever it started and left behind ends, the watcher too,
+# which is taken. No signal goes to the group by a number: the number
+# of the child is free once the child is taken, by this runtime or by
+# anything else, and may be another process or group by now. The signal
+# goes to the group by the descriptor of the child (the flag 4 of the
+# call, Linux 6.9), which is of that group for as long as a process is
+# in it, and to none after. Then, and with a kernel that has no such
+# signal only this, the pipe gets a byte, since a copy of this process
+# may keep it from ending, and is closed, and the watcher kills the group
+# it is in, which is that of the child for as long as the watcher
+# lives; the watcher is told to go on (the signal 18) in case it was
+# stopped, with its group or alone. It is waited for a second: one that
+# has not ended by then, stopped again or held by something, is killed,
+# and what is left of its group then stays. The watcher is signalled
+# and taken by its descriptor, and by its number only where the kernel
+# has no such thing.
+fn rt_ungroup rt_g
+	local rt_info 128
+	call rt_mlock
+	rt_q=rt_state+368
+	label rt_next
+	load rt_q as rt_n
+	if rt_n!=rt_g
+		rt_q=rt_n
+		jmp rt_next
+	end
+	load rt_g as rt_n
+	store rt_q rt_n
+	call rt_munlock
+	load rt_g+16 as rt_wd
+	load rt_g+24 as rt_wr
+	load rt_g+32 as rt_wf
+	load rt_g+40 as rt_lf
+	call rt_free rt_g
+	ifsge rt_lf 0
+		sys rt_pidfdsignal rt_lf 9 0 4
+		sys close rt_lf
+	end
+	storeb rt_info 0
+	call rt_writeq rt_wr rt_info 1
+	sys close rt_wr
+	rt_w=3
+	rt_id=rt_wf
+	ifslt rt_wf 0
+		rt_w=1
+		rt_id=rt_wd
+	end
+	call rt_poke rt_wf rt_wd 18
+	rt_i=0
+	label rt_ask
+	call rt_take rt_w rt_id rt_info 5 as rt_r
+	if (rt_r==-22)&(rt_w==3)
+		# a kernel that takes no child by a descriptor
+		rt_w=1
+		rt_id=rt_wd
+		jmp rt_ask
+	end
+	load4 rt_info+16 as rt_n
+	ifz rt_r|rt_n
+		if rt_i<5000
+			call rt_sleep 200000
+			rt_i+=1
+			jmp rt_ask
+		end
+		call rt_poke rt_wf rt_wd 9
+		call rt_take rt_w rt_id rt_info 4
+	end
+	ifsge rt_wf 0
+		sys close rt_wf
+	end
+end
+
 # Ask the kernel about a child, by its number (rt_which 1) or by a
 # descriptor of it (3), with the options rt_opt of waitid (4 one that has
-# ended, 1 without waiting, 0x1000000 leaving it where it is): what
+# ended, 1 without waiting): what
 # waitid returns, with the bytes at rt_info saying which child and how
 # it ended, or 0 at 16 of them if it still runs and nothing waited.
 fn rt_take rt_which rt_id rt_info rt_opt
@@ -1068,12 +1682,12 @@ fn rt_reap rt_pid rt_ms
 	if rt_pid>0x7fffffff
 		ret -1001
 	end
-	call rt_lock
+	call rt_mlock
 	load rt_state+360 as rt_p
 	while rt_p
 		load rt_p+8 as rt_n
 		if rt_n==rt_pid
-			call rt_unlock
+			call rt_munlock
 			ret -1001
 		end
 		load rt_p as rt_p
@@ -1082,9 +1696,21 @@ fn rt_reap rt_pid rt_ms
 	store rt_me rt_p
 	store rt_me+8 rt_pid
 	store rt_state+360 rt_me
-	call rt_unlock
-	call rt_reaping rt_pid rt_ms as rt_r
-	call rt_lock
+	call rt_munlock
+	# the record of a child that leads a group, looked for while the
+	# number is that child's: the group ends once the child is taken or
+	# gone, and while the number is still in the list, so that a reap of
+	# another thread finds no child that is taken and not yet done with
+	rt_g=0
+	load rt_state+368 as rt_n
+	if rt_n
+		call rt_grp rt_pid as rt_g
+	end
+	call rt_reaping rt_pid rt_ms as rt_r rt_k
+	if rt_k&(rt_g!=0)
+		call rt_ungroup rt_g
+	end
+	call rt_mlock
 	rt_p=rt_state+360
 	label rt_next
 	load rt_p as rt_n
@@ -1094,22 +1720,25 @@ fn rt_reap rt_pid rt_ms
 	end
 	load rt_me as rt_n
 	store rt_p rt_n
-	call rt_unlock
+	call rt_munlock
 	ret rt_r
 end
 
-# reap for the thread that alone takes the child rt_pid
+# reap for the thread that alone takes the child rt_pid: what reap
+# gives, and 1 if the child is taken or gone, 0 if it is left.
 fn rt_reaping rt_pid rt_ms
 	local rt_info 128
 	local rt_pf 8
 	ifz rt_ms
 		call rt_take 1 rt_pid rt_info 4 as rt_r
 		ifslt rt_r 0
-			ret -1001
+			ret -1001 1
 		end
-		tail rt_ended rt_info 0
+		call rt_ended rt_info 0 as rt_r
+		ret rt_r 1
 	end
 	call rt_clock as rt_t
+	rt_k=1
 	# what the child is asked by: its number (1), or a descriptor of it
 	# (3), with which the kernel says when it ends and the signal goes to
 	# what the descriptor is of, whoever takes children outside the
@@ -1176,7 +1805,7 @@ fn rt_reaping rt_pid rt_ms
 	load rt_info as rt_n
 	load rt_info+8 as rt_s
 	if rt_r|(rt_n==1)|(rt_s&2)
-		ret rt_e
+		ret rt_e 0
 	end
 	sys kill rt_pid 9 as rt_s
 	label rt_late
@@ -1196,6 +1825,7 @@ fn rt_reaping rt_pid rt_ms
 	load4 rt_info+16 as rt_n
 	ifz rt_r|rt_n
 		rt_r=rt_s
+		rt_k=0
 		jmp rt_out
 	end
 	label rt_took
@@ -1208,7 +1838,7 @@ fn rt_reaping rt_pid rt_ms
 	if rt_w==3
 		sys close rt_id
 	end
-	ret rt_r
+	ret rt_r rt_k
 end
 
 # Let this thread, and the children it starts from now on, run only on

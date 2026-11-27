@@ -1262,3 +1262,25 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   with `ail 0.2.0`. A second number, which the user set with the plan
   of the runtime: every executable is another file than 0.1.2 wrote.
   The items of the runtime that are open stay in `docs/TODO.md`.
+- [x] The command `ail` and the tools without `sys` (2026-11-26):
+  `cli/` had 91 such statements and `tools/` 12, half of them `close`
+  and `exit`, the rest things the runtime had no service for. Nine
+  services and a flag say what was meant, each in the runtime of Linux
+  and of Windows: `start` with the flag 2, a child that leads a group
+  which ends when `reap` has taken it and when its starter ends (on
+  Linux the pipes, the gate and the watcher that `tlrunenv` made,
+  moved into `rt_group`, with a watcher that keeps no other descriptor;
+  on Windows a job of its own); `lock`, the lock of a directory (the
+  kernel's on Linux, the lock of a file on Windows); `cwd`, `chdir` and
+  `real`, the directory of the process and a directory as the system
+  names it; `self`, the path of the executable; `become`, a program in
+  place of the process; `kind`, whether a path is a file, a directory
+  or a link; `pid`; and `chmod` of an open file. The function that
+  guards the memory of the runtime is `rt_mlock` since, `lock` being a
+  service. `tests/rt.sh` holds `cli/` and `tools/` free of `sys` as it
+  held `lib/`; the tests `rt_cwd`, `rt_self`, `rt_kind`, `rt_chmod`,
+  `rt_pid`, `rt_lock`, `rt_become` and `rt_group` pass on Linux and
+  under Wine, where `tests/win.sh` always runs them, and
+  `tests/cli.sh` passes unchanged. The compiler for Windows compiles
+  the command and every tool; running the command there is in
+  `docs/TODO.md`.

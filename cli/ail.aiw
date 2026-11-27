@@ -75,7 +75,7 @@ fn fail st p n q m
 	call eprint p n
 	call eprint q m
 	call eprint "\n"
-	sys exit_group st
+	rt exit st
 end
 # the same with the line that is in gmsg
 fn failmsg st
@@ -102,7 +102,7 @@ fn help fd
 end
 fn usage
 	call help 2
-	sys exit_group stusage
+	rt exit stusage
 end
 
 # Enter the directory of the package, take its lock, which a second
@@ -188,7 +188,7 @@ fn cc sp sn tp tn err ms
 	ifslt out 0
 		call fail stio "cannot write " tp tn
 	end
-	sys tlfchmod out 493
+	rt chmod out 493
 	# the compiler, the library of AIL as the package ail, and every
 	# package that deps found, this one included
 	call bycut gargs 0
@@ -218,8 +218,8 @@ fn cc sp sn tp tn err ms
 		i+=1
 	end
 	call tlrunenv gargs in out err "" ms as st
-	sys close in
-	sys close out
+	rt close in
+	rt close out
 	if (st==-1000)&(ms>0)
 		call fileunlink tp tn
 		ret st
@@ -255,7 +255,7 @@ fn compile e
 	call byadd gtmp "build/"
 	call byadd gtmp np nn
 	call byadd gtmp ".tmp."
-	sys getpid as pid
+	rt pid as pid
 	call byaddn gtmp pid
 	load gtmp as tp
 	load gtmp+8 as tn
@@ -289,7 +289,7 @@ fn build kinds p n
 		call mfentry gman i as e
 		call compile e as r
 		if r
-			sys exit_group stfail
+			rt exit stfail
 		end
 		ret e
 	end
@@ -302,7 +302,7 @@ fn build kinds p n
 		if kind&kinds
 			call compile e as r
 			if r
-				sys exit_group stfail
+				rt exit stfail
 			end
 			last=e
 		end
@@ -330,7 +330,6 @@ end
 # the directory the command was started in
 fn cmdrun
 	local w 8
-	local z 4096
 	call argc as c
 	call argv 2 as p n
 	# a = the number of the first argument for the program
@@ -400,12 +399,9 @@ fn cmdrun
 	end
 	load tlcwd as q
 	load tlcwd+8 as m
-	call filepath q m z
-	sys tlchdir z
-	load gout as q
+	rt chdir q m
 	load gargs as av
-	call procenv as env
-	sys execve q av env
+	rt become av 0
 	call fail stio "cannot run build/" p n
 end
 
@@ -446,7 +442,7 @@ fn put p n keep
 		load gmsg as s
 		load gmsg+8 as l
 		call fdwrite fd s l as r
-		sys close fd as c
+		rt close fd as c
 		if (r==0)|(c!=0)
 			call fail stio "cannot write " q m
 		end
@@ -537,7 +533,7 @@ fn cmdnew
 	call fileopen "/dev/null" 2 0 as fd
 	ifsge fd 0
 		call tlrun gargs fd fd fd
-		sys close fd
+		rt close fd
 	end
 	call print "created the package "
 	call print p n
@@ -633,7 +629,7 @@ fn testone p n
 	load tb as tp
 	load tb+8 as tn
 	call cc sp sn tp tn err 10000 as st
-	sys close err
+	rt close err
 	if st==-1000
 		call eprint "ail: the compiler still ran after 10 seconds and was killed\n"
 		ret 0
@@ -705,9 +701,9 @@ fn testone p n
 	load tenv as s
 	load tenv+8 as l
 	call tlrunenv gargs in out err s l 10000 as st
-	sys close in
-	sys close out
-	sys close err
+	rt close in
+	rt close out
+	rt close err
 	load ta as q
 	load ta+8 as m
 	call tlremove q m
@@ -883,7 +879,7 @@ fn cmdtest
 	load gmsg+8 as n
 	call print p n
 	if bad
-		sys exit_group stfail
+		rt exit stfail
 	end
 end
 
@@ -917,7 +913,7 @@ fn cmdfmt
 	call tlrun gargs -1 -1 -1 as st
 	if st
 		if st==1
-			sys exit_group stfail
+			rt exit stfail
 		end
 		call fail stio "the formatter did not run to its end" ""
 	end
@@ -1293,7 +1289,7 @@ end
 call mfeq p n "help" as r
 if r
 	call help 1
-	sys exit_group 0
+	rt exit 0
 end
 call tlfind as r
 ifz r
@@ -1304,22 +1300,22 @@ if r
 	call print "ail "
 	call print tlvp tlvn
 	call print "\n"
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "new" as r
 if r
 	call cmdnew
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "init" as r
 if r
 	call cmdinit
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "build" as r
 if r
 	call cmdbuild
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "run" as r
 if r
@@ -1328,31 +1324,31 @@ end
 call mfeq p n "add" as r
 if r
 	call cmdadd
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "remove" as r
 if r
 	call cmdremove
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "update" as r
 if r
 	call cmdupdate
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "test" as r
 if r
 	call cmdtest
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "fmt" as r
 if r
 	call cmdfmt
-	sys exit_group 0
+	rt exit 0
 end
 call mfeq p n "clean" as r
 if r
 	call cmdclean
-	sys exit_group 0
+	rt exit 0
 end
 call usage

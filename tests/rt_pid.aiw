@@ -1,0 +1,5 @@
+# the number of the process: not 0, and the same when asked again
+rt pid as a
+rt pid as b
+rt write 1 "pid\n"
+rt exit (a>0)+(a==b)*2

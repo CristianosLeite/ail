@@ -1,0 +1,44 @@
+# a child that leads a group runs no program where its watcher cannot
+# leave a process in the group and go out of it: the kernel refuses
+# the watcher that process (the call 57, the error 11), and the child,
+# this program started again, which would write to a pipe, ends with
+# 127 and has written nothing. A watcher that stayed in the group would
+# be stopped with it and end nothing. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf one 8
+buf prog 16
+data late "late" 0
+# the call 57: the error 11, else as ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 0 1 57 0 0 0
+data 6 0 0 0 11 0 5 0
+data 6 0 0 0 0 0 255 127
+args as p
+load p as n
+if n>1
+	rt write 1 "ran"
+	rt exit 0
+end
+sys 293 pp 0
+load4 pp as r
+load4 pp+4 as w
+sys 157 38 1 0 0 0 as s
+store prog 4
+store prog+8 flt
+sys 157 22 2 prog 0 0 as q
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 late
+store io -1
+store io+8 w
+store io+16 -1
+rt start argv 0 io 2 as c
+rt close w
+rt reap c 5000 as k
+rt read r one 8 as g
+rt write 1 "alone\n"
+rt exit (s==0)+(q==0)*2+(c>0)*4+(k==127)*8+(g==0)*16

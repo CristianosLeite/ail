@@ -1,0 +1,72 @@
+# a group that is stopped is killed all the same, and reap of its child
+# comes back: this program starts itself as "late" with the flag 2 and
+# a pipe, which starts "deep", in its group and with that pipe, and
+# stops the group, the watcher with it. A reap with a limit of time
+# must kill "late", give -1000, and end "deep" too, so that the pipe
+# ends. Twice: as it is, and as "mid", which makes the kernel refuse a
+# signal for a group by a descriptor, as the kernels before 6.9 do, so
+# that the watcher has to be woken to kill. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf prog 16
+buf one 8
+data mid "mid" 0
+data late "late" 0
+data deep "deep" 0
+# the call 424 with a fourth value that is not 0: the error 22, else as
+# ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 0 3 168 1 0 0
+data 32 0 0 0 40 0 0 0
+data 21 0 1 0 0 0 0 0
+data 6 0 0 0 22 0 5 0
+data 6 0 0 0 0 0 255 127
+fn startself a out f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 out
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+fn round
+	sys 293 pp 0
+	load4 pp as r
+	load4 pp+4 as w
+	call startself late w 2 as c
+	rt close w
+	rt reap c 100 as k
+	rt read r one 1 as e
+	rt close r
+	ret (k==-1000)+(e==0)*2
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==108
+		call startself deep -1 0
+		sys 62 0 19
+	end
+	if c==109
+		sys 157 38 1 0 0 0 as a
+		store prog 6
+		store prog+8 flt
+		sys 157 22 2 prog 0 0 as b
+		call round as r
+		rt exit (a==0)+(b==0)*2+r*4
+	end
+	rt sleep 30000000000
+	rt exit 0
+end
+call round as a
+call startself mid -1 0 as c
+rt reap c 0 as b
+rt write 1 "stop\n"
+rt exit (a==3)+(b==15)*2

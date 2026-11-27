@@ -1,0 +1,29 @@
+# the directory of the process: asked for, changed, and a directory
+# named through ".." as the system names it
+buf a 4096
+buf b 4096
+buf c 4096
+rt rmdir "build/tests/rt_cwd.d"
+rt mkdir "build/tests/rt_cwd.d" 493
+rt cwd a 4096 as n
+rt cwd b n as s
+rt chdir "build/tests/rt_cwd.d" as d
+rt cwd b 4096 as m
+rt write 1 b+m-8 8
+rt write 1 "\n"
+rt chdir "nothing" as e
+rt real "../rt_cwd.d/../../.." c 4096 as k
+x=k==n
+i=0
+while i<n
+	loadb a+i as p
+	loadb c+i as q
+	x=x&(p==q)
+	i+=1
+end
+rt real "nothing" c 4096 as u
+rt real "." c 4 as v
+rt chdir "../../.." as f
+rt cwd b 4096 as g
+rt rmdir "build/tests/rt_cwd.d" as h
+rt exit (n>0)+(s==-34)*2+(d==0)*4+(e==-2)*8+x*16+(u==-2)*32+(v==-34)*64+(g==n)*128+f+h

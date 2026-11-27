@@ -908,7 +908,7 @@ fn failtmp
 	load tdir+8 as n
 	call eprint p n
 	call eprint "\n"
-	sys exit_group 1
+	rt exit 1
 end
 
 # the path of the file name in the directory of the run into b, with a
@@ -946,9 +946,9 @@ fn compile cc p n out
 	store av cc
 	store av+8 0
 	call procstart av i o e as pid
-	sys close i
-	sys close o
-	sys close e
+	rt close i
+	rt close o
+	rt close e
 	ifslt pid 0
 		call die "randvars: cannot start a process\n"
 	end
@@ -1117,7 +1117,7 @@ fn main
 		call add tdir p m
 	end
 	call add tdir "/randvars-"
-	sys getpid as pid
+	rt pid as pid
 	call addn tdir pid
 	load tdir as p
 	load tdir+8 as m
@@ -1286,4 +1286,4 @@ fn main
 end
 
 call main as x
-sys exit x
+rt exit x

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Check the runtime beyond what its services do, which the tests rt_*
 # run: how the compiler named by AILC (default build/ailc) puts it into
-# an executable (docs/runtime.md), and that the library asks its
-# platform for nothing but through the runtime: no file of lib/ has a
-# sys statement.
+# an executable (docs/runtime.md), and that the library, the command
+# ail and the tools ask their platform for nothing but through the
+# runtime: no file of lib/, cli/ or tools/ has a sys statement.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ailc=${AILC:-build/ailc}
@@ -53,11 +53,14 @@ chmod +x "$tmp/closed"
 [ $? -eq 9 ]
 say rt_runs_without_descriptors $?
 
-# the library is the same on every platform
-out=$(grep -n '^[[:space:]]*sys ' $(find lib -name '*.aiw') /dev/null)
-[ -z "$out" ]
-r=$?
-say rt_library_has_no_sys $r
-[ $r -eq 0 ] || echo "$out" | sed 's/^/     /'
+# the library is the same on every platform, and so are the command
+# ail and the tools
+for d in lib cli tools; do
+    out=$(grep -n '^[[:space:]]*sys ' $(find $d -name '*.aiw') /dev/null)
+    [ -z "$out" ]
+    r=$?
+    case $d in lib) say rt_library_has_no_sys $r ;; *) say rt_${d}_has_no_sys $r ;; esac
+    [ $r -eq 0 ] || echo "$out" | sed 's/^/     /'
+done
 
 exit $fail

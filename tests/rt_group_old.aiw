@@ -1,0 +1,73 @@
+# the group of a child on a kernel that cannot close descriptors by a
+# range, and from a process that has many: this program starts itself
+# as "mid", which forbids itself that call of the kernel, opens files
+# until the pipes of the runtime get the descriptors from 1023 on,
+# starts "late" with the flag 2 and ends without taking it. "late"
+# holds the end of a pipe that is read here: it ends only when the
+# group was killed, which the watcher does if it kept no end of its
+# own pipe. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf lim 16
+buf prog 16
+buf one 8
+data mid "mid" 0
+data late "late" 0
+# the number of the call; if it is 436 the error 38, else as ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 0 1 180 1 0 0
+data 6 0 0 0 38 0 5 0
+data 6 0 0 0 0 0 255 127
+fn startself a out f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 out
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==108
+		rt sleep 30000000000
+		rt exit 0
+	end
+	sys 157 38 1 0 0 0 as a
+	store prog 4
+	store prog+8 flt
+	sys 157 22 2 prog 0 0 as b
+	sys 436 100 100 0 as k
+	sys 97 7 lim
+	load lim+8 as h
+	if h>4096
+		h=4096
+	end
+	store lim h
+	sys 160 7 lim
+	f=0
+	while f<1022
+		rt open "/dev/null" 0 0 as f
+		ifslt f 0
+			rt exit 1
+		end
+	end
+	call startself late -1 2 as c
+	rt exit (a==0)+(b==0)*2+(k==-38)*4+(c>0)*8
+end
+sys 293 pp 0
+load4 pp as r
+load4 pp+4 as w
+call startself mid w 0 as c
+rt close w
+rt reap c 0 as a
+rt read r one 1 as e
+rt write 1 "old\n"
+rt exit (a==15)+(e==0)*2

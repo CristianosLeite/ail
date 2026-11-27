@@ -1,0 +1,17 @@
+# real names no directory that cannot be entered: one that only lets
+# itself be listed is the error 13, as it was when real went into the
+# directory to ask, and one that can be entered has a name. Who may do
+# everything, the user 0, enters any. Linux alone.
+buf c 4096
+data dir "build/tests/rt_real_shut.d"
+len dir as n
+rt rmdir dir n
+rt mkdir dir n 384
+rt real dir n c 4096 as k
+sys 102 as u
+rt rmdir dir n
+rt mkdir dir n 448
+rt real dir n c 4096 as j
+rt rmdir dir n as d
+rt write 1 "shut\n"
+rt exit ((k==-13)|(u==0))+(j>n)*2+(d==0)*4

@@ -1,0 +1,19 @@
+# real names no directory that was removed: the process is in one,
+# which "." still is, and the kernel has only the name the directory
+# had, with a note behind it, which is no path. It is the error 2, as
+# it was when real went into the directory and asked where it was.
+# Linux alone.
+buf a 4096
+buf c 4096
+data dir "build/tests/rt_real_gone.d"
+len dir as n
+rt rmdir dir n
+rt mkdir dir n 448
+rt real dir n a 4096 as j
+rt chdir dir n as d
+rt real "." c 4096 as h
+sys 84 a as r
+rt real "." c 4096 as k
+rt real a j c 4096 as m
+rt write 1 "gone\n"
+rt exit (j>n)+(d==0)*2+(h==j)*4+(r==0)*8+(k==-2)*16+(m==-2)*32

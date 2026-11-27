@@ -1,0 +1,23 @@
+# a link is a link whatever it leads to, and real names the directory
+# it leads to; the link is made by the system call of Linux
+buf a 4096
+buf b 4096
+rt unlink "build/tests/rt_kind_link.l"
+set "..\0" as t
+set "build/tests/rt_kind_link.l\0" as l
+sys 88 t l as s
+rt kind "build/tests/rt_kind_link.l" as k
+rt real "build/tests/rt_kind_link.l" a 4096 as n
+rt real "build" b 4096 as m
+x=n==m
+i=0
+while i<m
+	loadb a+i as p
+	loadb b+i as q
+	x=x&(p==q)
+	i+=1
+end
+rt unlink "build/tests/rt_kind_link.l" as u
+rt write 1 b+m-6 6
+rt write 1 "\n"
+rt exit (s==0)+(k==3)*2+x*4+(u==0)*8

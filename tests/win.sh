@@ -127,9 +127,11 @@ say win_stale_watch $r
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
 # a long time of reap, threads that reap one child, and the number of
-# a child that was taken. One of them that does not compile fails the
+# a child that was taken, and the services of the directory, the
+# executable, the lock, a program in place of the process and a group
+# of processes. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again"
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds"
 # each of them has to be a test the loop below finds and takes
 for t in $always; do
     why=

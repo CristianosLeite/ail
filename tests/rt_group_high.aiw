@@ -1,0 +1,63 @@
+# the watcher of a group keeps no descriptor of its starter, also one
+# with a number above what the process may open now, on a kernel that
+# cannot close descriptors by a range: this program starts itself as
+# "mid", which forbids itself that call of the kernel, puts the end of
+# a pipe at the descriptor 200, lowers its limit to 64, starts "late"
+# with the flag 2 and closes that end. The pipe then ends, since "late"
+# was started without it and the watcher closed it. Linux alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf lim 16
+buf prog 16
+buf one 8
+data mid "mid" 0
+data late "late" 0
+# the number of the call; if it is 436 the error 38, else as ever
+data flt 32 0 0 0 0 0 0 0
+data 21 0 0 1 180 1 0 0
+data 6 0 0 0 38 0 5 0
+data 6 0 0 0 0 0 255 127
+fn startself a f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 -1
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==108
+		rt sleep 30000000000
+		rt exit 0
+	end
+	sys 157 38 1 0 0 0 as a
+	store prog 4
+	store prog+8 flt
+	sys 157 22 2 prog 0 0 as b
+	sys 293 pp 0x80000
+	load4 pp as r
+	load4 pp+4 as w
+	sys 72 w 1030 200 as h
+	rt close w
+	sys 97 7 lim
+	store lim 64
+	sys 160 7 lim as l
+	call startself late 2 as c
+	rt close h
+	rt read r one 1 as e
+	rt reap c 1 as k
+	rt exit (a==0)+(b==0)*2+(h==200)*4+(l==0)*8+(e==0)*16+(k==-1000)*32
+end
+call startself mid 0 as c
+rt reap c 0 as a
+rt write 1 "high\n"
+rt exit a

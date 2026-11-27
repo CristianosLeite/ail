@@ -1,0 +1,17 @@
+# the path of the executable: a file that can be read, whose first two
+# bytes are those of an executable of the platform, and an error where
+# the path has no room
+buf b 4096
+buf c 8
+rt self b 4096 as n
+rt kind b n as k
+rt open b n 0 0 as f
+rt read f c 2 as r
+rt close f
+loadb c as x
+loadb c+1 as y
+if (x==127)&(y==69)|((x==77)&(y==90))
+	rt write 1 "executable\n"
+end
+rt self b 3 as s
+rt exit (n>3)+(k==1)*2+(f>2)*4+(r==2)*8+(s==-36)*16

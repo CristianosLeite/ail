@@ -169,7 +169,7 @@ fn failpath m ml p pl
 	call eprint m ml
 	call eprint p pl
 	call eprint "\n"
-	sys exit_group 1
+	rt exit 1
 end
 
 # The vars of other files. A name that a var declares is never folded,

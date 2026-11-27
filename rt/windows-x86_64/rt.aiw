@@ -28,7 +28,8 @@
 # 4464  1 + the job of Windows that the children held to this process
 #       are in, or 0 before the first of them
 # 4472  1 once the sockets of Windows are started
-# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller, 8 a
+#       lock (rt_lock), which become lets go of
 # 4736  per descriptor, 8 bytes: the record of the poller that it is or
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
@@ -53,7 +54,7 @@ end
 # number of the runtime: -2 no such file, -13 not allowed, -17 it is
 # there, -9 no such descriptor, -32 the other end is closed, -12 no
 # memory, -39 not empty, -28 no room, -36 a path too long, -20 not a
-# directory, and -5 for any other
+# directory, -8 no program of this machine, and -5 for any other
 fn rt_error
 	local rt_a 32
 	call rt_api rt_i_getlasterror rt_a 0 as rt_e
@@ -87,6 +88,9 @@ fn rt_error
 	end
 	if (rt_e==39)|(rt_e==112)
 		ret -28
+	end
+	if (rt_e==193)|(rt_e==216)
+		ret -8
 	end
 	ret -5
 end
@@ -573,6 +577,232 @@ fn rt_rename rt_p rt_n rt_q rt_m
 	ret 0
 end
 
+# The directory of the process into the rt_n bytes at rt_p, with a zero
+# behind it that is not counted: its length, or an error, -34 if it does
+# not fit.
+fn rt_cwd rt_p rt_n
+	local rt_a 32
+	if rt_n>0x7fffffff
+		rt_n=0x7fffffff
+	end
+	store rt_a rt_n
+	store rt_a+8 rt_p
+	call rt_api rt_i_getcurrentdirectorya rt_a 2 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_n
+		ret -34
+	end
+	ret rt_r
+end
+
+# make the directory at the path the one of the process
+fn rt_chdir rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_setcurrentdirectorya rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ret 0
+end
+
+# The directory at the path as Windows writes it whole, from its drive
+# and with no ".." in it, into the rt_m bytes at rt_q as rt_cwd writes
+# one: its length, or an error. A link in it stays what it is.
+fn rt_real rt_p rt_n rt_q rt_m
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	ifz rt_r&16
+		ret -20
+	end
+	if rt_m>0x7fffffff
+		rt_m=0x7fffffff
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_m
+	store rt_a+16 rt_q
+	store rt_a+24 0
+	call rt_api rt_i_getfullpathnamea rt_a 4 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_m
+		ret -34
+	end
+	ret rt_r
+end
+
+# The path of the executable of the process into the rt_n bytes at rt_p:
+# its length, or an error, -36 for a path that does not fit.
+fn rt_self rt_p rt_n
+	local rt_a 32
+	if rt_n>0x7fffffff
+		rt_n=0x7fffffff
+	end
+	store rt_a 0
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	call rt_api rt_i_getmodulefilenamea rt_a 3 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		tail rt_error
+	end
+	if rt_r>=rt_n
+		ret -36
+	end
+	ret rt_r
+end
+
+# What is at the path: 1 a file, 2 a directory, 3 a link, which is not
+# followed, or an error, -2 if nothing is there.
+fn rt_kind rt_p rt_n
+	local rt_z 4096
+	local rt_a 32
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	if rt_r&0x400
+		ret 3
+	end
+	if rt_r&16
+		ret 2
+	end
+	ret 1
+end
+
+# the mode of a file means nothing here: 0 for a descriptor that is open
+fn rt_chmod rt_fd rt_mode
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	ret 0
+end
+
+# a number that no other process has while this one runs
+fn rt_pid
+	local rt_a 32
+	call rt_api rt_i_getcurrentprocessid rt_a 0 as rt_r
+	ret rt_r&0xffffffff
+end
+
+# Take the lock of the directory or file at the path, which one process
+# at a time has, after waiting for the one that has it: a descriptor
+# that holds it until it is closed or the process ends, or an error.
+# The lock is one that Windows keeps on a file, so who may take it is
+# who the file system lets open that file, and nothing has a name that
+# another program could take first. Windows locks no directory: the
+# lock of a directory is that of the file ".ail-lock" in it, which is
+# made if it is not there, so the directory must let a file be made,
+# and which stays. The lock of a file is on the file itself. It is on
+# one byte far behind any that a file has, 2^62, since a locked byte
+# is one that no other process reads or writes. The file keeps its
+# name and its place for as long as a process has it open here, to
+# hold the lock or to wait for it: Windows then refuses to remove it
+# and to rename it, so that no second file of that name can be locked
+# beside it.
+fn rt_lock rt_p rt_n
+	local rt_z 4096
+	local rt_y 32
+	local rt_a 56
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_k
+	rt_k&=0xffffffff
+	if rt_k==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	# one that exists, 3
+	rt_how=3
+	if rt_k&16
+		rt_i=0
+		loadb rt_z as rt_c
+		while rt_c
+			rt_i+=1
+			loadb rt_z+rt_i as rt_c
+		end
+		if rt_i>4085
+			ret -36
+		end
+		# "\.ail-lock" and a zero, and made if it is not there, 4
+		store rt_z+rt_i 0x6f6c2d6c69612e5c
+		store2 rt_z+rt_i+8 0x6b63
+		storeb rt_z+rt_i+10 0
+		rt_how=4
+	end
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	# to read it, shared with those that read and write it (3) and with
+	# none that would remove it or give it another name
+	store rt_a rt_z
+	store rt_a+8 0x80000000
+	store rt_a+16 3
+	store rt_a+24 0
+	store rt_a+32 rt_how
+	store rt_a+40 0x80
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		call rt_long rt_z rt_r as rt_r
+		tail rt_unfd rt_fd rt_r
+	end
+	# for this handle alone (2), waited for, one byte at 2^62
+	zero rt_y 32
+	store4 rt_y+20 0x40000000
+	store rt_a rt_h
+	store rt_a+8 2
+	store rt_a+16 0
+	store rt_a+24 1
+	store rt_a+32 0
+	store rt_a+40 rt_y
+	call rt_api rt_i_lockfileex rt_a 6 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		tail rt_unfd rt_fd rt_r
+	end
+	storeb rt_state+4480+rt_fd 8
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
 # The next names of the directory that rt_fd is open on, each with a zero
 # behind it and none of them "." or "..", into the rt_n bytes at rt_p, at
 # least 512: the bytes written, 0 after the last name, or an error. The
@@ -853,19 +1083,22 @@ fn rt_room rt_v
 	ret rt_n+2
 end
 
-# 1 + the job of Windows that the children held to this process are in,
-# made at the first of them, or 0 if Windows gives none: a job whose
-# processes end when its last handle is closed, which is when this
-# process ends. The limits are 144 bytes, the flags of the limit at 16.
-# Of two threads that make it one keeps its job and the other takes
-# that.
-fn rt_heldjob
+# close the job rt_j less 1, which ends the processes in it, if rt_j is
+# not 0
+fn rt_shutjob rt_j
+	local rt_a 32
+	if rt_j
+		store rt_a rt_j-1
+		call rt_api rt_i_closehandle rt_a 1
+	end
+end
+
+# A job of Windows whose processes end when its last handle is closed,
+# or 0 if Windows gives none. The limits are 144 bytes, the flags of
+# the limit at 16.
+fn rt_newjob
 	local rt_a 32
 	local rt_job 144
-	load rt_state+4464 as rt_j
-	if rt_j
-		ret rt_j
-	end
 	store rt_a 0
 	store rt_a+8 0
 	call rt_api rt_i_createjobobjecta rt_a 2 as rt_j
@@ -879,14 +1112,33 @@ fn rt_heldjob
 	store rt_a+16 rt_job
 	store rt_a+24 144
 	call rt_api rt_i_setinformationjobobject rt_a 4 as rt_r
-	if rt_r&0xffffffff
+	ifz rt_r&0xffffffff
+		store rt_a rt_j
+		call rt_api rt_i_closehandle rt_a 1
+		ret 0
+	end
+	ret rt_j
+end
+
+# 1 + the job of Windows that the children held to this process are in,
+# made at the first of them, or 0 if Windows gives none: its last
+# handle is closed when this process ends. Of two threads that make it
+# one keeps its job and the other takes that.
+fn rt_heldjob
+	local rt_a 32
+	load rt_state+4464 as rt_j
+	if rt_j
+		ret rt_j
+	end
+	call rt_newjob as rt_j
+	if rt_j
 		cas rt_state+4464 0 rt_j+1 as rt_r
 		if rt_r
 			ret rt_j+1
 		end
+		store rt_a rt_j
+		call rt_api rt_i_closehandle rt_a 1
 	end
-	store rt_a rt_j
-	call rt_api rt_i_closehandle rt_a 1
 	load rt_state+4464 as rt_j
 	ret rt_j
 end
@@ -912,10 +1164,15 @@ end
 # is its environment in the same form, 0 for that of this process;
 # rt_fds the address of three descriptors that become its input, output
 # and error output, -1 for the one of this process. With the flag 1 the
-# child is held: Windows ends it when this process ends. A program that
+# child is held: Windows ends it when this process ends. With the flag
+# 2 it leads a group: it is in a job of its own, which what it starts
+# is in too and which this process alone has a handle of, kept at 32
+# of the record of the child, so all of it ends when reap has taken
+# the child and closes the job, and when this process ends. A program that
 # cannot be started is the number 1, which reap takes as a child that
 # ended with status 127, and so is one whose descriptors are not open
-# or that Windows does not hold.
+# or that Windows does not hold. With the flag 256, which become alone
+# gives, a program that Windows does not start is its error instead.
 # The child gets copies of the three handles, made for it alone and
 # closed here once it is started, and a list that names them: it
 # inherits those and no other handle of this process, whatever another
@@ -934,10 +1191,21 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	local rt_jl 8
 	local rt_sz 8
 	rt_j=0
-	if rt_flags&1
-		call rt_heldjob as rt_j
+	rt_gj=0
+	if rt_flags&2
+		# a job of its own, which is all the flag 1 would give as well
+		call rt_newjob as rt_j
 		ifz rt_j
 			ret 1
+		end
+		rt_j+=1
+		rt_gj=rt_j
+	else
+		if rt_flags&1
+			call rt_heldjob as rt_j
+			ifz rt_j
+				ret 1
+			end
 		end
 	end
 	store rt_a 0
@@ -979,6 +1247,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	end
 	if rt_bad
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret 1
 	end
 	call rt_room rt_argv as rt_n
@@ -989,12 +1258,14 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	call rt_alloc rt_n+rt_m as rt_line
 	ifz rt_line
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret -12
 	end
-	call rt_alloc 32 as rt_kid
+	call rt_alloc 40 as rt_kid
 	ifz rt_kid
 		call rt_free rt_line
 		call rt_shut3 rt_dup
+		call rt_shutjob rt_gj
 		ret -12
 	end
 	rt_o=rt_line
@@ -1113,6 +1384,13 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 		call rt_api rt_i_createprocessa rt_a 10 as rt_ok
 		rt_ok&=0xffffffff
 	end
+	# why not, asked before another call says something else
+	rt_why=1
+	ifz rt_ok
+		if rt_flags&256
+			call rt_error as rt_why
+		end
+	end
 	if rt_list
 		store rt_a rt_al
 		call rt_api rt_i_deleteprocthreadattributelist rt_a 1
@@ -1121,15 +1399,17 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	call rt_free rt_line
 	ifz rt_ok
 		call rt_free rt_kid
-		ret 1
+		call rt_shutjob rt_gj
+		ret rt_why
 	end
+	store rt_kid+32 rt_gj
 	load rt_pi+8 as rt_h
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1
 	load rt_pi as rt_p
 	store rt_kid+8 rt_p
 	store rt_kid+16 0
-	call rt_lock
+	call rt_mlock
 	load rt_state+6792 as rt_p
 	rt_p+=1
 	store rt_state+6792 rt_p
@@ -1138,7 +1418,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	load rt_state+6784 as rt_h
 	store rt_kid rt_h
 	store rt_state+6784 rt_kid
-	call rt_unlock
+	call rt_munlock
 	ret rt_p
 end
 
@@ -1163,11 +1443,11 @@ fn rt_reap rt_p rt_ms
 	if rt_p==1
 		ret 127
 	end
-	call rt_lock
+	call rt_mlock
 	load rt_state+6784 as rt_k
 	label rt_find
 	ifz rt_k
-		call rt_unlock
+		call rt_munlock
 		ret -1001
 	end
 	load rt_k+24 as rt_h
@@ -1177,18 +1457,18 @@ fn rt_reap rt_p rt_ms
 	end
 	load rt_k+16 as rt_h
 	if rt_h
-		call rt_unlock
+		call rt_munlock
 		ret -1001
 	end
 	store rt_k+16 1
 	load rt_k+8 as rt_p
-	call rt_unlock
+	call rt_munlock
 	call rt_reaping rt_p rt_ms as rt_r rt_took
 	ifz rt_took
 		store rt_k+16 0
 		ret rt_r
 	end
-	call rt_lock
+	call rt_mlock
 	rt_q=rt_state+6784
 	label rt_next
 	load rt_q as rt_h
@@ -1198,7 +1478,10 @@ fn rt_reap rt_p rt_ms
 	end
 	load rt_k as rt_h
 	store rt_q rt_h
-	call rt_unlock
+	call rt_munlock
+	# what a child that led a group started and left behind ends with it
+	load rt_k+32 as rt_h
+	call rt_shutjob rt_h
 	call rt_free rt_k
 	store rt_a rt_p
 	call rt_api rt_i_closehandle rt_a 1
@@ -1285,6 +1568,45 @@ fn rt_reaping rt_p rt_ms
 		ret -6 1
 	end
 	ret rt_r&255 1
+end
+
+# The program of rt_argv in place of this process, with the environment
+# rt_env, 0 for that of the process: the service returns only if the
+# program cannot be started, with the error. Windows puts no program
+# in the place of another, so the program is a child that is held, with
+# the input and the outputs of this process, which waits for it and
+# ends with its status, or with 128 and the number of what ended it.
+# A program that Windows does not start is the error Windows has for
+# it, -2 for one that is not there and -8 for a file that is no
+# program; a child that cannot be held is -5. Once the program is
+# started the process lets go of every lock it has (rt_lock), as a
+# process does that a program takes the place of: the program may
+# want one of them, and would wait for a process that waits for it.
+fn rt_become rt_argv rt_env
+	local rt_fds 24
+	store rt_fds -1
+	store rt_fds+8 -1
+	store rt_fds+16 -1
+	call rt_start rt_argv rt_env rt_fds 257 as rt_c
+	if rt_c==1
+		ret -5
+	end
+	ifslt rt_c 0
+		ret rt_c
+	end
+	rt_i=3
+	while rt_i<256
+		loadb rt_state+4480+rt_i as rt_k
+		if rt_k&8
+			call rt_close rt_i
+		end
+		rt_i+=1
+	end
+	call rt_reap rt_c 0 as rt_s
+	ifslt rt_s 0
+		rt_s=128-rt_s
+	end
+	tail rt_exit rt_s
 end
 
 # Let this thread run only on the processor rt_cpu, or on the lowest one
@@ -2177,7 +2499,7 @@ data 0 3 128 3 0 4 0 5 0 6 0 7 0 8 0 10
 data 0 12 0 14 0 16 0 20 0 24 0 28 0 32 0 40
 data 0 48 0 56 0 64 0 80 0 96 0 112 0 128
 
-fn rt_lock
+fn rt_mlock
 	load rt_state+16 as rt_t
 	ifz rt_t
 		ret 0
@@ -2186,7 +2508,7 @@ fn rt_lock
 	cas rt_state+24 0 1 as rt_k
 	jz rt_k rt_again
 end
-fn rt_unlock
+fn rt_munlock
 	load rt_state+16 as rt_t
 	if rt_t
 		store rt_state+24 0
@@ -2232,12 +2554,12 @@ fn rt_alloc rt_n
 	end
 	load2 rt_csz+rt_c*2 as rt_z
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_p
 	if rt_p
 		load rt_p as rt_x
 		store rt_q rt_x
-		call rt_unlock
+		call rt_munlock
 		rt_z-=16
 		if rt_z>96
 			zero rt_p rt_z
@@ -2255,13 +2577,13 @@ fn rt_alloc rt_n
 	if rt_e-rt_p<rt_z
 		call rt_pages 262144 as rt_p
 		ifz rt_p
-			call rt_unlock
+			call rt_munlock
 			ret 0
 		end
 		store rt_state+40 rt_p+262144
 	end
 	store rt_state+32 rt_p+rt_z
-	call rt_unlock
+	call rt_munlock
 	store rt_p rt_c
 	ret rt_p+16
 end
@@ -2281,11 +2603,11 @@ fn rt_free rt_p
 		ret 0
 	end
 	rt_q=rt_state+48+rt_c*8
-	call rt_lock
+	call rt_mlock
 	load rt_q as rt_x
 	store rt_p rt_x
 	store rt_q rt_p
-	call rt_unlock
+	call rt_munlock
 	ret 0
 end
 

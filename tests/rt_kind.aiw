@@ -1,0 +1,13 @@
+# what is at a path: a file, a directory, nothing
+rt unlink "build/tests/rt_kind.d/one"
+rt rmdir "build/tests/rt_kind.d"
+rt mkdir "build/tests/rt_kind.d" 493
+rt open "build/tests/rt_kind.d/one" 0x41 420 as f
+rt close f
+rt kind "build/tests/rt_kind.d/one" as a
+rt kind "build/tests/rt_kind.d" as b
+rt kind "build/tests/rt_kind.d/two" as c
+rt unlink "build/tests/rt_kind.d/one"
+rt rmdir "build/tests/rt_kind.d"
+rt write 1 "kinds\n"
+rt exit (a==1)+(b==2)*2+(c==-2)*4

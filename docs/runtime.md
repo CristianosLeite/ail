@@ -57,9 +57,18 @@ result is a value.
 | 32 | `port` | socket | its port, or an error |
 | 33 | `send` | socket, address, size | the bytes written, or an error: -32 if the other end is closed, -88 for a descriptor that is no socket |
 | 34 | `writeq` | descriptor, address, size | the bytes written, or an error: a `write` that gives -32 for a pipe nobody reads without ending the process, whether `pipeerr` was called or not |
-| 35 | `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error. The arguments and the environment are addresses of strings that end with a NUL, with a 0 after the last; the first argument is the program, a path if it has a slash and else a name looked for in the directories of `PATH`. The three descriptors, 8 bytes each, become its 0, 1 and 2, -1 for the one of the process; one that is given stays open in the child however it was opened. With the flag 1 the child is killed when the thread that started it ends. A program that cannot be started is a child that ends with 127 |
+| 35 | `start` | address of the arguments, address of an environment or 0 for that of the process, address of three descriptors, flags | the number of a child process, or an error. The arguments and the environment are addresses of strings that end with a NUL, with a 0 after the last; the first argument is the program, a path if it has a slash and else a name looked for in the directories of `PATH`. The three descriptors, 8 bytes each, become its 0, 1 and 2, -1 for the one of the process; one that is given stays open in the child however it was opened. With the flag 1 the child is killed when the thread that started it ends. With the flag 2 it leads a group of processes of its own, which the programs it starts are in unless they leave it: the group is killed when `reap` has taken the child, whatever the child left running, and when the process that started it ends, however that ends. A program that cannot be started is a child that ends with 127 |
 | 36 | `reap` | child, milliseconds or 0 for no limit | its exit status, 0 to 255; the signal that ended it, negated; -1000 if it still ran after the time, and was killed; -1001 if there is no such child; the error of the platform if it refuses to end a child whose time is over, which is then left as it is and may be given to `reap` again, unless it has ended meanwhile, which gives what it ended with. Only a child of the process is waited for and killed, never another process that has the number: a number that is not 1 to 2^31-1 is no child, and a child that one thread waits for is no child to another thread meanwhile, so that no `reap` takes it and frees its number during the wait. On Linux that holds against anything that takes children when the wait has a descriptor of the child, as it has on every kernel since 5.4 unless the process is out of descriptors; without one it holds against `reap` alone, so a program that takes children with `sys` must not do so during a `reap` with a time, and where the kernel itself takes the children that end (the process ignores `SIGCHLD`, or set `SA_NOCLDWAIT`), or does not say whether it does (a filter that refuses `rt_sigaction`), a child whose time is over is sent no signal: the error that kept the descriptor away is the result and the child is left. What the process does with `SIGCHLD` is asked once, when the time is over, so a program must not change it during such a `reap` either. The time is all 64 bits |
 | 37 | `pin` | processor | the processor the thread and the programs it starts are bound to from now on, that one or the lowest it may run on, or an error |
+| 38 | `cwd` | address, size | the length of the path of the directory of the process, which is written there with a NUL behind it that is not counted, or an error: -34 if it does not fit |
+| 39 | `chdir` | path | 0, or an error: the directory at the path is the one of the process from now on, for every thread |
+| 40 | `real` | path, address, size | the length of the path of the directory as the system names it, from the root and with no link and no `..` in it, written as `cwd` writes one, or an error. On Linux it is what the link of a descriptor of the directory in `/proc/self/fd` leads to, so a directory that may be entered and not listed has a name too, one that cannot be entered is an error, as is one that was removed, -2, and the process stays in the directory it is in |
+| 41 | `self` | address, size | the length of the path of the executable of the process, which is written there, or an error: -36 if it does not fit |
+| 42 | `kind` | path | 1 for a file, 2 for a directory, 3 for a link, which is not followed, 4 for anything else, or an error: -2 if nothing is there |
+| 43 | `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
+| 44 | `pid` |  | a number that no other process has while this one runs |
+| 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
+| 46 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there and -8 if the file is no program: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -144,8 +153,12 @@ on the name of a `var` of the program would write that `var`.
 The statement `stack p` is for that first line: it stores the stack
 pointer at the address `p`, and is allowed at top level only.
 
-An executable with the runtime is 11.7 KiB longer than without, all of
-its functions being in each. A program starts in the time it took
+An executable with the runtime is 17.8 KiB longer than without, all of
+its functions being in each (11.7 KiB before the services of 2026-11-26
+for the command `ail`, which are 6.1 KiB of it; `hello` with them
+against `hello` without, 3000 starts each in turn on one CPU, took
+50.0 against 49.7 microseconds in the median, and 49.5 against 49.3
+the other way round). A program starts in the time it took
 before there was a runtime, within half a microsecond of 48: started in
 turn 3000 times each on one CPU, `hello` took 48.2 and 48.4
 microseconds in the median against 47.9 for the one of the revision
@@ -156,7 +169,9 @@ C programs with the C library.
 
 ## A new service
 
-A function `rt_<name>` in `rt/linux-x86_64/rt.aiw`, a row in the table
+A function `rt_<name>` in `rt/linux-x86_64/rt.aiw` and in the file of
+every other platform, since the compiler of each wants one for every
+row, a row in the table
 `rtnames` of `compiler/tables.aiw` with a number of its own, its values,
 its results and what it needs of the state, a line in the tables here
 and in [language.md](language.md#rt), and tests `tests/rt_*`. The
@@ -273,9 +288,79 @@ Where a service cannot be on Windows what it is on Linux:
   back only when a close has finished, so threads that open at once get
   different numbers. A write to a socket takes
   all its bytes where Linux takes part of many.
+- `cwd`, `real` and `self` write a path as Windows does, with its
+  drive and `\`. `real` is the path made whole by `GetFullPathNameA`,
+  without `..`; a link in it stays what it is. `kind` is never 4, and
+  3 for whatever Windows keeps as a reparse point. `chmod` has nothing
+  to do and gives 0 for a descriptor that is open.
+- `lock` is a lock that Windows keeps on a file (`LockFileEx`), for
+  one byte far behind any the file has, so that the file is read and
+  written as ever: it keeps out the programs that ask the runtime for
+  the lock and nothing else. Windows locks no directory, so the lock
+  of a directory is that of the file `.ail-lock` in it, which the
+  service makes if it is not there and which stays; the directory
+  must let a file be made, and is removed only after that file. While
+  a process has the file open for the lock, holding it or waiting,
+  Windows refuses to remove the file and to give it another name,
+  the file of a directory and a file that is locked itself, so one
+  path is one lock for as long as it is held. Who
+  may take a lock is who the file system lets open the file to read
+  it, and two ways to write the path of one directory are one lock.
+- `become` starts the program as a child that is held, with the input
+  and the outputs of the process, waits for it and ends the process
+  with its status, or with 128 and the number of what ended it:
+  Windows puts no program in the place of another. Once the program
+  is started the process closes every lock it has, so the program
+  can take a lock the process held; its other descriptors stay open
+  until it ends.
+- The group of a child started with the flag 2 is a job of Windows of
+  its own, which a process it starts cannot leave and of which the
+  process that started the child has the only handle: `reap` closes
+  it, and Windows does when that process ends. On Linux the group is
+  one of the kernel, with a watcher, a process that waits for the end
+  of a pipe from the process that started the child and then kills
+  the group. It waits for the end of that process too, by a
+  descriptor of it (Linux 5.3): a process that it made as a copy of
+  itself, with `fork`, has the pipe as well until it runs a program
+  or ends, and with an older kernel the group lives until then. The
+  watcher joins the group, leaves a process of its own
+  there and goes into a group of its own, so that what stops the
+  group of the child, which stops every process in it, does not stop
+  the watcher: a stopped group ends with the process that started
+  its child too. The watcher kills the group by its number, which is
+  that group and no other as long as the process it left there has
+  not been taken, which the watcher alone can do; that process waits
+  for the end of the pipe as well and kills the group it is in, for
+  a watcher that was killed. The kernel keeps that process after its
+  end only for a parent that has not asked to be rid of its children,
+  so the watcher first gives the signal of a child that ends its
+  first meaning, whatever the process that started it made of it.
+  The child runs only once the watcher has done all that and says
+  so, and a watcher that cannot join the group, leave that process
+  there or go out of the group ends before, so that the child is one
+  that ends with 127 and no program runs in a group that nothing
+  outside it would end.
+  The watcher keeps no other descriptor: a kernel that closes them by a
+  range does (Linux 5.9), and with another the watcher closes those
+  that `/proc/self/fd` names, or ends where that cannot be read. A
+  program that makes a group of its own (`setsid`, `setpgid`) is out
+  of it. `reap` takes such a child as any other and then kills the
+  group by a descriptor of the child, kept since the start, which
+  names that group and no other whatever becomes of the number
+  (Linux 6.9). It then writes a byte to the pipe and closes it, and
+  with an older kernel it is the watcher that kills the group, at
+  that byte: the process that called
+  `reap` sends no signal to a number that was the child's, which may
+  be another group once the child is taken, by `reap` or by anything
+  else in the process that takes children. `reap` keeps the child
+  from every other `reap` until that is done, and takes the watcher
+  by a descriptor of it where the kernel has one (Linux 5.4). It
+  waits a second for the watcher, woken first in case something
+  stopped it alone, and kills one that has not ended by then; the
+  process the watcher left in the group then kills the group, unless
+  the group is stopped and the kernel is an older one.
 - `pipeerr` has nothing to do: there is no signal.
 
-## Another platform
 ## Another platform
 
 A directory `rt/<platform>/` with the same two files, written for that

@@ -114,10 +114,10 @@ fn dpgit dpquiet
 	end
 	call fileopen "/dev/null" 0 0 as dpin
 	call tlrun dpargs dpin dpout dperr as dps
-	sys close dpin
-	sys close dpout
+	rt close dpin
+	rt close dpout
 	if dpquiet
-		sys close dperr
+		rt close dperr
 	end
 	call bycut dpcap 0
 	call fileread "deps/.git-said" dpcap
