@@ -1284,3 +1284,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `tests/cli.sh` passes unchanged. The compiler for Windows compiles
   the command and every tool; running the command there is in
   `docs/TODO.md`.
+- [x] The version 0.2.1 of AIL (user, 2026-11-26), the first with
+  those nine services and the flag 2 of `start`, the pull request 38:
+  `Ailfile` says it and the tag `v0.2.1` names the merge of it, so
+  that a package asks for them with `ail 0.2.1`. A third number, since
+  what was written before it compiles and runs as it did.
