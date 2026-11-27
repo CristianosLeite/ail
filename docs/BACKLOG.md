@@ -1289,3 +1289,18 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `Ailfile` says it and the tag `v0.2.1` names the merge of it, so
   that a package asks for them with `ail 0.2.1`. A third number, since
   what was written before it compiles and runs as it did.
+- [x] Six services for a file, which a program had to ask of Linux
+  with `sys` and so could not ask on Windows (2026-11-26, for aildb,
+  whose user wants it there): `seek`, the place of a file; `pwrite`, a
+  write at a place; `truncate`, a file cut or made longer; `sync`, a
+  file or a directory flushed; `stat` and `fstat`, the kind, the size
+  and the two times of what is at a path, a link not followed, or
+  behind a descriptor. On Windows they call `SetFilePointerEx`,
+  `WriteFile` with a place, `SetFileInformationByHandle`,
+  `FlushFileBuffers`, `GetFileInformationByHandleEx` and
+  `GetFileSizeEx`; `docs/runtime.md` says where they differ there. The
+  tests `rt_seek` and `rt_stat` pass on Linux and under Wine, where
+  `tests/win.sh` always runs them. `win_stale_watch` failed once in
+  the first run of `make test`: of 40 runs under Wine it ended with
+  another status 2 times with these services and 5 times without
+  them, so it is a test that depends on its sleeps, as it was.

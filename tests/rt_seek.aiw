@@ -1,0 +1,27 @@
+# a place in a file: a write at a place leaves the place of the file,
+# a file is cut and made longer, and what was written is flushed
+buf b 16
+rt unlink "build/tests/rt_seek.txt"
+rt open "build/tests/rt_seek.txt" 0x42 420 as f
+rt write f "0123456789" as r
+rt seek f 0 1 as at
+rt pwrite f "ab" 3 as w
+rt seek f 0 1 as at2
+rt seek f -4 2 as e
+rt read f b 16 as n
+rt write 1 b n
+rt write 1 "\n"
+rt truncate f 5 as t
+rt seek f 0 2 as end
+rt truncate f 8 as t2
+rt seek f 0 0 as z
+rt read f b 16 as n
+loadb b+7 as c
+rt write 1 b 5
+rt write 1 "\n"
+rt sync f as s
+rt seek f 0 3 as bad
+rt close f
+rt seek f 0 0 as gone
+rt unlink "build/tests/rt_seek.txt"
+rt exit (at==10)+(w==2)*2+(at2==10)*4+(e==6)*8+(t==0)*16+(end==5)*32+(n==8)*64+((c==0)&(t2==0)&(z==0)&(s==0)&(bad==-22)&(gone==-9))*128

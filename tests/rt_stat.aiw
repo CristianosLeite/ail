@@ -1,0 +1,33 @@
+# what is known of a file and of a directory, by a path and by a
+# descriptor: the kind, the size, and times that are not before the
+# file was made
+buf s 32
+buf d 32
+buf g 32
+rt unlink "build/tests/rt_stat.d/one"
+rt rmdir "build/tests/rt_stat.d"
+rt mkdir "build/tests/rt_stat.d" 493
+rt open "build/tests/rt_stat.d/one" 0x42 420 as f
+rt write f "seven b"
+rt fstat f g as c
+load g+8 as n2
+rt close f
+rt stat "build/tests/rt_stat.d/one" s as a
+rt stat "build/tests/rt_stat.d" d as b
+rt stat "build/tests/rt_stat.d/two" d+8 as none
+rt open "build/tests/rt_stat.d" 0x10000 0 as f
+rt fstat f g+8 as e
+load g+8 as dk
+rt close f
+rt fstat f g+8 as gone
+load s as k
+load s+8 as n
+load s+16 as m
+load s+24 as ch
+load d as k2
+rt unlink "build/tests/rt_stat.d/one"
+rt rmdir "build/tests/rt_stat.d"
+rt write 1 "stat\n"
+# 2020 in nanoseconds since 1970
+y=1577836800000000000
+rt exit ((a==0)&(k==1))+(n==7)*2+((m>y)&(ch>=m))*4+((b==0)&(k2==2))*8+(none==-2)*16+((c==0)&(n2==7))*32+((e==0)&(dk==2))*64+(gone==-9)*128
