@@ -1326,4 +1326,6 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   was -5 on Windows, what `SetFilePointerEx` said of it: `seek` and
   `pwrite` ask the kind of the handle (`GetFileType`) and answer -29
   for what is no file on a disk (`win_pipe` of `tests/win.sh`, and
-  the test `rt_seek_pipe` for Linux).
+  the test `rt_seek_pipe` for Linux). And the test `rt_stat` gave
+  `fstat` an address 8 bytes into its 32, so the last number was
+  written behind them: every call has 32 bytes now.

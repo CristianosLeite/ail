@@ -14,12 +14,12 @@ load g+8 as n2
 rt close f
 rt stat "build/tests/rt_stat.d/one" s as a
 rt stat "build/tests/rt_stat.d" d as b
-rt stat "build/tests/rt_stat.d/two" d+8 as none
+rt stat "build/tests/rt_stat.d/two" g as none
 rt open "build/tests/rt_stat.d" 0x10000 0 as f
-rt fstat f g+8 as e
-load g+8 as dk
+rt fstat f g as e
+load g as dk
 rt close f
-rt fstat f g+8 as gone
+rt fstat f g as gone
 load s as k
 load s+8 as n
 load s+16 as m
