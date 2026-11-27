@@ -1,10 +1,12 @@
 # a program in place of the process: this one becomes itself with an
-# argument, after a program that is not there gave an error and left
-# the process what it was
+# argument, after a program that is not there and a file that is no
+# program each gave an error of its own and left the process what it
+# was
 buf exe 4096
 buf argv 24
 data again "again" 0
 data none "build/tests/no/such/program" 0
+data plain "build/tests/rt_become.exe" 0
 args as p
 load p as n
 if n>1
@@ -15,6 +17,15 @@ store argv none
 rt become argv 0 as e
 if e==-2
 	rt write 1 "still here\n"
+end
+rt open "build/tests/rt_become.exe" 0x241 493 as f
+rt write f "plain\n"
+rt close f
+store argv plain
+rt become argv 0 as e
+rt unlink "build/tests/rt_become.exe"
+if e==-8
+	rt write 1 "no program\n"
 end
 rt self exe 4095 as e
 storeb exe+e 0

@@ -53,7 +53,7 @@ end
 # number of the runtime: -2 no such file, -13 not allowed, -17 it is
 # there, -9 no such descriptor, -32 the other end is closed, -12 no
 # memory, -39 not empty, -28 no room, -36 a path too long, -20 not a
-# directory, and -5 for any other
+# directory, -8 no program of this machine, and -5 for any other
 fn rt_error
 	local rt_a 32
 	call rt_api rt_i_getlasterror rt_a 0 as rt_e
@@ -87,6 +87,9 @@ fn rt_error
 	end
 	if (rt_e==39)|(rt_e==112)
 		ret -28
+	end
+	if (rt_e==193)|(rt_e==216)
+		ret -8
 	end
 	ret -5
 end
@@ -1166,7 +1169,8 @@ end
 # the child and closes the job, and when this process ends. A program that
 # cannot be started is the number 1, which reap takes as a child that
 # ended with status 127, and so is one whose descriptors are not open
-# or that Windows does not hold.
+# or that Windows does not hold. With the flag 256, which become alone
+# gives, a program that Windows does not start is its error instead.
 # The child gets copies of the three handles, made for it alone and
 # closed here once it is started, and a list that names them: it
 # inherits those and no other handle of this process, whatever another
@@ -1378,6 +1382,13 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 		call rt_api rt_i_createprocessa rt_a 10 as rt_ok
 		rt_ok&=0xffffffff
 	end
+	# why not, asked before another call says something else
+	rt_why=1
+	ifz rt_ok
+		if rt_flags&256
+			call rt_error as rt_why
+		end
+	end
 	if rt_list
 		store rt_a rt_al
 		call rt_api rt_i_deleteprocthreadattributelist rt_a 1
@@ -1387,7 +1398,7 @@ fn rt_start rt_argv rt_env rt_fds rt_flags
 	ifz rt_ok
 		call rt_free rt_kid
 		call rt_shutjob rt_gj
-		ret 1
+		ret rt_why
 	end
 	store rt_kid+32 rt_gj
 	load rt_pi+8 as rt_h
@@ -1563,14 +1574,17 @@ end
 # in the place of another, so the program is a child that is held, with
 # the input and the outputs of this process, which waits for it and
 # ends with its status, or with 128 and the number of what ended it.
+# A program that Windows does not start is the error Windows has for
+# it, -2 for one that is not there and -8 for a file that is no
+# program; a child that cannot be held is -5.
 fn rt_become rt_argv rt_env
 	local rt_fds 24
 	store rt_fds -1
 	store rt_fds+8 -1
 	store rt_fds+16 -1
-	call rt_start rt_argv rt_env rt_fds 1 as rt_c
+	call rt_start rt_argv rt_env rt_fds 257 as rt_c
 	if rt_c==1
-		ret -2
+		ret -5
 	end
 	ifslt rt_c 0
 		ret rt_c
