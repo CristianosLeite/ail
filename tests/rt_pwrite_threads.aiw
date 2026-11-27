@@ -1,0 +1,68 @@
+# a write at a place leaves the place of the file to the thread that
+# reads it: one thread reads 20000 bytes one at a time while this one
+# writes at a place behind them, and the place is then 20000, with
+# every byte read once
+buf f 8
+buf done 8
+buf sum 8
+buf b 4096
+fn reader x
+	local c 8
+	load f as fd
+	n=0
+	s=0
+	while n<20000
+		store c 0
+		rt read fd c 1 as r
+		if r==1
+			loadb c as v
+			s+=v
+			n+=1
+		else
+			n=20000
+			s=0
+		end
+	end
+	store sum s
+	store done 1
+	rt wake done 1
+	label stay
+	rt sleep 1000000000
+	jmp stay
+end
+rt unlink "build/tests/rt_pwrite_threads.bin"
+rt open "build/tests/rt_pwrite_threads.bin" 0x42 420 as fd
+store f fd
+# 24576 bytes, the byte at i is i mod 251
+i=0
+want=0
+while i<24576
+	storeb b+i%4096 i%251
+	if i<20000
+		want+=i%251
+	end
+	i+=1
+	ifz i%4096
+		rt write fd b 4096
+	end
+end
+rt seek fd 0 0 as z
+ref reader as r
+rt thread r 0
+bad=0
+w=0
+d=0
+while d==0
+	rt pwrite fd "x" 24000 as n
+	if n!=1
+		bad+=1
+	end
+	w+=1
+	load done as d
+end
+rt seek fd 0 1 as at
+load sum as s
+rt close fd
+rt unlink "build/tests/rt_pwrite_threads.bin"
+rt write 1 "pwrite\n"
+rt exit (z==0)+(bad==0)*2+(w>0)*4+(at==20000)*8+(s==want)*16

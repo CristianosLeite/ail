@@ -1312,4 +1312,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   directory was opened with, which is another thing once the process
   is in another directory or the directory has another name: a
   descriptor of a directory has a handle there now, from `open` to
-  `close`, and `fstat` asks it (test `rt_fstat_dir`).
+  `close`, and `fstat` asks it (test `rt_fstat_dir`). `pwrite` of
+  Windows asked for the place of the file, wrote and set the place
+  again, so a read of another thread between them was lost or began
+  at the wrong place: it writes with a second handle of the file
+  (`ReOpenFile`) and leaves the place alone, and answers -9 for a
+  descriptor that may not write, which it asks of
+  `NtQueryInformationFile` (test `rt_pwrite_threads`).

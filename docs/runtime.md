@@ -70,7 +70,7 @@ result is a value.
 | 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
 | 46 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there and -8 if the file is no program: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
 | 47 | `seek` | descriptor, bytes, 0 from the start of the file, 1 from the place it is at or 2 from its end | the place in the file that its next `read` or `write` is at, counted from the start, or an error: -22 for another third value or a place before the start, -29 for a pipe or a socket |
-| 48 | `pwrite` | descriptor, address, size, place | the bytes written at that place of the file, at most the size, or an error, -22 for a place before the start; the place of `seek` stays what it was |
+| 48 | `pwrite` | descriptor, address, size, place | the bytes written at that place of the file, at most the size, or an error, -22 for a place before the start and -9 for a descriptor that was not opened to write; the place of `seek` stays what it was, also while other threads read and write the descriptor |
 | 49 | `truncate` | descriptor, length | 0, or an error: the file is that many bytes long, the new ones zeros |
 | 50 | `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
 | 51 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
@@ -304,9 +304,12 @@ Where a service cannot be on Windows what it is on Linux:
   3 for whatever Windows keeps as a reparse point. `chmod` has nothing
   to do and gives 0 for a descriptor that is open.
 - `seek`, `pwrite` and `truncate` are for a file that Windows has a
-  handle for: -29 for a socket, -21 for a directory. `pwrite` asks for
-  the place of the file, writes and sets the place again, three calls,
-  so two threads must not write one descriptor that way at once.
+  handle for: -29 for a socket, -21 for a directory. A write of
+  Windows moves the place of the handle it is given, so `pwrite` opens
+  a second handle of the same file (`ReOpenFile`), writes with it and
+  closes it: the place of the descriptor is not touched, whichever
+  thread or process reads and writes it meanwhile, and a `pwrite`
+  costs an open and a close.
   `sync` flushes a file that was opened to be written, -13 for one
   that was not, and gives 0 for a directory, which Windows does not
   flush. The time of `stat` at which anything of a file changed is the

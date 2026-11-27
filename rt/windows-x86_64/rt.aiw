@@ -764,21 +764,47 @@ fn rt_seek rt_fd rt_o rt_w
 end
 
 # Up to rt_n bytes at the place rt_o of the open file: how many were
-# written, or an error. Windows moves the place of the file behind what
-# it wrote, so the place is asked first and set again.
+# written, or an error, -9 for a descriptor that is not open to write
+# at a place. A write of Windows moves the place of the handle it is
+# given, whatever place it is told, and the place is one for every
+# thread and process that has the handle. So the write is done by a
+# second handle of the same file, opened for it and closed after it,
+# and the place of the descriptor is never touched.
 fn rt_pwrite rt_fd rt_p rt_n rt_o
 	local rt_a 40
 	local rt_v 32
 	local rt_got 8
-	call rt_seek rt_fd 0 1 as rt_at
-	if rt_at>-4096
-		ret rt_at
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
 	end
 	# a place below zero is the end of the file to Windows
 	ifslt rt_o 0
 		ret -22
 	end
-	call rt_handle rt_fd as rt_h
+	# what the handle may do, 8 of the things that are asked of a file:
+	# the second handle must not write where the first may not (2)
+	store rt_a rt_h
+	store rt_a+8 rt_v
+	store rt_a+16 rt_got
+	store rt_a+24 4
+	store rt_a+32 8
+	call rt_api rt_i_ntqueryinformationfile rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		ret -5
+	end
+	load4 rt_got as rt_r
+	ifz rt_r&2
+		ret -9
+	end
+	store rt_a rt_h
+	store rt_a+8 0x40000000
+	store rt_a+16 7
+	store rt_a+24 0
+	call rt_api rt_i_reopenfile rt_a 4 as rt_w
+	if rt_w==-1
+		tail rt_error
+	end
 	if rt_n>0x40000000
 		rt_n=0x40000000
 	end
@@ -787,7 +813,7 @@ fn rt_pwrite rt_fd rt_p rt_n rt_o
 	store rt_v+16 rt_o
 	store rt_v+24 0
 	store rt_got 0
-	store rt_a rt_h
+	store rt_a rt_w
 	store rt_a+8 rt_p
 	store rt_a+16 rt_n
 	store rt_a+24 rt_got
@@ -798,7 +824,8 @@ fn rt_pwrite rt_fd rt_p rt_n rt_o
 	else
 		load4 rt_got as rt_r
 	end
-	call rt_seek rt_fd rt_at 0
+	store rt_a rt_w
+	call rt_api rt_i_closehandle rt_a 1
 	ret rt_r
 end
 

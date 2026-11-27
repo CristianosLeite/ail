@@ -1,5 +1,6 @@
 # a write at a place that is none: a place before the start of the file
-# is an error, and the file keeps its bytes and its length
+# is an error, and so is a descriptor that was opened to read, and the
+# file keeps its bytes and its length
 buf b 16
 rt unlink "build/tests/rt_pwrite.txt"
 rt open "build/tests/rt_pwrite.txt" 0x42 420 as f
@@ -12,5 +13,9 @@ rt read f b 16 as n
 rt write 1 b n
 rt write 1 "\n"
 rt close f
+rt open "build/tests/rt_pwrite.txt" 0 0 as f
+rt pwrite f "X" 0 as ro
+rt read f b 16 as n2
+rt close f
 rt unlink "build/tests/rt_pwrite.txt"
-rt exit (neg==-22)+(far==-22)*2+(len==2)*4+(n==2)*8
+rt exit (neg==-22)+(far==-22)*2+(len==2)*4+(n==2)*8+((ro==-9)&(n2==2))*16
