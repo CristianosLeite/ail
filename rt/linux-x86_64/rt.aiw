@@ -1362,10 +1362,14 @@ end
 # kills the group by its number, which names no other group while the
 # process it left there is not taken, alive or not; that one waits for
 # the end of the pipe as well and kills the group it is in, for the
-# case that this one was killed. Where no such process can be made the
-# watcher stays in the group and kills the one it is in. A watcher that
-# ends before the byte ends the pipe of the child, which then ends with
-# 127.
+# case that this one was killed. The process it left is kept by the
+# kernel after its end only where the signal of a child that ends has
+# its first meaning, which the watcher gives it: the process that
+# started the watcher may ignore that signal, and the kernel would
+# then take the process itself and the number be free. A watcher that
+# cannot do one of these ends before the byte, which ends the pipe of
+# the child, and the child then ends with 127: no program runs in a
+# group that nothing outside it would end.
 fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	local rt_b 1024
 	sys rt_setpgid 0 rt_pid as rt_r
@@ -1430,6 +1434,14 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 		jnz rt_r rt_more
 		sys close rt_fd
 	end
+	# a child that has ended is kept until this process takes it,
+	# whatever the process that started this one does with the signal
+	# of its children (17): the number of the group is safe by that
+	zero rt_b 32
+	sys rt_sigaction 17 rt_b 0 8 as rt_r
+	if rt_r
+		sys exit 127
+	end
 	# the one that stays in the group, and this one out of it
 	sys fork as rt_in
 	ifz rt_in
@@ -1440,8 +1452,14 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 		sys kill 0 9
 		sys exit 0
 	end
-	ifsgt rt_in 0
-		sys rt_setpgid 0 0
+	ifsle rt_in 0
+		sys exit 127
+	end
+	sys rt_setpgid 0 0 as rt_r
+	if rt_r
+		sys kill rt_in 9
+		sys wait4 rt_in 0 0 0
+		sys exit 127
 	end
 	storeb rt_b 0
 	sys write rt_gwr rt_b 1
@@ -1449,14 +1467,10 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	label rt_wait
 	sys read rt_rd rt_b 1 as rt_r
 	jeq rt_r -4 rt_wait
-	ifsgt rt_in 0
-		# the number of the group is that group while the one in it is
-		# not taken, which only this process can do
-		sys kill 0-rt_pid 9
-		sys wait4 rt_in 0 0 0
-		sys exit 0
-	end
-	sys kill 0 9
+	# the number of the group is that group while the one in it is not
+	# taken, which only this process can do
+	sys kill 0-rt_pid 9
+	sys wait4 rt_in 0 0 0
 	sys exit 0
 end
 

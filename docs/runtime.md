@@ -320,9 +320,15 @@ Where a service cannot be on Windows what it is on Linux:
   that group and no other as long as the process it left there has
   not been taken, which the watcher alone can do; that process waits
   for the end of the pipe as well and kills the group it is in, for
-  a watcher that was killed. The child runs only once the watcher
-  has done that and says so, and a watcher that cannot join the
-  group ends before, so that the child is one that ends with 127.
+  a watcher that was killed. The kernel keeps that process after its
+  end only for a parent that has not asked to be rid of its children,
+  so the watcher first gives the signal of a child that ends its
+  first meaning, whatever the process that started it made of it.
+  The child runs only once the watcher has done all that and says
+  so, and a watcher that cannot join the group, leave that process
+  there or go out of the group ends before, so that the child is one
+  that ends with 127 and no program runs in a group that nothing
+  outside it would end.
   The watcher keeps no other descriptor: a kernel that closes them by a
   range does (Linux 5.9), and with another the watcher closes those
   that `/proc/self/fd` names, or ends where that cannot be read. A
