@@ -1271,7 +1271,7 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   Linux the pipes, the gate and the watcher that `tlrunenv` made,
   moved into `rt_group`, with a watcher that keeps no other descriptor;
   on Windows a job of its own); `lock`, the lock of a directory (the
-  kernel's on Linux, a named mutex on Windows); `cwd`, `chdir` and
+  kernel's on Linux, the lock of a file on Windows); `cwd`, `chdir` and
   `real`, the directory of the process and a directory as the system
   names it; `self`, the path of the executable; `become`, a program in
   place of the process; `kind`, whether a path is a file, a directory

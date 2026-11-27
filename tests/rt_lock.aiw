@@ -1,7 +1,8 @@
 # the lock of a directory: this program starts itself, and what it
 # starts gets the lock only when it is closed here, after a file was
 # made that it then finds, though it writes the path of the directory
-# in another way; nothing at a path is no lock
+# in another way; nothing at a path is no lock. On Windows the lock of
+# a directory is a file in it, which is removed before the directory
 buf exe 4096
 buf argv 24
 buf io 24
@@ -22,6 +23,7 @@ if n>1
 end
 len mark as m
 rt unlink mark m
+rt unlink "build/tests/rt_lock.d/.ail-lock"
 len dir as n
 rt rmdir dir n
 rt mkdir dir n 493
@@ -41,5 +43,6 @@ rt close l as u
 rt reap c 0 as s
 rt lock "build/tests/rt_lock.d/none" as none
 rt unlink mark m
+rt unlink "build/tests/rt_lock.d/.ail-lock"
 rt rmdir dir n as d
 rt exit (l>2)+(u==0)*2+(s==3)*4+(none==-2)*8+(d==0)*16

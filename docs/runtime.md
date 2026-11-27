@@ -293,27 +293,15 @@ Where a service cannot be on Windows what it is on Linux:
   without `..`; a link in it stays what it is. `kind` is never 4, and
   3 for whatever Windows keeps as a reparse point. `chmod` has nothing
   to do and gives 0 for a descriptor that is open.
-- `lock` is a mutex of Windows, since Windows locks no directory: it
-  keeps out the programs that ask the runtime for the lock and nothing
-  else. Its name is made of the number of the volume and the number
-  the file has there, 64 and 128 bits, which the runtime asks of the
-  opened file (`FileIdInfo`, Windows 8), so that two ways to write the
-  path of one directory are one lock and two files never are; where
-  Windows does not say them, or the volume has no number for its
-  files and gives zeros, the service is an error. The name is in the
-  names that all sessions of the machine share (`Global\`), so that
-  a service and the program of a user keep each other out. Who may
-  open the mutex is made of the list of the file: the file is opened
-  to be read, so who takes its lock may read it; who may read it may
-  wait for the mutex and give it back and nothing else, who is
-  forbidden to read it is forbidden the mutex, and a file without a
-  list gives those two rights to all. An entry of the list that is
-  neither a permission nor a prohibition is an error of the service,
-  -95. The mutex keeps the list it was made with for as long as a
-  process has it. A
-  mutex belongs to a thread, so the thread that took the lock closes
-  it, and a second `lock` of the same file by that thread is given at
-  once.
+- `lock` is a lock that Windows keeps on a file (`LockFileEx`), for
+  one byte far behind any the file has, so that the file is read and
+  written as ever: it keeps out the programs that ask the runtime for
+  the lock and nothing else. Windows locks no directory, so the lock
+  of a directory is that of the file `.ail-lock` in it, which the
+  service makes if it is not there and which stays; the directory
+  must let a file be made, and is removed only after that file. Who
+  may take a lock is who the file system lets open the file to read
+  it, and two ways to write the path of one directory are one lock.
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:
