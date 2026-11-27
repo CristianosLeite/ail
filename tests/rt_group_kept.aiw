@@ -1,0 +1,61 @@
+# a group ends with the process that started its child though a copy
+# of that process lives on: this program starts itself as "mid" with a
+# pipe, which starts "late" with the flag 2 and that pipe, makes a copy
+# of itself (the call 57) that lets go of the pipe of this test and
+# sleeps four seconds, and ends. The copy has the end of the pipe of
+# the runtime that the watcher of the group waits for, so that pipe
+# does not end with "mid"; the pipe of the test must end all the same,
+# within two seconds, which it does when "late" was killed. Linux
+# alone.
+buf exe 4096
+buf argv 24
+buf io 24
+buf pp 8
+buf pf 8
+data mid "mid" 0
+data late "late" 0
+fn startself a out f
+	rt self exe 4095 as e
+	storeb exe+e 0
+	store argv exe
+	store argv+8 a
+	store io -1
+	store io+8 out
+	store io+16 -1
+	rt start argv 0 io f as c
+	ret c
+end
+args as p
+load p as n
+if n>1
+	load p+16 as q
+	loadb q as c
+	if c==109
+		call startself late -1 2 as c
+		sys 57 as k
+		ifz k
+			rt close 1
+			rt sleep 4000000000
+			rt exit 0
+		end
+		# "late" runs by now, with its watcher
+		rt sleep 300000000
+		rt exit (c<3)|(k>>63)
+	end
+	rt sleep 30000000000
+	rt exit 0
+end
+# closed in a program that is started, so that the copy has it once
+sys 293 pp 0x80000
+load4 pp as r
+load4 pp+4 as w
+call startself mid w 0 as c
+rt close w
+rt reap c 0 as k
+# the end of the pipe: nothing to read and no writer
+store4 pf r
+store4 pf+4 0
+sys 7 pf 1 2000 as t
+load2 pf+6 as v
+rt write 1 "kept\n"
+rt exit (k==0)+(t==1)*2+(v==16)*4

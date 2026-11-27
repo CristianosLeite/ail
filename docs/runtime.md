@@ -316,7 +316,11 @@ Where a service cannot be on Windows what it is on Linux:
   it, and Windows does when that process ends. On Linux the group is
   one of the kernel, with a watcher, a process that waits for the end
   of a pipe from the process that started the child and then kills
-  the group. The watcher joins the group, leaves a process of its own
+  the group. It waits for the end of that process too, by a
+  descriptor of it (Linux 5.3): a process that it made as a copy of
+  itself, with `fork`, has the pipe as well until it runs a program
+  or ends, and with an older kernel the group lives until then. The
+  watcher joins the group, leaves a process of its own
   there and goes into a group of its own, so that what stops the
   group of the child, which stops every process in it, does not stop
   the watcher: a stopped group ends with the process that started
@@ -340,8 +344,9 @@ Where a service cannot be on Windows what it is on Linux:
   of it. `reap` takes such a child as any other and then kills the
   group by a descriptor of the child, kept since the start, which
   names that group and no other whatever becomes of the number
-  (Linux 6.9). It then closes the pipe, and with an older kernel it
-  is the watcher that kills the group: the process that called
+  (Linux 6.9). It then writes a byte to the pipe and closes it, and
+  with an older kernel it is the watcher that kills the group, at
+  that byte: the process that called
   `reap` sends no signal to a number that was the child's, which may
   be another group once the child is taken, by `reap` or by anything
   else in the process that takes children. `reap` keeps the child

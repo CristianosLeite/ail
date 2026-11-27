@@ -1320,7 +1320,9 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 		end
 		# the same from here, in case the child has not come to it yet
 		sys rt_setpgid rt_pid rt_pid
-		# and such a fork for the watcher
+		# and such a fork for the watcher, which is told what process
+		# this is
+		sys getpid as rt_own
 		store4 rt_pp -1
 		sys clone 0x1011 0 rt_pp 0 0 as rt_wd
 		ifsgt rt_wd 0
@@ -1330,7 +1332,7 @@ fn rt_group rt_argv rt_env rt_fds rt_flags rt_me
 			sys fork as rt_wd
 		end
 		ifz rt_wd
-			call rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
+			call rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr rt_own
 		end
 		rt_e=rt_wd
 	end
@@ -1373,7 +1375,11 @@ end
 # not close may be what another process waits for the end of. Then it
 # makes a process that stays in the group and leaves the group itself,
 # for one of its own, so that what stops the group does not stop it,
-# and lets the child go with the byte. After the end of its pipe it
+# and lets the child go with the byte. It waits for the end of its
+# pipe or a byte in it, and for the end of the process that started
+# it, by a descriptor of that process: the end of the pipe alone comes
+# late where that process left a copy of itself, which has the pipe
+# too. Then it
 # kills the group by its number, which names no other group while the
 # process it left there is not taken, alive or not; that one waits for
 # the end of the pipe as well and kills the group it is in, for the
@@ -1382,10 +1388,11 @@ end
 # its first meaning, which the watcher gives it: the process that
 # started the watcher may ignore that signal, and the kernel would
 # then take the process itself and the number be free. A watcher that
-# cannot do one of these ends before the byte, which ends the pipe of
+# cannot do one of these, or that the process which started it has
+# left already, ends before the byte, which ends the pipe of
 # the child, and the child then ends with 127: no program runs in a
 # group that nothing outside it would end.
-fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
+fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr rt_own
 	local rt_b 1024
 	sys rt_setpgid 0 rt_pid as rt_r
 	if rt_r
@@ -1457,13 +1464,39 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	if rt_r
 		sys exit 127
 	end
+	# a descriptor of the process that started this one, which is that
+	# process if it is still the one this process is a child of. The
+	# end of the pipe alone does not say that it is gone: a process it
+	# made as a copy of itself has the other end too, for as long as
+	# it runs no program. A kernel that has no such descriptor (before
+	# Linux 5.3) leaves -1, which is waited for as nothing
+	sys rt_pidfdopen rt_own 0 as rt_pf
+	sys rt_getppid as rt_r
+	if rt_r!=rt_own
+		sys exit 127
+	end
+	ifslt rt_pf 0
+		rt_pf=-1
+	end
+	# what is waited for, by both: the pipe, which ends or has a byte,
+	# and that process, which ends
+	store4 rt_b+16 rt_rd
+	store4 rt_b+20 1
+	store4 rt_b+24 rt_pf
+	store4 rt_b+28 1
 	# the one that stays in the group, and this one out of it
 	sys fork as rt_in
 	ifz rt_in
 		sys close rt_gwr
 		label rt_inner
-		sys read rt_rd rt_b 1 as rt_r
+		sys rt_poll7 rt_b+16 2 -1 as rt_r
 		jeq rt_r -4 rt_inner
+		ifslt rt_r 0
+			# a kernel that cannot wait for two: for the pipe alone
+			label rt_ipipe
+			sys read rt_rd rt_b 1 as rt_r
+			jeq rt_r -4 rt_ipipe
+		end
 		sys kill 0 9
 		sys exit 0
 	end
@@ -1480,8 +1513,13 @@ fn rt_guard rt_pid rt_rd rt_wr rt_grd rt_gwr
 	sys write rt_gwr rt_b 1
 	sys close rt_gwr
 	label rt_wait
-	sys read rt_rd rt_b 1 as rt_r
+	sys rt_poll7 rt_b+16 2 -1 as rt_r
 	jeq rt_r -4 rt_wait
+	ifslt rt_r 0
+		label rt_pipe
+		sys read rt_rd rt_b 1 as rt_r
+		jeq rt_r -4 rt_pipe
+	end
 	# the number of the group is that group while the one in it is not
 	# taken, which only this process can do
 	sys kill 0-rt_pid 9
@@ -1524,7 +1562,8 @@ end
 # goes to the group by the descriptor of the child (the flag 4 of the
 # call, Linux 6.9), which is of that group for as long as a process is
 # in it, and to none after. Then, and with a kernel that has no such
-# signal only this, the pipe is closed and the watcher kills the group
+# signal only this, the pipe gets a byte, since a copy of this process
+# may keep it from ending, and is closed, and the watcher kills the group
 # it is in, which is that of the child for as long as the watcher
 # lives; the watcher is told to go on (the signal 18) in case it was
 # stopped, with its group or alone. It is waited for a second: one that
@@ -1554,6 +1593,8 @@ fn rt_ungroup rt_g
 		sys rt_pidfdsignal rt_lf 9 0 4
 		sys close rt_lf
 	end
+	storeb rt_info 0
+	call rt_writeq rt_wr rt_info 1
 	sys close rt_wr
 	rt_w=3
 	rt_id=rt_wf
