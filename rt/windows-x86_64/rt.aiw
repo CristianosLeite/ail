@@ -721,7 +721,11 @@ end
 # made if it is not there, so the directory must let a file be made,
 # and which stays. The lock of a file is on the file itself. It is on
 # one byte far behind any that a file has, 2^62, since a locked byte
-# is one that no other process reads or writes.
+# is one that no other process reads or writes. The file keeps its
+# name and its place for as long as a process has it open here, to
+# hold the lock or to wait for it: Windows then refuses to remove it
+# and to rename it, so that no second file of that name can be locked
+# beside it.
 fn rt_lock rt_p rt_n
 	local rt_z 4096
 	local rt_y 32
@@ -758,10 +762,11 @@ fn rt_lock rt_p rt_n
 	ifslt rt_fd 0
 		ret rt_fd
 	end
-	# to read it, shared with all
+	# to read it, shared with those that read and write it (3) and with
+	# none that would remove it or give it another name
 	store rt_a rt_z
 	store rt_a+8 0x80000000
-	store rt_a+16 7
+	store rt_a+16 3
 	store rt_a+24 0
 	store rt_a+32 rt_how
 	store rt_a+40 0x80

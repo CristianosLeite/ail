@@ -299,7 +299,11 @@ Where a service cannot be on Windows what it is on Linux:
   the lock and nothing else. Windows locks no directory, so the lock
   of a directory is that of the file `.ail-lock` in it, which the
   service makes if it is not there and which stays; the directory
-  must let a file be made, and is removed only after that file. Who
+  must let a file be made, and is removed only after that file. While
+  a process has the file open for the lock, holding it or waiting,
+  Windows refuses to remove the file and to give it another name,
+  the file of a directory and a file that is locked itself, so one
+  path is one lock for as long as it is held. Who
   may take a lock is who the file system lets open the file to read
   it, and two ways to write the path of one directory are one lock.
 - `become` starts the program as a child that is held, with the input
