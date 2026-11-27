@@ -28,7 +28,8 @@
 # 4464  1 + the job of Windows that the children held to this process
 #       are in, or 0 before the first of them
 # 4472  1 once the sockets of Windows are started
-# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller
+# 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller, 8 a
+#       lock (rt_lock), which become lets go of
 # 4736  per descriptor, 8 bytes: the record of the poller that it is or
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
@@ -797,6 +798,7 @@ fn rt_lock rt_p rt_n
 		call rt_api rt_i_closehandle rt_a 1
 		tail rt_unfd rt_fd rt_r
 	end
+	storeb rt_state+4480+rt_fd 8
 	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
 end
@@ -1576,7 +1578,10 @@ end
 # ends with its status, or with 128 and the number of what ended it.
 # A program that Windows does not start is the error Windows has for
 # it, -2 for one that is not there and -8 for a file that is no
-# program; a child that cannot be held is -5.
+# program; a child that cannot be held is -5. Once the program is
+# started the process lets go of every lock it has (rt_lock), as a
+# process does that a program takes the place of: the program may
+# want one of them, and would wait for a process that waits for it.
 fn rt_become rt_argv rt_env
 	local rt_fds 24
 	store rt_fds -1
@@ -1588,6 +1593,14 @@ fn rt_become rt_argv rt_env
 	end
 	ifslt rt_c 0
 		ret rt_c
+	end
+	rt_i=3
+	while rt_i<256
+		loadb rt_state+4480+rt_i as rt_k
+		if rt_k&8
+			call rt_close rt_i
+		end
+		rt_i+=1
 	end
 	call rt_reap rt_c 0 as rt_s
 	ifslt rt_s 0

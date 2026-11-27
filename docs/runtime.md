@@ -309,7 +309,10 @@ Where a service cannot be on Windows what it is on Linux:
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:
-  Windows puts no program in the place of another.
+  Windows puts no program in the place of another. Once the program
+  is started the process closes every lock it has, so the program
+  can take a lock the process held; its other descriptors stay open
+  until it ends.
 - The group of a child started with the flag 2 is a job of Windows of
   its own, which a process it starts cannot leave and of which the
   process that started the child has the only handle: `reap` closes

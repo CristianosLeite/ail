@@ -1,17 +1,24 @@
 # a program in place of the process: this one becomes itself with an
 # argument, after a program that is not there and a file that is no
 # program each gave an error of its own and left the process what it
-# was
+# was. It holds the lock of a directory when it does, which what it
+# becomes takes: the lock went with the process that was
 buf exe 4096
 buf argv 24
 data again "again" 0
 data none "build/tests/no/such/program" 0
 data plain "build/tests/rt_become.exe" 0
+data dir "build/tests/rt_become.d"
 args as p
 load p as n
+len dir as m
 if n>1
+	rt lock dir m as l
+	rt close l
+	rt unlink "build/tests/rt_become.d/.ail-lock"
+	rt rmdir dir m as d
 	rt write 1 "became\n"
-	rt exit 5
+	rt exit (l>2)+(d==0)*4
 end
 store argv none
 rt become argv 0 as e
@@ -27,6 +34,10 @@ rt unlink "build/tests/rt_become.exe"
 if e==-8
 	rt write 1 "no program\n"
 end
+rt unlink "build/tests/rt_become.d/.ail-lock"
+rt rmdir dir m
+rt mkdir dir m 493
+rt lock dir m as l
 rt self exe 4095 as e
 storeb exe+e 0
 store argv exe
