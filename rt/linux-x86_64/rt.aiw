@@ -185,7 +185,10 @@ end
 # kernel says that of a descriptor, as what the link of its number in
 # /proc/self/fd leads to, so the directory is opened, as a place alone,
 # which one that may be entered and not listed gives as well, and the
-# process stays in the directory it is in.
+# process stays in the directory it is in. A place is opened whatever
+# the directory lets its user do, and a directory that cannot be
+# entered has no name here, -13: "." is looked for in it, which the
+# kernel allows where it allows the entering.
 fn rt_real rt_p rt_n rt_q rt_m
 	local rt_z 4096
 	local rt_b 40
@@ -200,6 +203,13 @@ fn rt_real rt_p rt_n rt_q rt_m
 	ifslt rt_fd 0
 		ret rt_fd
 	end
+	set ".\0" as rt_d
+	sys openat rt_fd rt_d 0x290000 0 as rt_r
+	ifslt rt_r 0
+		sys close rt_fd
+		ret rt_r
+	end
+	sys close rt_r
 	set "/proc/self/fd/" as rt_d
 	rt_i=0
 	while rt_i<14

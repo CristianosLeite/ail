@@ -205,8 +205,8 @@ end
 # Add to the buffer tlb the path of the directory of tln bytes at tlp as
 # the kernel names it, from the root and with no link and no ".." in
 # it, so that two paths of one directory give the same bytes: 1, or 0 if
-# it is no directory that can be entered. The current directory is
-# entered again.
+# it is no directory that can be entered. The process stays in the
+# directory it is in.
 fn tlreal tlb tlp tln
 	local tlz 4096
 	rt real tlp tln tlz 4096 as tlr
