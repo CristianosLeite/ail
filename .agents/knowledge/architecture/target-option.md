@@ -61,12 +61,31 @@ user to review.
   Linux. The command `ail` itself still runs on Linux alone
   (`docs/TODO.md`).
 
+- **The command runs on Windows, and a release has an archive for it**
+  (user, 2026-11-28: "A release 0.2.5 já deve conter o executável do
+  ail", and asked which, the one for Windows). The agent chose the
+  rest: the same sources with the platform asked of the runtime where
+  it matters (`tlwin` of `cli/tool.aiw`), no second set of files; an
+  archive `ail-<version>-x86_64-windows.tar.gz` with the layout of the
+  one for Linux, a `tar.gz` because the `tar` of Windows 10 and later
+  unpacks it and the build has no tool that writes a zip; in it the
+  compiler for Windows as a program of Windows and no other compiler,
+  so `--target` names nothing there; an executable of a build on
+  Windows is `build/<name>.exe`.
+- **The service `access`, the 65th** (user, 2026-11-28, for aildb): 1 to
+  run, 4 to read. On Windows a file to run must start with `MZ`, since
+  `start` gives Windows the file by its path. The compiler had room for
+  64 services in two tables and has it for 128; `tests/tables.sh` held
+  the first limit and holds the second.
+
 ## What is not known
 
 - Wine: this machine has none. WSL gives a program of Windows only
   the variables of the environment that `WSLENV` names, so the script
   `wine` of this machine names `AIL_TMP` and `AIL_HOME` there; Wine
   gives a program the whole environment.
+- The command on Windows beyond what `win_ail` runs: `add`, `update` and
+  a build with dependencies, which start git, and `init`.
 - A package whose sources still have `sys`: `ail test --target` builds
   every executable of the manifest first and ends with 1 at the first
   that does not compile, as without a target.

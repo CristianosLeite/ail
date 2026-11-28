@@ -102,6 +102,24 @@ all: $(B)/ailc-$(WT)
 $(B)/ailc-$(WT): $(SRC) $(WTDIR)/target.aiw $(WTDIR)/imports.aiw $(B)/rt/$(WT)/source.aiw $(B)/ailc
 	$(call compile,$(B)/ailc $(WPKGS))
 
+# AIL for Windows itself (docs/cli.md): the command, the compiler and the
+# formatter as programs of Windows, each compiled here by the compiler
+# for Windows. The compiler is the one tests/win.sh shows to compile
+# itself to the same file there.
+WAIL := $(B)/$(WT)/ail.exe $(B)/$(WT)/ailc.exe $(B)/$(WT)/indent.exe
+
+$(B)/$(WT)/ail.exe: cli/ail.aiw cli/manifest.aiw cli/tool.aiw cli/deps.aiw $(TL) lib/std/proc.aiw $(B)/ailc-$(WT)
+	@mkdir -p $(@D)
+	$(call compile,$(B)/ailc-$(WT))
+
+$(B)/$(WT)/ailc.exe: $(SRC) $(WTDIR)/target.aiw $(WTDIR)/imports.aiw $(B)/rt/$(WT)/source.aiw $(B)/ailc-$(WT)
+	@mkdir -p $(@D)
+	$(call compile,$(B)/ailc-$(WT) $(WPKGS))
+
+$(B)/$(WT)/indent.exe: tools/indent.aiw $(TL) tools/lib/dent.aiw $(B)/ailc-$(WT)
+	@mkdir -p $(@D)
+	$(call compile,$(B)/ailc-$(WT))
+
 # an example for Windows: build/windows-x86_64/<name>.exe
 $(B)/$(WT)/%.exe: examples/%.aiw $(B)/ailc-$(WT)
 	@mkdir -p $(@D)
@@ -128,7 +146,7 @@ $(B)/ailc2: $(SRC) $(TSRC) $(RTSRC) $(B)/ailc
 
 # Each run names its compiler, so an AILC in the environment of make
 # changes nothing.
-test: all $(B)/ailc2 $(TOOLS) $(B)/ailc-$(WT)
+test: all $(B)/ailc2 $(TOOLS) $(B)/ailc-$(WT) $(WAIL)
 ifeq ($(T),)
 	@f=0; AILC=$(B)/ailc tests/run.sh || f=1; AILC=$(B)/ailc tests/io.sh || f=1; \
 	AILC=$(B)/ailc tests/pkg.sh || f=1; tests/cli.sh || f=1; tests/install.sh || f=1; \
@@ -162,13 +180,20 @@ install: all
 # build/ail-<version>-x86_64-linux.tar.gz, which unpacks into a
 # directory of that name with bin/ and lib/ in it.
 DIST := ail-$(VERSION)-x86_64-linux
+# and for x86-64 Windows, with the programs of Windows in the same
+# places: build/ail-<version>-x86_64-windows.tar.gz, which the tar of
+# Windows unpacks.
+WDIST := ail-$(VERSION)-x86_64-windows
 
-dist: all
-	rm -rf $(B)/$(DIST)
+dist: all $(WAIL)
+	rm -rf $(B)/$(DIST) $(B)/$(WDIST)
 	tools/install.sh $(B) $(B)/$(DIST)
 	tar -C $(B) --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -czf $(B)/$(DIST).tar.gz $(DIST)
-	rm -rf $(B)/$(DIST)
+	tools/install.sh $(B) $(B)/$(WDIST) windows
+	tar -C $(B) --sort=name --owner=0 --group=0 --numeric-owner --mtime=@0 -czf $(B)/$(WDIST).tar.gz $(WDIST)
+	rm -rf $(B)/$(DIST) $(B)/$(WDIST)
 	@echo $(B)/$(DIST).tar.gz
+	@echo $(B)/$(WDIST).tar.gz
 
 clean:
 	rm -rf $(B)

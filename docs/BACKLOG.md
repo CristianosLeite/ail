@@ -860,6 +860,29 @@ it; `TODO.md` has what is decided and what is left.
   installation and from the archive and looks at the first bytes of
   the executable; it runs none.
 
+- [x] The command `ail` on Windows, and an archive for Windows (user,
+  2026-11-28: the release 0.2.5 is to have the executable of `ail`
+  for Windows; how it is done is the agent's). The command found no
+  AIL there: it parted the path of its own program at `/`, took a
+  path from the root for one that starts with `/`, looked for
+  `ailc` and `indent` under those names, opened `/dev/null`, went up
+  from a directory until its path was one byte long, and took the
+  error of Linux for a directory that is removed as a file.
+  `cli/tool.aiw` asks the runtime for the platform (`tlwin`) and has
+  the separator, the path from the root, the empty device and the
+  name of a program for both; a search for the package ends where
+  the directory above is the directory itself; an executable of a
+  build on Windows is `build/<name>.exe`. `make` compiles
+  `build/windows-x86_64/ail.exe`, `ailc.exe` and `indent.exe` with the
+  compiler for Windows, `tools/install.sh BUILD PREFIX windows` puts
+  them where an installation has them, and `make dist` writes
+  `ail-<version>-x86_64-windows.tar.gz` beside the archive for Linux.
+  `tests/win.sh` has the check `win_ail`: version, a package made,
+  built, run, tested, checked for its format and cleaned, with that
+  installation. `tests/install.sh` looks into the archive. Not
+  tried on Windows: `add`, `update` and a build with dependencies,
+  which start git; `init`; the cases of `tests/cli.sh`.
+
 ## Text formats and the network
 
 What a program needs to talk to another one: numbers and JSON read from

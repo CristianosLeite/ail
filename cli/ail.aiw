@@ -34,6 +34,7 @@ buf gbase 24        # where its executables go, "build/" or "build/<target>/"
 buf gtests 24       # and what its tests leave, that and "tests/"
 buf gskip 24        # tests/<target>.skip, the tests that are not for it
 var gexe            # 1 if the name of an executable of it ends in ".exe"
+var gwine           # 1 if its tests are programs of Windows and the command runs elsewhere
 buf uman 24         # the manifest and the lock as a command found them,
 buf ulock 24        # written back by fail if undo is 1; ulocked is 1 if
 var undo ulocked    # there was a lock
@@ -121,7 +122,9 @@ fn target a
 	call bycut gcc 0
 	call bycut gbase 0
 	call bycut gtests 0
-	gexe=0
+	# on Windows the command builds programs of Windows
+	call tlwin as gexe
+	gwine=0
 	load tlailc as q
 	load tlailc+8 as m
 	call byadd gcc q m-1
@@ -142,10 +145,14 @@ fn target a
 		call byadd gcc p n
 		call byadd gbase p n
 		call byaddb gbase 47
-		# a program of Windows has a name that ends so
+		# a program of Windows has a name that ends so, and is run by
+		# wine where the command is no program of Windows itself
+		gexe=0
 		if n>8
 			call mfeq p 8 "windows-" as gexe
 		end
+		call tlwin as r
+		gwine=gexe&(r==0)
 		a+=2
 	end
 	load gbase as q
@@ -454,6 +461,9 @@ fn cmdrun
 	call byadd gout q m
 	call byadd gout "/build/"
 	call byadd gout p n
+	if gexe
+		call byadd gout ".exe"
+	end
 	call byaddb gout 0
 	call bycut gargs 0
 	load gout as q
@@ -603,7 +613,8 @@ fn cmdnew
 	call byadd gargs "git\0init\0-q\0"
 	call byadd gargs p n
 	call byaddb gargs 0
-	call fileopen "/dev/null" 2 0 as fd
+	call tlnull as q m
+	call fileopen q m 2 0 as fd
 	ifsge fd 0
 		call tlrun gargs fd fd fd
 		rt close fd
@@ -633,7 +644,8 @@ fn cmdinit
 		p=q+m
 		while p>q
 			loadb p-1 as x
-			if x==47
+			call tlsep x as r
+			if r
 				jmp cut
 			end
 			p-=1
@@ -763,7 +775,7 @@ fn testone p n
 	# the program: its path with a slash, so that it is not searched for;
 	# one of Windows is the argument of wine
 	call bycut gargs 0
-	if gexe
+	if gwine
 		call byadd gargs "wine\0"
 	else
 		call byadd gargs "./"
@@ -780,7 +792,8 @@ fn testone p n
 	load tc as q
 	load tc+8 as m
 	call fileopen q m 0x241 420 as err
-	call fileopen "/dev/null" 0 0 as in
+	call tlnull as q m
+	call fileopen q m 0 0 as in
 	ifslt in|out|err 0
 		call fail stio "cannot write the files of the test in build/tests" ""
 	end
@@ -931,7 +944,7 @@ fn cmdtest
 	load gtests as p
 	load gtests+8 as n
 	call dir p n-1
-	if gexe
+	if gwine
 		call tlonpath "wine" as r
 		ifz r
 			load gtarget as p
@@ -1200,7 +1213,8 @@ fn cmdadd
 		load tlroot as q
 		load tlroot+8 as m
 		call mfeq p n q m as r
-		if (x!=47)&(r==0)
+		call tlabs vp vn as x
+		if (x==0)&(r==0)
 			call byadd xdir p n
 			call byaddb xdir 47
 		end

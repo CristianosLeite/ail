@@ -75,6 +75,11 @@ rm -f "$file"
 make -s dist > "$tmp/said" 2>&1
 yes dist_make [ $? -eq 0 ]
 yes dist_file [ -f "$file" ]
+# the file for Windows, whose programs are not run here
+wfile=build/ail-$version-x86_64-windows.tar.gz
+yes dist_windows_file [ -f "$wfile" ]
+yes dist_windows_programs [ "$(tar -tzf "$wfile" | grep -c -e '/bin/ail.exe$' -e '/lib/ail/ailc.exe$' -e '/lib/ail/indent.exe$' -e '/lib/ail/Ailfile$' -e '/lib/ail/lib/std/io.aiw$')" = 5 ]
+rm -f "$wfile"
 mkdir "$tmp/u" && tar -C "$tmp/u" -xzf "$file"
 yes dist_one_directory [ "$(ls "$tmp/u")" = "ail-$version-x86_64-linux" ]
 works dist "$tmp/u/ail-$version-x86_64-linux"

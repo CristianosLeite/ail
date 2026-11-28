@@ -73,10 +73,11 @@ published; the seed 7, which had the runtime in C, is not.
   there: what the tests of faults are to expect, the six services of
   2026-11-27 and the five of 2026-11-28 under Wine, and the command
   `ail`, which builds and tests a package for Windows from Linux
-  since 2026-11-28 (`--target`, [cli.md](cli.md)) and which the
-  compiler for Windows compiles now that it has no `sys`
-  ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
-  `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64
+  since 2026-11-28 (`--target`, [cli.md](cli.md)) and runs on
+  Windows itself since the same day ([BACKLOG.md](BACKLOG.md)); its
+  tests there are one check of `tests/win.sh`, where `tests/cli.sh`
+  has hundreds for Linux, and its dependencies from git were not
+  tried on Windows. Linux on aarch64
   is to do. Its tools need no installation by root: `apt-get download
   qemu-user binutils-aarch64-linux-gnu` and `dpkg -x` into a directory
   give `qemu-aarch64` and `aarch64-linux-gnu-as`, which ran a program

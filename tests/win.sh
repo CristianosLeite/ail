@@ -33,6 +33,10 @@
 #   there (docs/cli.md, --target): the executable with its ending, a
 #   test that finds its directory and starts the executable, and a test
 #   that tests/windows-x86_64.skip names left out.
+# - The command ail as a program of Windows (build/windows-x86_64/ail.exe),
+#   in an installation of tools/install.sh with the compiler and the
+#   formatter of Windows, must make a package, build it, run it, test
+#   it, check its format and clean it.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -220,6 +224,29 @@ got=$(cd $tmp/pkg && timeout 120 ../../../ail test --target windows-x86_64 2> /d
 ok   starts
 1 test, 0 failed, 1 skipped" ] || r=1
 say win_package $r
+
+# AIL installed for Windows: the command makes a package and works on it
+r=0
+tools/install.sh build $tmp/wp windows > /dev/null 2>&1 || r=1
+wa=$PWD/$tmp/wp/bin/ail.exe
+chmod +x $tmp/wp/bin/ail.exe $tmp/wp/lib/ail/*.exe 2> /dev/null
+(
+    unset AIL_HOME
+    mkdir $tmp/wk && cd $tmp/wk || exit 1
+    v=$(sed -n 's/^version //p' ../../../../Ailfile)
+    [ "$(timeout 60 wine $wa version 2> /dev/null | tr -d '\r')" = "ail $v" ] || exit 1
+    timeout 60 wine $wa new demo > /dev/null 2>&1 || exit 1
+    cd demo || exit 1
+    timeout 60 wine $wa build > /dev/null 2>&1 || exit 1
+    [ -f build/demo.exe ] || exit 1
+    [ "$(timeout 60 wine $wa run 2> /dev/null | tr -d '\r')" = "hello from demo" ] || exit 1
+    [ "$(timeout 60 wine $wa test 2> /dev/null | tr -d '\r')" = "ok   hello
+1 test, 0 failed" ] || exit 1
+    timeout 60 wine $wa fmt --check > /dev/null 2>&1 || exit 1
+    timeout 60 wine $wa clean > /dev/null 2>&1 || exit 1
+    [ ! -e build ] || exit 1
+) || r=1
+say win_ail $r
 
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,

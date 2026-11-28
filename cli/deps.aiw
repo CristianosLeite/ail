@@ -109,10 +109,11 @@ fn dpgit dpquiet
 		ret -2000
 	end
 	dperr=-1
+	call tlnull as dpq dpm
 	if dpquiet
-		call fileopen "/dev/null" 1 0 as dperr
+		call fileopen dpq dpm 1 0 as dperr
 	end
-	call fileopen "/dev/null" 0 0 as dpin
+	call fileopen dpq dpm 0 0 as dpin
 	call tlrun dpargs dpin dpout dperr as dps
 	rt close dpin
 	rt close dpout
@@ -347,8 +348,8 @@ fn dpone dpe dpp dpn dpt dps dpd
 	call bycut dpreal 0
 	if dpkind==mfpath
 		# its directory is read from that of the package that names it
-		loadb dpv as dpc
-		if (dpc!=47)&(dpn>0)
+		call tlabs dpv dpvn as dpc
+		if (dpc==0)&(dpn>0)
 			call byadd dpd dpp dpn
 			call byaddb dpd 47
 		end

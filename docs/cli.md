@@ -261,6 +261,28 @@ which unpacks into a directory of that name with `bin/` and `lib/` in it:
 the file of a release, for a machine that has no checkout and no seed.
 It is used where it is unpacked, with its `bin/` on `PATH`.
 
+### On Windows
+
+`make dist` also writes `build/ail-<version>-x86_64-windows.tar.gz`, AIL
+for a machine with Windows on x86-64, which the `tar` of Windows
+unpacks: `bin\ail.exe`, and in `lib\ail\` the compiler `ailc.exe`, the
+formatter `indent.exe`, the manifest, the licence and the library. They
+are the same sources, compiled by the compiler for Windows
+(`make build/windows-x86_64/ail.exe`). With `bin\` on `PATH` the command
+does there what it does on Linux, and what it builds are programs of
+Windows:
+
+- an executable is `build\<name>.exe`, and `ail run` starts it;
+- a path may have `\` or `/`, a path from the root has a drive, and a
+  package is looked for up to the root of its drive;
+- `--target` names no other platform there: the archive has the
+  compiler for Windows alone;
+- git is the `git` that `PATH` has, for `new`, `add`, `update` and the
+  dependencies of a build.
+
+`tests/win.sh` runs the command so (`win_ail`): a package made, built,
+run, tested, checked for its format and cleaned.
+
 One AIL is installed under a prefix. A package that asks for a later one
 is refused by the command and built after AIL is installed again;
 several versions side by side are not managed ([TODO.md](TODO.md)).
@@ -278,7 +300,8 @@ looks, in this order:
    `build/`.
 
 Such a directory has `Ailfile`, `lib/`, the compiler as `ailc` or as
-`build/ailc`, and the formatter as `indent` or as `build/tools/indent`.
+`build/ailc`, and the formatter as `indent` or as `build/tools/indent`;
+on Windows each of them with `.exe` after its name.
 The compiler for a target is beside the compiler, with the target after
 its name: `ailc-windows-x86_64`, which `make` builds and an
 installation has. The line `ail` of a manifest is compared with the version

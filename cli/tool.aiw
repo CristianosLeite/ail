@@ -15,6 +15,66 @@ var tlvp tlvn
 buf tlcwd 24        # the directory the command was started in
 buf tlroot 24       # the directory of the package, once tlenter found it
 var tllocked        # 1 once this process has the lock of the package
+var tlplat          # the platform the command was compiled for, once asked
+
+# 1 if the command runs on Windows: there a path has a drive and "\",
+# a program a name that ends in ".exe", and the empty device another
+# name
+fn tlwin
+	ifz tlplat
+		rt platform as tlplat
+	end
+	ret tlplat==2
+end
+
+# the path of the device that is empty, its address and length
+fn tlnull
+	call tlwin as tlw
+	if tlw
+		set "NUL" as tlp
+		ret tlp 3
+	end
+	set "/dev/null" as tlp
+	ret tlp 9
+end
+
+# 1 if the byte tlc parts the names of a path: "/", and on Windows "\"
+fn tlsep tlc
+	if tlc==47
+		ret 1
+	end
+	call tlwin as tlw
+	ret tlw&(tlc==92)
+end
+
+# 1 if the tln bytes at tlp are a path from the root: one that starts
+# with "/", or on Windows with a letter, a colon and "\" or "/", or
+# with two of those
+fn tlabs tlp tln
+	ifz tln
+		ret 0
+	end
+	loadb tlp as tlc
+	call tlwin as tlw
+	ifz tlw
+		ret tlc==47
+	end
+	if tln<2
+		ret 0
+	end
+	loadb tlp+1 as tld
+	call tlsep tlc as tla
+	call tlsep tld as tlb
+	if tla&tlb
+		ret 1
+	end
+	if tln<3
+		ret 0
+	end
+	loadb tlp+2 as tle
+	call tlsep tle as tlb
+	ret ((tlc|32)-97<26)&(tld==58)&tlb
+end
 
 # Have the descriptors 0, 1 and 2 open: one that is closed is given
 # /dev/null. A file that this process opens then never gets one of the
@@ -23,7 +83,8 @@ var tllocked        # 1 once this process has the lock of the package
 fn tlstd
 	label more
 	# opened without the flag that closes it in a program started
-	rt open "/dev/null" 2 0 as tlfd
+	call tlnull as tlq tlm
+	rt open tlq tlm 2 0 as tlfd
 	ifslt tlfd 0
 		ret 0
 	end
@@ -34,12 +95,13 @@ fn tlstd
 	ret 1
 end
 
-# 1 if the tln bytes at tlp have a "/"
+# 1 if the tln bytes at tlp have a "/", or on Windows a "\"
 fn tlfind47 tlp tln
 	tli=0
 	while tli<tln
 		loadb tlp+tli as tlc
-		if tlc==47
+		call tlsep tlc as tlr
+		if tlr
 			ret 1
 		end
 		tli+=1
@@ -102,6 +164,26 @@ fn tlonpath tlp tln
 	ret tlr
 end
 
+# Make the path in the buffer tlb that of a program that is there: 1 if
+# a file is at it, or, on Windows, at it with ".exe" after it, which the
+# buffer then has; 0 if neither.
+fn tlprog tlb
+	load tlb as tlq
+	load tlb+8 as tlm
+	call tlisfile tlq tlm as tlr
+	if tlr
+		ret 1
+	end
+	call tlwin as tlw
+	ifz tlw
+		ret 0
+	end
+	call byadd tlb ".exe"
+	load tlb as tlq
+	load tlb+8 as tlm
+	tail tlisfile tlq tlm
+end
+
 # add the directory this process is in to the buffer tlb: 1, or 0
 fn tlgetdir tlb
 	local tlz 4096
@@ -147,16 +229,12 @@ fn tlhomeat tlp tln
 	call bycut tlailc 0
 	call byadd tlailc tlp tln
 	call byadd tlailc "/ailc"
-	load tlailc as tlq
-	load tlailc+8 as tlm
-	call tlisfile tlq tlm as tlr
+	call tlprog tlailc as tlr
 	ifz tlr
 		call bycut tlailc 0
 		call byadd tlailc tlp tln
 		call byadd tlailc "/build/ailc"
-		load tlailc as tlq
-		load tlailc+8 as tlm
-		call tlisfile tlq tlm as tlr
+		call tlprog tlailc as tlr
 		ifz tlr
 			ret 0
 		end
@@ -166,16 +244,12 @@ fn tlhomeat tlp tln
 	call bycut tlindent 0
 	call byadd tlindent tlp tln
 	call byadd tlindent "/indent"
-	load tlindent as tlq
-	load tlindent+8 as tlm
-	call tlisfile tlq tlm as tlr
+	call tlprog tlindent as tlr
 	ifz tlr
 		call bycut tlindent 0
 		call byadd tlindent tlp tln
 		call byadd tlindent "/build/tools/indent"
-		load tlindent as tlq
-		load tlindent+8 as tlm
-		call tlisfile tlq tlm as tlr
+		call tlprog tlindent as tlr
 	end
 	if tlr
 		call byaddb tlindent 0
@@ -204,8 +278,8 @@ fn tlfind
 	store tlb+16 0
 	call procvar "AIL_HOME" as tlp tln
 	if tln
-		loadb tlp as tlc
-		if tlc!=47
+		call tlabs tlp tln as tlr
+		ifz tlr
 			load tlcwd as tlq
 			load tlcwd+8 as tlm
 			call byadd tlb tlq tlm
@@ -225,7 +299,8 @@ fn tlfind
 	# the directory of the executable
 	while tln
 		loadb tlz+tln-1 as tlc
-		if tlc==47
+		call tlsep tlc as tlr
+		if tlr
 			jmp cut
 		end
 		tln-=1
@@ -269,6 +344,7 @@ end
 # go past it to a package above.
 fn tlenter
 	local tlz 4096
+	local tly 4096
 	label look
 	call fileopen "Ailfile" 0 0 as tlr
 	ifsge tlr 0
@@ -279,11 +355,17 @@ fn tlenter
 		call tlgetdir tlroot as tlr
 		ret tlr
 	end
+	# up, until the directory above is the directory itself: a root,
+	# "/" or that of a drive
 	rt cwd tlz 4096 as tlr
-	if tlr!=1
-		rt chdir ".." as tlr
-		ifz tlr
-			jmp look
+	ifsgt tlr 0
+		rt chdir ".." as tlk
+		ifz tlk
+			rt cwd tly 4096 as tlk
+			call mfeq tlz tlr tly tlk as tlsame
+			ifz tlsame
+				jmp look
+			end
 		end
 	end
 	ret 0
@@ -411,7 +493,12 @@ fn tlremove tlp tln
 		ret 0
 	end
 	if tlr!=-21
-		ret tlr
+		# Windows refuses to remove a directory as a file with another
+		# error than Linux: what is there is asked
+		rt kind tlp tln as tlk
+		if tlk!=2
+			ret tlr
+		end
 	end
 	store tlb 0
 	store tlb+8 0
