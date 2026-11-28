@@ -53,17 +53,13 @@ source that the compiler compiles with every program
 the runtime of Windows as far as Wine shows it. The seed 8 is
 published; the seed 7, which had the runtime in C, is not.
 
-- [ ] An executable of Windows that Windows loads where it chooses
-  (user, 2026-11-28: in a pull request of its own). The header says
-  that the image has no relocations and is loaded at 0x140000000
-  alone, though no instruction has an address; a linker of Microsoft
-  writes an image that may be moved (`DYNAMICBASE`,
-  `HIGHENTROPYVA`), with a time of linking, a sum and a resource of
-  its version. Microsoft Defender takes a program of the tests for
-  malware now and then ([runtime.md](runtime.md)); this is done for
-  what it is, and nothing is to be tuned until a scan passes: what
-  the documents of Microsoft offer a developer is to submit the file
-  that was taken and to sign what is released.
+- [ ] What else a linker of Microsoft writes into an executable and
+  the compiler for Windows does not: a time of linking, a sum of the
+  file and a resource with its version. Microsoft Defender takes a
+  program of the tests for malware now and then
+  ([runtime.md](runtime.md)), and what the documents of Microsoft
+  offer a developer is to submit the file that was taken and to sign
+  what is released; nothing is to be tuned until a scan passes.
 - [ ] A second platform, and a third (user, 2026-11-26). First Windows
   on x86-64, run under Wine: the same instructions, another form of
   executable, another convention for calls, and no system calls, so

@@ -1,7 +1,7 @@
 ---
 title: Five services for a program that stays inside a directory
 last-verified: 2026-11-28
-sources: [conversation 2026-11-28, docs/TODO.md of aildb (step 19), rt/linux-x86_64/rt.aiw, rt/windows-x86_64/rt.aiw, docs/runtime.md, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
+sources: [conversation 2026-11-28, REVIEW.md of 2026-11-28 (a review of c5ed7fb, never part of the repository), docs/TODO.md of aildb (step 19), rt/linux-x86_64/rt.aiw, rt/windows-x86_64/rt.aiw, docs/runtime.md, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
 status: current
 ---
 # Five services for a program that stays inside a directory
@@ -88,14 +88,77 @@ agent's, and waits for the user's review.
   the services of Windows passed the 48 KiB the compiler kept for
   them with `openat`.
 
+## The review of c5ed7fb
+
+The user gave the agent a review of the pull request at `c5ed7fb`
+(2026-11-28, a file `REVIEW.md` of the repository aildb that is no
+part of either repository) and had it answered: five findings, one
+commit each. How each is answered is the agent's, for the user to
+review.
+
+- **`kill` without a descriptor sends a signal only to a number that
+  is sure to be the child's** (review, P1; agent). Linux gives no
+  descriptor of a child before 5.3 and when the process has every
+  descriptor it may have, and the signal then went to the number
+  after a question, with a `reap` of another thread or the kernel
+  free to take the child between the two. The question and the
+  signal are under the lock of the list of `reap`, and nothing is
+  sent for a number that a `reap` of another thread waits for or in
+  a process that ignores `SIGCHLD` or has `SA_NOCLDWAIT`: the error
+  of `pidfd_open` is the result. Rejected: no way without a
+  descriptor at all, which would leave an old kernel without the
+  service; and waking the thread that waits in `reap`, which the
+  runtime has no way to do.
+- **A number that is no descriptor is -9** (review, P2; agent), in
+  `openat` and in `lockfd` of Linux, where the kernel takes -100 for
+  the directory of the process and reads 32 bits. The other services
+  of a descriptor are as they were, which the review did not ask.
+- **A descriptor opened only to be asked is noted on Windows**
+  (review, P2; agent), where the handle is an ordinary one that may
+  do little. It is the directory of another `openat` whether 0x10000
+  was asked or not, a directory to be made is made, and it has no
+  record of names. The review offered this or a narrower contract
+  on both platforms; the agent took the first, and made what else
+  such a descriptor answers the same as on Linux, -9 for a read, a
+  write, a lock and its names, which was -13 for a read before.
+- **0x800000 of `openat`: a file that keeps its name while it is
+  open** (review, P2, for aildb; agent). A file is shared with those
+  that remove or rename it, so the file of a lock taken by `lockfd`
+  could be renamed and a second one locked under its name; aildb
+  asks that the file of the lock of an index is not removed while
+  the lock is held on Windows. The flag is of the open, since that
+  is where Windows decides it, and holds from the open on, also
+  while a program waits for the lock. On Linux it does nothing, and
+  is taken out of what the kernel gets: no file keeps its name
+  there, and a program for both platforms does not count on it.
+  Rejected: a second handle that `lockfd` takes, which holds the
+  name only once the lock is had; a service that opens and locks in
+  one, a second way to open below a directory; and no sharing with
+  those that remove a file for every `openat`, which would change
+  what a program may do with a file it has open.
+- **`fdpath` asks the path what is at it** (review, P3; agent). The
+  kernel says the name a file was opened by with ` (deleted)` behind
+  it once that name is removed, though the file has another, so the
+  count of its names did not tell. The path is -2 unless the file of
+  the descriptor is at it, by device and number, which also lets a
+  file be named `x (deleted)`. Rejected: looking for the mark in the
+  string, which such a name would be taken for.
+
+The review also said of `sync` of a directory on Windows that its
+success shows a request that Windows took and no more, which is
+what this page says below.
+
 ## What is not known
 
 - Wine: this machine has none. `openat` asks `ntdll.dll` for
   `NtCreateFile` and `RtlNtStatusToDosError`, and `tests/win/link.aiw`
   has `cmd` make a junction, which the test skips where none is
   made.
-- `kill` and `reap` by the number of a child, the way for a Linux
-  before 5.4, were not run: the kernel here is 6.18.
+- `reap` by the number of a child, the way for a Linux before 5.4,
+  was not run: the kernel here is 6.18. `kill` by the number is run
+  by `rt_kill_nofd`, which takes the descriptors away; a `kill`
+  while another thread waits in `reap` for the same child has no
+  test, since nothing holds the two still.
 - Whether a relative open from a handle that is on a junction itself
   stays in the junction: `openat` refuses a junction as a directory,
   so nothing depends on it.
@@ -107,6 +170,18 @@ agent's, and waits for the user's review.
   was tried.
 
 ## Runs
+
+- 2026-11-28, at `2751fe7`, the five fixes after the review of
+  `c5ed7fb` on `main` with the pull request 43 merged into the
+  branch, Ubuntu under WSL 2: `make test` status 0, 3164 lines of ok.
+- The same day and revision, `tests/win.sh all` with the tree on
+  NTFS and the programs started on Windows 11 itself: status 0,
+  `win_tests (616 run)` and fifteen named checks, `win_stale_watch`
+  among them: `stale.exe` was started and ended as the test asks.
+  It is the first run of that test at a head of this branch that
+  Microsoft Defender did not stop; the runtime has other bytes than
+  at `63bec88` and the header those of the pull request 43, and
+  which of the two it comes with is not known.
 
 - 2026-11-28, at `63bec88`, Ubuntu under WSL 2: `make test` status
   0, 3156 lines of ok.
