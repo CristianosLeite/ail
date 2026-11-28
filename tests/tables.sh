@@ -102,7 +102,7 @@ END {
         if (rtnum[n] != svc[n]) bad("statement and service of another entry: " n)
         else if (rtargs[n] != svccnt[n]) bad("statement and service of other values: " n)
     }
-    if (rtmax > 63) bad("more services than the compiler has room for")
+    if (rtmax > 127) bad("more services than the compiler has room for")
     for (t in size) if (count[t] != size[t]) bad("table " t " has " count[t] + 0 " bytes, not " size[t])
     for (t in count) if (!(t in size)) bad("unknown table: " t)
     if (!("optab" in seen)) bad("no optab")

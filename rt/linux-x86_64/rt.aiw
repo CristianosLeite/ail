@@ -2346,4 +2346,22 @@ fn rt_lockfd rt_fd
 	ret rt_r
 end
 
+# Whether this process may run (rt_how 1) or read (rt_how 4) what is at
+# the path of rt_n bytes at rt_p, a link followed: 0, or the error of
+# the kernel, -13 if it may not and -2 if nothing is there; -22 for
+# another rt_how. It is the system call access, which asks for the user
+# the process was started by.
+const rt_accessn 21
+fn rt_access rt_p rt_n rt_how
+	local rt_z 4096
+	if (rt_how!=1)&(rt_how!=4)
+		ret -22
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_accessn rt_z rt_how as rt_r
+	end
+	ret rt_r
+end
+
 label rt_go

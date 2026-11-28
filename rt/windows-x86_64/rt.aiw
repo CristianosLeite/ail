@@ -3583,4 +3583,73 @@ fn rt_lockfd rt_fd
 	ret 0
 end
 
+# Whether this process may run (rt_how 1) or read (rt_how 4) what is at
+# the path of rt_n bytes at rt_p: 0, or an error, -2 if nothing is
+# there; -22 for another rt_how. A directory may be both if Windows
+# says what it is. A file is opened for the right that is asked,
+# to read it or to read and execute it, which Windows refuses, -13,
+# where the process has not that right; and a file to run must start
+# with the two bytes of a program of Windows, "MZ", or it is -8: start
+# gives Windows the file, which runs nothing else.
+fn rt_access rt_p rt_n rt_how
+	local rt_z 4096
+	local rt_a 56
+	local rt_b 8
+	local rt_got 8
+	if (rt_how!=1)&(rt_how!=4)
+		ret -22
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	store rt_a rt_z
+	call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if rt_r==0xffffffff
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	if rt_r&16
+		ret 0
+	end
+	# GENERIC_READ, and GENERIC_EXECUTE with it for a file to run
+	rt_acc=0x80000000
+	if rt_how==1
+		rt_acc=0xa0000000
+	end
+	store rt_a rt_z
+	store rt_a+8 rt_acc
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 3
+	store rt_a+40 0x80
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	rt_r=0
+	if rt_how==1
+		store rt_b 0
+		store rt_got 0
+		store rt_a rt_h
+		store rt_a+8 rt_b
+		store rt_a+16 2
+		store rt_a+24 rt_got
+		store rt_a+32 0
+		call rt_api rt_i_readfile rt_a 5 as rt_ok
+		load rt_b as rt_c
+		load4 rt_got as rt_k
+		rt_r=-8
+		if (rt_ok&0xffffffff!=0)&(rt_k==2)&(rt_c==0x5a4d)
+			rt_r=0
+		end
+	end
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
+end
+
 label rt_go

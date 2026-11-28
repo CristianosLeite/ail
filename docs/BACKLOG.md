@@ -1662,3 +1662,20 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   it compiles and runs as it did, but for `sync` of a directory on
   Windows, which gave 0 without asking and is now what Windows
   answers; the notes of the release say so.
+- [x] Whether the process may run or read a file, the service `access`
+  (user, 2026-11-28, for the file of the allowed commands of aildb,
+  which finds a program in `PATH` as it will be started; the number,
+  the values and the errors are the agent's): the path and 1 to run
+  or 4 to read, 0 or an error, -13 where it may not, -2 where nothing
+  is there, -22 for another number. On Linux it is the system call
+  `access`. On Windows the file is opened for the right that is
+  asked, to read or to read and execute, and a file to run must
+  start with `MZ`, -8 otherwise, since `start` gives Windows the file
+  and Windows runs nothing else by its path. It is the service 64,
+  the 65th, and the compiler had room for 64 in two tables, `rtfn`
+  and `rtfl`: with the row alone the compiler wrote a file that was
+  no program. They have room for 128 now. The test is `rt_access`:
+  the program itself may be run and read, a file of text read and
+  not run, a directory both, what is not there neither. It passes on
+  Linux and on Windows 11 on NTFS, and is in the list `always` of
+  `tests/win.sh`.
