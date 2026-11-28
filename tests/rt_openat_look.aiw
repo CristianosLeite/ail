@@ -1,0 +1,61 @@
+# a directory opened only to be asked what it is, is the directory of
+# another openat: a file below it is opened and read through it. One
+# that is not there is made when that is asked for too, and is then
+# the directory of a file that is made. Such a descriptor is asked
+# what it is and nothing else: its names are not read, a file opened
+# so is not read and has no lock, and is no directory to open below
+buf b 512
+buf st 32
+data dir "build/tests/rt_openat_look.d"
+len dir as n
+rt unlink "build/tests/rt_openat_look.d/sub/f"
+rt rmdir "build/tests/rt_openat_look.d/sub"
+rt unlink "build/tests/rt_openat_look.d/new/g"
+rt rmdir "build/tests/rt_openat_look.d/new"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open dir n 0x10000 0 as d
+rt openat d "sub" 0x10040 493 as s
+rt openat s "f" 65 420 as f
+rt write f "hi\n" as w
+rt close f
+rt openat d "sub" 0x200000 0 as l
+rt fstat l st as r
+load st as kind
+rt openat l "f" 0 0 as f
+rt read f b 512 as k
+rt close f as c
+x=(d>2)&(s>2)&(w==3)&(l>2)&(r==0)&(kind==2)&(f>2)&(k==3)&(c==0)
+rt names l b 512 as e1
+rt close l
+rt openat d "new" 0x210040 493 as m
+rt fstat m st as r
+load st as kind
+rt openat m "g" 65 420 as g
+rt close g as c
+rt names m b 512 as e2
+rt openat d "new" 0x210040 493 as m2
+rt close m2 as c2
+x+=((m>2)&(r==0)&(kind==2)&(g>2)&(c==0)&(m2>2)&(c2==0))*2
+x+=((e1==-9)&(e2==-9))*4
+rt close m
+rt openat d "none" 0x200000 0 as e1
+rt openat d "none" 0x200040 420 as e2
+rt openat d "none" 0x210000 0 as e3
+rt kind "build/tests/rt_openat_look.d/none" as e4
+x+=((e1==-2)&(e2==-2)&(e3==-2)&(e4==-2))*8
+rt openat s "f" 0x200000 0 as l
+rt read l b 512 as e1
+rt lockfd l as e2
+rt openat l "x" 0 0 as e3
+rt close l as c
+x+=((l>2)&(e1==-9)&(e2==-9)&(e3==-20)&(c==0))*16
+rt close s
+rt close d
+rt unlink "build/tests/rt_openat_look.d/sub/f" as u1
+rt rmdir "build/tests/rt_openat_look.d/sub" as u2
+rt unlink "build/tests/rt_openat_look.d/new/g" as u3
+rt rmdir "build/tests/rt_openat_look.d/new" as u4
+rt rmdir dir n as u5
+x+=((u1|u2|u3|u4|u5)==0)*32
+rt exit x

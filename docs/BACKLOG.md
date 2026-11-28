@@ -1579,3 +1579,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   by the number and sent the signal by the descriptor. The test
   `rt_kill_nofd`, of Linux alone, with a limit of three open files;
   a `reap` of another thread during a `kill` has no test.
+- [x] A directory opened only to be asked is one on Windows too
+  (2026-11-28, the review of `c5ed7fb`): with 0x200000 of `openat`
+  and without 0x10000 the runtime of Windows gave a descriptor that
+  `fstat` called a directory and that a second `openat` refused
+  (-20), since only a directory that was asked for got the record
+  that made it one; and with 64 and 0x10000 too it made no directory
+  (-2), where Linux did both. A descriptor opened so is now noted,
+  has no record, and is the directory of another `openat` if Windows
+  says that its handle is one; a directory to be made is made. What
+  else such a descriptor does is the same on both now: -9 for a
+  read, a write, a lock and its names. The test `rt_openat_look`.
