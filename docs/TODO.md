@@ -97,3 +97,8 @@ published; the seed 7, which had the runtime in C, is not.
   through the variables of its function; a division by a constant is a
   division where C multiplies (`allocs` lost 13% to that before its
   sizes were a mask).
+- [ ] The tests that take an error for a descriptor: `(fd>2)` is true
+  of an error, since a comparison knows no sign, and in places it is
+  the only word of a test on an open (a review of `99c2a6a`, user,
+  2026-11-28, which asked for them to be looked through apart from
+  `tests/win/private.aiw`, where every descriptor is bounded now).

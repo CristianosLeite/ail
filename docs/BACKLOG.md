@@ -1786,3 +1786,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   and the check `win_private` on Windows, with a directory and a file
   that everybody may read, which open, and a directory and a file
   that `icacls` lets everybody change, which do not.
+- [x] `tests/win/private.aiw` takes no error for a descriptor (a
+  review of this branch at `99c2a6a`, user, 2026-11-28): the checks
+  of the fixture that were there before `99c2a6a` asked `(fd>2)` of
+  a descriptor, which is true of an error, since a comparison knows
+  no sign, and did not ask what a close gave. Every descriptor is
+  now asked to be above 2 and below 4096 and every close to be 0.
+  Other tests have `(fd>2)` as their only word on an open; to look
+  through them is an item of `TODO.md`.
