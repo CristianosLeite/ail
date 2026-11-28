@@ -1765,3 +1765,24 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   is taken out and the mode says it. `tests/win/private.aiw` and the
   check `win_private` of `tests/win.sh`, which asks `icacls` and is
   skipped where there is none.
+- [x] What `openat` opens with 0x1000000 must be the user's alone to
+  change (a review of aildb at `0e91ee8` and of this branch at
+  `969e21f`, user, 2026-11-28): the flag made what the call made the
+  user's alone and opened what was there as it was, so a program
+  that kept its files in a directory it opened so could not tell a
+  directory that somebody else may put files in, or take them out
+  of, from one it made. Now what the call opens, made by it or there
+  before, is asked: on Linux for its owner, the user the process acts
+  as or root, and its mode, with no bit to write for the group or the
+  others; on Windows for its owner and its rights
+  (`NtQuerySecurityObject`, one function more in the import tables),
+  where the user, the system and the administrators may change it
+  and nobody else. Anything else is the error -1, found before a file
+  is cut. That others may read the thing is no error. That the system
+  and the administrators are let be, that an entry that refuses is
+  not counted and that an entry of another kind is a no are the
+  agent's. `tests/rt_openat_mine.aiw` on Linux, with the modes that
+  `chmod` sets, named in `tests/win.skip`; `tests/win/private.aiw`
+  and the check `win_private` on Windows, with a directory and a file
+  that everybody may read, which open, and a directory and a file
+  that `icacls` lets everybody change, which do not.

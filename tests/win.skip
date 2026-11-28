@@ -40,3 +40,5 @@ rt_open_look
 rt_reap_wide
 # Windows does not say that a view has what is written to its file
 rt_map_written
+# the modes of Linux, which chmod does not set on Windows
+rt_openat_mine

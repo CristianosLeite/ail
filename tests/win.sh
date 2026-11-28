@@ -35,7 +35,8 @@
 # - tests/win/private.aiw must make a file and a directory that are
 #   the user's alone, with 0x1000000 of openat, in a directory that
 #   hands down a right to everybody: icacls of Windows says the rights.
-#   It is skipped where there is no icacls.
+#   What is there and everybody may change is refused with that flag.
+#   It is skipped where there is no icacls or no whoami.
 # - The command ail must build a package for Windows and run its tests
 #   there (docs/cli.md, --target): the executable with its ending, a
 #   test that finds its directory and starts the executable, and a test
@@ -206,15 +207,30 @@ fi
 # of Windows sets and says; skipped where there is no icacls, as under
 # Wine. A thing made without the flag has the entry of everybody (WD),
 # one made with it has one entry, for one user, and is protected (P),
-# and what is made in such a directory has that entry handed down (ID)
+# and what is made in such a directory has that entry handed down (ID).
+# What is opened with the flag must be the user's alone to change: a
+# directory and a file that everybody may read are, and a directory and
+# a file that everybody may change (M) are refused. The directory of
+# the check takes nothing over from the one above it, where other
+# accounts may have a right to change: it has the entry of everybody
+# and one for the user, whom whoami of Windows names
 r=0
-if command -v icacls.exe > /dev/null 2>&1; then
+# whoami of Windows, beside its icacls: another whoami.exe may be found first
+who=$(dirname "$(command -v icacls.exe 2> /dev/null)" 2> /dev/null)/whoami.exe
+if command -v icacls.exe > /dev/null 2>&1 && [ -x "$who" ]; then
     $wc < tests/win/private.aiw > $tmp/private.exe || r=1
     rm -rf $tmp/pv
     mkdir -p $tmp/pv
-    (cd $tmp && icacls.exe pv /grant '*S-1-1-0:(OI)(CI)R' > /dev/null 2>&1) || r=1
+    me=$("$who" /user /fo csv /nh 2> /dev/null | tr -d '\r"' | cut -d, -f2)
+    (cd $tmp && icacls.exe pv /inheritance:r /grant:r "*$me:(OI)(CI)F" '*S-1-1-0:(OI)(CI)R' > /dev/null 2>&1) || r=1
+    mkdir $tmp/pv/seen $tmp/pv/loose
+    printf 'keep
+' > $tmp/pv/read
+    printf 'keep
+' > $tmp/pv/shared
+    (cd $tmp/pv && icacls.exe loose /grant '*S-1-1-0:(OI)(CI)M' > /dev/null 2>&1 && icacls.exe shared /grant '*S-1-1-0:M' > /dev/null 2>&1) || r=1
     timeout 60 wine $tmp/private.exe $tmp/pv > /dev/null 2>&1
-    [ $? -eq 63 ] || r=1
+    [ $? -eq 127 ] || r=1
     # the rights of the name $2 in the directory $1, as icacls saves them
     acl() { (cd $1 && icacls.exe $2 /save acl.txt > /dev/null 2>&1 && tr -d '\000\r' < acl.txt | sed -n 2p); }
     case "$(acl $tmp/pv plain)" in *';WD)'*) ;; *) r=1 ;; esac
@@ -223,7 +239,7 @@ if command -v icacls.exe > /dev/null 2>&1; then
     case "$(acl $tmp/pv/dir in)" in 'D:(A;ID;FA;;;S-1-'*')('*) r=1 ;; 'D:(A;ID;FA;;;S-1-'*')') ;; *) r=1 ;; esac
     say win_private $r
 else
-    echo "skip win_private (no icacls)"
+    echo "skip win_private (no icacls or no whoami)"
 fi
 
 # a package built and tested for Windows by the command ail

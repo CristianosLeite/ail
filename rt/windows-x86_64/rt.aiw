@@ -3348,42 +3348,16 @@ end
 # the user's alone: one entry, which lets the user of the process do
 # everything, and nothing taken over from the directory the thing is
 # made in (protected, 0x1000 of its control). For a directory, rt_dir,
-# the entry is handed down to what is made in it (3 of its flags). The
-# user is the one of the token of the process, which ntdll says
-# (TokenUser, 1). rt_b, or 0 if Windows does not say it.
+# the entry is handed down to what is made in it (3 of its flags).
+# rt_b, or 0 if Windows does not say who the user is.
 fn rt_private rt_b rt_dir
-	local rt_a 40
-	local rt_t 8
 	local rt_u 96
-	local rt_l 8
-	store rt_t 0
-	# this process (-1), to be asked (8)
-	store rt_a -1
-	store rt_a+8 8
-	store rt_a+16 rt_t
-	call rt_api rt_i_ntopenprocesstoken rt_a 3 as rt_r
-	if rt_r&0xffffffff
+	call rt_tokuser rt_u as rt_s
+	ifz rt_s
 		ret 0
 	end
-	load rt_t as rt_h
-	store rt_a rt_h
-	store rt_a+8 1
-	store rt_a+16 rt_u
-	store rt_a+24 96
-	store rt_a+32 rt_l
-	call rt_api rt_i_ntqueryinformationtoken rt_a 5 as rt_r
-	store rt_a rt_h
-	call rt_api rt_i_closehandle rt_a 1
-	if rt_r&0xffffffff
-		ret 0
-	end
-	# the identifier of the user: 8 bytes and 4 for each of its numbers
-	load rt_u as rt_s
 	loadb rt_s+1 as rt_k
 	rt_n=8+rt_k*4
-	if rt_n>68
-		ret 0
-	end
 	zero rt_b 160
 	# the descriptor: its revision, a list that is there (4) and
 	# protected (0x1000), and where the list is
@@ -3410,6 +3384,156 @@ fn rt_private rt_b rt_dir
 	ret rt_b
 end
 
+# The user of the token of the process, which ntdll says (TokenUser,
+# 1), into the 96 bytes at rt_u: the address of the identifier there,
+# 8 bytes and 4 for each of its numbers, or 0 if Windows does not say
+# it or it has more than fifteen numbers.
+fn rt_tokuser rt_u
+	local rt_a 40
+	local rt_t 8
+	local rt_l 8
+	store rt_t 0
+	# this process (-1), to be asked (8)
+	store rt_a -1
+	store rt_a+8 8
+	store rt_a+16 rt_t
+	call rt_api rt_i_ntopenprocesstoken rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		ret 0
+	end
+	load rt_t as rt_h
+	store rt_a rt_h
+	store rt_a+8 1
+	store rt_a+16 rt_u
+	store rt_a+24 96
+	store rt_a+32 rt_l
+	call rt_api rt_i_ntqueryinformationtoken rt_a 5 as rt_r
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_r&0xffffffff
+		ret 0
+	end
+	load rt_u as rt_s
+	loadb rt_s+1 as rt_k
+	if rt_k>15
+		ret 0
+	end
+	ret rt_s
+end
+
+# 1 if the identifier at rt_p is one that may change a thing that is
+# the user's alone: the user, whose identifier is at rt_s, the system
+# (S-1-5-18) or the administrators (S-1-5-32-544), who can take any
+# thing of the machine for theirs whatever its rights say.
+fn rt_sidmine rt_p rt_s
+	load rt_p as rt_a
+	load4 rt_p+8 as rt_b
+	if (rt_a==0x0500000000000101)&(rt_b==18)
+		ret 1
+	end
+	if (rt_a==0x0500000000000201)&(rt_b==32)
+		load4 rt_p+12 as rt_b
+		if rt_b==544
+			ret 1
+		end
+	end
+	loadb rt_s+1 as rt_k
+	loadb rt_p+1 as rt_c
+	if rt_c!=rt_k
+		ret 0
+	end
+	rt_n=8+rt_k*4
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_s+rt_i as rt_c
+		loadb rt_p+rt_i as rt_b
+		if rt_c!=rt_b
+			ret 0
+		end
+		rt_i+=1
+	end
+	ret 1
+end
+
+# 1 if what the handle rt_h is open on, with the right to read its
+# rights (0x20000), is the user's alone to change: its owner is the
+# user, the system or the administrators (rt_sidmine), and it has a
+# list of rights (4 of the control of its descriptor, and a place) in
+# which every entry that allows one of the rights that change it names
+# one of the three. Those rights are 0x500d0156: to write it and to
+# add to it, which of a directory is to make a file and a directory in
+# it (2, 4), to write what is known of it (0x10, 0x100), to remove
+# what is in it (0x40) and itself (0x10000), to write its rights and
+# its owner (0x40000, 0x80000), and to write or do everything
+# (0x40000000, 0x10000000). An entry that refuses (1) takes nothing
+# from this, one that is only handed down (8 of its flags) is not of
+# the thing itself, and one of another kind than the two is not read:
+# 0. So is 0 what Windows says no rights of, and a volume that keeps
+# none, of which Windows says that everybody may do everything.
+fn rt_mine rt_h
+	local rt_a 40
+	local rt_u 96
+	local rt_l 8
+	local rt_z 4096
+	call rt_tokuser rt_u as rt_s
+	ifz rt_s
+		ret 0
+	end
+	# the owner (1) and the list of rights (4)
+	store rt_a rt_h
+	store rt_a+8 5
+	store rt_a+16 rt_z
+	store rt_a+24 4096
+	store rt_a+32 rt_l
+	call rt_api rt_i_ntquerysecurityobject rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		ret 0
+	end
+	loadb rt_z+2 as rt_c
+	load4 rt_z+4 as rt_o
+	load4 rt_z+16 as rt_d
+	if (rt_c&4==0)|(rt_o==0)|(rt_d==0)
+		ret 0
+	end
+	call rt_sidmine rt_z+rt_o rt_s as rt_r
+	ifz rt_r
+		ret 0
+	end
+	# the list: 8 bytes, the number of its entries in two at 4; an
+	# entry: its kind, its flags, its size in two bytes, the rights in
+	# four, and the identifier
+	rt_d+=rt_z
+	loadb rt_d+4 as rt_k
+	loadb rt_d+5 as rt_c
+	rt_k+=rt_c*256
+	rt_p=rt_d+8
+	while rt_k
+		loadb rt_p as rt_t
+		loadb rt_p+1 as rt_f
+		loadb rt_p+2 as rt_n
+		loadb rt_p+3 as rt_c
+		rt_n+=rt_c*256
+		if rt_t>1
+			ret 0
+		end
+		if (rt_t==0)&(rt_f&8==0)
+			load4 rt_p+4 as rt_m
+			if rt_m&0x500d0156
+				call rt_sidmine rt_p+8 rt_s as rt_r
+				ifz rt_r
+					ret 0
+				end
+			end
+		end
+		ifz rt_n
+			ret 0
+		end
+		rt_p+=rt_n
+		rt_k-=1
+	end
+	ret 1
+end
+
 # Open what has the name of rt_n bytes at rt_p in the directory that
 # rt_fd is open on: a descriptor, or an error. The flags are those of
 # rt_open, and 0x200000 to open it only to be asked what it is. What
@@ -3431,8 +3555,10 @@ end
 # rename it too, unless it is to keep its name (0x800000): Windows
 # then refuses both to every process while the descriptor is open, and
 # refuses this open (-13) while a handle may remove the file. What is
-# made with 0x1000000 is made the user's alone (rt_private); what is
-# there already is opened as it is.
+# made with 0x1000000 is made the user's alone (rt_private), and what
+# is opened with it, made by this call or there before, is asked for
+# its rights too (0x20000) and must be the user's alone to change
+# (rt_mine), or it is the error -1; that is found before a file is cut.
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	local rt_sdb 160
 	local rt_w 1040
@@ -3513,10 +3639,13 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 		rt_opt=rt_opt&0x200021|0x4000
 	end
 	rt_sd=0
-	if (rt_flags&0x1000000!=0)&(rt_how!=1)
-		call rt_private rt_sdb rt_dir as rt_sd
-		ifz rt_sd
-			ret -5
+	if rt_flags&0x1000000
+		rt_acc|=0x20000
+		if rt_how!=1
+			call rt_private rt_sdb rt_dir as rt_sd
+			ifz rt_sd
+				ret -5
+			end
 		end
 	end
 	call rt_newfd as rt_nf
@@ -3550,6 +3679,12 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	else
 		if (rt_t&0x400!=0)&((rt_look==0)|(rt_dir!=0))
 			rt_r=-40
+		end
+	end
+	if (rt_r==0)&(rt_flags&0x1000000!=0)
+		call rt_mine rt_h as rt_x
+		ifz rt_x
+			rt_r=-1
 		end
 	end
 	if (rt_r==0)&(rt_flags&512!=0)&(rt_dir==0)&(rt_look==0)

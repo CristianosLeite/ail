@@ -4,8 +4,12 @@
 # makes a file "plain" without the flag, a file "file" and a directory
 # "dir" with it, and a file "in" without it in that directory; the
 # file made with the flag is opened again and read, so the user still
-# may. tests/win.sh then asks Windows for the rights of each. The
-# status is 63.
+# may. tests/win.sh then asks Windows for the rights of each. What is
+# opened with the flag must be the user's alone to change: DIR has a
+# directory "seen" and a file "read" that everybody may read, which
+# open, and a directory "loose" and a file "shared" that everybody may
+# change, which are the error -1, the file not cut, though both open
+# without the flag. The status is 127.
 buf path 1024
 buf b 16
 args as p
@@ -37,7 +41,7 @@ rt openat d "dir" 0x1010040 448 as s
 rt openat s "in" 65 420 as f
 rt close f as c
 x+=((s>2)&(f>2)&(c==0))*4
-# what is there is opened as it is, and made no second time
+# what is there is made no second time
 rt openat d "file" 0x10000c1 384 as e1
 rt openat d "file" 0x1000041 384 as f
 rt close f
@@ -45,6 +49,19 @@ rt openat d "dir" 0x1010040 448 as g
 rt close g
 x+=((e1==-17)&(f>2)&(g>2))*8
 rt close s
+# what everybody may read, and what everybody may change
+rt openat d "seen" 0x1010040 448 as s
+rt close s
+rt openat d "read" 0x1000000 0 as f
+rt close f
+rt openat d "loose" 0x1010040 448 as e1
+rt openat d "loose" 0x10000 0 as g
+rt close g
+rt openat d "shared" 0x1000201 0 as e2
+rt openat d "shared" 0 0 as h
+rt read h b 16 as k
+rt close h
+x+=((s>2)&(s<4096)&(f>2)&(f<4096)&(e1==-1)&(g>2)&(g<4096)&(e2==-1)&(h>2)&(h<4096)&(k==5))*32
 rt close d as c
 x+=(c==0)*16
-rt exit x+32
+rt exit x+64

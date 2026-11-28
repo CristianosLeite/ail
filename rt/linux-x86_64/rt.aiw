@@ -2309,9 +2309,14 @@ end
 # negative one or one above 2^31-1, is refused here: -9. 0x800000 of
 # the flags, a file that keeps its name while it is open, is nothing
 # the kernel does and no flag of it: it is taken out. So is 0x1000000,
-# a thing that is made the user's alone, which the mode says here.
+# a thing that is made the user's alone, which the mode says here: what
+# is opened with it, made by this call or there before, must be the
+# user's alone to change, or it is the error -1: its owner is the user
+# the process acts as or root, and its mode lets neither its group nor
+# the others write (0022). A file is cut (512) once that is known.
 const rt_mkdirat 258
 const rt_fstatat 262
+const rt_geteuid 107
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	local rt_z 4096
 	local rt_s 144
@@ -2325,8 +2330,11 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	if rt_flags&0x800000
 		rt_flags^=0x800000
 	end
-	if rt_flags&0x1000000
-		rt_flags^=0x1000000
+	rt_own=rt_flags&0x1000000
+	rt_cut=0
+	if rt_own
+		rt_cut=rt_flags&512
+		rt_flags^=0x1000000|rt_cut
 	end
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
@@ -2340,6 +2348,26 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 		rt_flags^=64
 	end
 	sys openat rt_fd rt_z rt_flags|0x20000 rt_mode as rt_r
+	if rt_own
+		ifsge rt_r 0
+			sys fstat rt_r rt_s as rt_k
+			ifz rt_k
+				load4 rt_s+28 as rt_u
+				load4 rt_s+24 as rt_m
+				sys rt_geteuid as rt_e
+				if ((rt_u!=rt_e)&(rt_u!=0))|(rt_m&18!=0)
+					rt_k=-1
+				end
+			end
+			if (rt_k==0)&(rt_cut!=0)
+				sys rt_ftruncate rt_r 0 as rt_k
+			end
+			if rt_k
+				sys close rt_r
+				ret rt_k
+			end
+		end
+	end
 	if (rt_r==-20)|(rt_r==-40)
 		# a link not followed, 0x100
 		sys rt_fstatat rt_fd rt_z rt_s 0x100 as rt_k
