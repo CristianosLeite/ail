@@ -1624,3 +1624,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   now, and the comment of `rt_kill` too. Nothing in the runtime
   changed: the review offered this or no signal by a number at all,
   and the agent took the first, as `reap` has it.
+- [x] The version 0.2.4 of AIL (user, 2026-11-28, with the word that
+  the pull request 42 may be merged), the first with the five
+  services of that pull request and with the executable of the pull
+  request 43, which Windows loads where it chooses: `Ailfile` says it
+  and the tag `v0.2.4` names the merge of it, so that a package asks
+  for them with `ail 0.2.4`. A third number: what was written before
+  it compiles and runs as it did, but for `sync` of a directory on
+  Windows, which gave 0 without asking and is now what Windows
+  answers; the notes of the release say so.
