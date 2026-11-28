@@ -1511,3 +1511,17 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   byte `lock` uses, so the three services keep each other out. The
   test is `rt_lockfd`, which Windows runs on NTFS as the other tests
   of locks.
+- [x] `sync` of a directory asks Windows (2026-11-28, for step 19 of
+  aildb, whose `publish` takes a sync of the directory that succeeds
+  after the rename as the confirmation that a snapshot has its
+  name): the runtime of Windows gave 0 for a directory and flushed
+  nothing, so 0 confirmed nothing. It opens a second handle of the
+  directory that may add a file to it (`NtCreateFile` from the first,
+  with no name) and flushes that. Windows 11 (build 26300) answered
+  with success on NTFS and refused, -13, on the share that the file
+  system of WSL is, which is then the result. What Windows has on
+  the device after the call it does not document for a directory,
+  and no loss of power was tried: the agent chose this over a rename
+  that is written through (`MOVEFILE_WRITE_THROUGH`), which would
+  slow every rename and is documented for a move that copies. The
+  test is `rt_sync_dir`.

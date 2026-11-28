@@ -876,13 +876,36 @@ fn rt_truncate rt_fd rt_n
 end
 
 # What was written to the open file is on its device when this returns
-# 0. Windows flushes a file that is open to be written, and no
-# directory: 0 for one.
+# 0. Windows flushes a file that is open to be written. A directory
+# is flushed too, by a handle that may write to it, and is an error
+# where Windows gives none or refuses the flush: 0 says that Windows
+# was asked and answered that it is done.
 fn rt_sync rt_fd
 	local rt_a 32
+	local rt_us 16
 	call rt_file rt_fd as rt_h
 	if rt_h==-21
-		ret 0
+		# a directory: its handle is for what is known of it, and
+		# Windows flushes one that may write. A second handle of the
+		# same directory, the name of nothing below the first, is
+		# opened to add a file to it (2) and to be waited for
+		# (0x100000)
+		call rt_handle rt_fd as rt_h
+		store rt_us 0
+		store rt_us+8 0
+		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 as rt_r rt_w
+		if rt_r
+			ret rt_r
+		end
+		rt_r=0
+		store rt_a rt_w
+		call rt_api rt_i_flushfilebuffers rt_a 1 as rt_x
+		ifz rt_x&0xffffffff
+			call rt_error as rt_r
+		end
+		store rt_a rt_w
+		call rt_api rt_i_closehandle rt_a 1
+		ret rt_r
 	end
 	if rt_h>-4096
 		ret rt_h

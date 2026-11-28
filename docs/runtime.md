@@ -329,8 +329,16 @@ Where a service cannot be on Windows what it is on Linux:
   thread or process reads and writes it meanwhile, and a `pwrite`
   costs an open and a close.
   `sync` flushes a file that was opened to be written, -13 for one
-  that was not, and gives 0 for a directory, which Windows does not
-  flush. The time of `stat` at which anything of a file changed is the
+  that was not. For a directory it opens a second handle of the same
+  directory that may add a file to it and flushes that
+  (`FlushFileBuffers`), which Windows 11 (build 26300, NTFS) answered
+  with success on 2026-11-28, and with its error 5 for a handle that
+  may only ask: so 0 says that Windows was asked and said yes, and a
+  directory that lets no file be made, or a file system that refuses,
+  is an error and not 0. The documents of Windows say of this call
+  what it does for a file and a volume, and nothing of a directory;
+  that the names are on the device after it was not tried with a
+  loss of power. The time of `stat` at which anything of a file changed is the
   one NTFS keeps for it; the size is 0 for what is no file. `stat`
   and `fstat` ask Windows what kind the handle is, as `seek` does, and
   give the kind 4 for a pipe, a socket and a console, with 0 for the
