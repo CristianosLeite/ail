@@ -1468,3 +1468,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   Linux the question and the signal go to a descriptor of the child
   (Linux 5.4); the way by the number, for an older kernel, was not
   run here. The test is `rt_kill`.
+- [x] Room for the source of the runtime (2026-11-28): the compiler
+  kept 64 KiB behind the source of a program for the two texts of
+  the runtime, 48 for the services, and the services of Windows are
+  50422 bytes with `openat`. The room is 128 KiB, 112 for the
+  services (`insz`, `rt/source.sh`). The tables that have entries for
+  the runtime count functions, calls and names, not bytes, and the
+  runtime of Windows is far below them (105 functions of 1024, 312
+  calls of 4096).
