@@ -1394,3 +1394,15 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   still the old file, on Linux and on Windows 11 itself (build 26300,
   NTFS), where the cut of a mapped file is refused, -5. Both are also
   run by `tests/win.sh` whatever its count.
+- [x] A run on Windows itself (2026-11-27): `tests/win.sh all` on
+  Windows 11 Pro, build 26300, started from WSL 2 with a script named
+  `wine` that starts its first argument, the tree copied to NTFS. At
+  `1a6f5f4` it ended with 0: the twelve named checks, the fixed point
+  of the compiler among them, and 607 tests. Before that one test
+  failed there, `rt_open_threads`, which opened its program by the
+  name it was started by, the bare name of the file where WSL starts
+  it; it asks `rt self` now. With the tree in the file system of
+  Linux, a share to a program of Windows, the tests of a lock, of
+  `fstat` of a directory, of `pwrite` by threads and of a rename onto
+  a mapped file fail, and pass on NTFS.
+  `.agents/knowledge/testing/windows-itself.md` has how it is run.

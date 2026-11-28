@@ -61,8 +61,10 @@ published; the seed 7, which had the runtime in C, is not.
   For each: the compiler with a target, its runtime in `rt/`, a small
   program, then the test suite. Windows is done as far as Wine shows
   ([BACKLOG.md](BACKLOG.md)): its compiler, its fixed point, every
-  service, 579 tests. Left there: what the tests of faults are to
-  expect, a run on Windows itself, and the command `ail`, which the
+  service, 579 tests, and on Windows 11 itself, where `tests/win.sh`
+  passed with 607 tests on 2026-11-27 ([BACKLOG.md](BACKLOG.md)). Left
+  there: what the tests of faults are to expect, the six services of
+  2026-11-27 under Wine, and the command `ail`, which the
   compiler for Windows compiles now that it has no `sys`
   ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
   `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64
