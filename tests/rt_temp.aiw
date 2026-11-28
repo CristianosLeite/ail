@@ -1,0 +1,45 @@
+# a file with a name of its own: two of them are made, each empty and
+# a plain file at the path the system has for its descriptor, and the
+# paths differ; what is written to one is read by the path once the
+# descriptor is closed; the file is still there then, and is gone when
+# it is removed, as the second is, which is removed while it is open
+# on Linux and after it is closed on Windows
+buf p 4096
+buf q 4096
+buf b 64
+buf st 32
+rt temp as f
+rt temp as g
+rt fdpath f p 4096 as pn
+rt fdpath g q 4096 as qn
+rt fstat f st as r
+load st as kind
+load st+8 as size
+x=(f>2)&(g>2)&(f!=g)
+same=pn==qn
+i=0
+while (i<pn)&same
+	loadb p+i as c
+	loadb q+i as d
+	same=c==d
+	i+=1
+end
+x+=((pn>0)&(qn>0)&(same==0))*2
+x+=((r==0)&(kind==1)&(size==0))*4
+rt write f "temp\n" as w
+rt close f as c1
+rt kind p pn as k
+rt open p pn 0 0 as h
+rt read h b 64 as n
+load4 b as v
+loadb b+4 as v5
+rt close h
+x+=((w==5)&(c1==0)&(k==1)&(n==5)&(v==0x706d6574)&(v5==10))*8
+rt unlink p pn as u
+rt kind p pn as k
+x+=((u==0)&(k==-2))*16
+rt close g
+rt unlink q qn as u
+rt kind q qn as k
+x+=((u==0)&(k==-2))*32
+rt exit x

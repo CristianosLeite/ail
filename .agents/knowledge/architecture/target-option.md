@@ -87,6 +87,20 @@ user to review.
   where it leads to nothing, -2, and the handle is asked whether it
   is a directory. `tests/win/access.aiw` (`win_access_link`) ended
   with 55 before and ends with 63.
+- **The service `temp`, the 66th** (user, 2026-11-28, in the version
+  0.2.5, for the adapter `aildb-llama` of aildb, which gives a program
+  its texts by a path and has `/dev/stdin` for that on Linux alone;
+  the user asked whether the runtime should say what differs by
+  system, and took the agent's proposal of a file with a name). No
+  values: a descriptor of a new file in the directory of the system
+  for temporary files, whose path `fdpath` gives and which the
+  program removes. The name, the mode 0600, `TMPDIR` and `/tmp` on
+  Linux and the directory of `GetTempPathA` on Windows are the
+  agent's. Rejected: a service that names the standard input, which
+  Windows has no path for; the path of a file of `anon`, which on
+  Windows is removed with its last handle and is opened by no
+  program that does not share that. Not done: nothing removes the
+  file when the process is killed before it does.
 
 ## What is not known
 
@@ -101,6 +115,13 @@ user to review.
   that does not compile, as without a target.
 
 ## Runs
+
+- 2026-11-28, `d3d5afb` with the service `temp`, Ubuntu under WSL 2:
+  `make test` status 0, 3189 lines of ok.
+- The same day and tree, `tests/win.sh all` with the tree on NTFS and
+  the programs started on Windows 11 itself: status 0,
+  `win_tests (618 run)`, `rt_temp` among them, and eighteen named
+  checks.
 
 - 2026-11-28, `d3cfd52` with the change of `access` for a junction,
   Ubuntu under WSL 2: `make test` status 0, 3187 lines of ok.

@@ -161,7 +161,7 @@ const insz 8519681
 buf in insz
 # per entry of the runtime: 1 + the function of rt.aiw that is the
 # service. There is room for 128 services; the table of
-# compiler/tables.aiw has 65, the numbers 0 to 64.
+# compiler/tables.aiw has 66, the numbers 0 to 65.
 buf rtfn 1024
 buf rtnm 40         # the name of such a function, "rt_" and the service
 buf rtfl 128        # per entry: what the service needs of the state (see rtnames)

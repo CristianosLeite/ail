@@ -1721,3 +1721,21 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   makes: the directory, the junction and a file through it, and then
   the same once the directory has another name (`win_access_link` of
   `tests/win.sh`, skipped where no junction is made).
+- [x] A file with a name of its own, the service `temp` (user,
+  2026-11-28, for the version 0.2.5 and for aildb, whose adapter
+  gives a program its texts by a path; the name, the directory and
+  the mode are the agent's): no values, and a descriptor of a new
+  file, empty, to read and to write, in the directory of the system
+  for temporary files; `fdpath` gives its path, and it stays until
+  the program removes it. On Linux the directory is `TMPDIR` if it
+  is a path from the root, else `/tmp`, and the file is made with
+  `O_EXCL` and the mode 0600; on Windows it is the file of `anon`
+  without the flag that has Windows remove it, with `.tmp` behind
+  its name. It is the service 65 and needs the stack the process
+  starts with, for the environment. The test is `rt_temp`: two
+  files with two paths, each empty and a plain file, what is written
+  read by the path, and both gone when they are removed. It passes
+  on Linux and on Windows 11 on NTFS, and is in the list `always` of
+  `tests/win.sh`. By hand on Linux, with `TMPDIR=/var/tmp` and with
+  one that is no path from the root, the test ended with 63 and left
+  no file.

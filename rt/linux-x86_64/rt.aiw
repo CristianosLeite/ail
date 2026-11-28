@@ -2096,6 +2096,95 @@ fn rt_anon
 	ret rt_r
 end
 
+# ---- a file with a name of its own
+# A descriptor of a new file, empty, to read and to write, in the
+# directory for temporary files: TMPDIR of the environment if that is
+# a path from the root of at most 4000 bytes, else /tmp. Its name is
+# "ail", the 16 digits of 8 bytes that nobody can guess and ".tmp"; it
+# is made only if nothing has the name (O_EXCL, a link least of all),
+# for the user alone (0600), and closed in a program the process
+# starts. A name that is taken, -17, is asked again with other bytes,
+# eight times. The file stays until it is removed.
+fn rt_temp
+	local rt_z 4128
+	local rt_x 8
+	load rt_state as rt_p
+	load rt_p as rt_n
+	rt_e=rt_p+16+rt_n*8
+	set "TMPDIR=/" as rt_t
+	set "/tmp" as rt_d
+	rt_m=4
+	label rt_tvar
+	load rt_e as rt_s
+	if rt_s
+		rt_i=0
+		label rt_tsame
+		loadb rt_s+rt_i as rt_a
+		loadb rt_t+rt_i as rt_b
+		if rt_a==rt_b
+			rt_i+=1
+			if rt_i<8
+				jmp rt_tsame
+			end
+		end
+		if rt_i<8
+			rt_e+=8
+			jmp rt_tvar
+		end
+		# its length
+		rt_i=7
+		label rt_tlen
+		loadb rt_s+rt_i as rt_a
+		if rt_a
+			rt_i+=1
+			if rt_i<4008
+				jmp rt_tlen
+			end
+		end
+		if rt_i<4008
+			rt_d=rt_s+7
+			rt_m=rt_i-7
+		end
+	end
+	rt_i=0
+	while rt_i<rt_m
+		loadb rt_d+rt_i as rt_a
+		storeb rt_z+rt_i rt_a
+		rt_i+=1
+	end
+	# "/ail"
+	store4 rt_z+rt_m 0x6c69612f
+	rt_m+=4
+	rt_k=0
+	label rt_tname
+	call rt_random rt_x 8 as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	load rt_x as rt_v
+	rt_i=0
+	while rt_i<16
+		rt_c=rt_v&15
+		rt_v>>=4
+		if rt_c>9
+			rt_c+=39
+		end
+		storeb rt_z+rt_m+rt_i rt_c+48
+		rt_i+=1
+	end
+	# ".tmp" and a zero
+	store4 rt_z+rt_m+16 0x706d742e
+	storeb rt_z+rt_m+20 0
+	# to read and to write (2), made (64) and only if it is not there
+	# (128), closed in a program that is started (0x80000)
+	sys open rt_z 0x800c2 384 as rt_r
+	rt_k+=1
+	if (rt_r==-17)&(rt_k<8)
+		jmp rt_tname
+	end
+	ret rt_r
+end
+
 # ---- a child ended
 # End the child rt_pid, which start gave and reap has not taken: 0, or
 # an error, -1001 if it is no child of the process. It is asked first

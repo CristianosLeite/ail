@@ -87,6 +87,7 @@ result is a value.
 | 62 | `fdpath` | descriptor, address, size | the length of the path that the system has for what the descriptor is open on, from the root and with no link in it, written there as `cwd` writes one, or an error: -34 if it does not fit, -22 for what has no path, a pipe or a socket, and -2 for a file that the path does not lead to any more: one that has no name left, or whose name there was removed while it has another |
 | 63 | `lockfd` | descriptor | 0, or an error: the lock that `lock` takes of a file, taken for the file the descriptor is open on, which is held until the descriptor is closed or the process ends. It is not waited for: -11 says that a process has it, by `lock`, `trylock` or `lockfd`, this one too by another descriptor. -22 for what is no plain file. The descriptor is one opened to read or to write, and one that has the lock does not ask again |
 | 64 | `access` | address and length of a path, 1 to run or 4 to read | 0 if the process may do that with what is at the path, a link followed, or an error: -13 if it may not, -2 if nothing is there, -22 for another number. A directory that may be entered may be run. It says what is so when it is asked: a program that goes on to start or to open the file takes the answer of that too |
+| 65 | `temp` | | a descriptor of a new file with a name of its own, to read and to write, empty, or an error. It is in the directory of the system for temporary files, is made by this call and is never a file that was there, and stays until it is removed (`unlink`); `fdpath` gives its path. A program the process starts has it only as one of the three descriptors `start` is given, or opens it by that path |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -523,6 +524,16 @@ Where a service cannot be on Windows what it is on Linux:
   system call `access`, which asks for the user the process was
   started by, and a file may be run that the kernel then finds to be
   no program.
+- `temp` is a file as `anon` makes it, in the directory that Windows
+  has for the temporary files of the user (`GetTempPathA`), with
+  `.tmp` behind its name and without the flag that has Windows remove
+  it: the program removes it. On Linux the directory is `TMPDIR` of
+  the environment if that is a path from the root, else `/tmp`, which
+  every user writes to: the file is made with `O_EXCL`, so nothing
+  that another user put at the name is opened, and with the mode
+  0600. A file of `temp` is on a disk, where one of `anon` on Linux
+  is memory: a program that gives another program bytes by a path
+  uses it where the other program cannot be given a descriptor.
 - `lockfd` asks Windows for the byte that `lock` asks for, with the
   handle of the descriptor, and `become` lets go of it as of a lock
   of `lock`. The lock is of the file and not of its name: `open` and
