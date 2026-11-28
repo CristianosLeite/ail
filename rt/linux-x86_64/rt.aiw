@@ -2141,4 +2141,74 @@ fn rt_kill rt_pid
 	ret rt_r
 end
 
+# ---- below an open directory
+# 1 if the rt_n bytes at rt_p are not the name of one thing in a
+# directory: none, "." or "..", or with a "/" or a zero among them
+fn rt_noname rt_p rt_n
+	ifz rt_n
+		ret 1
+	end
+	loadb rt_p as rt_c
+	if rt_c==46
+		if rt_n==1
+			ret 1
+		end
+		loadb rt_p+1 as rt_c
+		if (rt_n==2)&(rt_c==46)
+			ret 1
+		end
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		if (rt_c==47)|(rt_c==0)
+			ret 1
+		end
+		rt_i+=1
+	end
+	ret 0
+end
+
+# Open what has the name of rt_n bytes at rt_p in the directory that
+# rt_fd is open on: a descriptor, or an error. No link at the name is
+# followed (0x20000 of the flags of the kernel), which is the error
+# -40; the kernel says -20 of a link where a directory was asked for,
+# so after either the name is asked what it is. A directory to be made
+# (64 with 0x10000) is made first, which the kernel does not do in an
+# open, and then opened: what took its name meanwhile is opened in its
+# place only if it is a directory too, and no link.
+const rt_mkdirat 258
+const rt_fstatat 262
+fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	local rt_s 144
+	call rt_noname rt_p rt_n as rt_r
+	if rt_r
+		ret -22
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	if rt_flags&0x10040==0x10040
+		sys rt_mkdirat rt_fd rt_z rt_mode as rt_r
+		if (rt_r!=0)&(rt_r!=-17)
+			ret rt_r
+		end
+		rt_flags^=64
+	end
+	sys openat rt_fd rt_z rt_flags|0x20000 rt_mode as rt_r
+	if (rt_r==-20)|(rt_r==-40)
+		# a link not followed, 0x100
+		sys rt_fstatat rt_fd rt_z rt_s 0x100 as rt_k
+		ifz rt_k
+			load4 rt_s+24 as rt_k
+			if rt_k&0xf000==0xa000
+				rt_r=-40
+			end
+		end
+	end
+	ret rt_r
+end
+
 label rt_go

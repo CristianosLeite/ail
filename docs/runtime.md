@@ -83,6 +83,7 @@ result is a value.
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 | 59 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
 | 60 | `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
+| 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat`, and a directory to be the one of another `openat`: nothing of it is read or written, a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -116,6 +117,9 @@ them; a runtime for another platform gives the same numbers:
 | -111 | nobody listens there |
 | -115 | it goes on |
 | -39 | the directory is not empty |
+| -40 | a link where none is followed |
+| -20 | not a directory |
+| -21 | a directory |
 
 ## Memory on Linux
 
@@ -437,6 +441,21 @@ Where a service cannot be on Windows what it is on Linux:
   took meanwhile ends no other process; with an older kernel it is
   asked for by its number, and a program must not take the child
   with `sys` during a `kill`.
+- `openat` asks Windows by the handle of the directory
+  (`NtCreateFile` with it as the root of the name), so what is opened
+  is in the directory that was opened, whatever its path leads to
+  since. The name is taken in the code page of the process, a `\` in
+  it is refused as a `/` is, and capitals count as the file system
+  has it, on NTFS not at all. What is opened is opened as itself
+  where it is a reparse point, a link or a junction
+  (`FILE_OPEN_REPARSE_POINT`), and asked for its attributes: such a
+  thing is the error -40, and with 0x200000 of the kind 3. A file is
+  cut (512) only after that, by its handle. A directory opened so
+  gets its path from Windows by its handle
+  (`GetFinalPathNameByHandleA`), for `names`, which searches a path,
+  and is opened so that Windows refuses to remove it and to give it
+  another name while it is open: the path is its own for that time.
+  On Linux a directory opened with 0x200000 has no names to be read.
 
 ## Another platform
 

@@ -1,0 +1,58 @@
+# no link is followed below an open directory: a link to a file, one to
+# a directory and one to nothing, which Linux is asked for, are each
+# the error -40 of openat, whatever was asked for, and nothing is made
+# where the last leads; opened only to be asked what it is, a link is
+# itself, of the kind 3, unless a directory was asked for
+const symlink 88
+buf st 32
+data dir "build/tests/rt_openat_link.d"
+data tf "f" 0
+data ts "sub" 0
+data tn "none" 0
+data lf "build/tests/rt_openat_link.d/lf" 0
+data ld "build/tests/rt_openat_link.d/ld" 0
+data ln "build/tests/rt_openat_link.d/ln" 0
+len dir as n
+rt unlink "build/tests/rt_openat_link.d/lf"
+rt unlink "build/tests/rt_openat_link.d/ld"
+rt unlink "build/tests/rt_openat_link.d/ln"
+rt unlink "build/tests/rt_openat_link.d/f"
+rt unlink "build/tests/rt_openat_link.d/none"
+rt rmdir "build/tests/rt_openat_link.d/sub"
+rt rmdir dir n
+rt mkdir dir n 493
+rt mkdir "build/tests/rt_openat_link.d/sub" 493
+rt open "build/tests/rt_openat_link.d/f" 65 420 as f
+rt close f
+sys symlink tf lf as s1
+sys symlink ts ld as s2
+sys symlink tn ln as s3
+rt open dir n 0x10000 0 as d
+rt openat d "lf" 0 0 as e1
+rt openat d "lf" 0x10000 0 as e2
+rt openat d "ld" 0 0 as e3
+rt openat d "ld" 0x10000 0 as e4
+x=(s1==0)&(s2==0)&(s3==0)&(e1==-40)&(e2==-40)&(e3==-40)&(e4==-40)
+rt openat d "ld" 0x210000 0 as e1
+rt openat d "ld" 0x10040 493 as e2
+rt openat d "ln" 65 420 as e3
+rt kind "build/tests/rt_openat_link.d/none" as k
+x+=((e1==-40)&(e2==-40)&(e3==-40)&(k==-2))*2
+rt openat d "lf" 0x200000 0 as l
+rt fstat l st as r
+load st as kind
+rt close l
+rt openat d "ld" 0x200000 0 as l
+rt fstat l st as r2
+load st as kind2
+rt close l
+x+=((r==0)&(kind==3)&(r2==0)&(kind2==3))*4
+rt close d
+rt unlink "build/tests/rt_openat_link.d/lf" as u1
+rt unlink "build/tests/rt_openat_link.d/ld" as u2
+rt unlink "build/tests/rt_openat_link.d/ln" as u3
+rt unlink "build/tests/rt_openat_link.d/f" as u4
+rt rmdir "build/tests/rt_openat_link.d/sub" as u5
+rt rmdir dir n as u6
+x+=((u1|u2|u3|u4|u5|u6)==0)*8
+rt exit x

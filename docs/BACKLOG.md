@@ -1476,3 +1476,18 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the runtime count functions, calls and names, not bytes, and the
   runtime of Windows is far below them (105 functions of 1024, 312
   calls of 4096).
+- [x] A thing opened below an open directory with no link followed,
+  the service `openat` (2026-11-28, for step 19 of aildb, which walks
+  from one open directory to the next so that no link leads an index
+  out of its directory, with `sys openat`, `mkdirat` and `fstatat`):
+  one name in the directory of a descriptor, a link at it the error
+  -40. 64 with 0x10000 makes a directory and opens it, and 0x200000
+  opens a thing only to be asked what it is, a link then as itself.
+  On Windows it is `NtCreateFile` from the handle of the directory,
+  a reparse point opened as itself and refused by its attributes,
+  and a directory opened so keeps its name while it is open, which
+  `names` needs, since it searches a path. The agent chose the
+  flags and the error; they wait for the user's review. The tests
+  are `rt_openat`, `rt_openat_link` with links that Linux makes, and
+  `tests/win/link.aiw` with a junction that `cmd` makes
+  (`win_openat_link` of `tests/win.sh`, skipped where none is made).

@@ -1,0 +1,99 @@
+# usage: link.exe DIR
+# No link is followed below an open directory on Windows: in DIR, which
+# is made, cmd makes a junction "j" to the directory "real", and openat
+# gives -40 for it whatever is asked for, but to be asked what it is,
+# which is of the kind 3. The directory itself is opened, a file below
+# it too, and while it is open Windows neither removes it nor gives it
+# another name. The status is 63, or 77 if cmd made no junction.
+buf path 1024
+buf link 1024
+buf other 1024
+buf argv 56
+buf io 24
+buf st 32
+data cmd "cmd.exe" 0
+data c "/c" 0
+data mk "mklink" 0
+data j "/J" 0
+# the n bytes at p to d, with a zero behind them: the place of that zero
+fn add d p n
+	i=0
+	while i<n
+		loadb p+i as ch
+		storeb d+i ch
+		i+=1
+	end
+	storeb d+n 0
+	ret d+n
+end
+args as p
+load p+16 as a
+an=0
+label more
+loadb a+an as ch
+if ch
+	if ch==47
+		ch=92
+	end
+	storeb path+an ch
+	storeb link+an ch
+	storeb other+an ch
+	an+=1
+	jmp more
+end
+rt mkdir path an 493
+call add path+an "\\real" as pe
+rt mkdir path an+5 493
+call add pe "\\f"
+rt open path an+7 65 420 as f
+rt close f
+storeb pe 0
+call add link+an "\\j"
+call add other+an "\\other"
+store argv cmd
+store argv+8 c
+store argv+16 mk
+store argv+24 j
+store argv+32 link
+store argv+40 path
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as child
+rt reap child 0 as made
+rt kind link an+2 as k
+storeb pe 92
+if (made!=0)|(k!=3)
+	rt rmdir link an+2
+	rt unlink path an+7
+	rt rmdir path an+5
+	rt rmdir path an
+	rt exit 77
+end
+rt open path an 0x10000 0 as d
+rt openat d "j" 0x10000 0 as e1
+rt openat d "j" 0x210000 0 as e2
+rt openat d "j" 0 0 as e3
+rt openat d "j" 0x10040 493 as e4
+x=(e1==-40)&(e2==-40)&(e3==-40)&(e4==-40)
+rt openat d "j" 0x200000 0 as l
+rt fstat l st as r
+load st as kd
+rt close l
+x+=((r==0)&(kd==3))*2
+rt openat d "real" 0x10000 0 as rd
+rt openat rd "f" 0 0 as f
+x+=((rd>2)&(rd<256)&(f>2)&(f<256))*4
+rt close f
+rt unlink path an+7 as u
+rt rmdir path an+5 as h1
+rt rename path an+5 other an+6 as h2
+x+=((h1!=0)&(h2!=0))*8
+rt close rd
+rt rmdir link an+2 as r1
+rt rmdir path an+5 as r2
+x+=((u==0)&(r1==0)&(r2==0))*16
+rt close d
+rt rmdir path an as r3
+x+=(r3==0)*32
+rt exit x
