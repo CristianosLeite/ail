@@ -91,6 +91,27 @@ yes cli_clean_removed_build [ ! -e build ]
 is cli_clean_twice 0 "" "" $ail clean
 is cli_run_builds 0 "hello from demo" "" $ail run
 
+# ---- a target: the executables of another platform, in a directory of
+# their own under build/. The compiler for Windows is build/ailc-windows-x86_64,
+# which make test builds; what it writes is run by tests/win.sh.
+is cli_target_build 0 "" "" $ail build --target windows-x86_64
+yes cli_target_build_made_the_executable [ "$(head -c 2 build/windows-x86_64/demo.exe)" = MZ ]
+yes cli_target_build_left_no_other_file [ "$(ls build/windows-x86_64)" = demo.exe ]
+yes cli_target_build_left_the_other [ "$(head -c 4 build/demo | tail -c 3)" = ELF ]
+is cli_target_build_named 0 "" "" $ail build --target windows-x86_64 demo
+is cli_target_build_unknown 3 "" "ail: Ailfile has no executable other" $ail build --target windows-x86_64 other
+is cli_target_build_two_names 2 "" "usage: ail COMMAND" $ail build --target windows-x86_64 demo other
+is cli_target_none 4 "" "ail: this AIL has no compiler for plan9-x86_64" $ail build --target plan9-x86_64
+is cli_target_no_name 2 "" "usage: ail COMMAND" $ail build --target
+is cli_target_bad_name 2 "" "ail: the name of a target is small letters, digits, - and _, at most 64: not ../demo" $ail build --target ../demo
+is cli_target_test_none 4 "" "ail: this AIL has no compiler for plan9-x86_64" $ail test --target plan9-x86_64
+# without a wine to run them, the tests of Windows are not started
+mkdir "$tmp/nopath"
+is cli_target_test_no_wine 4 "" "ail: no wine on PATH to run the tests of windows-x86_64" timeout --signal=KILL 60 env PATH="$tmp/nopath" "$top/build/ail" test --target windows-x86_64
+yes cli_target_test_no_wine_built_nothing [ ! -e build/windows-x86_64/tests/hello.exe ]
+is cli_target_clean 0 "" "" $ail clean
+yes cli_target_clean_removed_build [ ! -e build ]
+
 # ---- test and fmt, on the package as new made it
 is cli_test_new 0 "ok   hello
 1 test, 0 failed" "" $ail test

@@ -29,6 +29,10 @@
 # - tests/win/link.aiw must find that openat follows no junction, which
 #   cmd makes for it, and that a directory it opened keeps its name. It
 #   is skipped where cmd makes no junction.
+# - The command ail must build a package for Windows and run its tests
+#   there (docs/cli.md, --target): the executable with its ending, a
+#   test that finds its directory and starts the executable, and a test
+#   that tests/windows-x86_64.skip names left out.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -172,6 +176,50 @@ else
     [ $c -eq 63 ] || r=1
     say win_openat_link $r
 fi
+
+# a package built and tested for Windows by the command ail
+r=0
+mkdir -p $tmp/pkg/src $tmp/pkg/tests
+printf 'name pkg\nversion 0.1.0\nbin pkg src/main.aiw\n' > $tmp/pkg/Ailfile
+printf 'use "lib/std/io.aiw"\ncall print "pkg\\n"\n' > $tmp/pkg/src/main.aiw
+cat > $tmp/pkg/tests/starts.aiw << 'EOF'
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+buf b 24
+buf av 16
+data exe "build/windows-x86_64/pkg.exe" 0
+# the directory of the test, named from the top of the package
+call procvar "AIL_TMP" as p n
+call print p n
+call print "\n"
+call byadd b p n
+call byadd b "/made"
+load b as q
+load b+8 as m
+call fileopen q m 0x241 420 as fd
+ifslt fd 0
+	rt exit 1
+end
+rt close fd
+# the executable of the package, built for the same target
+store av exe
+store av+8 0
+call procstart av -1 -1 -1 as pid
+call procwait pid 0 as st
+rt exit st
+EOF
+printf 'build/windows-x86_64/tests/starts.tmp\npkg\n' > $tmp/pkg/tests/starts.out
+printf 'sys exit 0\n' > $tmp/pkg/tests/linux.aiw
+printf '# has a sys\nlinux\n' > $tmp/pkg/tests/windows-x86_64.skip
+(cd $tmp/pkg && ../../../ail build --target windows-x86_64) > /dev/null 2>&1 || r=1
+[ "$(head -c 2 $tmp/pkg/build/windows-x86_64/pkg.exe)" = MZ ] || r=1
+got=$(cd $tmp/pkg && timeout 120 ../../../ail test --target windows-x86_64 2> /dev/null) || r=1
+[ "$got" = "skip linux
+ok   starts
+1 test, 0 failed, 1 skipped" ] || r=1
+say win_package $r
 
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,

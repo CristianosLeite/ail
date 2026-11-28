@@ -30,9 +30,9 @@ compiler and the formatter it looks for in a checkout, and
 | `ail add --path DIRECTORY` | uses the package in a directory |
 | `ail remove NAME` | uses the package `NAME` no longer |
 | `ail update [NAME]` | moves the dependencies to their latest versions |
-| `ail build [BIN]` | compiles the executables of the package into `build/` |
+| `ail build [--target T] [BIN]` | compiles the executables of the package into `build/` |
 | `ail run [BIN] [-- ARGUMENT...]` | builds an executable and runs it |
-| `ail test [NAME...]` | builds everything and runs the tests of `tests/` |
+| `ail test [--target T] [NAME...]` | builds everything and runs the tests of `tests/` |
 | `ail fmt [--check]` | indents the sources, or says which lines are not indented |
 | `ail clean` | removes `build/` |
 | `ail version` | prints `ail` and the version of AIL |
@@ -194,6 +194,38 @@ program wrote to stdout and what it wrote to stderr stay in
 `build/tests/<name>.err`, `.out` and `.log`, to be compared with what
 was expected; the executable of the test is `build/tests/<name>.exe`. The status is 1 if a test failed.
 
+### A target
+
+`ail build --target windows-x86_64` and `ail test --target windows-x86_64`
+build and test the package for another platform than the one the
+command runs on, which is x86-64 Linux. The target is named right after
+the command, and is one this AIL has a compiler for
+([Where AIL is](#where-ail-is)); `run` takes none.
+
+- What is built for a target is in a directory of its own,
+  `build/<target>/`, and what its tests leave in `build/<target>/tests/`,
+  so the executables of the two platforms lie side by side. An
+  executable of Windows is `build/windows-x86_64/<name>.exe`.
+- A source with a `sys` statement is not compiled for Windows
+  ([runtime.md](runtime.md)), nor is one that names a file with one.
+- The tests of Windows are run by `wine`, which is looked for on `PATH`
+  before anything is built; without one the status is 4. A test has 20
+  seconds there, not 10.
+- `tests/<target>.skip` lists the tests that are not for the target: a
+  name a line, and any other line, such as one that says why, is
+  nothing. `ail test --target T` prints `skip <name>` for each of them
+  and their number after the count of those that failed, as in
+  `12 tests, 0 failed, 3 skipped`. A test that is named on the command
+  line is run whether the list has it or not.
+- A test of a target finds in `AIL_TMP` its directory by the path from
+  the top of the package, where it runs, `build/<target>/tests/<name>.tmp`:
+  a path from the root of the machine that builds is none to a program
+  of another platform. `AIL_HOME` is the path the command has for AIL.
+- A test that starts an executable of the package names the one of its
+  own platform, which `rt platform` tells it ([runtime.md](runtime.md)).
+
+`tests/win.sh` builds and tests a package so, where it has a `wine`.
+
 ### `fmt`
 
 `ail fmt` indents every source of the package with one tab for each
@@ -244,7 +276,10 @@ looks, in this order:
    `build/`.
 
 Such a directory has `Ailfile`, `lib/`, the compiler as `ailc` or as
-`build/ailc`, and the formatter as `indent` or as `build/tools/indent`. The line `ail` of a manifest is compared with the version
+`build/ailc`, and the formatter as `indent` or as `build/tools/indent`.
+The compiler for a target is beside the compiler, with the target after
+its name: `ailc-windows-x86_64`, which a checkout has once
+`make build/ailc-windows-x86_64` or `make test` has run. The line `ail` of a manifest is compared with the version
 in that `Ailfile`, and a package that asks for an AIL this one is not
 ([packages.md](packages.md)) is not built.
 
@@ -256,7 +291,7 @@ in that `Ailfile`, and a package that asks for an AIL this one is not
 | 1 | a source did not compile; a test failed; `fmt --check` found a line |
 | 2 | wrong usage: the commands are printed on stderr |
 | 3 | no manifest, a manifest or a lock that is wrong (with the line), an executable or a dependency it does not name, an AIL it asks for and this one is not, a package asked for in two versions |
-| 4 | a file or a directory that cannot be read, written or run; AIL not found; git failed, or a repository has no such tag |
+| 4 | a file or a directory that cannot be read, written or run; AIL not found; no compiler for the target, or no `wine` for its tests; git failed, or a repository has no such tag |
 
 A message of the command is one line on stderr that starts with `ail: `;
 one of the compiler starts with `ailc: `, and git says in its own words

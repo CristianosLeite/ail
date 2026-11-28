@@ -57,6 +57,51 @@ fn tlisfile tlp tln
 	ret 1
 end
 
+# 1 if a directory of PATH has a file with the name of the tln bytes at
+# tlp that can be opened to be read
+fn tlonpath tlp tln
+	local tlb 24
+	store tlb 0
+	store tlb+8 0
+	store tlb+16 0
+	call procvar "PATH" as tlq tlm
+	tlr=0
+	while tlm
+		tli=0
+		while tli<tlm
+			loadb tlq+tli as tlc
+			if tlc==58
+				jmp cut
+			end
+			tli+=1
+		end
+		label cut
+		if tli
+			call bycut tlb 0
+			call byadd tlb tlq tli
+			call byaddb tlb 47
+			call byadd tlb tlp tln as tlr
+			if tlr
+				load tlb as tla
+				load tlb+8 as tlan
+				call tlisfile tla tlan as tlr
+			end
+			if tlr
+				jmp out
+			end
+		end
+		tlq+=tli
+		tlm-=tli
+		if tlm
+			tlq+=1
+			tlm-=1
+		end
+	end
+	label out
+	call byfree tlb
+	ret tlr
+end
+
 # add the directory this process is in to the buffer tlb: 1, or 0
 fn tlgetdir tlb
 	local tlz 4096

@@ -831,6 +831,25 @@ it; `TODO.md` has what is decided and what is left.
   time, one directory under two paths, a package called `ail`, and the
   tests that lost the status of what they ran.
 
+- [x] A target for `ail build` and `ail test` (2026-11-28, asked for by
+  aildb, which is to have an executable for Windows; the option, the
+  directory, the list and what a test is told are the agent's, for the
+  user to review): `--target windows-x86_64` after the command compiles
+  with `ailc-windows-x86_64`, found beside the compiler of AIL, into
+  `build/windows-x86_64/<name>.exe`, and runs the tests there with
+  `wine`, 20 seconds each, their files in `build/windows-x86_64/tests/`.
+  `tests/<target>.skip` names the tests that are not for the target,
+  which are printed as `skip` and counted, and run if they are named.
+  `AIL_TMP` is the path from the top of the package for a target: a
+  path of Linux is none to a program of Windows. The status is 4
+  without the compiler and without a `wine`, which is asked before
+  anything is built. `tests/cli.sh` has what needs no `wine`, and
+  `tests/win.sh` builds a package and runs its tests (`win_package`):
+  a test that makes a file in its directory and starts the executable
+  of the package, and one that the list names. Not done: `ail run`
+  for a target; a test under Wine is tried once, where `tests/win.sh`
+  tries its own twice.
+
 ## Text formats and the network
 
 What a program needs to talk to another one: numbers and JSON read from
