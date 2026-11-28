@@ -457,11 +457,18 @@ Where a service cannot be on Windows what it is on Linux:
   with 0xE0000009), which `reap` gives as -9, the number of the signal
   that ends a child on Linux. Only a child in the list of the runtime
   is ended, by its handle. On Linux the child is asked for by a
-  descriptor of it where the kernel has one (Linux 5.4), which the
+  descriptor of it where the kernel has one (Linux 5.3), which the
   signal then goes to, so that the number of a child that anything
-  took meanwhile ends no other process; with an older kernel it is
-  asked for by its number, and a program must not take the child
-  with `sys` during a `kill`.
+  took meanwhile ends no other process. Where there is none, with
+  an older kernel or in a process that has every descriptor it may
+  have, the signal goes to the number only while the number is sure
+  to be the child's: no `reap` begins during it, and a child that a
+  `reap` of another thread waits for, or any child of a process
+  that ignores the signal of its children or has the kernel take
+  them (`SIG_IGN` or `SA_NOCLDWAIT` for `SIGCHLD`), is not ended:
+  the result is the error that kept the descriptor away, -24 or -38
+  among them, and the child is as it was. A program must not take
+  the child with `sys` during such a `kill`.
 - `openat` asks Windows by the handle of the directory
   (`NtCreateFile` with it as the root of the name), so what is opened
   is in the directory that was opened, whatever its path leads to

@@ -1562,3 +1562,20 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   descriptor, so a file whose name ends with ` (deleted)` has its
   path too. The test `rt_fdpath_gone`, of Linux alone, since the
   second name is asked with `sys`.
+- [x] No signal to a number that may be another process
+  (2026-11-28, the review of `c5ed7fb`): `kill` of Linux, where it
+  got no descriptor of the child, asked the number whether it ran
+  and then sent the signal 9 to the number, and between the two a
+  `reap` of another thread, or the kernel in a process that ignores
+  the signal of its children, could take the child and the number
+  be given to another process. That happens with an old kernel and
+  also when the process has every descriptor it may have. The
+  question and the signal are now under the lock of the list of
+  `reap`, so no `reap` begins between them, and no signal is sent
+  for a number that a `reap` of another thread waits for or in a
+  process whose children the kernel takes: the result is the error
+  that kept the descriptor away, and the child is left. A kernel
+  that has the descriptor and takes no child by it (5.3) is asked
+  by the number and sent the signal by the descriptor. The test
+  `rt_kill_nofd`, of Linux alone, with a limit of three open files;
+  a `reap` of another thread during a `kill` has no test.

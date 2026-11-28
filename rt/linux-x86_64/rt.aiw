@@ -2101,12 +2101,21 @@ end
 # an error, -1001 if it is no child of the process. It is asked first
 # whether it is a child that runs (waitid with 4 one that has ended, 1
 # without waiting and 0x01000000 to leave it to be taken): one that has
-# ended needs nothing. The question and the signal 9 go to a descriptor
-# of the child where the kernel has one, which is that process whatever
-# becomes of its number; a kernel that takes no child by a descriptor
-# (-22) or gives none is asked by the number. 0 and the negative
-# numbers would be groups of processes to the kernel, which reads the
-# low 32 bits alone, so those and larger ones are no child.
+# ended needs nothing. The signal 9 goes to a descriptor of the child,
+# which is that process whatever becomes of its number; a kernel that
+# takes no child by a descriptor (-22) is asked by the number, and the
+# signal goes to the descriptor all the same, which is the child that
+# was asked or a process that is no more. 0 and the negative numbers
+# would be groups of processes to the kernel, which reads the low 32
+# bits alone, so those and larger ones are no child.
+# Where there is no descriptor to be had, an old kernel or a process
+# that has all it may have, the signal can only go to the number, and
+# the number is the child's only for as long as nothing takes the
+# child: it is sent under the lock of the list of rt_reap, so that no
+# reap begins meanwhile, and not at all if a reap of another thread
+# waits for that number or if the kernel itself takes the children
+# that end (see rt_reaping). The error that kept the descriptor away
+# is the result then, and the child is left as it is.
 fn rt_kill rt_pid
 	local rt_info 128
 	ifsle rt_pid 0
@@ -2118,33 +2127,51 @@ fn rt_kill rt_pid
 	sys rt_pidfdopen rt_pid 0 as rt_fd
 	ifsge rt_fd 0
 		call rt_take 3 rt_fd rt_info 0x01000005 as rt_r
-		if rt_r!=-22
-			load4 rt_info+16 as rt_n
-			ifslt rt_r 0
-				rt_r=-1001
-				rt_n=1
+		if rt_r==-22
+			call rt_take 1 rt_pid rt_info 0x01000005 as rt_r
+		end
+		load4 rt_info+16 as rt_n
+		ifslt rt_r 0
+			rt_r=-1001
+			rt_n=1
+		end
+		ifz rt_n
+			sys rt_pidfdsignal rt_fd 9 0 0 as rt_r
+			if rt_r==-3
+				# it ended since it was asked
+				rt_r=0
 			end
-			ifz rt_n
-				sys rt_pidfdsignal rt_fd 9 0 0 as rt_r
-				if rt_r==-3
-					# it ended since it was asked
-					rt_r=0
-				end
-			end
-			sys close rt_fd
-			ret rt_r
 		end
 		sys close rt_fd
+		ret rt_r
 	end
+	rt_e=rt_fd
+	call rt_mlock
 	call rt_take 1 rt_pid rt_info 0x01000005 as rt_r
-	ifslt rt_r 0
-		ret -1001
-	end
 	load4 rt_info+16 as rt_n
-	if rt_n
-		ret 0
+	ifslt rt_r 0
+		rt_r=-1001
+		jmp rt_out
 	end
+	if rt_n
+		rt_r=0
+		jmp rt_out
+	end
+	rt_r=rt_e
+	load rt_state+360 as rt_p
+	while rt_p
+		load rt_p+8 as rt_n
+		jeq rt_n rt_pid rt_out
+		load rt_p as rt_p
+	end
+	zero rt_info 32
+	sys rt_sigaction 17 0 rt_info 8 as rt_k
+	load rt_info as rt_n
+	load rt_info+8 as rt_s
+	jnz rt_k|(rt_n==1)|(rt_s&2) rt_out
 	sys kill rt_pid 9 as rt_r
+	label rt_out
+	call rt_munlock
 	ret rt_r
 end
 
