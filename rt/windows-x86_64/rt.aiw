@@ -1868,6 +1868,10 @@ fn rt_reaping rt_p rt_ms
 		ret rt_x 1
 	end
 	load4 rt_c as rt_r
+	if rt_r==0xe0000009
+		# what rt_kill ended it with
+		ret -9 1
+	end
 	if rt_r>=0xc0000000
 		# a fault: a place of memory that is none, a division by zero, an
 		# instruction that is none, any other
@@ -3112,6 +3116,50 @@ fn rt_anon
 	end
 	store rt_state+360+rt_fd*8 rt_h+1
 	ret rt_fd
+end
+
+# ---- a child ended
+# End the child of the number rt_p, which start gave and reap has not
+# taken: 0, or an error, -1001 if it is not in the list of the
+# children (see rt_reap). Windows ends it with the status 0xe0000009,
+# which reap gives as -9. The list is locked meanwhile, so the handle
+# is the child's: reap closes it only after it took the child out of
+# the list. Windows ends no process that has ended, which is no error
+# here: the child is asked whether it has. The number 1 is a program
+# that could not be started, a child that has ended.
+fn rt_kill rt_p
+	local rt_a 32
+	if rt_p==1
+		ret 0
+	end
+	call rt_mlock
+	load rt_state+6784 as rt_k
+	label rt_find
+	ifz rt_k
+		call rt_munlock
+		ret -1001
+	end
+	load rt_k+24 as rt_h
+	if rt_h!=rt_p
+		load rt_k as rt_k
+		jmp rt_find
+	end
+	load rt_k+8 as rt_h
+	store rt_a rt_h
+	store rt_a+8 0xe0000009
+	call rt_api rt_i_terminateprocess rt_a 2 as rt_x
+	rt_r=0
+	ifz rt_x&0xffffffff
+		call rt_error as rt_r
+		store rt_a rt_h
+		store rt_a+8 0
+		call rt_api rt_i_waitforsingleobject rt_a 2 as rt_x
+		ifz rt_x&0xffffffff
+			rt_r=0
+		end
+	end
+	call rt_munlock
+	ret rt_r
 end
 
 label rt_go

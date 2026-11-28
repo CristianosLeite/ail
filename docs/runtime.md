@@ -82,6 +82,7 @@ result is a value.
 | 57 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, and is not to be counted on elsewhere (Windows, below). The memory stays when the descriptor is closed, and when the file is removed or another file gets its name, of which it then has nothing; a file must not be cut while it is mapped |
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 | 59 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
+| 60 | `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -427,6 +428,15 @@ Where a service cannot be on Windows what it is on Linux:
   Linux it is memory with none (`memfd_create`), which such a program
   reaches by the number of the process. The error is that of Windows
   if the directory is not there or lets no file be made.
+- `kill` ends the process with a status of its own (`TerminateProcess`
+  with 0xE0000009), which `reap` gives as -9, the number of the signal
+  that ends a child on Linux. Only a child in the list of the runtime
+  is ended, by its handle. On Linux the child is asked for by a
+  descriptor of it where the kernel has one (Linux 5.4), which the
+  signal then goes to, so that the number of a child that anything
+  took meanwhile ends no other process; with an older kernel it is
+  asked for by its number, and a program must not take the child
+  with `sys` during a `kill`.
 
 ## Another platform
 

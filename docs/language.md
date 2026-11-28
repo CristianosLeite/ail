@@ -247,6 +247,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, which [runtime.md](runtime.md) does not promise of Windows, and the memory stays when the descriptor is closed |
 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
+| `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

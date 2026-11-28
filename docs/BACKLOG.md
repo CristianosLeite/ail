@@ -1459,3 +1459,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   which Windows removes with its last handle. The test `rt_anon`
   gives one to a child as its input and one as its output, and
   writes a place of one with `pwrite`.
+- [x] A child ended, the service `kill` (2026-11-28, for step 19 of
+  aildb, whose tests end a build and a provider in the middle with
+  `sys kill`): the child that `start` gave is ended at once and stays
+  to be taken, and `reap` gives -9 for it on both platforms, Windows
+  ending it with a status of its own that `reap` knows. A number
+  that is no child of the process is -1001, 0 and -1 among them. On
+  Linux the question and the signal go to a descriptor of the child
+  (Linux 5.4); the way by the number, for an older kernel, was not
+  run here. The test is `rt_kill`.
