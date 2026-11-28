@@ -77,6 +77,7 @@ result is a value.
 | 52 | `fstat` | descriptor, address | the same for what the descriptor is open on |
 | 53 | `time` |  | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
 | 54 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
+| 55 | `platform` |  | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -397,5 +398,6 @@ Where a service cannot be on Windows what it is on Linux:
 ## Another platform
 
 A directory `rt/<platform>/` with the same two files, written for that
-platform, and a compiler that writes code for it; the services, their
+platform, and a compiler that writes code for it, and the next number
+for `platform` to give; the services, their
 values, their results and their errors are those of this page.

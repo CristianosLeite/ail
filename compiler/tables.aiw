@@ -222,6 +222,7 @@ data 4 "stat" 51 3 1 0
 data 5 "fstat" 52 2 1 0
 data 4 "time" 53 0 1 0
 data 6 "random" 54 2 1 0
+data 8 "platform" 55 0 1 0
 data 0
 # the keyword of the row that a service written in AIL is compiled by
 data callkw "call"

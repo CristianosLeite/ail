@@ -1361,3 +1361,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   Windows, a fifth library in the import tables, which has no error.
   The test `rt_random`, which is also run by `tests/win.sh` whatever
   its count.
+- [x] The service `platform` (2026-11-27): 1 for x86-64 Linux and 2
+  for x86-64 Windows, the platform the program was compiled for.
+  Nothing told a program where it runs, and what differs there and is
+  no service, the separator of a path, the directory of a user's
+  configuration, the ending of a program's name, had to be found by
+  looking at a path. The test `rt_platform`, which compares it with
+  the form of the directory of the process and is also run by
+  `tests/win.sh` whatever its count.

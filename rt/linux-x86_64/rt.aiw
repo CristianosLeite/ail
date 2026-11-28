@@ -2013,4 +2013,10 @@ fn rt_random rt_p rt_n
 	ret rt_n
 end
 
+# ---- the platform
+# the platform this runtime is of: 1, x86-64 Linux
+fn rt_platform
+	ret 1
+end
+
 label rt_go

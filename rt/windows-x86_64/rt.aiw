@@ -2937,4 +2937,10 @@ fn rt_random rt_p rt_n
 	ret rt_n
 end
 
+# ---- the platform
+# the platform this runtime is of: 2, x86-64 Windows
+fn rt_platform
+	ret 2
+end
+
 label rt_go

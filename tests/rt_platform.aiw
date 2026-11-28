@@ -1,0 +1,9 @@
+# the platform of the program: on Linux, 1, the directory of the
+# process starts with a slash, and on Windows, 2, with the letter of a
+# drive or the two backslashes of a share
+buf d 4096
+rt platform as p
+rt cwd d 4096 as n
+loadb d as c
+rt write 1 "platform\n"
+rt exit ((p==1)&(c==47))|((p==2)&(c!=47)&(n>2))
