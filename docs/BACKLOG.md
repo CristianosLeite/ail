@@ -1601,3 +1601,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   open; without it a file is shared as before. On Linux the flag
   does nothing: no file keeps its name there. The test
   `rt_openat_kept`.
+- [x] A junction opened only to be asked is the directory of no
+  `openat` on Windows (2026-11-28, the second review of the pull
+  request 42, at `b7cba19`): a descriptor opened with 0x200000 is the
+  directory of another `openat` if Windows says that its handle is a
+  directory, and it says so of a junction too, so the open went to
+  Windows, which refused it with an error of its own, -5. Nothing
+  was opened behind the junction. Such a handle, a reparse point, is
+  now refused before Windows is asked, -20. `tests/win/link.aiw`
+  asks it of the junction it makes.

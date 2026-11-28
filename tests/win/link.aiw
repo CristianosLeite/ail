@@ -2,9 +2,10 @@
 # No link is followed below an open directory on Windows: in DIR, which
 # is made, cmd makes a junction "j" to the directory "real", and openat
 # gives -40 for it whatever is asked for, but to be asked what it is,
-# which is of the kind 3. The directory itself is opened, a file below
-# it too, and while it is open Windows neither removes it nor gives it
-# another name. The status is 63, or 77 if cmd made no junction.
+# which is of the kind 3 and the directory of no other openat (-20).
+# The directory itself is opened, a file below it too, and while it is
+# open Windows neither removes it nor gives it another name. The status
+# is 63, or 77 if cmd made no junction.
 buf path 1024
 buf link 1024
 buf other 1024
@@ -79,8 +80,9 @@ x=(e1==-40)&(e2==-40)&(e3==-40)&(e4==-40)
 rt openat d "j" 0x200000 0 as l
 rt fstat l st as r
 load st as kd
+rt openat l "f" 0 0 as e5
 rt close l
-x+=((r==0)&(kd==3))*2
+x+=((r==0)&(kd==3)&(e5==-20))*2
 rt openat d "real" 0x10000 0 as rd
 rt openat rd "f" 0 0 as f
 x+=((rd>2)&(rd<256)&(f>2)&(f<256))*4

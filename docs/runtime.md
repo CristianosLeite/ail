@@ -477,8 +477,10 @@ Where a service cannot be on Windows what it is on Linux:
   has it, on NTFS not at all. What is opened is opened as itself
   where it is a reparse point, a link or a junction
   (`FILE_OPEN_REPARSE_POINT`), and asked for its attributes: such a
-  thing is the error -40, and with 0x200000 of the kind 3. A file is
-  cut (512) only after that, by its handle. A file is shared with
+  thing is the error -40, and with 0x200000 of the kind 3 and the
+  directory of no other `openat`, -20, though Windows says of a
+  junction that it is a directory. A file is cut (512) only after
+  that, by its handle. A file is shared with
   those that read, write, remove and rename it, and with 0x800000
   not with those that remove or rename it (no `FILE_SHARE_DELETE`).
   A directory opened so

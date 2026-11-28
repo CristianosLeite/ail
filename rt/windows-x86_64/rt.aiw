@@ -3334,9 +3334,10 @@ end
 # Windows has for its handle, unless it was opened only to be asked:
 # such a descriptor is noted (16) and has no record, and it is the
 # directory of another rt_openat if Windows says of its handle that it
-# is one (16 of the attributes). A directory that is to be made is
-# made though it is opened only to be asked; a file is not, as on
-# Linux. A directory is shared with those that read and write it, so
+# is one (16 of the attributes) and no link or junction opened as
+# itself (0x400), which has that attribute too and below which Windows
+# opens nothing. A directory that is to be made is made though it is
+# opened only to be asked; a file is not, as on Linux. A directory is shared with those that read and write it, so
 # that it keeps its path, and a file with those that remove it or
 # rename it too, unless it is to keep its name (0x800000): Windows
 # then refuses both to every process while the descriptor is open, and
@@ -3362,7 +3363,7 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 			ret -20
 		end
 		call rt_hattr rt_dh as rt_t
-		if (rt_t==-1)|(rt_t&16==0)
+		if (rt_t==-1)|(rt_t&0x410!=16)
 			ret -20
 		end
 	end
