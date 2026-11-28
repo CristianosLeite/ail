@@ -1353,3 +1353,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `GetSystemTimePreciseAsFileTime` on Windows, which counts in steps
   of 100 nanoseconds. The test `rt_time`, which is also run by
   `tests/win.sh` whatever its count.
+- [x] The service `random`, bytes that nobody can guess (2026-11-27),
+  which a program had to ask of Linux with `sys getrandom`: aildb
+  names with them the file a snapshot is written to before it has its
+  name. `getrandom` on Linux, asked again while it gives fewer bytes
+  than were wanted, and `ProcessPrng` of `bcryptprimitives.dll` on
+  Windows, a fifth library in the import tables, which has no error.
+  The test `rt_random`, which is also run by `tests/win.sh` whatever
+  its count.

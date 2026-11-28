@@ -241,6 +241,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
 | `fstat` | descriptor, address | the same for what the descriptor is open on |
 | `time` | | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
+| `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

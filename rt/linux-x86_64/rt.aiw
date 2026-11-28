@@ -1996,4 +1996,21 @@ fn rt_time
 	ret rt_s*1000000000+rt_n
 end
 
+# ---- bytes that nobody can guess
+# rt_n of them at rt_p, from the generator of the kernel: rt_n, or an
+# error. The kernel may give fewer at once, and is asked again
+fn rt_random rt_p rt_n
+	rt_i=0
+	while rt_i<rt_n
+		sys getrandom rt_p+rt_i rt_n-rt_i 0 as rt_r
+		if rt_r!=-4
+			if rt_r>=-4095
+				ret rt_r
+			end
+			rt_i+=rt_r
+		end
+	end
+	ret rt_n
+end
+
 label rt_go

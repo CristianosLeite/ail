@@ -1,0 +1,17 @@
+# bytes that nobody can guess: two runs of 32 differ and are not zeros,
+# no bytes are none, the byte behind a run is left alone, and a run of
+# 100000 bytes is filled to its end
+buf a 40
+buf b 40
+storeb a+32 7
+rt random a 32 as r
+rt random b 32 as s
+rt random a 0 as z
+load a as x
+load b as y
+loadb a+32 as c
+alloc 100000 as m
+rt random m 100000 as big
+load m+99992 as last
+rt write 1 "random\n"
+rt exit (r==32)+(s==32)*2+(z==0)*4+(x!=y)*8+(x!=0)*16+(c==7)*32+((big==100000)&(last!=0))*64

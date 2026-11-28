@@ -2926,4 +2926,15 @@ fn rt_time
 	tail rt_since rt_r
 end
 
+# ---- bytes that nobody can guess
+# rt_n of them at rt_p, from the generator of Windows, which has no
+# error: rt_n
+fn rt_random rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	store rt_a+8 rt_n
+	call rt_api rt_i_processprng rt_a 2
+	ret rt_n
+end
+
 label rt_go

@@ -76,6 +76,7 @@ result is a value.
 | 51 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
 | 52 | `fstat` | descriptor, address | the same for what the descriptor is open on |
 | 53 | `time` |  | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
+| 54 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -390,6 +391,8 @@ Where a service cannot be on Windows what it is on Linux:
   process the watcher left in the group then kills the group, unless
   the group is stopped and the kernel is an older one.
 - `pipeerr` has nothing to do: there is no signal.
+- `random` asks `ProcessPrng` of `bcryptprimitives.dll` (Windows 10),
+  which has no error, so every executable names that library too.
 
 ## Another platform
 
