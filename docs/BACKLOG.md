@@ -1450,3 +1450,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   compiles and runs as it did, but for a `lock` of a named pipe or of
   a device, which 0.2.2 took and which is the error -22 now; the
   notes of the release say so.
+- [x] A file with no name, the service `anon` (2026-11-28, for step
+  19 of aildb, which gives a child its input and takes its outputs in
+  such files and asked Linux for them with `sys`): a descriptor to
+  read and to write, empty, which a program gets only from `start`.
+  On Linux it is memory (`memfd_create`); on Windows a file of the
+  directory for temporary files, with a name that nobody can guess,
+  which Windows removes with its last handle. The test `rt_anon`
+  gives one to a child as its input and one as its output, and
+  writes a place of one with `pwrite`.

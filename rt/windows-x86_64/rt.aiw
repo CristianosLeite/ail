@@ -3048,4 +3048,70 @@ fn rt_unmap rt_p rt_n
 	ret 0
 end
 
+# ---- a file with no name
+# A descriptor of a file to read and to write that is nowhere once it
+# is closed: Windows has no file without a name, so it is a file of
+# the directory for temporary files (GetTempPathA, at most 261 bytes
+# with its "\"), named "ail" and the 16 digits of 8 bytes that nobody
+# can guess, made only if it is not there (1), and removed by Windows
+# with its last handle (0x04000000; 0x100 says that it need not reach
+# the disk). It is shared with whoever reads, writes and removes (7),
+# which the second handle of pwrite needs. A name that is taken, -17,
+# is asked again with other bytes, eight times.
+fn rt_anon
+	local rt_z 288
+	local rt_a 56
+	local rt_x 8
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 262
+	store rt_a+8 rt_z
+	call rt_api rt_i_gettemppatha rt_a 2 as rt_n
+	rt_n&=0xffffffff
+	ifz rt_n
+		call rt_error as rt_r
+		tail rt_unfd rt_fd rt_r
+	end
+	if rt_n>261
+		tail rt_unfd rt_fd -36
+	end
+	store4 rt_z+rt_n 0x6c6961
+	rt_n+=3
+	rt_t=0
+	label rt_name
+	call rt_random rt_x 8
+	load rt_x as rt_v
+	rt_i=0
+	while rt_i<16
+		rt_c=rt_v&15
+		rt_v>>=4
+		if rt_c>9
+			rt_c+=39
+		end
+		storeb rt_z+rt_n+rt_i rt_c+48
+		rt_i+=1
+	end
+	storeb rt_z+rt_n+16 0
+	store rt_a rt_z
+	store rt_a+8 0xc0000000
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 1
+	store rt_a+40 0x04000100
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		rt_t+=1
+		if (rt_r==-17)&(rt_t<8)
+			jmp rt_name
+		end
+		tail rt_unfd rt_fd rt_r
+	end
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
 label rt_go

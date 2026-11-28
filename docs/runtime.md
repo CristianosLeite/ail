@@ -81,6 +81,7 @@ result is a value.
 | 56 | `trylock` | path | the descriptor that `lock` gives, or an error: the lock is not waited for, and -11 says that a process has it, this one too |
 | 57 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, and is not to be counted on elsewhere (Windows, below). The memory stays when the descriptor is closed, and when the file is removed or another file gets its name, of which it then has nothing; a file must not be cut while it is mapped |
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
+| 59 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -417,6 +418,15 @@ Where a service cannot be on Windows what it is on Linux:
   more, and takes a new file under the name for new bytes.
 - `random` asks `ProcessPrng` of `bcryptprimitives.dll` (Windows 10),
   which has no error, so every executable names that library too.
+- `anon` is a file in the directory that Windows has for the
+  temporary files of the user (`GetTempPathA`), with a name of 64
+  bits from `random`, made only if no file has that name and removed
+  by Windows when its last handle is closed, however the process
+  ends (`FILE_FLAG_DELETE_ON_CLOSE`). So it has a name for as long as
+  it is open, which a program of the same user could open it by; on
+  Linux it is memory with none (`memfd_create`), which such a program
+  reaches by the number of the process. The error is that of Windows
+  if the directory is not there or lets no file be made.
 
 ## Another platform
 
