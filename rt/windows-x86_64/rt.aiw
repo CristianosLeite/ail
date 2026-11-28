@@ -1032,7 +1032,10 @@ end
 # hold the lock or to wait for it: Windows then refuses to remove it
 # and to rename it, so that no second file of that name can be locked
 # beside it.
-fn rt_lock rt_p rt_n
+# rt_now is 1 for a lock that is not waited for: Windows then fails
+# at once (1 of the flags) with its error 33 if a handle has the byte,
+# one of this process too, which is the error -11 here.
+fn rt_locking rt_p rt_n rt_now
 	local rt_z 4096
 	local rt_y 32
 	local rt_a 56
@@ -1088,14 +1091,14 @@ fn rt_lock rt_p rt_n
 	zero rt_y 32
 	store4 rt_y+20 0x40000000
 	store rt_a rt_h
-	store rt_a+8 2
+	store rt_a+8 2+rt_now
 	store rt_a+16 0
 	store rt_a+24 1
 	store rt_a+32 0
 	store rt_a+40 rt_y
 	call rt_api rt_i_lockfileex rt_a 6 as rt_r
 	ifz rt_r&0xffffffff
-		call rt_error as rt_r
+		call rt_lockerr rt_now as rt_r
 		store rt_a rt_h
 		call rt_api rt_i_closehandle rt_a 1
 		tail rt_unfd rt_fd rt_r
@@ -2941,6 +2944,31 @@ end
 # the platform this runtime is of: 2, x86-64 Windows
 fn rt_platform
 	ret 2
+end
+
+# ---- the lock, waited for or not
+# the error of a lock that Windows did not give: -11 if it was not
+# waited for and a handle has the byte (33 of Windows)
+fn rt_lockerr rt_now
+	local rt_a 32
+	call rt_api rt_i_getlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if rt_e==33
+		if rt_now
+			ret -11
+		end
+	end
+	tail rt_error
+end
+
+# the lock of the directory or file at the path, after waiting for the
+# process that has it (rt_lock), or with the error -11 if a process
+# has it (rt_trylock)
+fn rt_lock rt_p rt_n
+	tail rt_locking rt_p rt_n 0
+end
+fn rt_trylock rt_p rt_n
+	tail rt_locking rt_p rt_n 1
 end
 
 label rt_go

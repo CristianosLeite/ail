@@ -1369,3 +1369,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   looking at a path. The test `rt_platform`, which compares it with
   the form of the directory of the process and is also run by
   `tests/win.sh` whatever its count.
+- [x] The service `trylock`, the lock that is not waited for
+  (2026-11-27): the lock of `lock`, with the error -11 in place of
+  the wait when a process has it. aildb ends a build with a status of
+  its own when another build of the same destination runs, and asked
+  Linux for that with `sys flock`. On Linux it is `flock` told not to
+  wait, on Windows `LockFileEx` told to fail at once, whose error 33
+  is the -11; the two services share their function in each runtime
+  (`rt_locking`). A process that has the lock and asks for it again
+  without waiting is refused too, on both platforms. The test
+  `rt_trylock`, which is also run by `tests/win.sh` whatever its
+  count.

@@ -78,6 +78,7 @@ result is a value.
 | 53 | `time` |  | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
 | 54 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 | 55 | `platform` |  | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
+| 56 | `trylock` | path | the descriptor that `lock` gives, or an error: the lock is not waited for, and -11 says that a process has it, this one too |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -338,6 +339,8 @@ Where a service cannot be on Windows what it is on Linux:
   path is one lock for as long as it is held. Who
   may take a lock is who the file system lets open the file to read
   it, and two ways to write the path of one directory are one lock.
+  `trylock` asks Windows for the same byte and not to wait
+  (`LOCKFILE_FAIL_IMMEDIATELY`).
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:

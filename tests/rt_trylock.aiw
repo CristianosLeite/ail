@@ -1,0 +1,47 @@
+# the lock that is not waited for: this program takes the lock of a
+# directory and starts itself, and what it starts is refused the lock
+# at once, though it writes the path in another way; started again
+# after the lock was closed, it gets the lock. The process that has
+# the lock is refused it too, a lock that is waited for takes it when
+# it is free, and nothing at a path is no lock
+buf exe 4096
+buf argv 24
+buf io 24
+data again "again" 0
+data dir "build/tests/rt_trylock.d"
+args as p
+load p as n
+if n>1
+	rt trylock "build/tests/../tests/rt_trylock.d/" as l
+	if l==-11
+		rt write 1 "held\n"
+		rt exit 5
+	end
+	rt close l as c
+	rt exit ((l>2)&(l<256))+(c==0)*2
+end
+rt unlink "build/tests/rt_trylock.d/.ail-lock"
+len dir as n
+rt rmdir dir n
+rt mkdir dir n 493
+rt trylock dir n as l
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 again
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0 as s
+rt trylock dir n as mine
+rt close l as u
+rt start argv 0 io 0 as c
+rt reap c 0 as s2
+rt lock dir n as w
+rt trylock dir n as taken
+rt close w
+rt trylock "build/tests/rt_trylock.d/none" as none
+rt unlink "build/tests/rt_trylock.d/.ail-lock"
+rt rmdir dir n as d
+rt exit ((l>2)&(l<256))+(s==5)*2+((u==0)&(mine==-11))*4+(s2==3)*8+(taken==-11)*16+(none==-2)*32+(d==0)*64+((w>2)&(w<256))*128
