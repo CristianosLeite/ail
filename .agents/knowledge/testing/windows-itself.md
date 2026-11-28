@@ -41,6 +41,17 @@ and 607 tests, with the tree on NTFS.
   `win_stale_watch` failed, its program not started: Microsoft
   Defender took it (`Trojan:Win32/Sabsik.EN.D!ml`). The status of the
   script was 1 for that.
+- **Microsoft Defender takes some of the programs that are compiled**
+  (2026-11-28, Windows 11 Pro build 26300). Its list of that day has
+  `Trojan:Win32/Sabsik.EN.D!ml` for three test programs between 08:36
+  and 08:59 and `Trojan:Win32/Wacatac.C!ml` at 17:34 for `rt_access.exe`
+  in the directory of a review's own run; the file was removed each
+  time. Both names end in `!ml`, a verdict of a model and not a
+  signature. The bytes of those programs were not looked at. The
+  agent only read the list: an exclusion, a file restored or a sample
+  sent to Microsoft is the user's to decide, and no program is
+  changed to pass. Not known: whether `ail.exe`, `ailc.exe` and
+  `indent.exe` of the archive for Windows of a release are taken.
 
 ## What is not known from it
 - Wine: this machine has none, so the services added on 2026-11-27

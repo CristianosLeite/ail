@@ -124,7 +124,17 @@ The rest is the open section of `docs/TODO.md`.
   with `--target` of `ail build` and `ail test`, with the compiler
   for Windows in the archive for Linux, and with the command on
   Windows and an archive for it: a third number, nothing that was
-  written before is other than it was.
+  written before is other than it was. It is released since
+  2026-11-28 (user: "O PR #40 pode ser mergeado e a release v0.2.5
+  publicada"; the pull request that was open and has the version is
+  44, and the agent merged it and published the release at that
+  word): the tag `v0.2.5` names the merge `7a37295`, and the release
+  has the two archives that `make dist` made in a clone at that
+  commit, each with its `.sha256`. The four files were taken from the
+  release again and the sums held. The archive for Linux, unpacked,
+  said its version and built a new package for Linux and for
+  Windows; the archive for Windows was not unpacked and run. Its
+  executables are not signed, which the notes of the release say.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 
