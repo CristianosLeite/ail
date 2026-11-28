@@ -1711,3 +1711,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   of it, so that a package asks for them with `ail 0.2.5`. A third
   number: what was written before compiles and runs as it did. The
   release has two archives, each with its `.sha256`.
+- [x] `access` on Windows gave 0 for a junction whose directory is
+  gone (a review of `d3cfd52`, user, 2026-11-28): it asked for the
+  attributes of the path, which are those of the junction, and
+  returned where they said a directory. It opens what the path leads
+  to now, a directory too (`FILE_FLAG_BACKUP_SEMANTICS`), so that a
+  link to nothing is -2, and asks the handle whether it is a
+  directory. `tests/win/access.aiw`, with a junction that `cmd`
+  makes: the directory, the junction and a file through it, and then
+  the same once the directory has another name (`win_access_link` of
+  `tests/win.sh`, skipped where no junction is made).

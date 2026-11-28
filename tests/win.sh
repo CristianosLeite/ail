@@ -29,6 +29,9 @@
 # - tests/win/link.aiw must find that openat follows no junction, which
 #   cmd makes for it, and that a directory it opened keeps its name. It
 #   is skipped where cmd makes no junction.
+# - tests/win/access.aiw must find that access follows a junction: 0
+#   for one that leads to a directory and -2 for one whose directory
+#   is gone. It is skipped where cmd makes no junction.
 # - The command ail must build a package for Windows and run its tests
 #   there (docs/cli.md, --target): the executable with its ending, a
 #   test that finds its directory and starts the executable, and a test
@@ -179,6 +182,19 @@ if [ $c -eq 77 ]; then
 else
     [ $c -eq 63 ] || r=1
     say win_openat_link $r
+fi
+
+# access follows a junction, to a directory or to nothing; the program
+# ends with 77 if cmd made none
+r=0
+$wc < tests/win/access.aiw > $tmp/access.exe || r=1
+timeout 60 wine $tmp/access.exe $tmp/ac > /dev/null 2>&1
+c=$?
+if [ $c -eq 77 ]; then
+    echo "skip win_access_link (no junction made)"
+else
+    [ $c -eq 63 ] || r=1
+    say win_access_link $r
 fi
 
 # a package built and tested for Windows by the command ail

@@ -77,6 +77,16 @@ user to review.
   `start` gives Windows the file by its path. The compiler had room for
   64 services in two tables and has it for 128; `tests/tables.sh` held
   the first limit and holds the second.
+- **`access` on Windows opens what a path leads to, a directory too**
+  (a review of `d3cfd52`, user, 2026-11-28, the file `REVIEW.md` of
+  aildb; the fix is the agent's, as the review suggested). It asked
+  Windows for the attributes of the path and gave 0 where they said a
+  directory, and those are of a junction itself: one whose directory
+  was gone was 0 for both. The path is now opened with
+  `FILE_FLAG_BACKUP_SEMANTICS`, which follows the junction and fails
+  where it leads to nothing, -2, and the handle is asked whether it
+  is a directory. `tests/win/access.aiw` (`win_access_link`) ended
+  with 55 before and ends with 63.
 
 ## What is not known
 
@@ -91,6 +101,13 @@ user to review.
   that does not compile, as without a target.
 
 ## Runs
+
+- 2026-11-28, `d3cfd52` with the change of `access` for a junction,
+  Ubuntu under WSL 2: `make test` status 0, 3187 lines of ok.
+- The same day and tree, `tests/win.sh all` with the tree on NTFS and
+  the programs started on Windows 11 itself: status 0,
+  `win_tests (617 run)` and eighteen named checks, `win_access_link`
+  among them.
 
 - 2026-11-28, at `ee49db8`, with the service `access`, the command on
   Windows and the version 0.2.5, Ubuntu under WSL 2: `make test` status

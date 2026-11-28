@@ -1,0 +1,102 @@
+# usage: access.exe DIR
+# The service access follows a link on Windows: in DIR, which is made,
+# cmd makes a junction "j" to the directory "real". The directory and
+# the junction may be run and read, and so may a file through the
+# junction be read; once the directory has another name the junction
+# leads to nothing, and it and a file through it are -2 for both, while
+# the directory under its new name is still 0. The status is 63, or 77
+# if cmd made no junction.
+buf path 1024
+buf link 1024
+buf other 1024
+buf argv 56
+buf io 24
+data cmd "cmd.exe" 0
+data c "/c" 0
+data mk "mklink" 0
+data j "/J" 0
+# the n bytes at p to d, with a zero behind them: the place of that zero
+fn add d p n
+	i=0
+	while i<n
+		loadb p+i as ch
+		storeb d+i ch
+		i+=1
+	end
+	storeb d+n 0
+	ret d+n
+end
+args as p
+load p+16 as a
+an=0
+label more
+loadb a+an as ch
+if ch
+	if ch==47
+		ch=92
+	end
+	storeb path+an ch
+	storeb link+an ch
+	storeb other+an ch
+	an+=1
+	jmp more
+end
+rt mkdir path an 493
+call add path+an "\\real" as pe
+rt mkdir path an+5 493
+call add pe "\\f"
+rt open path an+7 65 420 as f
+rt write f "words\n"
+rt close f
+storeb pe 0
+call add link+an "\\j" as le
+call add other+an "\\other"
+store argv cmd
+store argv+8 c
+store argv+16 mk
+store argv+24 j
+store argv+32 link
+store argv+40 path
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as child
+rt reap child 0 as made
+rt kind link an+2 as k
+if (made!=0)|(k!=3)
+	storeb pe 92
+	rt rmdir link an+2
+	rt unlink path an+7
+	rt rmdir path an+5
+	rt rmdir path an
+	rt exit 77
+end
+# the directory, the junction, and a file through the junction
+rt access path an+5 1 as d1
+rt access path an+5 4 as d4
+rt access link an+2 1 as j1
+rt access link an+2 4 as j4
+call add le "\\f"
+rt access link an+4 4 as f4
+rt access link an+4 1 as f1
+x=(d1==0)&(d4==0)
+x+=((j1==0)&(j4==0))*2
+x+=((f4==0)&(f1==-8))*4
+# the directory under another name: the junction leads to nothing
+rt rename path an+5 other an+6 as mv
+rt access link an+2 1 as j1
+rt access link an+2 4 as j4
+rt access link an+4 4 as f4
+rt access link an+4 1 as f1
+x+=((mv==0)&(j1==-2)&(j4==-2))*8
+x+=((f4==-2)&(f1==-2))*16
+rt access other an+6 1 as d1
+rt access other an+6 4 as d4
+x+=((d1==0)&(d4==0))*32
+storeb le 0
+rt rmdir link an+2
+call add other+an+6 "\\f"
+rt unlink other an+8
+rt rmdir other an+6
+rt rmdir path an
+rt exit x

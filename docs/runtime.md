@@ -512,12 +512,14 @@ Where a service cannot be on Windows what it is on Linux:
   share as `\\server\share`: where `real` keeps a link that is in a
   path, this path has none. Windows still has a path for a file that
   was removed and is open, and for a file of `anon`.
-- `access` opens the file for the right that is asked, to read it or
-  to read and execute it, which Windows refuses where the process has
-  not that right, -13. A file to run must also start with the two
-  bytes of a program of Windows, `MZ`, or it is -8: `start` gives
-  Windows the file, and Windows runs nothing else by its path, a
-  script least of all. A directory is 0 for both. On Linux it is the
+- `access` opens what the path leads to for the right that is asked,
+  to read it or to read and execute it, which Windows refuses where
+  the process has not that right, -13. A file to run must also start
+  with the two bytes of a program of Windows, `MZ`, or it is -8:
+  `start` gives Windows the file, and Windows runs nothing else by
+  its path, a script least of all. A directory is opened too and is 0
+  for both; a link or a junction whose directory is gone is -2, as
+  every path that leads to nothing. On Linux it is the
   system call `access`, which asks for the user the process was
   started by, and a file may be run that the kernel then finds to be
   no program.
