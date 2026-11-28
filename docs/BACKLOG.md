@@ -1340,3 +1340,8 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   Linux). On Windows 11 itself, the program of `win_pipe` run with a
   pipe at each end, it ended with 31 before the change and with 127
   after it.
+- [x] The version 0.2.2 of AIL (user, 2026-11-27), the first with
+  those six services, the pull request 40: `Ailfile` says it and the
+  tag `v0.2.2` names the merge of it, so that a package asks for them
+  with `ail 0.2.2`. A third number, since what was written before it
+  compiles and runs as it did.

@@ -102,7 +102,10 @@ The rest is the open section of `docs/TODO.md`.
   and the tools needed to have no `sys` (the pull request 38: `lock`,
   `cwd`, `chdir`, `real`, `self`, `become`, `kind`, `pid`, `chmod` and
   the flag 2 of `start`): a third number, since what was written
-  before it compiles and runs as it did.
+  before it compiles and runs as it did. **0.2.2** (user, 2026-11-27)
+  is the first with the six services for a file that aildb needs on
+  Windows (the pull request 40: `seek`, `pwrite`, `truncate`, `sync`,
+  `stat` and `fstat`): a third number for the same reason.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 
