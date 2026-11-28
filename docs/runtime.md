@@ -79,7 +79,7 @@ result is a value.
 | 54 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 | 55 | `platform` |  | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
 | 56 | `trylock` | path | the descriptor that `lock` gives, or an error: the lock is not waited for, and -11 says that a process has it, this one too |
-| 57 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too. The memory stays when the descriptor is closed, and when the file is removed or another file gets its name, of which it then has nothing; a file must not be cut while it is mapped |
+| 57 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, and is not to be counted on elsewhere (Windows, below). The memory stays when the descriptor is closed, and when the file is removed or another file gets its name, of which it then has nothing; a file must not be cut while it is mapped |
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
@@ -406,7 +406,12 @@ Where a service cannot be on Windows what it is on Linux:
   from: so Windows 11 (build 26300, NTFS) did on 2026-11-27, also
   with the mapping in one process and the rename in another
   (`rt_map_replace`). What an older Windows and Wine do is not known
-  here.
+  here. Whether what `write` and `pwrite` write to the file afterwards
+  is in the memory, Windows does not say: its documents leave open
+  that a view and `WriteFile` agree. On NTFS at that build it was
+  there, which the test `rt_map_written` asks of Linux alone, and a
+  program for both platforms maps a file that nobody writes any
+  more, and takes a new file under the name for new bytes.
 - `random` asks `ProcessPrng` of `bcryptprimitives.dll` (Windows 10),
   which has no error, so every executable names that library too.
 

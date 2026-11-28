@@ -1422,3 +1422,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   the error now. Windows has none to give. The test
   `rt_time_refused`, of Linux alone, refuses the call with a filter
   of the process: the status was 3 before, a time of 0, and is 7.
+- [x] `map` promises a later write of Linux alone (2026-11-27, the
+  review of `0723385`, P2): the table said that what is written to a
+  file after it was mapped is read in the memory, on every platform.
+  On Windows the memory is a view (`MapViewOfFile`) and a write is
+  `WriteFile`, and the documents of Windows leave open that the two
+  agree. The table and the part about Windows say so, and the check
+  moved from `rt_map`, which every platform runs, to
+  `rt_map_written`, which `tests/win.skip` names. On Windows 11
+  (build 26300, NTFS) the write was in the view when `rt_map` still
+  asked, the same day.

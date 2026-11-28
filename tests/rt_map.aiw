@@ -1,7 +1,7 @@
-# a file as memory: its bytes are read at an address, what is written
-# to the file afterwards is read there too, the memory stays when the
-# descriptor is closed, and no bytes and more than the file has are
-# refused; after the memory is given back the file is removed
+# a file as memory: its bytes are read at an address, the memory stays
+# when the descriptor is closed, and no bytes and more than the file
+# has are refused; after the memory is given back the file is removed.
+# What is written to the file afterwards is rt_map_written
 rt unlink "build/tests/rt_map.txt"
 rt open "build/tests/rt_map.txt" 0x42 420 as f
 rt write f "0123456789" as w
@@ -9,8 +9,6 @@ rt map f 10 as m
 rt map f 11 as over
 rt map f 0 as none
 loadb m+9 as c
-rt pwrite f "ab" 3
-loadb m+3 as d
 rt close f
 loadb m+4 as e
 rt write 1 m 10
@@ -18,4 +16,4 @@ rt write 1 "\n"
 rt unmap m 10 as u
 rt map f 10 as gone
 rt unlink "build/tests/rt_map.txt" as ul
-rt exit (w==10)+((m>4095)&(m<-4096))*2+(over==-22)*4+(none==-22)*8+((c==57)&(d==97)&(e==98))*16+(u==0)*32+(gone==-9)*64+(ul==0)*128
+rt exit (w==10)+((m>4095)&(m<-4096))*2+(over==-22)*4+(none==-22)*8+((c==57)&(e==52))*16+(u==0)*32+(gone==-9)*64+(ul==0)*128

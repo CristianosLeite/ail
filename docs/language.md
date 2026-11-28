@@ -244,7 +244,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 | `platform` | | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
 | `trylock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, as `lock` of [runtime.md](runtime.md) gives one, or an error: the lock is not waited for, and -11 says that a process has it, this one too |
-| `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too, and the memory stays when the descriptor is closed |
+| `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, which [runtime.md](runtime.md) does not promise of Windows, and the memory stays when the descriptor is closed |
 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.

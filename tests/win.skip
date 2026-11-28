@@ -36,3 +36,5 @@ lib_http_cancel
 rt_start_cloexec
 # the widths are those of the kernel of Linux
 rt_reap_wide
+# Windows does not say that a view has what is written to its file
+rt_map_written

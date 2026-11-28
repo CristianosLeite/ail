@@ -2977,7 +2977,8 @@ end
 # -22 for no bytes and for more than the file has. Windows maps a view
 # of a mapping of the file: the mapping is made for the whole file, to
 # be read (2), and closed once the view is there, which keeps it. The
-# memory is the file, also what is written to it afterwards, and stays
+# memory is the file as it was mapped, of which Windows does not say
+# that it has what is written to the file afterwards, and stays
 # when the descriptor is closed.
 fn rt_map rt_fd rt_n
 	local rt_a 56
