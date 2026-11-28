@@ -1,0 +1,13 @@
+# a named pipe has no lock: with no writer, the open of one waits, and
+# the lock that is not waited for answers at once, as the one that is
+# waited for does, with the error -22. The same for a device
+const mknod 133
+data fifo "build/tests/rt_lock_fifo.p" 0
+rt unlink "build/tests/rt_lock_fifo.p"
+sys mknod fifo 0x11a4 0 as k
+rt trylock "build/tests/rt_lock_fifo.p" as t
+rt lock "build/tests/rt_lock_fifo.p" as l
+rt trylock "/dev/null" as d
+rt unlink "build/tests/rt_lock_fifo.p" as u
+rt write 1 "no lock\n"
+rt exit (k==0)+(t==-22)*2+(l==-22)*4+(d==-22)*8+(u==0)*16

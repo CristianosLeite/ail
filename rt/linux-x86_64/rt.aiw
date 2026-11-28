@@ -417,15 +417,31 @@ end
 # asks again waits for itself.
 # rt_how is how the kernel is asked: 2 waits, and 6 gives the error
 # -11 in place of the wait, to the process that has the lock too.
+# The open does not wait either (0x800 of its flags), which that of a
+# named pipe would for a writer, and what is neither a directory nor
+# a plain file has no lock: the error -22.
 fn rt_locking rt_p rt_n rt_how
 	local rt_z 4096
+	local rt_s 144
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
 		ret rt_r
 	end
-	sys open rt_z 0x80000 0 as rt_fd
+	sys open rt_z 0x80800 0 as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
+	end
+	sys fstat rt_fd rt_s as rt_r
+	ifz rt_r
+		load4 rt_s+24 as rt_k
+		rt_k&=0xf000
+		if (rt_k!=0x4000)&(rt_k!=0x8000)
+			rt_r=-22
+		end
+	end
+	if rt_r
+		sys close rt_fd
+		ret rt_r
 	end
 	label rt_again
 	sys rt_flock rt_fd rt_how as rt_r

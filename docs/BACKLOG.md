@@ -1406,3 +1406,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `fstat` of a directory, of `pwrite` by threads and of a rename onto
   a mapped file fail, and pass on NTFS.
   `.agents/knowledge/testing/windows-itself.md` has how it is run.
+- [x] No lock of a named pipe (2026-11-27, the review of `0723385`,
+  P2): `rt_locking` of Linux opened the path to read it before it
+  asked for the lock, and the open of a named pipe waits for a
+  writer, so `trylock` waited there, the one thing it is not to do.
+  The open does not wait now (`O_NONBLOCK`), for `lock` too, and what
+  it gives is asked its kind before the lock: -22 for anything but a
+  directory and a plain file, a named pipe and a device among them.
+  The test `rt_lock_fifo`, which makes the pipe with `sys mknod` and
+  so is of Linux alone; before the change it did not end.
