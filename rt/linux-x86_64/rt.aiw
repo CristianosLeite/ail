@@ -2032,4 +2032,30 @@ fn rt_trylock rt_p rt_n
 	tail rt_locking rt_p rt_n 6
 end
 
+# ---- a file as memory
+# The first rt_n bytes of the open file as memory that is read and not
+# written, at an address the kernel chooses: the address, or an error,
+# -22 for no bytes and for more than the file has, which no memory
+# would stand for. The memory is the file, also what is written to it
+# afterwards (1 of the flags), and stays when the descriptor is closed.
+fn rt_map rt_fd rt_n
+	local rt_s 144
+	sys fstat rt_fd rt_s as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load rt_s+48 as rt_r
+	if (rt_n==0)|(rt_n>rt_r)
+		ret -22
+	end
+	sys mmap 0 rt_n 1 1 rt_fd 0 as rt_r
+	ret rt_r
+end
+
+# give back the rt_n bytes at rt_p that rt_map gave
+fn rt_unmap rt_p rt_n
+	sys munmap rt_p rt_n as rt_r
+	ret rt_r
+end
+
 label rt_go

@@ -2971,4 +2971,70 @@ fn rt_trylock rt_p rt_n
 	tail rt_locking rt_p rt_n 1
 end
 
+# ---- a file as memory
+# The first rt_n bytes of the open file as memory that is read and not
+# written, at an address Windows chooses: the address, or an error,
+# -22 for no bytes and for more than the file has. Windows maps a view
+# of a mapping of the file: the mapping is made for the whole file, to
+# be read (2), and closed once the view is there, which keeps it. The
+# memory is the file, also what is written to it afterwards, and stays
+# when the descriptor is closed.
+fn rt_map rt_fd rt_n
+	local rt_a 56
+	local rt_s 8
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	store rt_a rt_h
+	store rt_a+8 rt_s
+	call rt_api rt_i_getfilesizeex rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load rt_s as rt_r
+	if (rt_n==0)|(rt_n>rt_r)
+		ret -22
+	end
+	store rt_a rt_h
+	store rt_a+8 0
+	store rt_a+16 2
+	store rt_a+24 0
+	store rt_a+32 0
+	store rt_a+40 0
+	call rt_api rt_i_createfilemappinga rt_a 6 as rt_m
+	ifz rt_m
+		tail rt_error
+	end
+	# the view: to be read (4), from the start of the file
+	store rt_a rt_m
+	store rt_a+8 4
+	store rt_a+16 0
+	store rt_a+24 0
+	store rt_a+32 rt_n
+	call rt_api rt_i_mapviewoffile rt_a 5 as rt_p
+	rt_e=0
+	ifz rt_p
+		call rt_error as rt_e
+	end
+	store rt_a rt_m
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_e
+		ret rt_e
+	end
+	ret rt_p
+end
+
+# give back the memory at rt_p that rt_map gave; Windows knows how
+# many bytes it is
+fn rt_unmap rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	call rt_api rt_i_unmapviewoffile rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
 label rt_go

@@ -1380,3 +1380,17 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   without waiting is refused too, on both platforms. The test
   `rt_trylock`, which is also run by `tests/win.sh` whatever its
   count.
+- [x] The services `map` and `unmap`, a file as memory (2026-11-27):
+  the first bytes of an open file at an address, to be read, which a
+  program had to ask of Linux with `sys mmap`. aildb reads a snapshot
+  so, without a copy of it. `mmap` on Linux, shared, so that what is
+  written to the file afterwards is in the memory on both platforms,
+  and on Windows a view of a mapping of the file
+  (`CreateFileMappingA`, `MapViewOfFile`, `UnmapViewOfFile`, three
+  imports). Both runtimes ask the size of the file first and refuse
+  more bytes than it has, -22, which Linux would map and fault at.
+  The tests `rt_map` and `rt_map_replace`: the second maps a file and
+  has another process give a new file its name, and the memory is
+  still the old file, on Linux and on Windows 11 itself (build 26300,
+  NTFS), where the cut of a mapped file is refused, -5. Both are also
+  run by `tests/win.sh` whatever its count.
