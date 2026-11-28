@@ -1,7 +1,7 @@
 ---
 title: Five services for a program that stays inside a directory
 last-verified: 2026-11-28
-sources: [conversation 2026-11-28, REVIEW.md of 2026-11-28 (a review of c5ed7fb, never part of the repository), docs/TODO.md of aildb (step 19), rt/linux-x86_64/rt.aiw, rt/windows-x86_64/rt.aiw, docs/runtime.md, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
+sources: [conversation 2026-11-28, REVIEW.md of 2026-11-28 (a review of c5ed7fb and a second one of b7cba19, never part of the repository), docs/TODO.md of aildb (step 19), rt/linux-x86_64/rt.aiw, rt/windows-x86_64/rt.aiw, docs/runtime.md, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
 status: current
 ---
 # Five services for a program that stays inside a directory
@@ -148,6 +148,42 @@ The review also said of `sync` of a directory on Windows that its
 success shows a request that Windows took and no more, which is
 what this page says below.
 
+## The second review, of b7cba19
+
+The user gave the agent a second review the same day (2026-11-28,
+`REVIEW.md` again), of the branch at `b7cba19`. It found the five
+findings answered, and confirmed two of the agent's choices with
+probes of its own: that 0x800000 holds the name from the open on,
+also for a descriptor that waits for the lock, and that `kill` gives
+the error of `pidfd_open`, which it made fail, while another thread
+waits in `reap`, the child ending as it would. Two things were left,
+each answered in one commit, and a test it advised is a third.
+
+- **A program must not change `SIGCHLD` during a `kill` by the
+  number** (review, P2, by reading; agent). What the process does
+  with the signal is asked once before the signal goes, and a
+  thread that began to ignore it between the two would have the
+  kernel take the child. `docs/runtime.md` and the comment of
+  `rt_kill` say it now, as they say it of a `reap` with a time; the
+  runtime is as it was. Rejected: no signal by a number at all,
+  the other way the review offered, which would leave a kernel
+  before 5.3 and a process out of descriptors without the service
+  for a case that only a program with `sys` of its own can make.
+- **A junction opened only to be asked is the directory of no
+  `openat` on Windows, -20** (review, P3; agent as the review
+  advised). Windows says of a junction that it is a directory, so
+  the open went on and came back with -5; nothing behind the
+  junction was opened. The reparse attribute is asked with the
+  directory one. `tests/win/link.aiw` ended with 61 before and 63
+  after, on NTFS.
+- **`rt_kill_nofd` has the thread in `reap`** (review, advised;
+  agent). With the limit of three open files in the place of the
+  review's forced error: -24 for a child that a thread waits for,
+  then the limit as it was, the child ended by a descriptor, and -9
+  from that `reap`. 15 with this tree, 5 with the compiler of
+  `c5ed7fb`. The thread is given 50 milliseconds to be in `reap`,
+  as `rt_reap_two` gives its thread.
+
 ## What is not known
 
 - Wine: this machine has none. `openat` asks `ntdll.dll` for
@@ -156,9 +192,10 @@ what this page says below.
   made.
 - `reap` by the number of a child, the way for a Linux before 5.4,
   was not run: the kernel here is 6.18. `kill` by the number is run
-  by `rt_kill_nofd`, which takes the descriptors away; a `kill`
-  while another thread waits in `reap` for the same child has no
-  test, since nothing holds the two still.
+  by `rt_kill_nofd`, which takes the descriptors away, since the
+  second review also while another thread waits in `reap` for the
+  same child. A thread that changes `SIGCHLD` during such a `kill`
+  has no test: the runtime does not keep it from that, and says so.
 - Whether a relative open from a handle that is on a junction itself
   stays in the junction: `openat` refuses a junction as a directory,
   so nothing depends on it.
@@ -170,6 +207,13 @@ what this page says below.
   was tried.
 
 ## Runs
+
+- 2026-11-28, at `a5889e0`, the three commits after the second review,
+  Ubuntu under WSL 2: `make test` status 0, 3164 lines of ok.
+- The same day and revision, `tests/win.sh all` with the tree on
+  NTFS and the programs started on Windows 11 itself: status 0,
+  `win_tests (616 run)` and fifteen named checks, `win_openat_link` and
+  `win_stale_watch` among them.
 
 - 2026-11-28, at `2751fe7`, the five fixes after the review of
   `c5ed7fb` on `main` with the pull request 43 merged into the
