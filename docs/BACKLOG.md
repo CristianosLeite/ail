@@ -1541,3 +1541,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   that is written through (`MOVEFILE_WRITE_THROUGH`), which would
   slow every rename and is documented for a move that copies. The
   test is `rt_sync_dir`.
+- [x] A number that is no descriptor opens nothing below a directory
+  (2026-11-28, the review of `c5ed7fb`, the pull request 42): the
+  runtime of Linux gave the descriptor of `openat` to the kernel as
+  it came, which takes -100 for the directory the process is in and
+  reads the low 32 bits alone, so `rt openat -100` opened a name
+  there and the number of a directory with 2^32 added opened one
+  below it, where Windows said -9. `openat` and `lockfd` of Linux
+  now give -9 for a negative number and for one above 2^31-1, before
+  a directory is made or anything is opened. The tests `rt_openat`
+  and `rt_lockfd` ask both, to open and to make a directory.

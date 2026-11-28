@@ -4,7 +4,8 @@
 # was closed, it gets the lock. While the lock is held a second
 # descriptor of this process is refused it, and so is trylock of the
 # path, which is the same lock. A directory has no such lock, and a
-# descriptor that is none is an error
+# descriptor that is none is an error, the number of the one that has
+# the lock with 2^32 added among them
 buf exe 4096
 buf argv 24
 buf io 24
@@ -27,6 +28,7 @@ rt rmdir dir n
 rt mkdir dir n 493
 rt open "build/tests/rt_lockfd.d/f" 66 420 as f
 rt lockfd f as l
+rt lockfd 0x100000000+f as e3
 rt self exe 4095 as e
 storeb exe+e 0
 store argv exe
@@ -51,5 +53,5 @@ rt lockfd 200 as e2
 rt unlink "build/tests/rt_lockfd.d/f" as r1
 rt rmdir dir n as r2
 x=((f>2)&(l==0))+(s==5)*2+((mine==-11)&(path==-11))*4+((u==0)&(free==0))*8
-x+=(s2==3)*16+((e1==-22)&(e2==-9))*32+((r1==0)&(r2==0))*64
+x+=(s2==3)*16+((e1==-22)&(e2==-9)&(e3==-9))*32+((r1==0)&(r2==0))*64
 rt exit x

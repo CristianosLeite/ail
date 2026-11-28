@@ -2183,7 +2183,10 @@ end
 # so after either the name is asked what it is. A directory to be made
 # (64 with 0x10000) is made first, which the kernel does not do in an
 # open, and then opened: what took its name meanwhile is opened in its
-# place only if it is a directory too, and no link.
+# place only if it is a directory too, and no link. The kernel reads
+# the low 32 bits of a descriptor alone and takes -100 for the
+# directory the process is in, so a number that is no descriptor, a
+# negative one or one above 2^31-1, is refused here: -9.
 const rt_mkdirat 258
 const rt_fstatat 262
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
@@ -2192,6 +2195,9 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	call rt_noname rt_p rt_n as rt_r
 	if rt_r
 		ret -22
+	end
+	if rt_fd>0x7fffffff
+		ret -9
 	end
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
@@ -2266,9 +2272,13 @@ end
 # waiting: 0, -11 if another open file has it, or an error, -22 for
 # what is no plain file. It is the lock of rt_lock (flock, 6 for one
 # that is not waited for), which the kernel keeps for the open file
-# until its last descriptor is closed.
+# until its last descriptor is closed. A number that is no descriptor
+# is refused as rt_openat refuses one.
 fn rt_lockfd rt_fd
 	local rt_s 144
+	if rt_fd>0x7fffffff
+		ret -9
+	end
 	sys fstat rt_fd rt_s as rt_r
 	if rt_r
 		ret rt_r

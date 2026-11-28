@@ -4,7 +4,10 @@
 # names of the directory are read. What is no name of one thing is
 # refused, and so are a name with nothing at it, a file where a
 # directory is asked for, a file that is to be made and is there, and
-# a file as the directory
+# a file as the directory. A number that is no descriptor is none: -100,
+# which is the directory of the process to the kernel of Linux, and the
+# number of the directory with 2^32 added, which is the directory to it,
+# open nothing and make nothing
 buf b 512
 buf st 32
 data dir "build/tests/rt_openat.d"
@@ -48,7 +51,15 @@ rt openat s "f" 0x10000 0 as e1
 rt openat s "f" 193 420 as e2
 rt openat f "x" 0 0 as e3
 rt openat 200 "x" 0 0 as e4
-x+=((e1==-20)&(e2==-17)&(e3==-20)&(e4==-9))*32
+bad=(e1!=-20)|(e2!=-17)|(e3!=-20)|(e4!=-9)
+rt openat -100 "build" 0x10000 0 as e1
+rt openat -100 "rt_openat.made" 0x10040 493 as e2
+rt openat 0x100000000+d "sub" 0x10000 0 as e3
+rt openat 0x100000000+d "made" 0x10040 493 as e4
+rt kind "rt_openat.made" as k1
+rt kind "build/tests/rt_openat.d/made" as k2
+bad|=(e1!=-9)|(e2!=-9)|(e3!=-9)|(e4!=-9)|(k1!=-2)|(k2!=-2)
+x+=(bad==0)*32
 rt close f
 rt openat s "f" 513 0 as f
 rt close f
