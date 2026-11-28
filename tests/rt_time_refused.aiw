@@ -1,0 +1,23 @@
+# the time of day that the kernel refuses is an error, not the year
+# 1970: a filter makes clock_gettime the error 1 for this process, and
+# the service gives -1. Before the filter it gives a time
+const prctl 157
+buf filt 32
+buf prog 16
+rt time as a
+# the number of the call; if it is 228, the error 1, and else the call
+# goes on
+store filt 0x20
+store filt+8 0x000000e401000015
+store filt+16 0x0005000100000006
+store filt+24 0x7fff000000000006
+store prog 4
+store prog+8 filt
+# PR_SET_NO_NEW_PRIVS, then PR_SET_SECCOMP with a filter
+sys prctl 38 1 0 0 0 as r
+ifz r
+	sys prctl 22 2 prog 0 0 as r
+end
+rt time as b
+rt write 1 "refused\n"
+rt exit (a>0)+(r==0)*2+(b==-1)*4

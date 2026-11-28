@@ -1415,3 +1415,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   directory and a plain file, a named pipe and a device among them.
   The test `rt_lock_fifo`, which makes the pipe with `sys mknod` and
   so is of Linux alone; before the change it did not end.
+- [x] `time` says when the kernel does not answer (2026-11-27, the
+  review of `0723385`, P3): `rt_time` of Linux read the two numbers
+  whatever `clock_gettime` had returned, so a kernel that refused the
+  call gave the program 0, the start of 1970, as a time. It returns
+  the error now. Windows has none to give. The test
+  `rt_time_refused`, of Linux alone, refuses the call with a filter
+  of the process: the status was 3 before, a time of 0, and is 7.

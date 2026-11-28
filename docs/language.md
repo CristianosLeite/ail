@@ -240,7 +240,7 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
 | `fstat` | descriptor, address | the same for what the descriptor is open on |
-| `time` | | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
+| `time` | | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward, or an error if the system does not say it |
 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
 | `platform` | | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
 | `trylock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, as `lock` of [runtime.md](runtime.md) gives one, or an error: the lock is not waited for, and -11 says that a process has it, this one too |

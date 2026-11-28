@@ -2005,10 +2005,14 @@ end
 
 # ---- the time of day
 # nanoseconds since 1970 by the clock of the system, which may be set
-# and so go back, where rt_clock only goes forward
+# and so go back, where rt_clock only goes forward, or the error of
+# a kernel that does not answer
 fn rt_time
 	local rt_t 16
-	sys clock_gettime 0 rt_t
+	sys clock_gettime 0 rt_t as rt_r
+	if rt_r
+		ret rt_r
+	end
 	load rt_t as rt_s
 	load rt_t+8 as rt_n
 	ret rt_s*1000000000+rt_n
