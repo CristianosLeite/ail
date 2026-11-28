@@ -1,0 +1,55 @@
+# the lock of an open file: this program opens a file, takes its lock
+# by the descriptor and starts itself, and what it starts opens the
+# file and is refused the lock; started again after the descriptor
+# was closed, it gets the lock. While the lock is held a second
+# descriptor of this process is refused it, and so is trylock of the
+# path, which is the same lock. A directory has no such lock, and a
+# descriptor that is none is an error
+buf exe 4096
+buf argv 24
+buf io 24
+data again "again" 0
+data dir "build/tests/rt_lockfd.d"
+args as p
+load p as n
+if n>1
+	rt open "build/tests/rt_lockfd.d/f" 2 0 as g
+	rt lockfd g as l
+	if l==-11
+		rt exit 5
+	end
+	rt close g as c
+	rt exit (l==0)+(c==0)*2
+end
+len dir as n
+rt unlink "build/tests/rt_lockfd.d/f"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open "build/tests/rt_lockfd.d/f" 66 420 as f
+rt lockfd f as l
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 again
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0 as s
+rt open "build/tests/rt_lockfd.d/f" 2 0 as g
+rt lockfd g as mine
+rt trylock "build/tests/rt_lockfd.d/f" as path
+rt close f as u
+rt lockfd g as free
+rt close g
+rt start argv 0 io 0 as c
+rt reap c 0 as s2
+rt open dir n 0x10000 0 as d
+rt lockfd d as e1
+rt close d
+rt lockfd 200 as e2
+rt unlink "build/tests/rt_lockfd.d/f" as r1
+rt rmdir dir n as r2
+x=((f>2)&(l==0))+(s==5)*2+((mine==-11)&(path==-11))*4+((u==0)&(free==0))*8
+x+=(s2==3)*16+((e1==-22)&(e2==-9))*32+((r1==0)&(r2==0))*64
+rt exit x

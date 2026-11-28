@@ -3480,4 +3480,42 @@ fn rt_fdpath rt_fd rt_q rt_m
 	ret rt_o-1
 end
 
+# ---- the lock of an open file
+# Take the lock of the file that rt_fd is open on, without waiting: 0,
+# -11 if a handle has it, or an error, -22 for what is no file on a
+# disk, a directory among it. It is the byte that rt_locking locks,
+# asked for with the handle of the descriptor and not waited for (3),
+# and the descriptor is noted as a lock (8), which become lets go of.
+fn rt_lockfd rt_fd
+	local rt_y 32
+	local rt_a 48
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		if rt_h==-9
+			ret -9
+		end
+		ret -22
+	end
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		ret -22
+	end
+	zero rt_y 32
+	store4 rt_y+20 0x40000000
+	store rt_a rt_h
+	store rt_a+8 3
+	store rt_a+16 0
+	store rt_a+24 1
+	store rt_a+32 0
+	store rt_a+40 rt_y
+	call rt_api rt_i_lockfileex rt_a 6 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_lockerr 1
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	storeb rt_state+4480+rt_fd rt_k|8
+	ret 0
+end
+
 label rt_go

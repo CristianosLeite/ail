@@ -85,6 +85,7 @@ result is a value.
 | 60 | `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
 | 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat`, and a directory to be the one of another `openat`: nothing of it is read or written, a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for |
 | 62 | `fdpath` | descriptor, address, size | the length of the path that the system has for what the descriptor is open on, from the root and with no link in it, written there as `cwd` writes one, or an error: -34 if it does not fit, -22 for what has no path, a pipe or a socket, and -2 for a file that has no name any more |
+| 63 | `lockfd` | descriptor | 0, or an error: the lock that `lock` takes of a file, taken for the file the descriptor is open on, which is held until the descriptor is closed or the process ends. It is not waited for: -11 says that a process has it, by `lock`, `trylock` or `lockfd`, this one too by another descriptor. -22 for what is no plain file. The descriptor is one opened to read or to write, and one that has the lock does not ask again |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -465,6 +466,12 @@ Where a service cannot be on Windows what it is on Linux:
   share as `\\server\share`: where `real` keeps a link that is in a
   path, this path has none. Windows still has a path for a file that
   was removed and is open, and for a file of `anon`.
+- `lockfd` asks Windows for the byte that `lock` asks for, with the
+  handle of the descriptor, and `become` lets go of it as of a lock
+  of `lock`. A descriptor that has the lock and asks again gets -11
+  there and 0 on Linux, where the lock is of the open file and a
+  program that `start` gave the descriptor has it too; neither is to
+  be counted on.
 
 ## Another platform
 

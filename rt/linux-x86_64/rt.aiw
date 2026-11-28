@@ -2261,4 +2261,26 @@ fn rt_fdpath rt_fd rt_q rt_m
 	ret rt_r
 end
 
+# ---- the lock of an open file
+# Take the lock of the plain file that rt_fd is open on, without
+# waiting: 0, -11 if another open file has it, or an error, -22 for
+# what is no plain file. It is the lock of rt_lock (flock, 6 for one
+# that is not waited for), which the kernel keeps for the open file
+# until its last descriptor is closed.
+fn rt_lockfd rt_fd
+	local rt_s 144
+	sys fstat rt_fd rt_s as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load4 rt_s+24 as rt_k
+	if rt_k&0xf000!=0x8000
+		ret -22
+	end
+	label rt_again
+	sys rt_flock rt_fd 6 as rt_r
+	jeq rt_r -4 rt_again
+	ret rt_r
+end
+
 label rt_go

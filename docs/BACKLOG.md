@@ -1501,3 +1501,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `GetFinalPathNameByHandleA` without what Windows writes in front.
   The function that writes the path in `/proc` is one for `real` and
   for it. The test is `rt_fdpath`.
+- [x] The lock of an open file, not waited for, the service `lockfd`
+  (2026-11-28, for step 19 of aildb, after the review of its
+  `721ed45`: the lock of an index is of a file that was opened with
+  no link followed, and `trylock` opens a path): the lock that `lock`
+  takes of a file, for the file a descriptor is open on, -11 if a
+  process has it and -22 for what is no plain file. On Linux `flock`
+  of the descriptor, on Windows `LockFileEx` of its handle for the
+  byte `lock` uses, so the three services keep each other out. The
+  test is `rt_lockfd`, which Windows runs on NTFS as the other tests
+  of locks.
