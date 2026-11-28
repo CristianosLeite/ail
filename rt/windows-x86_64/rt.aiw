@@ -54,7 +54,8 @@ end
 # number of the runtime: -2 no such file, -13 not allowed, -17 it is
 # there, -9 no such descriptor, -32 the other end is closed, -12 no
 # memory, -39 not empty, -28 no room, -36 a path too long, -20 not a
-# directory, -8 no program of this machine, and -5 for any other
+# directory, -22 a value that is not taken, -8 no program of this
+# machine, and -5 for any other
 fn rt_error
 	local rt_a 32
 	call rt_api rt_i_getlasterror rt_a 0 as rt_e
@@ -85,6 +86,9 @@ fn rt_error
 	end
 	if rt_e==267
 		ret -20
+	end
+	if (rt_e==87)|(rt_e==131)
+		ret -22
 	end
 	if (rt_e==39)|(rt_e==112)
 		ret -28
@@ -339,14 +343,13 @@ fn rt_close rt_fd
 		# a directory: the search of its names, if one was begun, and
 		# the record
 		store rt_state+2408+rt_fd*8 0
-		load rt_d as rt_h
+		load rt_d as rt_x
 		load rt_d+8 as rt_s
 		if rt_s
-			store rt_a rt_h
+			store rt_a rt_x
 			call rt_api rt_i_findclose rt_a 1
 		end
 		call rt_free rt_d
-		jmp rt_done
 	end
 	store rt_a rt_h
 	call rt_api rt_i_closehandle rt_a 1 as rt_x
@@ -446,7 +449,9 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 	end
 	if rt_flags&0x10000
 		# a directory is opened for its names: a record with its path
-		# and "\*" behind it, which the search of Windows takes
+		# and "\*" behind it, which the search of Windows takes, and a
+		# handle for what is known of it (0x80), which stays on the
+		# directory when its path leads elsewhere
 		store rt_a rt_z
 		call rt_api rt_i_getfileattributesa rt_a 1 as rt_r
 		rt_r&=0xffffffff
@@ -470,8 +475,22 @@ fn rt_open rt_p rt_n rt_flags rt_mode
 		end
 		storeb rt_d+336+rt_n 92
 		storeb rt_d+337+rt_n 42
+		store rt_a rt_z
+		store rt_a+8 0x80
+		store rt_a+16 7
+		store rt_a+24 0
+		store rt_a+32 3
+		store rt_a+40 0x02000000
+		store rt_a+48 0
+		call rt_api rt_i_createfilea rt_a 7 as rt_h
+		if rt_h==-1
+			call rt_error as rt_r
+			call rt_long rt_z rt_r as rt_r
+			call rt_free rt_d
+			tail rt_unfd rt_fd rt_r
+		end
 		store rt_state+2408+rt_fd*8 rt_d
-		store rt_state+360+rt_fd*8 1
+		store rt_state+360+rt_fd*8 rt_h+1
 		ret rt_fd
 	end
 	rt_attr=0x80
@@ -697,6 +716,289 @@ fn rt_kind rt_p rt_n
 		ret 2
 	end
 	ret 1
+end
+
+# The handle of the descriptor rt_fd if it is a file that Windows has a
+# handle for, or the error: -9 for none, -29 for a socket, a waker or a
+# poller, and -21 for a directory, whose handle is for what is known
+# of it alone.
+fn rt_file rt_fd
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&7
+		ret -29
+	end
+	load rt_state+2408+rt_fd*8 as rt_k
+	if rt_k
+		ret -21
+	end
+	ret rt_h
+end
+
+# The handle of the descriptor rt_fd if what it is open on has places,
+# a file on a disk (1 of the kinds of Windows), or the error: those of
+# rt_file, and -29 for a pipe, a console and whatever else has none,
+# of which Windows says other things when it is asked for a place.
+fn rt_placed rt_fd
+	local rt_a 32
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		ret -29
+	end
+	ret rt_h
+end
+
+# The place in the open file that the next read or write is at, set to
+# rt_o bytes from its start (rt_w 0), from where it is (1) or from its
+# end (2): the place from the start, or an error.
+fn rt_seek rt_fd rt_o rt_w
+	local rt_a 32
+	local rt_s 8
+	call rt_placed rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	if rt_w>2
+		ret -22
+	end
+	store rt_a rt_h
+	store rt_a+8 rt_o
+	store rt_a+16 rt_s
+	store rt_a+24 rt_w
+	call rt_api rt_i_setfilepointerex rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load rt_s as rt_r
+	ret rt_r
+end
+
+# Up to rt_n bytes at the place rt_o of the open file: how many were
+# written, or an error, -9 for a descriptor that is not open to write
+# at a place. A write of Windows moves the place of the handle it is
+# given, whatever place it is told, and the place is one for every
+# thread and process that has the handle. So the write is done by a
+# second handle of the same file, opened for it and closed after it,
+# and the place of the descriptor is never touched.
+fn rt_pwrite rt_fd rt_p rt_n rt_o
+	local rt_a 40
+	local rt_v 32
+	local rt_got 8
+	call rt_placed rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	# a place below zero is the end of the file to Windows
+	ifslt rt_o 0
+		ret -22
+	end
+	# what the handle may do, 8 of the things that are asked of a file:
+	# the second handle must not write where the first may not (2)
+	store rt_a rt_h
+	store rt_a+8 rt_v
+	store rt_a+16 rt_got
+	store rt_a+24 4
+	store rt_a+32 8
+	call rt_api rt_i_ntqueryinformationfile rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		ret -5
+	end
+	load4 rt_got as rt_r
+	ifz rt_r&2
+		ret -9
+	end
+	store rt_a rt_h
+	store rt_a+8 0x40000000
+	store rt_a+16 7
+	store rt_a+24 0
+	call rt_api rt_i_reopenfile rt_a 4 as rt_w
+	if rt_w==-1
+		tail rt_error
+	end
+	if rt_n>0x40000000
+		rt_n=0x40000000
+	end
+	store rt_v 0
+	store rt_v+8 0
+	store rt_v+16 rt_o
+	store rt_v+24 0
+	store rt_got 0
+	store rt_a rt_w
+	store rt_a+8 rt_p
+	store rt_a+16 rt_n
+	store rt_a+24 rt_got
+	store rt_a+32 rt_v
+	call rt_api rt_i_writefile rt_a 5 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+	else
+		load4 rt_got as rt_r
+	end
+	store rt_a rt_w
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
+end
+
+# make the open file rt_n bytes long, the new ones zeros
+fn rt_truncate rt_fd rt_n
+	local rt_a 32
+	local rt_s 8
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	ifslt rt_n 0
+		ret -22
+	end
+	# the end of the file, 6 of the things that are set by a handle
+	store rt_s rt_n
+	store rt_a rt_h
+	store rt_a+8 6
+	store rt_a+16 rt_s
+	store rt_a+24 8
+	call rt_api rt_i_setfileinformationbyhandle rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
+# What was written to the open file is on its device when this returns
+# 0. Windows flushes a file that is open to be written, and no
+# directory: 0 for one.
+fn rt_sync rt_fd
+	local rt_a 32
+	call rt_file rt_fd as rt_h
+	if rt_h==-21
+		ret 0
+	end
+	if rt_h>-4096
+		ret rt_h
+	end
+	store rt_a rt_h
+	call rt_api rt_i_flushfilebuffers rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	ret 0
+end
+
+# a time of Windows, in 100 nanoseconds since 1601, as nanoseconds
+# since 1970
+fn rt_since rt_t
+	ret (rt_t-116444736000000000)*100
+end
+
+# What the handle rt_h is open on, as the four numbers at rt_q: its
+# kind as rt_kind gives it, the size of a file in bytes, and the
+# nanoseconds since 1970 at which its bytes and at which anything of
+# it last changed. 0, or an error. What is no file on a disk, a
+# console (2 of the kinds of Windows) or a pipe or a socket (3), is of
+# the kind 4 and has no size and no times: Windows answers what is
+# asked below for a pipe too, with the attributes of a plain file.
+fn rt_stat4 rt_h rt_q
+	local rt_a 32
+	local rt_b 40
+	local rt_s 8
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	rt_r&=0xffffffff
+	if (rt_r==2)|(rt_r==3)
+		store rt_q 4
+		store rt_q+8 0
+		store rt_q+16 0
+		store rt_q+24 0
+		ret 0
+	end
+	# the times and the attributes, 0 of the things that are asked by a
+	# handle: made, read, written, changed, 8 bytes each, and 4
+	store rt_a rt_h
+	store rt_a+8 0
+	store rt_a+16 rt_b
+	store rt_a+24 40
+	call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load4 rt_b+32 as rt_t
+	rt_k=1
+	if rt_t&16
+		rt_k=2
+	end
+	if rt_t&0x400
+		rt_k=3
+	end
+	store rt_s 0
+	if rt_k==1
+		store rt_a rt_h
+		store rt_a+8 rt_s
+		call rt_api rt_i_getfilesizeex rt_a 2 as rt_r
+		ifz rt_r&0xffffffff
+			tail rt_error
+		end
+	end
+	store rt_q rt_k
+	load rt_s as rt_t
+	store rt_q+8 rt_t
+	load rt_b+16 as rt_t
+	call rt_since rt_t as rt_t
+	store rt_q+16 rt_t
+	load rt_b+24 as rt_t
+	call rt_since rt_t as rt_t
+	store rt_q+24 rt_t
+	ret 0
+end
+
+# The same of what is at the path with a zero behind it at rt_z, a
+# link not followed: it is opened for what is known of it alone, a
+# directory too (0x02000000) and a link as itself (0x00200000).
+fn rt_statz rt_z rt_q
+	local rt_a 56
+	store rt_a rt_z
+	store rt_a+8 0x80
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 3
+	store rt_a+40 0x02200000
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	call rt_stat4 rt_h rt_q as rt_r
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
+end
+
+# The kind, the size and the two times of what is at the path, a link
+# not followed, into the 32 bytes at rt_q: 0, or an error.
+fn rt_stat rt_p rt_n rt_q
+	local rt_z 4096
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	tail rt_statz rt_z rt_q
+end
+
+# the same of what the descriptor is open on, a directory too, which
+# has a handle since it was opened
+fn rt_fstat rt_fd rt_q
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	tail rt_stat4 rt_h rt_q
 end
 
 # the mode of a file means nothing here: 0 for a descriptor that is open

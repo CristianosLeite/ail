@@ -1289,3 +1289,59 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `Ailfile` says it and the tag `v0.2.1` names the merge of it, so
   that a package asks for them with `ail 0.2.1`. A third number, since
   what was written before it compiles and runs as it did.
+- [x] Six services for a file, which a program had to ask of Linux
+  with `sys` and so could not ask on Windows (2026-11-26, for aildb,
+  whose user wants it there): `seek`, the place of a file; `pwrite`, a
+  write at a place; `truncate`, a file cut or made longer; `sync`, a
+  file or a directory flushed; `stat` and `fstat`, the kind, the size
+  and the two times of what is at a path, a link not followed, or
+  behind a descriptor. On Windows they call `SetFilePointerEx`,
+  `WriteFile` with a place, `SetFileInformationByHandle`,
+  `FlushFileBuffers`, `GetFileInformationByHandleEx` and
+  `GetFileSizeEx`; `docs/runtime.md` says where they differ there. The
+  tests `rt_seek` and `rt_stat` pass on Linux and under Wine, where
+  `tests/win.sh` always runs them. `win_stale_watch` failed once in
+  the first run of `make test`: of 40 runs under Wine it ended with
+  another status 2 times with these services and 5 times without
+  them, so it is a test that depends on its sleeps, as it was. A
+  review of the pull request 40 at `0fd8e8e` (2026-11-27) had six
+  findings, each fixed in its commit on the same branch. A place
+  below zero given to `pwrite` was the end of the file to Windows,
+  which wrote there: it is the error -22 as on Linux (test
+  `rt_pwrite`). `fstat` of a directory asked Windows by the path the
+  directory was opened with, which is another thing once the process
+  is in another directory or the directory has another name: a
+  descriptor of a directory has a handle there now, from `open` to
+  `close`, and `fstat` asks it (test `rt_fstat_dir`). `pwrite` of
+  Windows asked for the place of the file, wrote and set the place
+  again, so a read of another thread between them was lost or began
+  at the wrong place: it writes with a second handle of the file
+  (`ReOpenFile`) and leaves the place alone, and answers -9 for a
+  descriptor that may not write, which it asks of
+  `NtQueryInformationFile` (test `rt_pwrite_threads`). A `pwrite`
+  to a descriptor opened to write at the end wrote at the end on
+  both platforms and said it had written at the place: it is the
+  error -9, which Linux learns of the flags of the descriptor
+  (`fcntl`) before it writes (test `rt_pwrite`). `seek` of a pipe
+  was -5 on Windows, what `SetFilePointerEx` said of it: `seek` and
+  `pwrite` ask the kind of the handle (`GetFileType`) and answer -29
+  for what is no file on a disk (`win_pipe` of `tests/win.sh`, and
+  the test `rt_seek_pipe` for Linux). And the test `rt_stat` gave
+  `fstat` an address 8 bytes into its 32, so the last number was
+  written behind them: every call has 32 bytes now.
+  A second review, at `ab402b5` (2026-11-27), had one finding, fixed
+  in a commit on the same branch. `fstat` of a pipe was 1, a plain
+  file, on Windows, which says of a pipe what it says of a file when
+  it is asked for the attributes: `stat` and `fstat` ask the kind of
+  the handle first, as `seek` does, and give the kind 4 with no size
+  and no times for a pipe, a socket and a console, the kind Linux
+  gives a pipe (`win_pipe` of `tests/win.sh`, which asks `fstat` of
+  its input and of its output, and the test `rt_seek_pipe` for
+  Linux). On Windows 11 itself, the program of `win_pipe` run with a
+  pipe at each end, it ended with 31 before the change and with 127
+  after it.
+- [x] The version 0.2.2 of AIL (user, 2026-11-27), the first with
+  those six services, the pull request 40: `Ailfile` says it and the
+  tag `v0.2.2` names the merge of it, so that a package asks for them
+  with `ail 0.2.2`. A third number, since what was written before it
+  compiles and runs as it did.

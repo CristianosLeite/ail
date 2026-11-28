@@ -69,6 +69,12 @@ result is a value.
 | 44 | `pid` |  | a number that no other process has while this one runs |
 | 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
 | 46 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there and -8 if the file is no program: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
+| 47 | `seek` | descriptor, bytes, 0 from the start of the file, 1 from the place it is at or 2 from its end | the place in the file that its next `read` or `write` is at, counted from the start, or an error: -22 for another third value or a place before the start, -29 for a pipe or a socket |
+| 48 | `pwrite` | descriptor, address, size, place | the bytes written at that place of the file, at most the size, or an error, -22 for a place before the start and -9 for a descriptor that was not opened to write or was opened to write at the end of the file (1024 of the flags of `open`), which no place is given to; the place of `seek` stays what it was, also while other threads read and write the descriptor |
+| 49 | `truncate` | descriptor, length | 0, or an error: the file is that many bytes long, the new ones zeros |
+| 50 | `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
+| 51 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
+| 52 | `fstat` | descriptor, address | the same for what the descriptor is open on |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -233,9 +239,13 @@ of the scan is one Defender no longer looks at.
 
 Where a service cannot be on Windows what it is on Linux:
 
-- A directory is opened for its names only, and is no handle of
-  Windows: `names` is a search of its path. Names are in the code page
-  of the process, not UTF-8.
+- A directory is opened for its names and for what is known of it.
+  `names` is a search of the path it was opened by, so it gives the
+  names of whatever that path leads to when it is first asked; `fstat`
+  asks a handle that is on the directory since it was opened, whatever
+  its path leads to later. While the descriptor is open Windows may
+  keep the name of a directory that was removed. Names are in the code
+  page of the process, not UTF-8.
 - A path is too long, -36, from 260 bytes on, counted with the
   directory the process is in, and not from 4096. Windows says of such
   a path that it is not there, so after that answer the runtime asks
@@ -293,6 +303,23 @@ Where a service cannot be on Windows what it is on Linux:
   without `..`; a link in it stays what it is. `kind` is never 4, and
   3 for whatever Windows keeps as a reparse point. `chmod` has nothing
   to do and gives 0 for a descriptor that is open.
+- `seek`, `pwrite` and `truncate` are for a file that Windows has a
+  handle for: -29 for a socket, -21 for a directory; `seek` and
+  `pwrite` ask Windows what kind the handle is and answer -29 for all
+  that is no file on a disk, a pipe and a console among it. A write of
+  Windows moves the place of the handle it is given, so `pwrite` opens
+  a second handle of the same file (`ReOpenFile`), writes with it and
+  closes it: the place of the descriptor is not touched, whichever
+  thread or process reads and writes it meanwhile, and a `pwrite`
+  costs an open and a close.
+  `sync` flushes a file that was opened to be written, -13 for one
+  that was not, and gives 0 for a directory, which Windows does not
+  flush. The time of `stat` at which anything of a file changed is the
+  one NTFS keeps for it; the size is 0 for what is no file. `stat`
+  and `fstat` ask Windows what kind the handle is, as `seek` does, and
+  give the kind 4 for a pipe, a socket and a console, with 0 for the
+  size and for both times: Windows keeps none for them, and says of a
+  pipe what it says of a plain file.
 - `lock` is a lock that Windows keeps on a file (`LockFileEx`), for
   one byte far behind any the file has, so that the file is read and
   written as ever: it keeps out the programs that ask the runtime for

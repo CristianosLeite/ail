@@ -1,0 +1,21 @@
+# a pipe has no place: seek and pwrite answer -29 for its ends, and
+# what was written to it is read as it was; and fstat says of an end
+# that it is no file, the kind 4
+buf p 8
+buf b 8
+buf f 32
+sys pipe p
+load4 p as r
+load4 p+4 as w
+store f 9
+rt fstat r f as i
+load f as k
+rt write w "p\n"
+rt seek r 0 1 as a
+rt seek r 0 0 as s
+rt seek r 0 2 as e
+rt pwrite w "X" 0 as x
+rt read r b 8 as n
+loadb b as c
+rt write 1 "pipe\n"
+rt exit (a==-29)+(s==-29)*2+(e==-29)*4+(x==-29)*8+((n==2)&(c==112))*16+((i==0)&(k==4))*32

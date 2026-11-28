@@ -234,6 +234,12 @@ Calls a service of the runtime: what a program asks of the platform it runs on, 
 | `pid` |  | a number that no other process has while this one runs |
 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there and -8 if the file is no program: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
+| `seek` | descriptor, bytes, 0 from the start of the file, 1 from the place it is at or 2 from its end | the place in the file that its next `read` or `write` is at, counted from the start, or an error: -22 for another third value or a place before the start, -29 for a pipe or a socket |
+| `pwrite` | descriptor, address, size, place | the bytes written at that place of the file, at most the size, or an error, -22 for a place before the start and -9 for a descriptor that was not opened to write or was opened to write at the end of the file (1024 of the flags of `open`), which no place is given to; the place of `seek` stays what it was, also while other threads read and write the descriptor |
+| `truncate` | descriptor, length | 0, or an error: the file is that many bytes long, the new ones zeros |
+| `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
+| `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
+| `fstat` | descriptor, address | the same for what the descriptor is open on |
 
 An error is a negative number, larger than -4096; [runtime.md](runtime.md) has their list. The descriptors 0, 1 and 2 are the input, the output and the error output the program was started with. A path is its bytes, with no NUL behind them.
 

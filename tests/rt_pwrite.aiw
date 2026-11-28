@@ -1,0 +1,29 @@
+# a write at a place that is none: a place before the start of the file
+# is an error, and so is a descriptor that was opened to read or to
+# write at the end, and the file keeps its bytes and its length
+buf b 16
+rt unlink "build/tests/rt_pwrite.txt"
+rt open "build/tests/rt_pwrite.txt" 0x42 420 as f
+rt write f "AB"
+rt pwrite f "X" -1 as neg
+rt pwrite f "X" 0-0x100000000 as far
+rt seek f 0 2 as len
+rt seek f 0 0
+rt read f b 16 as n
+rt write 1 b n
+rt write 1 "\n"
+rt close f
+rt open "build/tests/rt_pwrite.txt" 0 0 as f
+rt pwrite f "X" 0 as ro
+rt read f b 16 as n2
+rt close f
+rt open "build/tests/rt_pwrite.txt" 0x402 0 as f
+rt pwrite f "X" 0 as ap
+rt seek f 0 2 as len2
+rt seek f 0 0
+rt read f b 16 as n3
+rt write 1 b n3
+rt write 1 "\n"
+rt close f
+rt unlink "build/tests/rt_pwrite.txt"
+rt exit (neg==-22)+(far==-22)*2+(len==2)*4+(n==2)*8+((ro==-9)&(n2==2))*16+((ap==-9)&(len2==2)&(n3==2))*32

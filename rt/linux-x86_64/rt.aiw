@@ -61,6 +61,9 @@ end
 
 # system calls that the compiler has no name for
 const rt_poll7 7
+const rt_pwrite64 18
+const rt_fsync 74
+const rt_ftruncate 77
 const rt_sigprocmask 14
 const rt_lstat 6
 const rt_dup2 33
@@ -295,6 +298,102 @@ fn rt_kind rt_p rt_n
 		ret 3
 	end
 	ret 4
+end
+
+# The place in the open file that the next read or write is at, set to
+# rt_o bytes from its start (rt_w 0), from where it is (1) or from its
+# end (2): the place from the start, or an error, -29 for what has none.
+fn rt_seek rt_fd rt_o rt_w
+	if rt_w>2
+		ret -22
+	end
+	sys lseek rt_fd rt_o rt_w as rt_r
+	ret rt_r
+end
+
+# Up to rt_n bytes at the place rt_o of the open file, which leaves the
+# place of its reads and writes where it is: how many were written, or
+# an error. Linux writes at the end of a file that was opened to write
+# there (0x400 of its flags, which fcntl 3 gives) whatever the place,
+# and says it wrote: that descriptor is the error -9 here.
+fn rt_pwrite rt_fd rt_p rt_n rt_o
+	sys rt_fcntl rt_fd 3 as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	if rt_r&0x400
+		ret -9
+	end
+	sys rt_pwrite64 rt_fd rt_p rt_n rt_o as rt_r
+	ret rt_r
+end
+
+# make the open file rt_n bytes long, the new ones zeros
+fn rt_truncate rt_fd rt_n
+	label rt_again
+	sys rt_ftruncate rt_fd rt_n as rt_r
+	jeq rt_r -4 rt_again
+	ret rt_r
+end
+
+# What was written to the open file, or to the directory that rt_fd is
+# open on, is on its device when this returns 0.
+fn rt_sync rt_fd
+	sys rt_fsync rt_fd as rt_r
+	ret rt_r
+end
+
+# what the kernel said of a file at rt_s as the four numbers at rt_q:
+# its kind as rt_kind gives it, its size in bytes, and the nanoseconds
+# since 1970 at which its bytes and at which anything of it last changed
+fn rt_stat4 rt_s rt_q
+	load4 rt_s+24 as rt_r
+	rt_r&=0xf000
+	rt_k=4
+	if rt_r==0x8000
+		rt_k=1
+	end
+	if rt_r==0x4000
+		rt_k=2
+	end
+	if rt_r==0xa000
+		rt_k=3
+	end
+	store rt_q rt_k
+	load rt_s+48 as rt_r
+	store rt_q+8 rt_r
+	load rt_s+88 as rt_r
+	load rt_s+96 as rt_k
+	store rt_q+16 rt_r*1000000000+rt_k
+	load rt_s+104 as rt_r
+	load rt_s+112 as rt_k
+	store rt_q+24 rt_r*1000000000+rt_k
+	ret 0
+end
+
+# The kind, the size and the two times of what is at the path, a link
+# not followed, into the 32 bytes at rt_q: 0, or an error.
+fn rt_stat rt_p rt_n rt_q
+	local rt_z 4096
+	local rt_s 144
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_lstat rt_z rt_s as rt_r
+	end
+	if rt_r
+		ret rt_r
+	end
+	tail rt_stat4 rt_s rt_q
+end
+
+# the same of what the descriptor is open on
+fn rt_fstat rt_fd rt_q
+	local rt_s 144
+	sys fstat rt_fd rt_s as rt_r
+	if rt_r
+		ret rt_r
+	end
+	tail rt_stat4 rt_s rt_q
 end
 
 # give the open file the mode rt_mode, whatever the process leaves out

@@ -1,0 +1,33 @@
+# a descriptor of a directory stays on that directory: what is known
+# of it is the same after the process moved to another directory, and
+# after the directory got another name and a file its old one
+buf g 32
+rt unlink "build/tests/rt_fstat_dir.d/one"
+rt rmdir "build/tests/rt_fstat_dir.d/one"
+rt rmdir "build/tests/rt_fstat_dir.d/moved"
+rt rmdir "build/tests/rt_fstat_dir.d"
+rt mkdir "build/tests/rt_fstat_dir.d" 493
+rt mkdir "build/tests/rt_fstat_dir.d/one" 493
+# opened by a path from the directory of the process, which then changes
+rt chdir "build/tests/rt_fstat_dir.d" as c1
+rt open "one" 0x10000 0 as f
+rt chdir "../../.." as c2
+store g 0
+rt fstat f g as a
+load g as k1
+rt close f
+# the path it was opened by leads to a file now
+rt open "build/tests/rt_fstat_dir.d/one" 0x10000 0 as f
+rt rename "build/tests/rt_fstat_dir.d/one" "build/tests/rt_fstat_dir.d/moved" as mv
+rt open "build/tests/rt_fstat_dir.d/one" 0x42 420 as h
+rt close h
+store g 0
+rt fstat f g as b
+load g as k2
+rt close f as cl
+rt fstat f g as gone
+rt unlink "build/tests/rt_fstat_dir.d/one"
+rt rmdir "build/tests/rt_fstat_dir.d/moved" as rm
+rt rmdir "build/tests/rt_fstat_dir.d" as rm2
+rt write 1 "fstat\n"
+rt exit ((c1==0)&(c2==0))+((a==0)&(k1==2))*2+(mv==0)*4+((b==0)&(k2==2))*8+((cl==0)&(gone==-9))*16+((rm==0)&(rm2==0))*32

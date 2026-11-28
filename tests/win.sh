@@ -19,6 +19,9 @@
 #   child ends with the process that started it.
 # - tests/win/stale.aiw must find that a watch which waited while its
 #   socket was closed watches nothing.
+# - tests/win/pipe.aiw must find that a pipe as its input and one as
+#   its output have no place, and that fstat says of each that it is
+#   no file.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -124,6 +127,14 @@ timeout 60 wine $tmp/stale.exe > /dev/null 2>&1
 [ $? -eq 3 ] || r=1
 say win_stale_watch $r
 
+# seek, pwrite and fstat of a pipe, which the program has as its input
+# and its output
+r=0
+$wc < tests/win/pipe.aiw > $tmp/pipe.exe || r=1
+{ echo p | timeout 60 wine $tmp/pipe.exe 2> /dev/null; echo $? > $tmp/pipe.code; } | cat > /dev/null
+[ "$(cat $tmp/pipe.code)" = 127 ] || r=1
+say win_pipe $r
+
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
 # a long time of reap, threads that reap one child, and the number of
@@ -131,7 +142,7 @@ say win_stale_watch $r
 # executable, the lock, a program in place of the process and a group
 # of processes. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds"
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds rt_seek rt_stat rt_pwrite rt_fstat_dir rt_pwrite_threads"
 # each of them has to be a test the loop below finds and takes
 for t in $always; do
     why=
