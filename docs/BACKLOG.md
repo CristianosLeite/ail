@@ -1578,7 +1578,9 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   that has the descriptor and takes no child by it (5.3) is asked
   by the number and sent the signal by the descriptor. The test
   `rt_kill_nofd`, of Linux alone, with a limit of three open files;
-  a `reap` of another thread during a `kill` has no test.
+  since the second review, at `b7cba19`, which asked it with a
+  `pidfd_open` made to fail, the test also has a child that another
+  thread waits for in `reap`: -24, and the child runs on.
 - [x] A directory opened only to be asked is one on Windows too
   (2026-11-28, the review of `c5ed7fb`): with 0x200000 of `openat`
   and without 0x10000 the runtime of Windows gave a descriptor that
