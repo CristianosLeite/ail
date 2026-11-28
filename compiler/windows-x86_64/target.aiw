@@ -9,9 +9,12 @@
 # place in memory, as the compiler assumes everywhere: the header in the
 # first page, the import tables in the second, the code from the third
 # on, with the file filled up to a page, and behind it the memory of the
-# program, which has no bytes in the file. The image is loaded at one
-# address, 0x140000000, and has no relocations: no instruction contains
-# an address.
+# program, which has no bytes in the file. No instruction contains an
+# address, so the image has no relocations and may be loaded anywhere:
+# the header says that Windows may choose the address, among all 64
+# bits of them, as it does for an image of a linker of Microsoft
+# (DYNAMICBASE, HIGHENTROPYVA), and names 0x140000000 for a loader that
+# chooses none.
 use "target:imports.aiw"
 
 # the bytes before the code of the runtime, two pages, and where in a
@@ -42,11 +45,15 @@ const tsys 0
 data tccrow 3 0 0 79 73 137 195 73 137 250 72 137 241 85 72 137 229 184 4 0 0 0 72 57 193 72 15 66 200 72 141 4 205 15 0 0 0 72 131 224 240 72 131 228 240 72 41 196 72 137 241 76 137 214 72 137 231 243 72 165 72 139 12 36 72 139 84 36 8 76 139 68 36 16 76 139 76 36 24 65 255 211 201
 # The header, 448 bytes: "MZ" with the place of the next part at 60; at
 # 64 "PE", then 20 bytes (x86-64, 3 sections, 240 bytes of what follows,
-# an executable without relocations); at 88 the 240 bytes: 16 the place
+# an executable, of which the header does not say that relocations were
+# taken out: Windows moves no image that says so); at 88 the 240 bytes:
+# 16 the place
 # where the process starts and 20 where the code does, both 8192; 24 the
-# address the image is loaded at; 32 and 36 the page, for memory and for
-# the file; 40 and 48 Windows 6.0; 56 the size of the image; 60 that of
-# the header; 68 a program of the console; 70 that its data is not run;
+# address the image is loaded at if Windows chooses none; 32 and 36 the
+# page, for memory and for the file; 40 and 48 Windows 6.0; 56 the size
+# of the image; 60 that of the header; 68 a program of the console; 70
+# that its data is not run (0x100) and that it may be loaded at any
+# address (0x40) of 64 bits (0x20);
 # 72 a stack of 8 MiB; 108 sixteen directories, the second of them, at
 # 120, the import tables at 4096. At 328 the sections, 40 bytes each:
 # the import tables, the code, the memory of the program; 8 the size in
@@ -57,11 +64,11 @@ data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 0 0 0 64 0 0 0
 data 80 69 0 0 100 134 3 0 0 0 0 0 0 0 0 0
-data 0 0 0 0 240 0 35 0 11 2 1 0 0 0 0 0
+data 0 0 0 0 240 0 34 0 11 2 1 0 0 0 0 0
 data 0 0 0 0 0 0 0 0 0 32 0 0 0 32 0 0
 data 0 0 0 64 1 0 0 0 0 16 0 0 0 16 0 0
 data 6 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0
-data 0 0 0 0 0 16 0 0 0 0 0 0 3 0 0 129
+data 0 0 0 0 0 16 0 0 0 0 0 0 3 0 96 129
 data 0 0 128 0 0 0 0 0 0 16 0 0 0 0 0 0
 data 0 0 16 0 0 0 0 0 0 16 0 0 0 0 0 0
 data 0 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0

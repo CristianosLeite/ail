@@ -216,6 +216,17 @@ the arguments, as its C library does, at its first call; memory comes
 from `VirtualAlloc`, in the same blocks; an error of Windows becomes
 the number of this page. The statement `sys` is no statement there.
 
+Windows loads an executable where it chooses, at another address for
+each file and each start of the system, as it loads what a linker of
+Microsoft writes (`DYNAMICBASE` and `HIGHENTROPYVA` in the header): no
+instruction of a program has an address in it, so there is nothing
+for Windows to change in the image, and the header has no table of
+relocations and does not say that one was taken out. Windows 11
+(build 26300) loaded a program at 0x7ff6a1140000 and a copy of its
+file at 0x7ff768bd0000 on 2026-11-28, where both were at 0x140000000
+before. Wine and a Windows before 8 may load it at the address the
+header names, which changes nothing for the program.
+
 The runtime has every service. The compiler compiled for Windows runs
 under Wine and compiles its own source to the file it is. Windows loads
 no image above 0x77000000 bytes, the buffers of a program included,
