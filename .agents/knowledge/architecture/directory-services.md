@@ -121,3 +121,16 @@ agent's, and waits for the user's review.
   same; between the two, with a runtime that had other bytes, the
   same source started and ended with 3. The test was so not run at
   the head of the branch on this machine.
+- The same day, `tests/win/stale.aiw` unchanged and compiled by the
+  compiler for Windows of each commit from `c286a5b` to the head, the
+  program started on Windows 11 in a directory of NTFS (the user's
+  way to find what an alert comes with, 2026-11-28: the test stays
+  as it is and the builds of a branch are compared by commit): it
+  ended with 3 for every commit up to `1333ad1`, `fdpath`, a file of
+  61440 bytes, and was not started, 126, from `ba98976` on, `lockfd`,
+  the first with a file of 65536 bytes. That commit adds one
+  function to the runtime of Windows, 38 lines that call
+  `GetFileType` and `LockFileEx`, both imported before, and no
+  import. Nothing was changed for it. The user compiled the same
+  source with the compiler at hand that day and had it accepted and
+  ended with 3; which revision that compiler was is not noted here.
