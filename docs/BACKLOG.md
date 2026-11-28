@@ -1345,3 +1345,108 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   tag `v0.2.2` names the merge of it, so that a package asks for them
   with `ail 0.2.2`. A third number, since what was written before it
   compiles and runs as it did.
+- [x] The service `time`, the time of day (2026-11-27): nanoseconds
+  since 1970 by the clock of the system. A program had to ask Linux
+  for it, with `sys clock_gettime`, and so could not ask on Windows;
+  aildb notes with it when a run of its index starts. It is
+  `clock_gettime` of the clock 0 on Linux and
+  `GetSystemTimePreciseAsFileTime` on Windows, which counts in steps
+  of 100 nanoseconds. The test `rt_time`, which is also run by
+  `tests/win.sh` whatever its count.
+- [x] The service `random`, bytes that nobody can guess (2026-11-27),
+  which a program had to ask of Linux with `sys getrandom`: aildb
+  names with them the file a snapshot is written to before it has its
+  name. `getrandom` on Linux, asked again while it gives fewer bytes
+  than were wanted, and `ProcessPrng` of `bcryptprimitives.dll` on
+  Windows, a fifth library in the import tables, which has no error.
+  The test `rt_random`, which is also run by `tests/win.sh` whatever
+  its count.
+- [x] The service `platform` (2026-11-27): 1 for x86-64 Linux and 2
+  for x86-64 Windows, the platform the program was compiled for.
+  Nothing told a program where it runs, and what differs there and is
+  no service, the separator of a path, the directory of a user's
+  configuration, the ending of a program's name, had to be found by
+  looking at a path. The test `rt_platform`, which compares it with
+  the form of the directory of the process and is also run by
+  `tests/win.sh` whatever its count.
+- [x] The service `trylock`, the lock that is not waited for
+  (2026-11-27): the lock of `lock`, with the error -11 in place of
+  the wait when a process has it. aildb ends a build with a status of
+  its own when another build of the same destination runs, and asked
+  Linux for that with `sys flock`. On Linux it is `flock` told not to
+  wait, on Windows `LockFileEx` told to fail at once, whose error 33
+  is the -11; the two services share their function in each runtime
+  (`rt_locking`). A process that has the lock and asks for it again
+  without waiting is refused too, on both platforms. The test
+  `rt_trylock`, which is also run by `tests/win.sh` whatever its
+  count.
+- [x] The services `map` and `unmap`, a file as memory (2026-11-27):
+  the first bytes of an open file at an address, to be read, which a
+  program had to ask of Linux with `sys mmap`. aildb reads a snapshot
+  so, without a copy of it. `mmap` on Linux, shared, so that what is
+  written to the file afterwards is in the memory on both platforms,
+  and on Windows a view of a mapping of the file
+  (`CreateFileMappingA`, `MapViewOfFile`, `UnmapViewOfFile`, three
+  imports). Both runtimes ask the size of the file first and refuse
+  more bytes than it has, -22, which Linux would map and fault at.
+  The tests `rt_map` and `rt_map_replace`: the second maps a file and
+  has another process give a new file its name, and the memory is
+  still the old file, on Linux and on Windows 11 itself (build 26300,
+  NTFS), where the cut of a mapped file is refused, -5. Both are also
+  run by `tests/win.sh` whatever its count.
+- [x] A run on Windows itself (2026-11-27): `tests/win.sh all` on
+  Windows 11 Pro, build 26300, started from WSL 2 with a script named
+  `wine` that starts its first argument, the tree copied to NTFS. At
+  `1a6f5f4` it ended with 0: the twelve named checks, the fixed point
+  of the compiler among them, and 607 tests. Before that one test
+  failed there, `rt_open_threads`, which opened its program by the
+  name it was started by, the bare name of the file where WSL starts
+  it; it asks `rt self` now. With the tree in the file system of
+  Linux, a share to a program of Windows, the tests of a lock, of
+  `fstat` of a directory, of `pwrite` by threads and of a rename onto
+  a mapped file fail, and pass on NTFS.
+  `.agents/knowledge/testing/windows-itself.md` has how it is run.
+- [x] No lock of a named pipe (2026-11-27, the review of `0723385`,
+  P2): `rt_locking` of Linux opened the path to read it before it
+  asked for the lock, and the open of a named pipe waits for a
+  writer, so `trylock` waited there, the one thing it is not to do.
+  The open does not wait now (`O_NONBLOCK`), for `lock` too, and what
+  it gives is asked its kind before the lock: -22 for anything but a
+  directory and a plain file, a named pipe and a device among them.
+  The test `rt_lock_fifo`, which makes the pipe with `sys mknod` and
+  so is of Linux alone; before the change it did not end.
+- [x] `time` says when the kernel does not answer (2026-11-27, the
+  review of `0723385`, P3): `rt_time` of Linux read the two numbers
+  whatever `clock_gettime` had returned, so a kernel that refused the
+  call gave the program 0, the start of 1970, as a time. It returns
+  the error now. Windows has none to give. The test
+  `rt_time_refused`, of Linux alone, refuses the call with a filter
+  of the process: the status was 3 before, a time of 0, and is 7.
+- [x] `map` promises a later write of Linux alone (2026-11-27, the
+  review of `0723385`, P2): the table said that what is written to a
+  file after it was mapped is read in the memory, on every platform.
+  On Windows the memory is a view (`MapViewOfFile`) and a write is
+  `WriteFile`, and the documents of Windows leave open that the two
+  agree. The table and the part about Windows say so, and the check
+  moved from `rt_map`, which every platform runs, to
+  `rt_map_written`, which `tests/win.skip` names. On Windows 11
+  (build 26300, NTFS) the write was in the view when `rt_map` still
+  asked, the same day.
+- [x] No lock of a device on Windows (2026-11-28, the review of
+  `9400a97`, P2): the table gives -22 for what is neither a directory
+  nor a plain file since the item about a named pipe, and the runtime
+  of Windows opened the path and asked `LockFileEx` whatever it had
+  opened, so `lock` and `trylock` of `NUL` gave a descriptor, a lock
+  that keeps no process out. What is opened is asked its kind
+  (`GetFileType`) before the lock, and anything but a file on a disk
+  is -22, the handle closed and the descriptor free again. The test
+  `rt_lock_device` asks `platform` which device to name, so both
+  platforms run it; on Windows 11 (build 26300, NTFS) it ended with
+  24 before the change, both locks given, and with 31 after.
+- [x] The version 0.2.3 of AIL (user, 2026-11-28), the first with
+  those six services, the pull request 41: `Ailfile` says it and the
+  tag `v0.2.3` names the merge of it, so that a package asks for them
+  with `ail 0.2.3`. A third number: what was written before it
+  compiles and runs as it did, but for a `lock` of a named pipe or of
+  a device, which 0.2.2 took and which is the error -22 now; the
+  notes of the release say so.

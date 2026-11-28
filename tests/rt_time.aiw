@@ -1,0 +1,7 @@
+# the time of day: after the start of 2026 and before 2100, and later
+# after a sleep, by less than five seconds
+rt time as a
+rt sleep 20000000
+rt time as b
+rt write 1 "time\n"
+rt exit (a>1767225600000000000)+(a<4102444800000000000)*2+(b>a)*4+(b-a<5000000000)*8

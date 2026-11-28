@@ -67,7 +67,7 @@ result is a value.
 | 42 | `kind` | path | 1 for a file, 2 for a directory, 3 for a link, which is not followed, 4 for anything else, or an error: -2 if nothing is there |
 | 43 | `chmod` | descriptor, mode | 0, or an error: the open file has the mode, whatever the process leaves out of the mode of a file it makes |
 | 44 | `pid` |  | a number that no other process has while this one runs |
-| 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
+| 45 | `lock` | path | a descriptor that holds the lock of the directory or file at the path until it is closed or the process ends, or an error, -22 for what is neither a directory nor a plain file. One process at a time has the lock, and the service waits for the one that has it; a program that is started does not get the descriptor, and a process that has the lock must not ask for it again |
 | 46 | `become` | address of the arguments, address of an environment or 0 for that of the process | only an error, if the program cannot be started, -2 if it is not there and -8 if the file is no program: else the program is there in place of the process, with its descriptors but for those opened to be closed then, and nothing of the process goes on. The arguments and the environment are those of `start`, and the program is found as there |
 | 47 | `seek` | descriptor, bytes, 0 from the start of the file, 1 from the place it is at or 2 from its end | the place in the file that its next `read` or `write` is at, counted from the start, or an error: -22 for another third value or a place before the start, -29 for a pipe or a socket |
 | 48 | `pwrite` | descriptor, address, size, place | the bytes written at that place of the file, at most the size, or an error, -22 for a place before the start and -9 for a descriptor that was not opened to write or was opened to write at the end of the file (1024 of the flags of `open`), which no place is given to; the place of `seek` stays what it was, also while other threads read and write the descriptor |
@@ -75,6 +75,12 @@ result is a value.
 | 50 | `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
 | 51 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
 | 52 | `fstat` | descriptor, address | the same for what the descriptor is open on |
+| 53 | `time` |  | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward, or an error if the system does not say it |
+| 54 | `random` | address, size | the size, or an error: that many bytes at the address that nobody can guess, from the generator of the system |
+| 55 | `platform` |  | the platform the program was compiled for: 1 for x86-64 Linux, 2 for x86-64 Windows |
+| 56 | `trylock` | path | the descriptor that `lock` gives, or an error: the lock is not waited for, and -11 says that a process has it, this one too |
+| 57 | `map` | descriptor, size | the address of memory that is the first bytes of the file, that many, to be read and not written, or an error: -22 for no bytes and for more than the file has. What is written to the file afterwards is read there too on Linux, and is not to be counted on elsewhere (Windows, below). The memory stays when the descriptor is closed, and when the file is removed or another file gets its name, of which it then has nothing; a file must not be cut while it is mapped |
+| 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -274,6 +280,8 @@ Where a service cannot be on Windows what it is on Linux:
   that is not in the list is no child, -1001: the number of a child
   that was taken stays that whatever is started afterwards.
 - `clock` is the counter of Windows; `sleep` waits whole milliseconds.
+  `time` is counted in steps of 100 nanoseconds and has no error
+  (`GetSystemTimePreciseAsFileTime`, Windows 8).
 - A poller watches sockets and nothing else: `watch` gives -1 for any
   other descriptor, as for a plain file, and a read of a pipe waits.
   Windows says of a socket whether it is ready and not when it becomes
@@ -333,6 +341,11 @@ Where a service cannot be on Windows what it is on Linux:
   path is one lock for as long as it is held. Who
   may take a lock is who the file system lets open the file to read
   it, and two ways to write the path of one directory are one lock.
+  `trylock` asks Windows for the same byte and not to wait
+  (`LOCKFILE_FAIL_IMMEDIATELY`). Windows gives such a lock of a device
+  too, of `NUL` among them, which would keep no process out: what is
+  opened is asked its kind (`GetFileType`), and anything but a file
+  on a disk is the error -22 of the table, the handle closed.
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:
@@ -387,9 +400,27 @@ Where a service cannot be on Windows what it is on Linux:
   process the watcher left in the group then kills the group, unless
   the group is stopped and the kernel is an older one.
 - `pipeerr` has nothing to do: there is no signal.
+- `map` is a view (`MapViewOfFile`) of a mapping of the whole file
+  that is closed once the view is there; `unmap` needs no size. A
+  file is not cut while it is mapped: `truncate` is the error -5
+  then, where Linux cuts it and the memory behind the new end is a
+  fault. A file that is mapped may be removed, and another file given
+  its name, as on Linux, and the memory stays the file it was mapped
+  from: so Windows 11 (build 26300, NTFS) did on 2026-11-27, also
+  with the mapping in one process and the rename in another
+  (`rt_map_replace`). What an older Windows and Wine do is not known
+  here. Whether what `write` and `pwrite` write to the file afterwards
+  is in the memory, Windows does not say: its documents leave open
+  that a view and `WriteFile` agree. On NTFS at that build it was
+  there, which the test `rt_map_written` asks of Linux alone, and a
+  program for both platforms maps a file that nobody writes any
+  more, and takes a new file under the name for new bytes.
+- `random` asks `ProcessPrng` of `bcryptprimitives.dll` (Windows 10),
+  which has no error, so every executable names that library too.
 
 ## Another platform
 
 A directory `rt/<platform>/` with the same two files, written for that
-platform, and a compiler that writes code for it; the services, their
+platform, and a compiler that writes code for it, and the next number
+for `platform` to give; the services, their
 values, their results and their errors are those of this page.

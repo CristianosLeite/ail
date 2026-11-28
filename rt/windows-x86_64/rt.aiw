@@ -1031,8 +1031,12 @@ end
 # name and its place for as long as a process has it open here, to
 # hold the lock or to wait for it: Windows then refuses to remove it
 # and to rename it, so that no second file of that name can be locked
-# beside it.
-fn rt_lock rt_p rt_n
+# beside it. What is opened and is no file on a disk, a device or a
+# pipe, has no lock: the error -22, as on Linux.
+# rt_now is 1 for a lock that is not waited for: Windows then fails
+# at once (1 of the flags) with its error 33 if a handle has the byte,
+# one of this process too, which is the error -11 here.
+fn rt_locking rt_p rt_n rt_now
 	local rt_z 4096
 	local rt_y 32
 	local rt_a 56
@@ -1084,18 +1088,27 @@ fn rt_lock rt_p rt_n
 		call rt_long rt_z rt_r as rt_r
 		tail rt_unfd rt_fd rt_r
 	end
+	# a lock is of a file on a disk (1): Windows gives one of the byte
+	# of a device too, "NUL" among them, which keeps no process out
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		tail rt_unfd rt_fd -22
+	end
 	# for this handle alone (2), waited for, one byte at 2^62
 	zero rt_y 32
 	store4 rt_y+20 0x40000000
 	store rt_a rt_h
-	store rt_a+8 2
+	store rt_a+8 2+rt_now
 	store rt_a+16 0
 	store rt_a+24 1
 	store rt_a+32 0
 	store rt_a+40 rt_y
 	call rt_api rt_i_lockfileex rt_a 6 as rt_r
 	ifz rt_r&0xffffffff
-		call rt_error as rt_r
+		call rt_lockerr rt_now as rt_r
 		store rt_a rt_h
 		call rt_api rt_i_closehandle rt_a 1
 		tail rt_unfd rt_fd rt_r
@@ -2910,6 +2923,128 @@ fn rt_free rt_p
 	store rt_p rt_x
 	store rt_q rt_p
 	call rt_munlock
+	ret 0
+end
+
+# ---- the time of day
+# nanoseconds since 1970 by the clock of the system, which may be set
+# and so go back, where rt_clock only goes forward; Windows counts it
+# in steps of 100
+fn rt_time
+	local rt_a 32
+	local rt_t 8
+	store rt_a rt_t
+	call rt_api rt_i_getsystemtimepreciseasfiletime rt_a 1
+	load rt_t as rt_r
+	tail rt_since rt_r
+end
+
+# ---- bytes that nobody can guess
+# rt_n of them at rt_p, from the generator of Windows, which has no
+# error: rt_n
+fn rt_random rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	store rt_a+8 rt_n
+	call rt_api rt_i_processprng rt_a 2
+	ret rt_n
+end
+
+# ---- the platform
+# the platform this runtime is of: 2, x86-64 Windows
+fn rt_platform
+	ret 2
+end
+
+# ---- the lock, waited for or not
+# the error of a lock that Windows did not give: -11 if it was not
+# waited for and a handle has the byte (33 of Windows)
+fn rt_lockerr rt_now
+	local rt_a 32
+	call rt_api rt_i_getlasterror rt_a 0 as rt_e
+	rt_e&=0xffffffff
+	if rt_e==33
+		if rt_now
+			ret -11
+		end
+	end
+	tail rt_error
+end
+
+# the lock of the directory or file at the path, after waiting for the
+# process that has it (rt_lock), or with the error -11 if a process
+# has it (rt_trylock)
+fn rt_lock rt_p rt_n
+	tail rt_locking rt_p rt_n 0
+end
+fn rt_trylock rt_p rt_n
+	tail rt_locking rt_p rt_n 1
+end
+
+# ---- a file as memory
+# The first rt_n bytes of the open file as memory that is read and not
+# written, at an address Windows chooses: the address, or an error,
+# -22 for no bytes and for more than the file has. Windows maps a view
+# of a mapping of the file: the mapping is made for the whole file, to
+# be read (2), and closed once the view is there, which keeps it. The
+# memory is the file as it was mapped, of which Windows does not say
+# that it has what is written to the file afterwards, and stays
+# when the descriptor is closed.
+fn rt_map rt_fd rt_n
+	local rt_a 56
+	local rt_s 8
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		ret rt_h
+	end
+	store rt_a rt_h
+	store rt_a+8 rt_s
+	call rt_api rt_i_getfilesizeex rt_a 2 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
+	load rt_s as rt_r
+	if (rt_n==0)|(rt_n>rt_r)
+		ret -22
+	end
+	store rt_a rt_h
+	store rt_a+8 0
+	store rt_a+16 2
+	store rt_a+24 0
+	store rt_a+32 0
+	store rt_a+40 0
+	call rt_api rt_i_createfilemappinga rt_a 6 as rt_m
+	ifz rt_m
+		tail rt_error
+	end
+	# the view: to be read (4), from the start of the file
+	store rt_a rt_m
+	store rt_a+8 4
+	store rt_a+16 0
+	store rt_a+24 0
+	store rt_a+32 rt_n
+	call rt_api rt_i_mapviewoffile rt_a 5 as rt_p
+	rt_e=0
+	ifz rt_p
+		call rt_error as rt_e
+	end
+	store rt_a rt_m
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_e
+		ret rt_e
+	end
+	ret rt_p
+end
+
+# give back the memory at rt_p that rt_map gave; Windows knows how
+# many bytes it is
+fn rt_unmap rt_p rt_n
+	local rt_a 32
+	store rt_a rt_p
+	call rt_api rt_i_unmapviewoffile rt_a 1 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_error
+	end
 	ret 0
 end
 

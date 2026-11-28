@@ -415,18 +415,36 @@ end
 # program that is started does not get the descriptor. The lock is the
 # kernel's own of what is at the path, so a process that has it and
 # asks again waits for itself.
-fn rt_lock rt_p rt_n
+# rt_how is how the kernel is asked: 2 waits, and 6 gives the error
+# -11 in place of the wait, to the process that has the lock too.
+# The open does not wait either (0x800 of its flags), which that of a
+# named pipe would for a writer, and what is neither a directory nor
+# a plain file has no lock: the error -22.
+fn rt_locking rt_p rt_n rt_how
 	local rt_z 4096
+	local rt_s 144
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
 		ret rt_r
 	end
-	sys open rt_z 0x80000 0 as rt_fd
+	sys open rt_z 0x80800 0 as rt_fd
 	ifslt rt_fd 0
 		ret rt_fd
 	end
+	sys fstat rt_fd rt_s as rt_r
+	ifz rt_r
+		load4 rt_s+24 as rt_k
+		rt_k&=0xf000
+		if (rt_k!=0x4000)&(rt_k!=0x8000)
+			rt_r=-22
+		end
+	end
+	if rt_r
+		sys close rt_fd
+		ret rt_r
+	end
 	label rt_again
-	sys rt_flock rt_fd 2 as rt_r
+	sys rt_flock rt_fd rt_how as rt_r
 	jeq rt_r -4 rt_again
 	if rt_r
 		sys close rt_fd
@@ -1983,6 +2001,81 @@ fn rt_pin rt_cpu
 		ret rt_r
 	end
 	ret rt_cpu
+end
+
+# ---- the time of day
+# nanoseconds since 1970 by the clock of the system, which may be set
+# and so go back, where rt_clock only goes forward, or the error of
+# a kernel that does not answer
+fn rt_time
+	local rt_t 16
+	sys clock_gettime 0 rt_t as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load rt_t as rt_s
+	load rt_t+8 as rt_n
+	ret rt_s*1000000000+rt_n
+end
+
+# ---- bytes that nobody can guess
+# rt_n of them at rt_p, from the generator of the kernel: rt_n, or an
+# error. The kernel may give fewer at once, and is asked again
+fn rt_random rt_p rt_n
+	rt_i=0
+	while rt_i<rt_n
+		sys getrandom rt_p+rt_i rt_n-rt_i 0 as rt_r
+		if rt_r!=-4
+			if rt_r>=-4095
+				ret rt_r
+			end
+			rt_i+=rt_r
+		end
+	end
+	ret rt_n
+end
+
+# ---- the platform
+# the platform this runtime is of: 1, x86-64 Linux
+fn rt_platform
+	ret 1
+end
+
+# ---- the lock, waited for or not
+# the lock of the directory or file at the path, after waiting for the
+# process that has it (rt_lock), or with the error -11 if a process
+# has it (rt_trylock)
+fn rt_lock rt_p rt_n
+	tail rt_locking rt_p rt_n 2
+end
+fn rt_trylock rt_p rt_n
+	tail rt_locking rt_p rt_n 6
+end
+
+# ---- a file as memory
+# The first rt_n bytes of the open file as memory that is read and not
+# written, at an address the kernel chooses: the address, or an error,
+# -22 for no bytes and for more than the file has, which no memory
+# would stand for. The memory is the file, also what is written to it
+# afterwards (1 of the flags), and stays when the descriptor is closed.
+fn rt_map rt_fd rt_n
+	local rt_s 144
+	sys fstat rt_fd rt_s as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load rt_s+48 as rt_r
+	if (rt_n==0)|(rt_n>rt_r)
+		ret -22
+	end
+	sys mmap 0 rt_n 1 1 rt_fd 0 as rt_r
+	ret rt_r
+end
+
+# give back the rt_n bytes at rt_p that rt_map gave
+fn rt_unmap rt_p rt_n
+	sys munmap rt_p rt_n as rt_r
+	ret rt_r
 end
 
 label rt_go

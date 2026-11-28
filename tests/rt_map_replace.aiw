@@ -1,0 +1,41 @@
+# a file that is replaced while it is mapped: this program maps a file
+# and starts itself, and what it starts gives another file the name
+# and finds its bytes there; the memory is still the first file
+buf exe 4096
+buf argv 24
+buf io 24
+buf t 8
+data again "again" 0
+args as p
+load p as n
+if n>1
+	rt open "build/tests/rt_map_replace.new" 0x242 420 as f
+	rt write f "new!" as w
+	rt close f
+	rt rename "build/tests/rt_map_replace.new" "build/tests/rt_map_replace.txt" as r
+	rt open "build/tests/rt_map_replace.txt" 0 0 as f
+	rt read f t 8 as n
+	load4 t as x
+	rt close f
+	rt exit (w==4)+(r==0)*2+((n==4)&(x==0x2177656e))*4
+end
+rt unlink "build/tests/rt_map_replace.txt"
+rt open "build/tests/rt_map_replace.txt" 0x42 420 as f
+rt write f "old."
+rt map f 4 as m
+rt close f
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 again
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0 as s
+load4 m as x
+rt write 1 m 4
+rt write 1 "\n"
+rt unmap m 4 as u
+rt unlink "build/tests/rt_map_replace.txt" as ul
+rt exit (s==7)+(x==0x2e646c6f)*2+(u==0)*4+(ul==0)*8

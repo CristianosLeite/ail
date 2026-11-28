@@ -105,7 +105,12 @@ The rest is the open section of `docs/TODO.md`.
   before it compiles and runs as it did. **0.2.2** (user, 2026-11-27)
   is the first with the six services for a file that aildb needs on
   Windows (the pull request 40: `seek`, `pwrite`, `truncate`, `sync`,
-  `stat` and `fstat`): a third number for the same reason.
+  `stat` and `fstat`): a third number for the same reason. **0.2.3**
+  (user, 2026-11-28) is the first with six services more (the pull
+  request 41: `time`, `random`, `platform`, `trylock`, `map` and
+  `unmap`): a third number again, though `lock` refuses with -22 a
+  named pipe and a device, which 0.2.2 took and no document offered;
+  the notes of the release say it.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 

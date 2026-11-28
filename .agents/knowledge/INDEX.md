@@ -26,6 +26,7 @@ The VS Code extension is in the repository ail-extensions (https://github.com/Cr
 
 ## testing
 - [Stage0 test suite](testing/stage0-test-suite.md) — runner deadline, fixtures that must execute what they generate, mutation checks, what goes unchecked
+- [The tests of Windows run on Windows itself](testing/windows-itself.md) — `tests/win.sh` from WSL 2 with a `wine` that starts the program; the tree on NTFS, not the share; 607 tests on Windows 11, 2026-11-27
 
 ## status
 - [Open items](status/open-items.md) — pending decisions; the packages and the `ail` command since 2026-11-22
