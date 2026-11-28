@@ -1,0 +1,51 @@
+# the path of an open descriptor: that of a directory is what real
+# says of its path, though it was opened through "..", and that of a
+# file opened below it has the name of the file behind it. A place
+# too small for it, a descriptor that is none and a socket, which has
+# no path, are errors
+buf r 4096
+buf b 4096
+data dir "build/tests/rt_fdpath.d"
+len dir as n
+rt unlink "build/tests/rt_fdpath.d/f"
+rt rmdir dir n
+rt mkdir dir n 493
+rt real dir n r 4096 as rn
+rt open "build/tests/../tests/rt_fdpath.d" 0x10000 0 as d
+rt fdpath d b 4096 as bn
+same=rn==bn
+i=0
+while i<rn
+	loadb r+i as x
+	loadb b+i as y
+	same&=x==y
+	i+=1
+end
+loadb b+bn as z
+x=((d>2)&(rn>n)&same&(z==0))
+rt openat d "f" 65 420 as f
+rt fdpath f b 4096 as fn
+same=fn==rn+2
+i=0
+while i<rn
+	loadb r+i as x2
+	loadb b+i as y
+	same&=x2==y
+	i+=1
+end
+loadb b+rn as sep
+loadb b+rn+1 as last
+x+=(same&((sep==47)|(sep==92))&(last==102))*2
+rt fdpath f b 3 as e1
+rt fdpath f b 0 as e2
+rt fdpath 200 b 4096 as e3
+rt socket as s
+rt fdpath s b 4096 as e4
+rt close s
+x+=((e1==-34)&(e2==-34)&(e3==-9)&(e4==-22))*4
+rt close f
+rt close d
+rt unlink "build/tests/rt_fdpath.d/f" as u
+rt rmdir dir n as u2
+x+=((u==0)&(u2==0))*8
+rt exit x

@@ -1,6 +1,6 @@
 ---
 title: The tests of Windows run on Windows itself
-last-verified: 2026-11-27
+last-verified: 2026-11-28
 sources: [conversation 2026-11-27, tests/win.sh, runs of 2026-11-27 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2), an Intel Core i7-12700H]
 status: current
 ---
@@ -35,6 +35,12 @@ and 607 tests, with the tree on NTFS.
   Windows compiled its own source there to the file it is.
 - The same at `v0.2.2` with the tree on the share: 601 run, four
   failed, three of those named above and `rt_open_threads`.
+
+- `tests/win.sh all` at `63bec88` on 2026-11-28, the tree on NTFS:
+  `win_tests (614 run)` and thirteen named checks passed, and
+  `win_stale_watch` failed, its program not started: Microsoft
+  Defender took it (`Trojan:Win32/Sabsik.EN.D!ml`). The status of the
+  script was 1 for that.
 
 ## What is not known from it
 - Wine: this machine has none, so the services added on 2026-11-27

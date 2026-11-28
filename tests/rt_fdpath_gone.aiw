@@ -1,0 +1,41 @@
+# the path of a descriptor whose name is gone: a file with two names is
+# opened by one, which is then removed, and has no path, though the
+# kernel of Linux still says the name with " (deleted)" behind it; by
+# its other name it has that path. A file whose name ends with
+# " (deleted)" has its path. The second name is asked of Linux
+const hardlink 86
+buf b 4096
+data dir "build/tests/rt_fdpath_gone.d"
+data one "build/tests/rt_fdpath_gone.d/one" 0
+data two "build/tests/rt_fdpath_gone.d/two" 0
+len dir as n
+rt unlink "build/tests/rt_fdpath_gone.d/one"
+rt unlink "build/tests/rt_fdpath_gone.d/two"
+rt unlink "build/tests/rt_fdpath_gone.d/x (deleted)"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open "build/tests/rt_fdpath_gone.d/one" 65 420 as f
+rt close f
+sys hardlink one two as l
+rt open "build/tests/rt_fdpath_gone.d/one" 0 0 as f
+rt fdpath f b 4096 as p1
+loadb b+p1-1 as c1
+rt unlink "build/tests/rt_fdpath_gone.d/one" as u
+rt fdpath f b 4096 as p2
+rt close f
+x=(l==0)&(p1>n)&(c1==101)&(u==0)&(p2==-2)
+rt open "build/tests/rt_fdpath_gone.d/two" 0 0 as f
+rt fdpath f b 4096 as p3
+loadb b+p3-1 as c3
+rt unlink "build/tests/rt_fdpath_gone.d/two" as u
+rt fdpath f b 4096 as p4
+rt close f
+x+=((p3==p1)&(c3==111)&(u==0)&(p4==-2))*2
+rt open "build/tests/rt_fdpath_gone.d/x (deleted)" 65 420 as f
+rt fdpath f b 4096 as p5
+loadb b+p5-1 as c5
+rt close f
+rt unlink "build/tests/rt_fdpath_gone.d/x (deleted)" as u
+rt rmdir dir n as u2
+x+=((p5==p1+8)&(c5==41)&(u==0)&(u2==0))*4
+rt exit x

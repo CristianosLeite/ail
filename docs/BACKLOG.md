@@ -1466,3 +1466,170 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   not known: the program that was taken at the head of the branch
   `dir-services` was accepted when compiled with this header, as it
   was with any other bytes changed.
+- [x] A file with no name, the service `anon` (2026-11-28, for step
+  19 of aildb, which gives a child its input and takes its outputs in
+  such files and asked Linux for them with `sys`): a descriptor to
+  read and to write, empty, which a program gets only from `start`.
+  On Linux it is memory (`memfd_create`); on Windows a file of the
+  directory for temporary files, with a name that nobody can guess,
+  which Windows removes with its last handle. The test `rt_anon`
+  gives one to a child as its input and one as its output, and
+  writes a place of one with `pwrite`.
+- [x] A child ended, the service `kill` (2026-11-28, for step 19 of
+  aildb, whose tests end a build and a provider in the middle with
+  `sys kill`): the child that `start` gave is ended at once and stays
+  to be taken, and `reap` gives -9 for it on both platforms, Windows
+  ending it with a status of its own that `reap` knows. A number
+  that is no child of the process is -1001, 0 and -1 among them. On
+  Linux the question and the signal go to a descriptor of the child
+  (Linux 5.4); the way by the number, for an older kernel, was not
+  run here. The test is `rt_kill`.
+- [x] Room for the source of the runtime (2026-11-28): the compiler
+  kept 64 KiB behind the source of a program for the two texts of
+  the runtime, 48 for the services, and the services of Windows are
+  50422 bytes with `openat`. The room is 128 KiB, 112 for the
+  services (`insz`, `rt/source.sh`). The tables that have entries for
+  the runtime count functions, calls and names, not bytes, and the
+  runtime of Windows is far below them (105 functions of 1024, 312
+  calls of 4096).
+- [x] A thing opened below an open directory with no link followed,
+  the service `openat` (2026-11-28, for step 19 of aildb, which walks
+  from one open directory to the next so that no link leads an index
+  out of its directory, with `sys openat`, `mkdirat` and `fstatat`):
+  one name in the directory of a descriptor, a link at it the error
+  -40. 64 with 0x10000 makes a directory and opens it, and 0x200000
+  opens a thing only to be asked what it is, a link then as itself.
+  On Windows it is `NtCreateFile` from the handle of the directory,
+  a reparse point opened as itself and refused by its attributes,
+  and a directory opened so keeps its name while it is open, which
+  `names` needs, since it searches a path. The agent chose the
+  flags and the error; they wait for the user's review. The tests
+  are `rt_openat`, `rt_openat_link` with links that Linux makes, and
+  `tests/win/link.aiw` with a junction that `cmd` makes
+  (`win_openat_link` of `tests/win.sh`, skipped where none is made).
+- [x] The path of an open descriptor, the service `fdpath`
+  (2026-11-28, for step 19 of aildb, which names what it opened as
+  the system does, to compare a directory with the one a command was
+  allowed for, by reading the link in `/proc/self/fd` with `sys`): the
+  path from the root, with no link in it, of what a descriptor is
+  open on. On Linux it is that link, with -2 for a file that has no
+  name left and -22 for a pipe or a socket; on Windows
+  `GetFinalPathNameByHandleA` without what Windows writes in front.
+  The function that writes the path in `/proc` is one for `real` and
+  for it. The test is `rt_fdpath`.
+- [x] The lock of an open file, not waited for, the service `lockfd`
+  (2026-11-28, for step 19 of aildb, after the review of its
+  `721ed45`: the lock of an index is of a file that was opened with
+  no link followed, and `trylock` opens a path): the lock that `lock`
+  takes of a file, for the file a descriptor is open on, -11 if a
+  process has it and -22 for what is no plain file. On Linux `flock`
+  of the descriptor, on Windows `LockFileEx` of its handle for the
+  byte `lock` uses, so the three services keep each other out. The
+  test is `rt_lockfd`, which Windows runs on NTFS as the other tests
+  of locks.
+- [x] `sync` of a directory asks Windows (2026-11-28, for step 19 of
+  aildb, whose `publish` takes a sync of the directory that succeeds
+  after the rename as the confirmation that a snapshot has its
+  name): the runtime of Windows gave 0 for a directory and flushed
+  nothing, so 0 confirmed nothing. It opens a second handle of the
+  directory that may add a file to it (`NtCreateFile` from the first,
+  with no name) and flushes that. Windows 11 (build 26300) answered
+  with success on NTFS and refused, -13, on the share that the file
+  system of WSL is, which is then the result. What Windows has on
+  the device after the call it does not document for a directory,
+  and no loss of power was tried: the agent chose this over a rename
+  that is written through (`MOVEFILE_WRITE_THROUGH`), which would
+  slow every rename and is documented for a move that copies. The
+  test is `rt_sync_dir`.
+- [x] A number that is no descriptor opens nothing below a directory
+  (2026-11-28, the review of `c5ed7fb`, the pull request 42): the
+  runtime of Linux gave the descriptor of `openat` to the kernel as
+  it came, which takes -100 for the directory the process is in and
+  reads the low 32 bits alone, so `rt openat -100` opened a name
+  there and the number of a directory with 2^32 added opened one
+  below it, where Windows said -9. `openat` and `lockfd` of Linux
+  now give -9 for a negative number and for one above 2^31-1, before
+  a directory is made or anything is opened. The tests `rt_openat`
+  and `rt_lockfd` ask both, to open and to make a directory.
+- [x] No path for a file whose name is gone and that has another
+  (2026-11-28, the review of `c5ed7fb`): `fdpath` of Linux looked
+  only whether the file had a name left, and the kernel says the
+  name a file was opened by with ` (deleted)` behind it once that
+  name is removed, whatever other names the file has, so the path of
+  a file with two names, opened by the one that was then removed,
+  was a path at which nothing is. The path is now asked what is at
+  it, no link followed, and is -2 unless that is the file of the
+  descriptor, so a file whose name ends with ` (deleted)` has its
+  path too. The test `rt_fdpath_gone`, of Linux alone, since the
+  second name is asked with `sys`.
+- [x] No signal to a number that may be another process
+  (2026-11-28, the review of `c5ed7fb`): `kill` of Linux, where it
+  got no descriptor of the child, asked the number whether it ran
+  and then sent the signal 9 to the number, and between the two a
+  `reap` of another thread, or the kernel in a process that ignores
+  the signal of its children, could take the child and the number
+  be given to another process. That happens with an old kernel and
+  also when the process has every descriptor it may have. The
+  question and the signal are now under the lock of the list of
+  `reap`, so no `reap` begins between them, and no signal is sent
+  for a number that a `reap` of another thread waits for or in a
+  process whose children the kernel takes: the result is the error
+  that kept the descriptor away, and the child is left. A kernel
+  that has the descriptor and takes no child by it (5.3) is asked
+  by the number and sent the signal by the descriptor. The test
+  `rt_kill_nofd`, of Linux alone, with a limit of three open files;
+  since the second review, at `b7cba19`, which asked it with a
+  `pidfd_open` made to fail, the test also has a child that another
+  thread waits for in `reap`: -24, and the child runs on.
+- [x] A directory opened only to be asked is one on Windows too
+  (2026-11-28, the review of `c5ed7fb`): with 0x200000 of `openat`
+  and without 0x10000 the runtime of Windows gave a descriptor that
+  `fstat` called a directory and that a second `openat` refused
+  (-20), since only a directory that was asked for got the record
+  that made it one; and with 64 and 0x10000 too it made no directory
+  (-2), where Linux did both. A descriptor opened so is now noted,
+  has no record, and is the directory of another `openat` if Windows
+  says that its handle is one; a directory to be made is made. What
+  else such a descriptor does is the same on both now: -9 for a
+  read, a write, a lock and its names. The test `rt_openat_look`.
+- [x] A file that keeps its name while it is open, 0x800000 of
+  `openat` (2026-11-28, the review of `c5ed7fb`, for the lock of an
+  index of aildb, whose file no process is to remove while the lock
+  is held): `openat` of Windows shares a file with those that remove
+  or rename it, so a file locked with `lockfd` was renamed while the
+  lock was held and a second file made and locked under its name,
+  both locks given. With the flag the file is not shared so, and
+  Windows refuses to remove and to rename it while the descriptor is
+  open; without it a file is shared as before. On Linux the flag
+  does nothing: no file keeps its name there. The test
+  `rt_openat_kept`.
+- [x] A junction opened only to be asked is the directory of no
+  `openat` on Windows (2026-11-28, the second review of the pull
+  request 42, at `b7cba19`): a descriptor opened with 0x200000 is the
+  directory of another `openat` if Windows says that its handle is a
+  directory, and it says so of a junction too, so the open went to
+  Windows, which refused it with an error of its own, -5. Nothing
+  was opened behind the junction. Such a handle, a reparse point, is
+  now refused before Windows is asked, -20. `tests/win/link.aiw`
+  asks it of the junction it makes.
+- [x] What `kill` asks of a program where it has no descriptor of the
+  child says `SIGCHLD` too (2026-11-28, the second review of the pull
+  request 42, at `b7cba19`, by reading): the signal goes to the
+  number after the process was asked once what it does with the
+  signal of its children, and a thread that began to ignore it
+  between the two, with `sys`, would have the kernel take a child
+  that ends then and give its number away. `docs/runtime.md` said
+  that the child is not to be taken with `sys` during such a `kill`,
+  and not this, which it says of a `reap` with a time. It says both
+  now, and the comment of `rt_kill` too. Nothing in the runtime
+  changed: the review offered this or no signal by a number at all,
+  and the agent took the first, as `reap` has it.
+- [x] The version 0.2.4 of AIL (user, 2026-11-28, with the word that
+  the pull request 42 may be merged), the first with the five
+  services of that pull request and with the executable of the pull
+  request 43, which Windows loads where it chooses: `Ailfile` says it
+  and the tag `v0.2.4` names the merge of it, so that a package asks
+  for them with `ail 0.2.4`. A third number: what was written before
+  it compiles and runs as it did, but for `sync` of a directory on
+  Windows, which gave 0 without asking and is now what Windows
+  answers; the notes of the release say so.

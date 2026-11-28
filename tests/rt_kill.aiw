@@ -1,0 +1,42 @@
+# a child ended: this program starts itself twice, as a child that ends
+# with 5 at once and as one that sleeps for a minute. The second is
+# ended and reap gives -9 for it, after which its number is no child;
+# the first, which has ended by then, is ended with no error and reap
+# gives what it ended with. No number that start did not give is a
+# child: 0, -1, which would be every process to the kernel of Linux,
+# and one above every number of a process
+buf exe 4096
+buf argv 24
+buf io 24
+data quick "q" 0
+data slow "s" 0
+args as p
+load p as n
+if n>1
+	load p+16 as a
+	loadb a as c
+	if c==115
+		rt sleep 60000000000
+	end
+	rt exit 5
+end
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 quick
+store io -1
+store io+8 -1
+store io+16 -1
+rt start argv 0 io 0 as c1
+store argv+8 slow
+rt start argv 0 io 0 as c2
+rt kill c2 as k1
+rt reap c2 0 as r1
+rt kill c2 as k2
+rt kill 0 as n1
+rt kill -1 as n2
+rt kill 0x100000000+c1 as n3
+rt sleep 500000000
+rt kill c1 as k3
+rt reap c1 0 as r3
+rt exit (k1==0)+(r1==-9)*2+(k2==-1001)*4+((n1==-1001)&(n2==-1001)&(n3==-1001))*8+(k3==0)*16+(r3==5)*32

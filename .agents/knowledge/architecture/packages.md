@@ -110,7 +110,14 @@ The rest is the open section of `docs/TODO.md`.
   request 41: `time`, `random`, `platform`, `trylock`, `map` and
   `unmap`): a third number again, though `lock` refuses with -22 a
   named pipe and a device, which 0.2.2 took and no document offered;
-  the notes of the release say it.
+  the notes of the release say it. **0.2.4** (user, 2026-11-28) is
+  the first with five services for a program that stays inside a
+  directory (the pull request 42: `anon`, `kill`, `openat`, `fdpath`
+  and `lockfd`) and with an executable for Windows that is loaded
+  where Windows chooses (the pull request 43): a third number again,
+  though `sync` of a directory on Windows asks Windows now and may
+  give its error, where 0.2.3 gave 0 and did nothing; the notes of
+  the release say it.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 

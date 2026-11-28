@@ -29,7 +29,8 @@
 #       are in, or 0 before the first of them
 # 4472  1 once the sockets of Windows are started
 # 4480  per descriptor, a byte: 1 a socket, 2 a waker, 4 a poller, 8 a
-#       lock (rt_lock), which become lets go of
+#       lock (rt_lock), which become lets go of, 16 one that was opened
+#       only to be asked what it is (rt_openat)
 # 4736  per descriptor, 8 bytes: the record of the poller that it is or
 #       was, which is kept for the next poller of that number (see
 #       rt_poller), or 0
@@ -59,7 +60,11 @@ end
 fn rt_error
 	local rt_a 32
 	call rt_api rt_i_getlasterror rt_a 0 as rt_e
-	rt_e&=0xffffffff
+	tail rt_errno rt_e&0xffffffff
+end
+
+# the same of the error rt_e of Windows
+fn rt_errno rt_e
 	if (rt_e==2)|(rt_e==3)|(rt_e==123)
 		ret -2
 	end
@@ -247,6 +252,10 @@ fn rt_write rt_fd rt_p rt_n
 	if rt_k&1
 		tail rt_send rt_fd rt_p rt_n
 	end
+	if rt_k&16
+		# opened only to be asked what it is
+		ret -9
+	end
 	if rt_n>0x40000000
 		rt_n=0x40000000
 	end
@@ -277,6 +286,10 @@ fn rt_read rt_fd rt_p rt_n
 	loadb rt_state+4480+rt_fd as rt_k
 	if rt_k&1
 		tail rt_recv rt_fd rt_h rt_p rt_n
+	end
+	if rt_k&16
+		# opened only to be asked what it is
+		ret -9
 	end
 	if rt_n>0x40000000
 		rt_n=0x40000000
@@ -719,15 +732,19 @@ fn rt_kind rt_p rt_n
 end
 
 # The handle of the descriptor rt_fd if it is a file that Windows has a
-# handle for, or the error: -9 for none, -29 for a socket, a waker or a
-# poller, and -21 for a directory, whose handle is for what is known
-# of it alone.
+# handle for, or the error: -9 for none and for one that was opened
+# only to be asked what it is, -29 for a socket, a waker or a poller,
+# and -21 for a directory, whose handle is for what is known of it
+# alone.
 fn rt_file rt_fd
 	call rt_handle rt_fd as rt_h
 	if rt_h>-4096
 		ret -9
 	end
 	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&16
+		ret -9
+	end
 	if rt_k&7
 		ret -29
 	end
@@ -872,13 +889,36 @@ fn rt_truncate rt_fd rt_n
 end
 
 # What was written to the open file is on its device when this returns
-# 0. Windows flushes a file that is open to be written, and no
-# directory: 0 for one.
+# 0. Windows flushes a file that is open to be written. A directory
+# is flushed too, by a handle that may write to it, and is an error
+# where Windows gives none or refuses the flush: 0 says that Windows
+# was asked and answered that it is done.
 fn rt_sync rt_fd
 	local rt_a 32
+	local rt_us 16
 	call rt_file rt_fd as rt_h
 	if rt_h==-21
-		ret 0
+		# a directory: its handle is for what is known of it, and
+		# Windows flushes one that may write. A second handle of the
+		# same directory, the name of nothing below the first, is
+		# opened to add a file to it (2) and to be waited for
+		# (0x100000)
+		call rt_handle rt_fd as rt_h
+		store rt_us 0
+		store rt_us+8 0
+		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 as rt_r rt_w
+		if rt_r
+			ret rt_r
+		end
+		rt_r=0
+		store rt_a rt_w
+		call rt_api rt_i_flushfilebuffers rt_a 1 as rt_x
+		ifz rt_x&0xffffffff
+			call rt_error as rt_r
+		end
+		store rt_a rt_w
+		call rt_api rt_i_closehandle rt_a 1
+		ret rt_r
 	end
 	if rt_h>-4096
 		ret rt_h
@@ -1134,6 +1174,12 @@ fn rt_names rt_fd rt_p rt_n
 	end
 	load rt_state+2408+rt_fd*8 as rt_d
 	ifz rt_d
+		# one opened only to be asked what it is has no names to be
+		# read, as on Linux
+		loadb rt_state+4480+rt_fd as rt_s
+		if rt_s&16
+			ret -9
+		end
 		ret -20
 	end
 	load rt_d+8 as rt_s
@@ -1868,6 +1914,10 @@ fn rt_reaping rt_p rt_ms
 		ret rt_x 1
 	end
 	load4 rt_c as rt_r
+	if rt_r==0xe0000009
+		# what rt_kill ended it with
+		ret -9 1
+	end
 	if rt_r>=0xc0000000
 		# a fault: a place of memory that is none, a division by zero, an
 		# instruction that is none, any other
@@ -3045,6 +3095,491 @@ fn rt_unmap rt_p rt_n
 	ifz rt_r&0xffffffff
 		tail rt_error
 	end
+	ret 0
+end
+
+# ---- a file with no name
+# A descriptor of a file to read and to write that is nowhere once it
+# is closed: Windows has no file without a name, so it is a file of
+# the directory for temporary files (GetTempPathA, at most 261 bytes
+# with its "\"), named "ail" and the 16 digits of 8 bytes that nobody
+# can guess, made only if it is not there (1), and removed by Windows
+# with its last handle (0x04000000; 0x100 says that it need not reach
+# the disk). It is shared with whoever reads, writes and removes (7),
+# which the second handle of pwrite needs. A name that is taken, -17,
+# is asked again with other bytes, eight times.
+fn rt_anon
+	local rt_z 288
+	local rt_a 56
+	local rt_x 8
+	call rt_newfd as rt_fd
+	ifslt rt_fd 0
+		ret rt_fd
+	end
+	store rt_a 262
+	store rt_a+8 rt_z
+	call rt_api rt_i_gettemppatha rt_a 2 as rt_n
+	rt_n&=0xffffffff
+	ifz rt_n
+		call rt_error as rt_r
+		tail rt_unfd rt_fd rt_r
+	end
+	if rt_n>261
+		tail rt_unfd rt_fd -36
+	end
+	store4 rt_z+rt_n 0x6c6961
+	rt_n+=3
+	rt_t=0
+	label rt_name
+	call rt_random rt_x 8
+	load rt_x as rt_v
+	rt_i=0
+	while rt_i<16
+		rt_c=rt_v&15
+		rt_v>>=4
+		if rt_c>9
+			rt_c+=39
+		end
+		storeb rt_z+rt_n+rt_i rt_c+48
+		rt_i+=1
+	end
+	storeb rt_z+rt_n+16 0
+	store rt_a rt_z
+	store rt_a+8 0xc0000000
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 1
+	store rt_a+40 0x04000100
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		rt_t+=1
+		if (rt_r==-17)&(rt_t<8)
+			jmp rt_name
+		end
+		tail rt_unfd rt_fd rt_r
+	end
+	store rt_state+360+rt_fd*8 rt_h+1
+	ret rt_fd
+end
+
+# ---- a child ended
+# End the child of the number rt_p, which start gave and reap has not
+# taken: 0, or an error, -1001 if it is not in the list of the
+# children (see rt_reap). Windows ends it with the status 0xe0000009,
+# which reap gives as -9. The list is locked meanwhile, so the handle
+# is the child's: reap closes it only after it took the child out of
+# the list. Windows ends no process that has ended, which is no error
+# here: the child is asked whether it has. The number 1 is a program
+# that could not be started, a child that has ended.
+fn rt_kill rt_p
+	local rt_a 32
+	if rt_p==1
+		ret 0
+	end
+	call rt_mlock
+	load rt_state+6784 as rt_k
+	label rt_find
+	ifz rt_k
+		call rt_munlock
+		ret -1001
+	end
+	load rt_k+24 as rt_h
+	if rt_h!=rt_p
+		load rt_k as rt_k
+		jmp rt_find
+	end
+	load rt_k+8 as rt_h
+	store rt_a rt_h
+	store rt_a+8 0xe0000009
+	call rt_api rt_i_terminateprocess rt_a 2 as rt_x
+	rt_r=0
+	ifz rt_x&0xffffffff
+		call rt_error as rt_r
+		store rt_a rt_h
+		store rt_a+8 0
+		call rt_api rt_i_waitforsingleobject rt_a 2 as rt_x
+		ifz rt_x&0xffffffff
+			rt_r=0
+		end
+	end
+	call rt_munlock
+	ret rt_r
+end
+
+# ---- below an open directory
+# 1 if the rt_n bytes at rt_p are not the name of one thing in a
+# directory: none, "." or "..", or with a "/", a "\\" or a zero among them
+fn rt_noname rt_p rt_n
+	ifz rt_n
+		ret 1
+	end
+	loadb rt_p as rt_c
+	if rt_c==46
+		if rt_n==1
+			ret 1
+		end
+		loadb rt_p+1 as rt_c
+		if (rt_n==2)&(rt_c==46)
+			ret 1
+		end
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		if (rt_c==47)|(rt_c==92)|(rt_c==0)
+			ret 1
+		end
+		rt_i+=1
+	end
+	ret 0
+end
+
+# Ask Windows for what has the name in the directory of the handle
+# rt_dh, with NtCreateFile, which takes a name from a handle where the
+# functions of kernel32 take a whole path: the error of the runtime or
+# 0, and the handle. rt_us is the name as Windows has one there, its
+# length in bytes twice, two bytes each, and the address of its UTF-16;
+# rt_acc what may be done with the handle; rt_how 1 to open what is
+# there, 2 to make it, 3 to open or make it; rt_opt the options: 1 a
+# directory, 0x40 none, 0x20 to read and write in turn, 0x4000 a
+# directory too, 0x200000 a reparse point as itself. Capitals do not
+# count (0x40 of the attributes of the name). rt_sh is whom it is
+# shared with: those that read and write it (3), or those that remove
+# it or give it another name too (7), as rt_open shares a file.
+# Windows says of a directory where none was asked for 0xc00000ba,
+# the error -21.
+fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
+	local rt_oa 48
+	local rt_io 16
+	local rt_hh 8
+	local rt_a 88
+	zero rt_oa 48
+	store4 rt_oa 48
+	store rt_oa+8 rt_dh
+	store rt_oa+16 rt_us
+	store4 rt_oa+24 0x40
+	store rt_hh 0
+	store rt_a rt_hh
+	store rt_a+8 rt_acc
+	store rt_a+16 rt_oa
+	store rt_a+24 rt_io
+	store rt_a+32 0
+	store rt_a+40 0x80
+	store rt_a+48 rt_sh
+	store rt_a+56 rt_how
+	store rt_a+64 rt_opt
+	store rt_a+72 0
+	store rt_a+80 0
+	call rt_api rt_i_ntcreatefile rt_a 11 as rt_r
+	rt_r&=0xffffffff
+	ifz rt_r
+		load rt_hh as rt_h
+		ret 0 rt_h
+	end
+	if rt_r==0xc00000ba
+		ret -21 0
+	end
+	store rt_a rt_r
+	call rt_api rt_i_rtlntstatustodoserror rt_a 1 as rt_e
+	call rt_errno rt_e&0xffffffff as rt_r
+	ret rt_r 0
+end
+
+# the attributes of what the handle rt_h is open on, or -1
+fn rt_hattr rt_h
+	local rt_a 32
+	local rt_b 40
+	store rt_a rt_h
+	store rt_a+8 0
+	store rt_a+16 rt_b
+	store rt_a+24 40
+	call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		ret -1
+	end
+	load4 rt_b+32 as rt_r
+	ret rt_r
+end
+
+# The path that Windows has for what the handle rt_h is open on, with
+# "\\?\" before its drive, into the rt_m bytes at rt_q, with a zero
+# behind it: its length, or 0 if Windows does not say or it does not
+# fit.
+fn rt_hpath rt_h rt_q rt_m
+	local rt_a 32
+	store rt_a rt_h
+	store rt_a+8 rt_q
+	store rt_a+16 rt_m
+	store rt_a+24 0
+	call rt_api rt_i_getfinalpathnamebyhandlea rt_a 4 as rt_n
+	rt_n&=0xffffffff
+	if rt_n>=rt_m
+		ret 0
+	end
+	ret rt_n
+end
+
+# Open what has the name of rt_n bytes at rt_p in the directory that
+# rt_fd is open on: a descriptor, or an error. The flags are those of
+# rt_open, and 0x200000 to open it only to be asked what it is. What
+# is opened is asked for its attributes, and a reparse point (0x400)
+# is the error -40 unless it was opened only to be asked, and no
+# directory was wanted. Windows says -20 or -21 of a link of the
+# other kind than was asked for, so after either the name is opened
+# again, to be asked, and a reparse point is -40 then too. A file is
+# cut (512) by its handle once it is known to be no link. A directory
+# gets the record of its names (see rt_names) with the path that
+# Windows has for its handle, unless it was opened only to be asked:
+# such a descriptor is noted (16) and has no record, and it is the
+# directory of another rt_openat if Windows says of its handle that it
+# is one (16 of the attributes) and no link or junction opened as
+# itself (0x400), which has that attribute too and below which Windows
+# opens nothing. A directory that is to be made is made though it is
+# opened only to be asked; a file is not, as on Linux. A directory is shared with those that read and write it, so
+# that it keeps its path, and a file with those that remove it or
+# rename it too, unless it is to keep its name (0x800000): Windows
+# then refuses both to every process while the descriptor is open, and
+# refuses this open (-13) while a handle may remove the file.
+fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
+	local rt_w 1040
+	local rt_z 4096
+	local rt_us 16
+	local rt_s 8
+	local rt_a 48
+	call rt_noname rt_p rt_n as rt_r
+	if rt_r
+		ret -22
+	end
+	call rt_handle rt_fd as rt_dh
+	if rt_dh>-4096
+		ret -9
+	end
+	load rt_state+2408+rt_fd*8 as rt_d
+	ifz rt_d
+		loadb rt_state+4480+rt_fd as rt_t
+		ifz rt_t&16
+			ret -20
+		end
+		call rt_hattr rt_dh as rt_t
+		if (rt_t==-1)|(rt_t&0x410!=16)
+			ret -20
+		end
+	end
+	if rt_n>520
+		ret -36
+	end
+	# the name in UTF-16, from the code page of the process (0), a byte
+	# that is none there being an error (8)
+	store rt_a 0
+	store rt_a+8 8
+	store rt_a+16 rt_p
+	store rt_a+24 rt_n
+	store rt_a+32 rt_w
+	store rt_a+40 520
+	call rt_api rt_i_multibytetowidechar rt_a 6 as rt_c
+	rt_c&=0xffffffff
+	ifz rt_c
+		ret -22
+	end
+	store rt_us rt_c*2+rt_c*0x20000
+	store rt_us+8 rt_w
+	rt_look=rt_flags&0x200000
+	rt_dir=rt_flags&0x10000
+	# what may be done with it, as in rt_open, and asked what it is
+	# (0x80) and waited for (0x100000), which CreateFileA adds itself
+	rt_acc=0x80000000
+	if rt_flags&3==1
+		rt_acc=0x40000000
+	end
+	if rt_flags&3==2
+		rt_acc=0xc0000000
+	end
+	if rt_flags&1024
+		rt_acc=rt_acc&0x80000000|4
+	end
+	rt_acc|=0x100080
+	rt_how=1
+	if rt_flags&64
+		rt_how=3
+		if rt_flags&128
+			rt_how=2
+		end
+	end
+	rt_opt=0x200060
+	if rt_dir
+		# its names (1) and what is known of it (0x80)
+		rt_acc=0x100081
+		rt_opt=0x204021
+	end
+	if rt_look
+		rt_acc=0x100080
+		ifz rt_dir
+			rt_how=1
+		end
+		rt_opt=rt_opt&0x200021|0x4000
+	end
+	call rt_newfd as rt_nf
+	ifslt rt_nf 0
+		ret rt_nf
+	end
+	rt_sh=7
+	if (rt_opt&1)|(rt_flags&0x800000)
+		rt_sh=3
+	end
+	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh as rt_r rt_h
+	if rt_r
+		if (rt_r==-20)|(rt_r==-21)
+			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 as rt_x rt_h
+			ifz rt_x
+				call rt_hattr rt_h as rt_t
+				store rt_a rt_h
+				call rt_api rt_i_closehandle rt_a 1
+				if (rt_t!=-1)&(rt_t&0x400!=0)
+					rt_r=-40
+				end
+			end
+		end
+		tail rt_unfd rt_nf rt_r
+	end
+	call rt_hattr rt_h as rt_t
+	rt_r=0
+	rt_d=0
+	if rt_t==-1
+		rt_r=-5
+	else
+		if (rt_t&0x400!=0)&((rt_look==0)|(rt_dir!=0))
+			rt_r=-40
+		end
+	end
+	if (rt_r==0)&(rt_flags&512!=0)&(rt_dir==0)&(rt_look==0)
+		# the end of the file, 6 of the things that are set by a handle
+		store rt_s 0
+		store rt_a rt_h
+		store rt_a+8 6
+		store rt_a+16 rt_s
+		store rt_a+24 8
+		call rt_api rt_i_setfileinformationbyhandle rt_a 4 as rt_x
+		ifz rt_x&0xffffffff
+			call rt_error as rt_r
+		end
+	end
+	if (rt_r==0)&(rt_dir!=0)&(rt_look==0)
+		call rt_hpath rt_h rt_z 4000 as rt_n
+		rt_r=-5
+		if rt_n
+			rt_r=-12
+			call rt_alloc 336+rt_n+3 as rt_d
+		end
+		if rt_d
+			rt_r=0
+			rt_i=0
+			while rt_i<rt_n
+				loadb rt_z+rt_i as rt_c
+				storeb rt_d+336+rt_i rt_c
+				rt_i+=1
+			end
+			storeb rt_d+336+rt_n 92
+			storeb rt_d+337+rt_n 42
+		end
+	end
+	if rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		tail rt_unfd rt_nf rt_r
+	end
+	store rt_state+2408+rt_nf*8 rt_d
+	if rt_look
+		storeb rt_state+4480+rt_nf 16
+	end
+	store rt_state+360+rt_nf*8 rt_h+1
+	ret rt_nf
+end
+
+# ---- the path of an open descriptor
+# The path that Windows has for what rt_fd is open on, into the rt_m
+# bytes at rt_q with a zero behind it: its length, or an error, -22
+# for a socket and for what Windows names no path of, a pipe or a
+# console. Windows writes "\\?\" in front of a drive and "\\?\UNC\" in
+# front of a share: the path is given without the first and with "\\"
+# for the second, as rt_real and rt_cwd write one.
+fn rt_fdpath rt_fd rt_q rt_m
+	local rt_z 4096
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&7
+		ret -22
+	end
+	ifz rt_m
+		ret -34
+	end
+	call rt_hpath rt_h rt_z 4096 as rt_n
+	if rt_n<4
+		ret -22
+	end
+	rt_i=0
+	rt_o=0
+	load4 rt_z as rt_c
+	if rt_c==0x5c3f5c5c
+		rt_i=4
+		load4 rt_z+4 as rt_c
+		if (rt_c==0x5c434e55)&(rt_n>8)
+			# "UNC\": the second "\" of a share in the place of the C
+			rt_i=6
+			storeb rt_z+6 92
+		end
+	end
+	if rt_n-rt_i>=rt_m
+		ret -34
+	end
+	while rt_i<=rt_n
+		loadb rt_z+rt_i as rt_c
+		storeb rt_q+rt_o rt_c
+		rt_i+=1
+		rt_o+=1
+	end
+	ret rt_o-1
+end
+
+# ---- the lock of an open file
+# Take the lock of the file that rt_fd is open on, without waiting: 0,
+# -11 if a handle has it, or an error, -22 for what is no file on a
+# disk, a directory among it. It is the byte that rt_locking locks,
+# asked for with the handle of the descriptor and not waited for (3),
+# and the descriptor is noted as a lock (8), which become lets go of.
+fn rt_lockfd rt_fd
+	local rt_y 32
+	local rt_a 48
+	call rt_file rt_fd as rt_h
+	if rt_h>-4096
+		if rt_h==-9
+			ret -9
+		end
+		ret -22
+	end
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		ret -22
+	end
+	zero rt_y 32
+	store4 rt_y+20 0x40000000
+	store rt_a rt_h
+	store rt_a+8 3
+	store rt_a+16 0
+	store rt_a+24 1
+	store rt_a+32 0
+	store rt_a+40 rt_y
+	call rt_api rt_i_lockfileex rt_a 6 as rt_r
+	ifz rt_r&0xffffffff
+		tail rt_lockerr 1
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	storeb rt_state+4480+rt_fd rt_k|8
 	ret 0
 end
 

@@ -26,6 +26,9 @@
 # - tests/win/pipe.aiw must find that a pipe as its input and one as
 #   its output have no place, and that fstat says of each that it is
 #   no file.
+# - tests/win/link.aiw must find that openat follows no junction, which
+#   cmd makes for it, and that a directory it opened keeps its name. It
+#   is skipped where cmd makes no junction.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -157,6 +160,19 @@ $wc < tests/win/pipe.aiw > $tmp/pipe.exe || r=1
 [ "$(cat $tmp/pipe.code)" = 127 ] || r=1
 say win_pipe $r
 
+# no link is followed below an open directory: a junction, which cmd
+# makes; the program ends with 77 if it made none
+r=0
+$wc < tests/win/link.aiw > $tmp/link.exe || r=1
+timeout 60 wine $tmp/link.exe $tmp/lk > /dev/null 2>&1
+c=$?
+if [ $c -eq 77 ]; then
+    echo "skip win_openat_link (no junction made)"
+else
+    [ $c -eq 63 ] || r=1
+    say win_openat_link $r
+fi
+
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
 # a long time of reap, threads that reap one child, and the number of
@@ -164,7 +180,7 @@ say win_pipe $r
 # executable, the lock, a program in place of the process and a group
 # of processes. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds rt_seek rt_stat rt_pwrite rt_fstat_dir rt_pwrite_threads rt_time rt_random rt_platform rt_trylock rt_map rt_map_replace rt_lock_device"
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds rt_seek rt_stat rt_pwrite rt_fstat_dir rt_pwrite_threads rt_time rt_random rt_platform rt_trylock rt_map rt_map_replace rt_lock_device rt_anon rt_kill rt_openat rt_fdpath rt_lockfd rt_sync_dir rt_openat_look rt_openat_kept"
 # each of them has to be a test the loop below finds and takes
 for t in $always; do
     why=

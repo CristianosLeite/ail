@@ -152,12 +152,12 @@ var epos ename enamel mainend curunit
 const inmax 8388609
 # The runtime is source that the compiler carries (rtsrc and rttail, from
 # build/rt/source.aiw) and compiles with every program, the first in
-# front of it and the second behind it. Their text stands in the 64 KiB
+# front of it and the second behind it. Their text stands in the 128 KiB
 # behind the room of the source, and each table that keeps entries to
 # the end has room for theirs beyond what the source limit gives: 16
 # files, 1024 functions, tails, checked accesses and 64 runs of data,
 # 4096 calls, uses of names and nodes, 256 global names.
-const insz 8454145
+const insz 8519681
 buf in insz
 # per entry of the runtime: 1 + the function of rt.aiw that is the
 # service

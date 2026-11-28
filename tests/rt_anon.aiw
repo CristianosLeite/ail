@@ -1,0 +1,50 @@
+# a file with no name: this program writes to one, sets it to its start
+# and starts itself with it as the input and a second one as the
+# output. What it starts writes twice what it reads, which is then in
+# the second file, a plain file of 8 bytes that is read from its
+# start. A place of the first file is written and read back, and both
+# are closed
+buf exe 4096
+buf argv 24
+buf io 24
+buf b 64
+buf st 32
+data child "child" 0
+args as p
+load p as n
+if n>1
+	rt read 0 b 64 as k
+	rt write 1 b k
+	rt write 1 b k
+	rt exit 7
+end
+rt anon as in
+rt anon as out
+rt write in "abc\n" as w
+rt seek in 0 0 as s
+rt self exe 4095 as e
+storeb exe+e 0
+store argv exe
+store argv+8 child
+store io in
+store io+8 out
+store io+16 -1
+rt start argv 0 io 0 as c
+rt reap c 0 as r
+rt fstat out st as f
+load st as kind
+load st+8 as size
+rt seek out 0 0 as s2
+rt read out b 64 as k
+load b as v
+rt write 1 b k
+rt pwrite in "X" 1 as pw
+rt seek in 0 0
+rt read in b 64 as k2
+load4 b as v2
+rt close in as c1
+rt close out as c2
+x=((in>2)&(out>2)&(in!=out))+((w==4)&(s==0)&(r==7))*2
+x+=((f==0)&(kind==1)&(size==8))*4+((s2==0)&(k==8)&(v==0x0a6362610a636261))*8
+x+=((pw==1)&(k2==4)&(v2==0x0a635861))*16+((c1==0)&(c2==0))*32
+rt exit x

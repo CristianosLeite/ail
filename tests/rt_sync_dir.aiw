@@ -1,0 +1,32 @@
+# the names of a directory put on its device: sync of a directory that
+# open opened and of one that openat opened, after a file was made
+# and after it got another name, is 0, and the descriptor still reads
+# the names; a descriptor that is none is an error
+buf b 512
+data dir "build/tests/rt_sync_dir.d"
+len dir as n
+rt unlink "build/tests/rt_sync_dir.d/sub/f"
+rt unlink "build/tests/rt_sync_dir.d/sub/g"
+rt rmdir "build/tests/rt_sync_dir.d/sub"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open dir n 0x10000 0 as d
+rt openat d "sub" 0x10040 493 as s
+rt sync d as s1
+rt openat s "f" 65 420 as f
+rt write f "x" as w
+rt sync f as s2
+rt close f
+rt rename "build/tests/rt_sync_dir.d/sub/f" "build/tests/rt_sync_dir.d/sub/g" as r
+rt sync s as s3
+rt names s b 512 as m
+load2 b as v
+rt sync 200 as e
+rt close s
+rt close d
+rt unlink "build/tests/rt_sync_dir.d/sub/g" as u1
+rt rmdir "build/tests/rt_sync_dir.d/sub" as u2
+rt rmdir dir n as u3
+x=((d>2)&(s>2)&(s1==0))+((w==1)&(s2==0)&(r==0)&(s3==0))*2+((m==2)&(v==103))*4+(e==-9)*8
+x+=((u1==0)&(u2==0)&(u3==0))*16
+rt exit x

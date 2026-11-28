@@ -53,6 +53,13 @@ source that the compiler compiles with every program
 the runtime of Windows as far as Wine shows it. The seed 8 is
 published; the seed 7, which had the runtime in C, is not.
 
+- [ ] What else a linker of Microsoft writes into an executable and
+  the compiler for Windows does not: a time of linking, a sum of the
+  file and a resource with its version. Microsoft Defender takes a
+  program of the tests for malware now and then
+  ([runtime.md](runtime.md)), and what the documents of Microsoft
+  offer a developer is to submit the file that was taken and to sign
+  what is released; nothing is to be tuned until a scan passes.
 - [ ] A second platform, and a third (user, 2026-11-26). First Windows
   on x86-64, run under Wine: the same instructions, another form of
   executable, another convention for calls, and no system calls, so
@@ -64,7 +71,8 @@ published; the seed 7, which had the runtime in C, is not.
   service, 579 tests, and on Windows 11 itself, where `tests/win.sh`
   passed with 607 tests on 2026-11-27 ([BACKLOG.md](BACKLOG.md)). Left
   there: what the tests of faults are to expect, the six services of
-  2026-11-27 under Wine, and the command `ail`, which the
+  2026-11-27 and the five of 2026-11-28 under Wine, and the command
+  `ail`, which the
   compiler for Windows compiles now that it has no `sys`
   ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
   `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64

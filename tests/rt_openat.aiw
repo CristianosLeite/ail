@@ -1,0 +1,77 @@
+# a thing opened below an open directory, by its name there: a
+# directory is made and opened, a file is made in it, written, read
+# back, asked what it is without being opened to read, and cut; the
+# names of the directory are read. What is no name of one thing is
+# refused, and so are a name with nothing at it, a file where a
+# directory is asked for, a file that is to be made and is there, and
+# a file as the directory. A number that is no descriptor is none: -100,
+# which is the directory of the process to the kernel of Linux, and the
+# number of the directory with 2^32 added, which is the directory to it,
+# open nothing and make nothing
+buf b 512
+buf st 32
+data dir "build/tests/rt_openat.d"
+len dir as n
+rt unlink "build/tests/rt_openat.d/sub/f"
+rt rmdir "build/tests/rt_openat.d/sub"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open dir n 0x10000 0 as d
+rt openat d "sub" 0x10040 493 as s
+rt openat d "sub" 0x10040 493 as s2
+rt close s2 as c
+x=(d>2)&(s>2)&(s2>2)&(c==0)
+rt openat s "f" 65 420 as f
+rt write f "hi\n" as w
+rt close f
+rt openat s "f" 0 0 as f
+rt read f b 512 as k
+load4 b as v
+x+=((f>2)&(w==3)&(k==3)&(v==0x0a6968))*2
+rt openat s "f" 0x200000 0 as l
+rt fstat l st as r
+load st as kind
+load st+8 as size
+rt close l
+rt openat d "sub" 0x200000 0 as l
+rt fstat l st as r2
+load st as kind2
+rt close l
+x+=((r==0)&(kind==1)&(size==3)&(r2==0)&(kind2==2))*4
+rt names s b 512 as m
+load2 b as v
+x+=((m==2)&(v==102))*8
+rt openat d "none" 0 0 as e1
+rt openat d "sub/f" 0 0 as e2
+rt openat d ".." 0 0 as e3
+rt openat d "." 0 0 as e4
+rt openat d "" 0 0 as e5
+x+=((e1==-2)&(e2==-22)&(e3==-22)&(e4==-22)&(e5==-22))*16
+rt openat s "f" 0x10000 0 as e1
+rt openat s "f" 193 420 as e2
+rt openat f "x" 0 0 as e3
+rt openat 200 "x" 0 0 as e4
+bad=(e1!=-20)|(e2!=-17)|(e3!=-20)|(e4!=-9)
+rt openat -100 "build" 0x10000 0 as e1
+rt openat -100 "rt_openat.made" 0x10040 493 as e2
+rt openat 0x100000000+d "sub" 0x10000 0 as e3
+rt openat 0x100000000+d "made" 0x10040 493 as e4
+rt kind "rt_openat.made" as k1
+rt kind "build/tests/rt_openat.d/made" as k2
+bad|=(e1!=-9)|(e2!=-9)|(e3!=-9)|(e4!=-9)|(k1!=-2)|(k2!=-2)
+x+=(bad==0)*32
+rt close f
+rt openat s "f" 513 0 as f
+rt close f
+rt openat s "f" 0x200000 0 as l
+rt fstat l st
+load st+8 as size
+rt close l
+x+=((f>2)&(size==0))*64
+rt close s
+rt close d
+rt unlink "build/tests/rt_openat.d/sub/f" as u
+rt rmdir "build/tests/rt_openat.d/sub" as r
+rt rmdir dir n as r2
+x+=((u==0)&(r==0)&(r2==0))*128
+rt exit x

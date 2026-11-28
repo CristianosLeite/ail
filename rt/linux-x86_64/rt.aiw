@@ -182,6 +182,35 @@ fn rt_chdir rt_p rt_n
 	ret rt_r
 end
 
+# the path of the descriptor rt_fd in /proc, "/proc/self/fd/" and its
+# number with a zero behind it, into the 48 bytes at rt_b
+fn rt_procfd rt_fd rt_b
+	set "/proc/self/fd/" as rt_d
+	rt_i=0
+	while rt_i<14
+		loadb rt_d+rt_i as rt_c
+		storeb rt_b+rt_i rt_c
+		rt_i+=1
+	end
+	# the number, its last digit at 33
+	rt_i=34
+	storeb rt_b+rt_i 0
+	rt_v=rt_fd
+	label rt_digit
+	rt_i-=1
+	storeb rt_b+rt_i rt_v%10+48
+	rt_v/=10
+	jnz rt_v rt_digit
+	rt_j=14
+	while rt_i<35
+		loadb rt_b+rt_i as rt_c
+		storeb rt_b+rt_j rt_c
+		rt_i+=1
+		rt_j+=1
+	end
+	ret 0
+end
+
 # The directory at the path as the kernel names it, from the root and
 # with no link and no ".." in it, into the rt_m bytes at rt_q as rt_cwd
 # writes one: its length, or an error, -34 if it does not fit. The
@@ -218,29 +247,7 @@ fn rt_real rt_p rt_n rt_q rt_m
 		ret rt_r
 	end
 	sys close rt_r
-	set "/proc/self/fd/" as rt_d
-	rt_i=0
-	while rt_i<14
-		loadb rt_d+rt_i as rt_c
-		storeb rt_b+rt_i rt_c
-		rt_i+=1
-	end
-	# the number, its last digit at 33
-	rt_i=34
-	storeb rt_b+rt_i 0
-	rt_v=rt_fd
-	label rt_digit
-	rt_i-=1
-	storeb rt_b+rt_i rt_v%10+48
-	rt_v/=10
-	jnz rt_v rt_digit
-	rt_j=14
-	while rt_i<35
-		loadb rt_b+rt_i as rt_c
-		storeb rt_b+rt_j rt_c
-		rt_i+=1
-		rt_j+=1
-	end
+	call rt_procfd rt_fd rt_b
 	sys rt_readlink rt_b rt_q rt_m as rt_r
 	# what the kernel says of it, asked once the path is read, so that
 	# a directory removed before that names nothing: the count of its
@@ -2075,6 +2082,267 @@ end
 # give back the rt_n bytes at rt_p that rt_map gave
 fn rt_unmap rt_p rt_n
 	sys munmap rt_p rt_n as rt_r
+	ret rt_r
+end
+
+# ---- a file with no name
+# A descriptor of a file that has no name, empty, to read and to write:
+# memory of the kernel that is a file (memfd_create), closed in a
+# program the process starts (1) unless start gives it to the program.
+const rt_memfd 319
+fn rt_anon
+	set "ail\0" as rt_d
+	sys rt_memfd rt_d 1 as rt_r
+	ret rt_r
+end
+
+# ---- a child ended
+# End the child rt_pid, which start gave and reap has not taken: 0, or
+# an error, -1001 if it is no child of the process. It is asked first
+# whether it is a child that runs (waitid with 4 one that has ended, 1
+# without waiting and 0x01000000 to leave it to be taken): one that has
+# ended needs nothing. The signal 9 goes to a descriptor of the child,
+# which is that process whatever becomes of its number; a kernel that
+# takes no child by a descriptor (-22) is asked by the number, and the
+# signal goes to the descriptor all the same, which is the child that
+# was asked or a process that is no more. 0 and the negative numbers
+# would be groups of processes to the kernel, which reads the low 32
+# bits alone, so those and larger ones are no child.
+# Where there is no descriptor to be had, an old kernel or a process
+# that has all it may have, the signal can only go to the number, and
+# the number is the child's only for as long as nothing takes the
+# child: it is sent under the lock of the list of rt_reap, so that no
+# reap begins meanwhile, and not at all if a reap of another thread
+# waits for that number or if the kernel itself takes the children
+# that end (see rt_reaping). The error that kept the descriptor away
+# is the result then, and the child is left as it is. What the process
+# does with the signal of its children is asked once, before the
+# signal 9 goes, and nothing here keeps a thread from changing it
+# between the two with a system call of its own, as nothing keeps one
+# from taking the child so: a program must do neither meanwhile.
+fn rt_kill rt_pid
+	local rt_info 128
+	ifsle rt_pid 0
+		ret -1001
+	end
+	if rt_pid>0x7fffffff
+		ret -1001
+	end
+	sys rt_pidfdopen rt_pid 0 as rt_fd
+	ifsge rt_fd 0
+		call rt_take 3 rt_fd rt_info 0x01000005 as rt_r
+		if rt_r==-22
+			call rt_take 1 rt_pid rt_info 0x01000005 as rt_r
+		end
+		load4 rt_info+16 as rt_n
+		ifslt rt_r 0
+			rt_r=-1001
+			rt_n=1
+		end
+		ifz rt_n
+			sys rt_pidfdsignal rt_fd 9 0 0 as rt_r
+			if rt_r==-3
+				# it ended since it was asked
+				rt_r=0
+			end
+		end
+		sys close rt_fd
+		ret rt_r
+	end
+	rt_e=rt_fd
+	call rt_mlock
+	call rt_take 1 rt_pid rt_info 0x01000005 as rt_r
+	load4 rt_info+16 as rt_n
+	ifslt rt_r 0
+		rt_r=-1001
+		jmp rt_out
+	end
+	if rt_n
+		rt_r=0
+		jmp rt_out
+	end
+	rt_r=rt_e
+	load rt_state+360 as rt_p
+	while rt_p
+		load rt_p+8 as rt_n
+		jeq rt_n rt_pid rt_out
+		load rt_p as rt_p
+	end
+	zero rt_info 32
+	sys rt_sigaction 17 0 rt_info 8 as rt_k
+	load rt_info as rt_n
+	load rt_info+8 as rt_s
+	jnz rt_k|(rt_n==1)|(rt_s&2) rt_out
+	sys kill rt_pid 9 as rt_r
+	label rt_out
+	call rt_munlock
+	ret rt_r
+end
+
+# ---- below an open directory
+# 1 if the rt_n bytes at rt_p are not the name of one thing in a
+# directory: none, "." or "..", or with a "/" or a zero among them
+fn rt_noname rt_p rt_n
+	ifz rt_n
+		ret 1
+	end
+	loadb rt_p as rt_c
+	if rt_c==46
+		if rt_n==1
+			ret 1
+		end
+		loadb rt_p+1 as rt_c
+		if (rt_n==2)&(rt_c==46)
+			ret 1
+		end
+	end
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_p+rt_i as rt_c
+		if (rt_c==47)|(rt_c==0)
+			ret 1
+		end
+		rt_i+=1
+	end
+	ret 0
+end
+
+# Open what has the name of rt_n bytes at rt_p in the directory that
+# rt_fd is open on: a descriptor, or an error. No link at the name is
+# followed (0x20000 of the flags of the kernel), which is the error
+# -40; the kernel says -20 of a link where a directory was asked for,
+# so after either the name is asked what it is. A directory to be made
+# (64 with 0x10000) is made first, which the kernel does not do in an
+# open, and then opened: what took its name meanwhile is opened in its
+# place only if it is a directory too, and no link. The kernel reads
+# the low 32 bits of a descriptor alone and takes -100 for the
+# directory the process is in, so a number that is no descriptor, a
+# negative one or one above 2^31-1, is refused here: -9. 0x800000 of
+# the flags, a file that keeps its name while it is open, is nothing
+# the kernel does and no flag of it: it is taken out.
+const rt_mkdirat 258
+const rt_fstatat 262
+fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
+	local rt_z 4096
+	local rt_s 144
+	call rt_noname rt_p rt_n as rt_r
+	if rt_r
+		ret -22
+	end
+	if rt_fd>0x7fffffff
+		ret -9
+	end
+	if rt_flags&0x800000
+		rt_flags^=0x800000
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	if rt_flags&0x10040==0x10040
+		sys rt_mkdirat rt_fd rt_z rt_mode as rt_r
+		if (rt_r!=0)&(rt_r!=-17)
+			ret rt_r
+		end
+		rt_flags^=64
+	end
+	sys openat rt_fd rt_z rt_flags|0x20000 rt_mode as rt_r
+	if (rt_r==-20)|(rt_r==-40)
+		# a link not followed, 0x100
+		sys rt_fstatat rt_fd rt_z rt_s 0x100 as rt_k
+		ifz rt_k
+			load4 rt_s+24 as rt_k
+			if rt_k&0xf000==0xa000
+				rt_r=-40
+			end
+		end
+	end
+	ret rt_r
+end
+
+# ---- the path of an open descriptor
+# The path that the kernel has for what rt_fd is open on, from the
+# root and with no link in it, into the rt_m bytes at rt_q with a zero
+# behind it: its length, or an error. It is what the link of the
+# descriptor in /proc leads to. The descriptor is asked first what it
+# is, so that one that is none is -9 and a file with no name left, of
+# which the link would say the name it had, -2; what the link says of
+# a pipe or a socket starts with no "/", and is the error -22. The
+# link also says the name that a file was opened by once that name is
+# removed, with " (deleted)" behind it, though the file has another
+# name still, and a file may have a name that ends so: the path is
+# therefore asked what is at it, no link followed (0x100), and one
+# that is not there, or is another file than the descriptor is open
+# on, is the error -2.
+fn rt_fdpath rt_fd rt_q rt_m
+	local rt_b 144
+	ifz rt_m
+		ret -34
+	end
+	if rt_fd>0x7fffffff
+		ret -9
+	end
+	sys fstat rt_fd rt_b as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load rt_b as rt_dev
+	load rt_b+8 as rt_ino
+	load rt_b+16 as rt_v
+	call rt_procfd rt_fd rt_b
+	sys rt_readlink rt_b rt_q rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	ifz rt_r
+		ret -22
+	end
+	loadb rt_q as rt_c
+	if rt_c!=47
+		ret -22
+	end
+	ifz rt_v
+		ret -2
+	end
+	if rt_r==rt_m
+		ret -34
+	end
+	storeb rt_q+rt_r 0
+	sys rt_fstatat -100 rt_q rt_b 0x100 as rt_k
+	if rt_k
+		ret rt_k
+	end
+	load rt_b as rt_k
+	load rt_b+8 as rt_v
+	if (rt_k!=rt_dev)|(rt_v!=rt_ino)
+		ret -2
+	end
+	ret rt_r
+end
+
+# ---- the lock of an open file
+# Take the lock of the plain file that rt_fd is open on, without
+# waiting: 0, -11 if another open file has it, or an error, -22 for
+# what is no plain file. It is the lock of rt_lock (flock, 6 for one
+# that is not waited for), which the kernel keeps for the open file
+# until its last descriptor is closed. A number that is no descriptor
+# is refused as rt_openat refuses one.
+fn rt_lockfd rt_fd
+	local rt_s 144
+	if rt_fd>0x7fffffff
+		ret -9
+	end
+	sys fstat rt_fd rt_s as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load4 rt_s+24 as rt_k
+	if rt_k&0xf000!=0x8000
+		ret -22
+	end
+	label rt_again
+	sys rt_flock rt_fd 6 as rt_r
+	jeq rt_r -4 rt_again
 	ret rt_r
 end
 
