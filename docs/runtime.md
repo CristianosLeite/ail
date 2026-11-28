@@ -75,6 +75,7 @@ result is a value.
 | 50 | `sync` | descriptor | 0, or an error: what was written to the file is on its device, or, for a directory, the names in it |
 | 51 | `stat` | address and length of a path, address | 0, or an error, -2 if nothing is there: four numbers of 8 bytes at the address, for what is at the path, a link not followed: its kind as `kind` gives it, the size of a file in bytes, and the nanoseconds since 1970 at which its bytes last changed and at which anything of it did |
 | 52 | `fstat` | descriptor, address | the same for what the descriptor is open on |
+| 53 | `time` |  | nanoseconds since 1970 by the clock of the system, the time of day: it may be set, and so go back, where `clock` only goes forward |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -274,6 +275,8 @@ Where a service cannot be on Windows what it is on Linux:
   that is not in the list is no child, -1001: the number of a child
   that was taken stays that whatever is started afterwards.
 - `clock` is the counter of Windows; `sleep` waits whole milliseconds.
+  `time` is counted in steps of 100 nanoseconds
+  (`GetSystemTimePreciseAsFileTime`, Windows 8).
 - A poller watches sockets and nothing else: `watch` gives -1 for any
   other descriptor, as for a plain file, and a read of a pipe waits.
   Windows says of a socket whether it is ready and not when it becomes

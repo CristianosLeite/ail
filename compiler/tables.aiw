@@ -220,6 +220,7 @@ data 8 "truncate" 49 2 1 0
 data 4 "sync" 50 1 1 0
 data 4 "stat" 51 3 1 0
 data 5 "fstat" 52 2 1 0
+data 4 "time" 53 0 1 0
 data 0
 # the keyword of the row that a service written in AIL is compiled by
 data callkw "call"

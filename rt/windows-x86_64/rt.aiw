@@ -2913,4 +2913,17 @@ fn rt_free rt_p
 	ret 0
 end
 
+# ---- the time of day
+# nanoseconds since 1970 by the clock of the system, which may be set
+# and so go back, where rt_clock only goes forward; Windows counts it
+# in steps of 100
+fn rt_time
+	local rt_a 32
+	local rt_t 8
+	store rt_a rt_t
+	call rt_api rt_i_getsystemtimepreciseasfiletime rt_a 1
+	load rt_t as rt_r
+	tail rt_since rt_r
+end
+
 label rt_go

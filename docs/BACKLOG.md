@@ -1345,3 +1345,11 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   tag `v0.2.2` names the merge of it, so that a package asks for them
   with `ail 0.2.2`. A third number, since what was written before it
   compiles and runs as it did.
+- [x] The service `time`, the time of day (2026-11-27): nanoseconds
+  since 1970 by the clock of the system. A program had to ask Linux
+  for it, with `sys clock_gettime`, and so could not ask on Windows;
+  aildb notes with it when a run of its index starts. It is
+  `clock_gettime` of the clock 0 on Linux and
+  `GetSystemTimePreciseAsFileTime` on Windows, which counts in steps
+  of 100 nanoseconds. The test `rt_time`, which is also run by
+  `tests/win.sh` whatever its count.
