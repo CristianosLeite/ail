@@ -3432,4 +3432,52 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	ret rt_nf
 end
 
+# ---- the path of an open descriptor
+# The path that Windows has for what rt_fd is open on, into the rt_m
+# bytes at rt_q with a zero behind it: its length, or an error, -22
+# for a socket and for what Windows names no path of, a pipe or a
+# console. Windows writes "\\?\" in front of a drive and "\\?\UNC\" in
+# front of a share: the path is given without the first and with "\\"
+# for the second, as rt_real and rt_cwd write one.
+fn rt_fdpath rt_fd rt_q rt_m
+	local rt_z 4096
+	call rt_handle rt_fd as rt_h
+	if rt_h>-4096
+		ret -9
+	end
+	loadb rt_state+4480+rt_fd as rt_k
+	if rt_k&7
+		ret -22
+	end
+	ifz rt_m
+		ret -34
+	end
+	call rt_hpath rt_h rt_z 4096 as rt_n
+	if rt_n<4
+		ret -22
+	end
+	rt_i=0
+	rt_o=0
+	load4 rt_z as rt_c
+	if rt_c==0x5c3f5c5c
+		rt_i=4
+		load4 rt_z+4 as rt_c
+		if (rt_c==0x5c434e55)&(rt_n>8)
+			# "UNC\": the second "\" of a share in the place of the C
+			rt_i=6
+			storeb rt_z+6 92
+		end
+	end
+	if rt_n-rt_i>=rt_m
+		ret -34
+	end
+	while rt_i<=rt_n
+		loadb rt_z+rt_i as rt_c
+		storeb rt_q+rt_o rt_c
+		rt_i+=1
+		rt_o+=1
+	end
+	ret rt_o-1
+end
+
 label rt_go

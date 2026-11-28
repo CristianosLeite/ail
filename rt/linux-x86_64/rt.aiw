@@ -182,6 +182,35 @@ fn rt_chdir rt_p rt_n
 	ret rt_r
 end
 
+# the path of the descriptor rt_fd in /proc, "/proc/self/fd/" and its
+# number with a zero behind it, into the 48 bytes at rt_b
+fn rt_procfd rt_fd rt_b
+	set "/proc/self/fd/" as rt_d
+	rt_i=0
+	while rt_i<14
+		loadb rt_d+rt_i as rt_c
+		storeb rt_b+rt_i rt_c
+		rt_i+=1
+	end
+	# the number, its last digit at 33
+	rt_i=34
+	storeb rt_b+rt_i 0
+	rt_v=rt_fd
+	label rt_digit
+	rt_i-=1
+	storeb rt_b+rt_i rt_v%10+48
+	rt_v/=10
+	jnz rt_v rt_digit
+	rt_j=14
+	while rt_i<35
+		loadb rt_b+rt_i as rt_c
+		storeb rt_b+rt_j rt_c
+		rt_i+=1
+		rt_j+=1
+	end
+	ret 0
+end
+
 # The directory at the path as the kernel names it, from the root and
 # with no link and no ".." in it, into the rt_m bytes at rt_q as rt_cwd
 # writes one: its length, or an error, -34 if it does not fit. The
@@ -218,29 +247,7 @@ fn rt_real rt_p rt_n rt_q rt_m
 		ret rt_r
 	end
 	sys close rt_r
-	set "/proc/self/fd/" as rt_d
-	rt_i=0
-	while rt_i<14
-		loadb rt_d+rt_i as rt_c
-		storeb rt_b+rt_i rt_c
-		rt_i+=1
-	end
-	# the number, its last digit at 33
-	rt_i=34
-	storeb rt_b+rt_i 0
-	rt_v=rt_fd
-	label rt_digit
-	rt_i-=1
-	storeb rt_b+rt_i rt_v%10+48
-	rt_v/=10
-	jnz rt_v rt_digit
-	rt_j=14
-	while rt_i<35
-		loadb rt_b+rt_i as rt_c
-		storeb rt_b+rt_j rt_c
-		rt_i+=1
-		rt_j+=1
-	end
+	call rt_procfd rt_fd rt_b
 	sys rt_readlink rt_b rt_q rt_m as rt_r
 	# what the kernel says of it, asked once the path is read, so that
 	# a directory removed before that names nothing: the count of its
@@ -2208,6 +2215,49 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 			end
 		end
 	end
+	ret rt_r
+end
+
+# ---- the path of an open descriptor
+# The path that the kernel has for what rt_fd is open on, from the
+# root and with no link in it, into the rt_m bytes at rt_q with a zero
+# behind it: its length, or an error. It is what the link of the
+# descriptor in /proc leads to. The descriptor is asked first what it
+# is, so that one that is none is -9 and a file with no name left, of
+# which the link would say the name it had, -2; what the link says of
+# a pipe or a socket starts with no "/", and is the error -22.
+fn rt_fdpath rt_fd rt_q rt_m
+	local rt_b 144
+	ifz rt_m
+		ret -34
+	end
+	if rt_fd>0x7fffffff
+		ret -9
+	end
+	sys fstat rt_fd rt_b as rt_r
+	if rt_r
+		ret rt_r
+	end
+	load rt_b+16 as rt_v
+	call rt_procfd rt_fd rt_b
+	sys rt_readlink rt_b rt_q rt_m as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	ifz rt_r
+		ret -22
+	end
+	loadb rt_q as rt_c
+	if rt_c!=47
+		ret -22
+	end
+	ifz rt_v
+		ret -2
+	end
+	if rt_r==rt_m
+		ret -34
+	end
+	storeb rt_q+rt_r 0
 	ret rt_r
 end
 

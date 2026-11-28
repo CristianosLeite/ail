@@ -1491,3 +1491,13 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   are `rt_openat`, `rt_openat_link` with links that Linux makes, and
   `tests/win/link.aiw` with a junction that `cmd` makes
   (`win_openat_link` of `tests/win.sh`, skipped where none is made).
+- [x] The path of an open descriptor, the service `fdpath`
+  (2026-11-28, for step 19 of aildb, which names what it opened as
+  the system does, to compare a directory with the one a command was
+  allowed for, by reading the link in `/proc/self/fd` with `sys`): the
+  path from the root, with no link in it, of what a descriptor is
+  open on. On Linux it is that link, with -2 for a file that has no
+  name left and -22 for a pipe or a socket; on Windows
+  `GetFinalPathNameByHandleA` without what Windows writes in front.
+  The function that writes the path in `/proc` is one for `real` and
+  for it. The test is `rt_fdpath`.
