@@ -1,9 +1,12 @@
 # descriptors opened by many threads at once are all different: 48
 # threads wait for a word, awake, each opens the file of this program four
-# times and keeps the descriptors, and no two of all are the same
+# times and keeps the descriptors, and no two of all are the same. The
+# file is asked of the runtime: the name a program was started by is no
+# path to it when what started it gives the bare name, as WSL does
 buf go 8
 buf done 8
 buf path 16
+buf exe 4096
 buf fds 1536
 fn work i
 	load path as p
@@ -27,16 +30,8 @@ fn work i
 	rt sleep 1000000000
 	jmp stay
 end
-args as p
-load p+8 as me
-n=0
-label len
-loadb me+n as c
-if c
-	n+=1
-	jmp len
-end
-store path me
+rt self exe 4095 as n
+store path exe
 store path+8 n
 ref work as f
 i=0
