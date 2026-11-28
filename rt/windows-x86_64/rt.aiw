@@ -1031,7 +1031,8 @@ end
 # name and its place for as long as a process has it open here, to
 # hold the lock or to wait for it: Windows then refuses to remove it
 # and to rename it, so that no second file of that name can be locked
-# beside it.
+# beside it. What is opened and is no file on a disk, a device or a
+# pipe, has no lock: the error -22, as on Linux.
 # rt_now is 1 for a lock that is not waited for: Windows then fails
 # at once (1 of the flags) with its error 33 if a handle has the byte,
 # one of this process too, which is the error -11 here.
@@ -1086,6 +1087,15 @@ fn rt_locking rt_p rt_n rt_now
 		call rt_error as rt_r
 		call rt_long rt_z rt_r as rt_r
 		tail rt_unfd rt_fd rt_r
+	end
+	# a lock is of a file on a disk (1): Windows gives one of the byte
+	# of a device too, "NUL" among them, which keeps no process out
+	store rt_a rt_h
+	call rt_api rt_i_getfiletype rt_a 1 as rt_r
+	if rt_r&0xffffffff!=1
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		tail rt_unfd rt_fd -22
 	end
 	# for this handle alone (2), waited for, one byte at 2^62
 	zero rt_y 32

@@ -342,7 +342,10 @@ Where a service cannot be on Windows what it is on Linux:
   may take a lock is who the file system lets open the file to read
   it, and two ways to write the path of one directory are one lock.
   `trylock` asks Windows for the same byte and not to wait
-  (`LOCKFILE_FAIL_IMMEDIATELY`).
+  (`LOCKFILE_FAIL_IMMEDIATELY`). Windows gives such a lock of a device
+  too, of `NUL` among them, which would keep no process out: what is
+  opened is asked its kind (`GetFileType`), and anything but a file
+  on a disk is the error -22 of the table, the handle closed.
 - `become` starts the program as a child that is held, with the input
   and the outputs of the process, waits for it and ends the process
   with its status, or with 128 and the number of what ended it:

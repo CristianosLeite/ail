@@ -1,0 +1,29 @@
+# a device has no lock, on Windows as on Linux: the one that takes
+# every byte and gives none, "NUL" there and "/dev/null" here, is the
+# error -22 for the lock that is waited for and for the one that is
+# not, and the descriptor that was kept for it is free again, so the
+# lock of a directory has the same number before and after
+data lin "/dev/null"
+data win "NUL"
+data dir "build/tests/rt_lock_device.d"
+rt platform as p
+d=lin
+len lin as n
+if p==2
+	d=win
+	len win as n
+end
+len dir as m
+rt unlink "build/tests/rt_lock_device.d/.ail-lock"
+rt rmdir dir m
+rt mkdir dir m 493
+rt trylock dir m as a
+rt close a
+rt trylock d n as t
+rt lock d n as l
+rt trylock dir m as b
+rt close b as c
+rt unlink "build/tests/rt_lock_device.d/.ail-lock"
+rt rmdir dir m as r
+rt write 1 "no lock\n"
+rt exit (t==-22)+(l==-22)*2+((a>2)&(a==b))*4+(c==0)*8+(r==0)*16

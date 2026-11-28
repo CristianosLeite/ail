@@ -1432,3 +1432,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `rt_map_written`, which `tests/win.skip` names. On Windows 11
   (build 26300, NTFS) the write was in the view when `rt_map` still
   asked, the same day.
+- [x] No lock of a device on Windows (2026-11-28, the review of
+  `9400a97`, P2): the table gives -22 for what is neither a directory
+  nor a plain file since the item about a named pipe, and the runtime
+  of Windows opened the path and asked `LockFileEx` whatever it had
+  opened, so `lock` and `trylock` of `NUL` gave a descriptor, a lock
+  that keeps no process out. What is opened is asked its kind
+  (`GetFileType`) before the lock, and anything but a file on a disk
+  is -22, the handle closed and the descriptor free again. The test
+  `rt_lock_device` asks `platform` which device to name, so both
+  platforms run it; on Windows 11 (build 26300, NTFS) it ended with
+  24 before the change, both locks given, and with 31 after.
