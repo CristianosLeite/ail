@@ -1551,3 +1551,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   now give -9 for a negative number and for one above 2^31-1, before
   a directory is made or anything is opened. The tests `rt_openat`
   and `rt_lockfd` ask both, to open and to make a directory.
+- [x] No path for a file whose name is gone and that has another
+  (2026-11-28, the review of `c5ed7fb`): `fdpath` of Linux looked
+  only whether the file had a name left, and the kernel says the
+  name a file was opened by with ` (deleted)` behind it once that
+  name is removed, whatever other names the file has, so the path of
+  a file with two names, opened by the one that was then removed,
+  was a path at which nothing is. The path is now asked what is at
+  it, no link followed, and is -2 unless that is the file of the
+  descriptor, so a file whose name ends with ` (deleted)` has its
+  path too. The test `rt_fdpath_gone`, of Linux alone, since the
+  second name is asked with `sys`.

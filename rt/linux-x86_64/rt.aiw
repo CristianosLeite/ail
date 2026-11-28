@@ -2231,7 +2231,13 @@ end
 # descriptor in /proc leads to. The descriptor is asked first what it
 # is, so that one that is none is -9 and a file with no name left, of
 # which the link would say the name it had, -2; what the link says of
-# a pipe or a socket starts with no "/", and is the error -22.
+# a pipe or a socket starts with no "/", and is the error -22. The
+# link also says the name that a file was opened by once that name is
+# removed, with " (deleted)" behind it, though the file has another
+# name still, and a file may have a name that ends so: the path is
+# therefore asked what is at it, no link followed (0x100), and one
+# that is not there, or is another file than the descriptor is open
+# on, is the error -2.
 fn rt_fdpath rt_fd rt_q rt_m
 	local rt_b 144
 	ifz rt_m
@@ -2244,6 +2250,8 @@ fn rt_fdpath rt_fd rt_q rt_m
 	if rt_r
 		ret rt_r
 	end
+	load rt_b as rt_dev
+	load rt_b+8 as rt_ino
 	load rt_b+16 as rt_v
 	call rt_procfd rt_fd rt_b
 	sys rt_readlink rt_b rt_q rt_m as rt_r
@@ -2264,6 +2272,15 @@ fn rt_fdpath rt_fd rt_q rt_m
 		ret -34
 	end
 	storeb rt_q+rt_r 0
+	sys rt_fstatat -100 rt_q rt_b 0x100 as rt_k
+	if rt_k
+		ret rt_k
+	end
+	load rt_b as rt_k
+	load rt_b+8 as rt_v
+	if (rt_k!=rt_dev)|(rt_v!=rt_ino)
+		ret -2
+	end
 	ret rt_r
 end
 
