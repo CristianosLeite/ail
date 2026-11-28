@@ -1443,3 +1443,10 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `rt_lock_device` asks `platform` which device to name, so both
   platforms run it; on Windows 11 (build 26300, NTFS) it ended with
   24 before the change, both locks given, and with 31 after.
+- [x] The version 0.2.3 of AIL (user, 2026-11-28), the first with
+  those six services, the pull request 41: `Ailfile` says it and the
+  tag `v0.2.3` names the merge of it, so that a package asks for them
+  with `ail 0.2.3`. A third number: what was written before it
+  compiles and runs as it did, but for a `lock` of a named pipe or of
+  a device, which 0.2.2 took and which is the error -22 now; the
+  notes of the release say so.
