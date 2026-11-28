@@ -850,6 +850,16 @@ it; `TODO.md` has what is decided and what is left.
   for a target; a test under Wine is tried once, where `tests/win.sh`
   tries its own twice.
 
+- [x] The compiler for Windows in an installation and in the archive
+  of a release (2026-11-28, with the target of `ail build`): `make`
+  builds `build/ailc-windows-x86_64` with everything else, and
+  `tools/install.sh` puts it beside `ailc` in `lib/ail/`, where the
+  command looks for the compiler of a target, so the archive of
+  `make dist` builds a package for Windows with nothing else.
+  `tests/install.sh` builds the package it makes for Windows from an
+  installation and from the archive and looks at the first bytes of
+  the executable; it runs none.
+
 ## Text formats and the network
 
 What a program needs to talk to another one: numbers and JSON read from

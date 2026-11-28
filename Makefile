@@ -95,6 +95,10 @@ $(B)/rt/$(WT)/source.aiw: rt/$(WT)/rt.aiw rt/$(WT)/state.aiw compiler/$(WT)/impo
 	{ compiler/$(WT)/imports.sh consts < compiler/$(WT)/imports.list && cat rt/$(WT)/rt.aiw; } > $(@D)/rt.aiw
 	{ rt/source.sh rtsrc $(@D)/rt.aiw && rt/source.sh rttail rt/$(WT)/state.aiw; } > $@.tmp && mv $@.tmp $@
 
+# It is built with everything else: an installation has it, for
+# "ail build --target windows-x86_64" (docs/cli.md).
+all: $(B)/ailc-$(WT)
+
 $(B)/ailc-$(WT): $(SRC) $(WTDIR)/target.aiw $(WTDIR)/imports.aiw $(B)/rt/$(WT)/source.aiw $(B)/ailc
 	$(call compile,$(B)/ailc $(WPKGS))
 
@@ -145,8 +149,8 @@ fuzz: $(B)/ailc
 	tests/fuzz.sh $(or $(N),20000) $(or $(SEED),1)
 
 # An installation (docs/cli.md): the command in bin/, and in lib/ail/
-# what it looks for there, the compiler, the formatter, the library and
-# the manifest of AIL. DESTDIR is put before PREFIX, for a package that
+# what it looks for there, the compiler, the compiler for Windows, the
+# formatter, the library and the manifest of AIL. DESTDIR is put before PREFIX, for a package that
 # is put together in another place than it is installed to.
 PREFIX ?= /usr/local
 VERSION := $(shell sed -n 's/^version //p' Ailfile)

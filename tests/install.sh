@@ -4,7 +4,7 @@
 # An installation, as make install and make dist leave it: a package is
 # made, built, run, tested and formatted with nothing but what was
 # installed, in a directory outside this checkout and with AIL_HOME not
-# set. A command still running after 60 seconds is killed, which fails
+# set, and built for Windows too, which is not run here. A command still running after 60 seconds is killed, which fails
 # its case.
 cd "$(dirname "$0")/.." || exit 1
 top=$PWD
@@ -42,12 +42,14 @@ works() {
     says $1_test "ok   hello
 1 test, 0 failed" $ail test
     says $1_fmt "" $ail fmt --check
+    says $1_target "" $ail build --target windows-x86_64
+    yes $1_target_executable [ "$(head -c 2 build/windows-x86_64/demo.exe)" = MZ ]
     cd "$top" || exit 1
 }
 
 make -s install PREFIX="$tmp/p" > "$tmp/said" 2>&1
 yes install_make [ $? -eq 0 ]
-yes install_files [ "$(cd "$tmp/p" && find . -type f ! -path './lib/ail/lib/*' | LC_ALL=C sort | tr '\n' ' ')" = "./bin/ail ./lib/ail/Ailfile ./lib/ail/LICENSE ./lib/ail/ailc ./lib/ail/indent " ]
+yes install_files [ "$(cd "$tmp/p" && find . -type f ! -path './lib/ail/lib/*' | LC_ALL=C sort | tr '\n' ' ')" = "./bin/ail ./lib/ail/Ailfile ./lib/ail/LICENSE ./lib/ail/ailc ./lib/ail/ailc-windows-x86_64 ./lib/ail/indent " ]
 yes install_library [ "$(cd "$tmp/p/lib/ail" && find lib -type f | sort)" = "$(find lib -type f -name '*.aiw' | sort)" ]
 works install "$tmp/p"
 # a second time over the first, and with DESTDIR before the prefix

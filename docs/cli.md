@@ -246,8 +246,10 @@ make install PREFIX=$HOME/.local
 
 puts the command at `bin/ail` under the prefix, `/usr/local` if none is
 given, and in `lib/ail/` what the command looks for from there: the
-compiler `ailc`, the formatter `indent`, the manifest `Ailfile` with the
-version, the licence, and the library, `lib/`. With `bin/` on `PATH`
+compiler `ailc`, the compiler for Windows `ailc-windows-x86_64`, which
+runs on Linux as the other does ([A target](#a-target)), the formatter
+`indent`, the manifest `Ailfile` with the version, the licence, and the
+library, `lib/`. With `bin/` on `PATH`
 nothing else is needed, and the checkout it was built in may go.
 `DESTDIR` is put before the prefix, for a package made in one place and
 installed to another. A second `make install` replaces the first, the
@@ -278,8 +280,8 @@ looks, in this order:
 Such a directory has `Ailfile`, `lib/`, the compiler as `ailc` or as
 `build/ailc`, and the formatter as `indent` or as `build/tools/indent`.
 The compiler for a target is beside the compiler, with the target after
-its name: `ailc-windows-x86_64`, which a checkout has once
-`make build/ailc-windows-x86_64` or `make test` has run. The line `ail` of a manifest is compared with the version
+its name: `ailc-windows-x86_64`, which `make` builds and an
+installation has. The line `ail` of a manifest is compared with the version
 in that `Ailfile`, and a package that asks for an AIL this one is not
 ([packages.md](packages.md)) is not built.
 
