@@ -1702,3 +1702,12 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   not run, a directory both, what is not there neither. It passes on
   Linux and on Windows 11 on NTFS, and is in the list `always` of
   `tests/win.sh`.
+- [x] The version 0.2.5 of AIL (user, 2026-11-28: `access` in AIL
+  0.2.5, and its release with the executable of `ail` for Windows),
+  the first with the service `access`, with a target for `ail build`
+  and `ail test`, with the compiler for Windows in the archive for
+  Linux and with the command `ail` on Windows, in an archive of its
+  own: `Ailfile` says it, and the tag `v0.2.5` is to name the merge
+  of it, so that a package asks for them with `ail 0.2.5`. A third
+  number: what was written before compiles and runs as it did. The
+  release has two archives, each with its `.sha256`.
