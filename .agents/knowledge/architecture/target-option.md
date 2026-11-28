@@ -1,7 +1,7 @@
 ---
 title: A target for ail build and ail test
 last-verified: 2026-11-28
-sources: [conversation 2026-11-28, docs/TODO.md of aildb (step 19), cli/ail.aiw, cli/tool.aiw, tests/cli.sh, tests/win.sh, tools/install.sh, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
+sources: [conversation 2026-11-28, docs/TODO.md of aildb (step 19), cli/ail.aiw, cli/tool.aiw, tests/cli.sh, tests/win.sh, tools/install.sh, rt/linux-x86_64/rt.aiw, rt/windows-x86_64/rt.aiw, runs of 2026-11-28 on Windows 11 Pro build 26300 with WSL 2 (Ubuntu, kernel 6.18.33.2)]
 status: current
 ---
 # A target for ail build and ail test
@@ -91,6 +91,14 @@ user to review.
   that does not compile, as without a target.
 
 ## Runs
+
+- 2026-11-28, at `ee49db8`, with the service `access`, the command on
+  Windows and the version 0.2.5, Ubuntu under WSL 2: `make test` status
+  0, 3187 lines of ok.
+- The same day and revision, `tests/win.sh all` with the tree on NTFS
+  and the programs started on Windows 11 itself: status 0,
+  `win_tests (617 run)`, `rt_access` among them, and seventeen named
+  checks, `win_package` and `win_ail` among them.
 
 - 2026-11-28, at `b2448f6`, Ubuntu under WSL 2: `make test` status 0,
   3183 lines of ok.
