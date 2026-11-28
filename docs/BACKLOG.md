@@ -1739,3 +1739,15 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   `tests/win.sh`. By hand on Linux, with `TMPDIR=/var/tmp` and with
   one that is no path from the root, the test ended with 63 and left
   no file.
+- [x] 0x200000 of `open` on Linux is said and tested (a review of
+  aildb at `6a9f207` and of the pull request 44 at `a3255a2`, user,
+  2026-11-28): the runtime of Linux gives the flags of `open` to the
+  kernel, and aildb opens a directory that it may not read with
+  `O_PATH` so, for the lock of a build and for the look at a program
+  of a provider, while `docs/runtime.md` had the flag for `openat`
+  alone. It now says what `open` does with it on Linux, a descriptor
+  for `fstat`, for `fdpath` and to be the directory of an `openat`,
+  with no right to read asked, and that the flag is of Linux alone
+  there: the runtime of Windows does not look at it. The test
+  `rt_open_look` opens a directory of the mode 0300 so and a file
+  below it; it is named in `tests/win.skip`.

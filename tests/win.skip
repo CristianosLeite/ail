@@ -34,6 +34,8 @@ async_tcp_echo
 lib_http_cancel
 # it opens /dev/null with a flag of Linux
 rt_start_cloexec
+# 0x200000 of open, which is of Linux alone
+rt_open_look
 # the widths are those of the kernel of Linux
 rt_reap_wide
 # Windows does not say that a view has what is written to its file

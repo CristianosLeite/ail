@@ -98,6 +98,21 @@ write at its end, 0x10000 for a directory, whose names `names` gives,
 and 0x80000 to close it in a program the process starts. `read` and `write` may do less than they were asked, and a
 caller that wants all asks again.
 
+On Linux `open` takes 0x200000 too (`O_PATH` of the kernel), and it is
+of Linux alone there: the runtime of Windows does not look at it in
+`open` and opens the thing as without it, so a program for both adds
+the flag where `platform` says Linux, or opens below a directory with
+`openat`, which has the flag on both. What is at the path is opened
+only to be asked what it is: `fstat` and `fdpath` take the descriptor,
+and a directory opened so, with 0x10000 or without, is the directory
+of an `openat`. The process needs no right to read what it opens so,
+only to enter the directories of the path: a directory that may be
+entered and not read is opened. Nothing of it is read or written and
+its names are not read (-9), and 64 makes no file with it. It is not
+`openat` with a path: `open` takes a whole path and follows the links
+in it and at its end, where `openat` takes one name and follows none.
+The test is `rt_open_look`, which Linux alone runs.
+
 The errors that a caller may tell apart, with the numbers Linux gives
 them; a runtime for another platform gives the same numbers:
 
