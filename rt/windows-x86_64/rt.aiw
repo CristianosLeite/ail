@@ -906,7 +906,7 @@ fn rt_sync rt_fd
 		call rt_handle rt_fd as rt_h
 		store rt_us 0
 		store rt_us+8 0
-		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 as rt_r rt_w
+		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 0 as rt_r rt_w
 		if rt_r
 			ret rt_r
 		end
@@ -3269,8 +3269,10 @@ end
 # shared with: those that read and write it (3), or those that remove
 # it or give it another name too (7), as rt_open shares a file.
 # Windows says of a directory where none was asked for 0xc00000ba,
-# the error -21.
-fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
+# the error -21. rt_sd is the security descriptor of what is made
+# (rt_private), or 0 for the one Windows gives it, which has what the
+# directory hands down.
+fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh rt_sd
 	local rt_oa 48
 	local rt_io 16
 	local rt_hh 8
@@ -3280,6 +3282,7 @@ fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
 	store rt_oa+8 rt_dh
 	store rt_oa+16 rt_us
 	store4 rt_oa+24 0x40
+	store rt_oa+32 rt_sd
 	store rt_hh 0
 	store rt_a rt_hh
 	store rt_a+8 rt_acc
@@ -3341,6 +3344,72 @@ fn rt_hpath rt_h rt_q rt_m
 	ret rt_n
 end
 
+# Make at rt_b, 160 bytes, the security descriptor of a thing that is
+# the user's alone: one entry, which lets the user of the process do
+# everything, and nothing taken over from the directory the thing is
+# made in (protected, 0x1000 of its control). For a directory, rt_dir,
+# the entry is handed down to what is made in it (3 of its flags). The
+# user is the one of the token of the process, which ntdll says
+# (TokenUser, 1). rt_b, or 0 if Windows does not say it.
+fn rt_private rt_b rt_dir
+	local rt_a 40
+	local rt_t 8
+	local rt_u 96
+	local rt_l 8
+	store rt_t 0
+	# this process (-1), to be asked (8)
+	store rt_a -1
+	store rt_a+8 8
+	store rt_a+16 rt_t
+	call rt_api rt_i_ntopenprocesstoken rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		ret 0
+	end
+	load rt_t as rt_h
+	store rt_a rt_h
+	store rt_a+8 1
+	store rt_a+16 rt_u
+	store rt_a+24 96
+	store rt_a+32 rt_l
+	call rt_api rt_i_ntqueryinformationtoken rt_a 5 as rt_r
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_r&0xffffffff
+		ret 0
+	end
+	# the identifier of the user: 8 bytes and 4 for each of its numbers
+	load rt_u as rt_s
+	loadb rt_s+1 as rt_k
+	rt_n=8+rt_k*4
+	if rt_n>68
+		ret 0
+	end
+	zero rt_b 160
+	# the descriptor: its revision, a list that is there (4) and
+	# protected (0x1000), and where the list is
+	storeb rt_b 1
+	storeb rt_b+2 4
+	storeb rt_b+3 0x10
+	store rt_b+32 rt_b+40
+	# the list: its revision, its size, one entry
+	storeb rt_b+40 2
+	storeb rt_b+42 16+rt_n
+	storeb rt_b+44 1
+	# the entry: allowed (0), its size, everything (0x1f01ff), the user
+	if rt_dir
+		storeb rt_b+49 3
+	end
+	storeb rt_b+50 8+rt_n
+	store4 rt_b+52 0x1f01ff
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_s+rt_i as rt_c
+		storeb rt_b+56+rt_i rt_c
+		rt_i+=1
+	end
+	ret rt_b
+end
+
 # Open what has the name of rt_n bytes at rt_p in the directory that
 # rt_fd is open on: a descriptor, or an error. The flags are those of
 # rt_open, and 0x200000 to open it only to be asked what it is. What
@@ -3361,8 +3430,11 @@ end
 # that it keeps its path, and a file with those that remove it or
 # rename it too, unless it is to keep its name (0x800000): Windows
 # then refuses both to every process while the descriptor is open, and
-# refuses this open (-13) while a handle may remove the file.
+# refuses this open (-13) while a handle may remove the file. What is
+# made with 0x1000000 is made the user's alone (rt_private); what is
+# there already is opened as it is.
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
+	local rt_sdb 160
 	local rt_w 1040
 	local rt_z 4096
 	local rt_us 16
@@ -3440,6 +3512,13 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 		end
 		rt_opt=rt_opt&0x200021|0x4000
 	end
+	rt_sd=0
+	if (rt_flags&0x1000000!=0)&(rt_how!=1)
+		call rt_private rt_sdb rt_dir as rt_sd
+		ifz rt_sd
+			ret -5
+		end
+	end
 	call rt_newfd as rt_nf
 	ifslt rt_nf 0
 		ret rt_nf
@@ -3448,10 +3527,10 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	if (rt_opt&1)|(rt_flags&0x800000)
 		rt_sh=3
 	end
-	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh as rt_r rt_h
+	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh rt_sd as rt_r rt_h
 	if rt_r
 		if (rt_r==-20)|(rt_r==-21)
-			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 as rt_x rt_h
+			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 0 as rt_x rt_h
 			ifz rt_x
 				call rt_hattr rt_h as rt_t
 				store rt_a rt_h

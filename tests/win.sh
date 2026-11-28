@@ -32,6 +32,10 @@
 # - tests/win/access.aiw must find that access follows a junction: 0
 #   for one that leads to a directory and -2 for one whose directory
 #   is gone. It is skipped where cmd makes no junction.
+# - tests/win/private.aiw must make a file and a directory that are
+#   the user's alone, with 0x1000000 of openat, in a directory that
+#   hands down a right to everybody: icacls of Windows says the rights.
+#   It is skipped where there is no icacls.
 # - The command ail must build a package for Windows and run its tests
 #   there (docs/cli.md, --target): the executable with its ending, a
 #   test that finds its directory and starts the executable, and a test
@@ -195,6 +199,31 @@ if [ $c -eq 77 ]; then
 else
     [ $c -eq 63 ] || r=1
     say win_access_link $r
+fi
+
+# what openat makes with 0x1000000 is the user's alone: in a directory
+# that hands down a right to read to everybody (S-1-1-0), which icacls
+# of Windows sets and says; skipped where there is no icacls, as under
+# Wine. A thing made without the flag has the entry of everybody (WD),
+# one made with it has one entry, for one user, and is protected (P),
+# and what is made in such a directory has that entry handed down (ID)
+r=0
+if command -v icacls.exe > /dev/null 2>&1; then
+    $wc < tests/win/private.aiw > $tmp/private.exe || r=1
+    rm -rf $tmp/pv
+    mkdir -p $tmp/pv
+    (cd $tmp && icacls.exe pv /grant '*S-1-1-0:(OI)(CI)R' > /dev/null 2>&1) || r=1
+    timeout 60 wine $tmp/private.exe $tmp/pv > /dev/null 2>&1
+    [ $? -eq 63 ] || r=1
+    # the rights of the name $2 in the directory $1, as icacls saves them
+    acl() { (cd $1 && icacls.exe $2 /save acl.txt > /dev/null 2>&1 && tr -d '\000\r' < acl.txt | sed -n 2p); }
+    case "$(acl $tmp/pv plain)" in *';WD)'*) ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv file)" in 'D:P(A;;FA;;;S-1-'*')('*) r=1 ;; 'D:P(A;;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv dir)" in 'D:P(A;OICI;FA;;;S-1-'*')('*) r=1 ;; 'D:P(A;OICI;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv/dir in)" in 'D:(A;ID;FA;;;S-1-'*')('*) r=1 ;; 'D:(A;ID;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    say win_private $r
+else
+    echo "skip win_private (no icacls)"
 fi
 
 # a package built and tested for Windows by the command ail

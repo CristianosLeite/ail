@@ -1751,3 +1751,17 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   there: the runtime of Windows does not look at it. The test
   `rt_open_look` opens a directory of the mode 0300 so and a file
   below it; it is named in `tests/win.skip`.
+- [x] What `openat` makes is the user's alone with 0x1000000 (a
+  review of aildb at `ac4d0f0`, user, 2026-11-28, who asked for a
+  directory of aildb with restricted rights): on Windows a file that
+  a program made with the mode 0600 had the rights its directory
+  hands down, and in a directory that lets everybody read, everybody
+  read it. With the flag the runtime of Windows gives what the call
+  makes a security descriptor of its own: one entry, everything for
+  the user of the process, protected, and of a directory handed down
+  to what is made in it. The user is asked of ntdll
+  (`NtOpenProcessToken`, `NtQueryInformationToken`), two functions
+  more in the import tables of every executable. On Linux the flag
+  is taken out and the mode says it. `tests/win/private.aiw` and the
+  check `win_private` of `tests/win.sh`, which asks `icacls` and is
+  skipped where there is none.

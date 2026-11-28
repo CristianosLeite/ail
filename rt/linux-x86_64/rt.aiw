@@ -2308,7 +2308,8 @@ end
 # directory the process is in, so a number that is no descriptor, a
 # negative one or one above 2^31-1, is refused here: -9. 0x800000 of
 # the flags, a file that keeps its name while it is open, is nothing
-# the kernel does and no flag of it: it is taken out.
+# the kernel does and no flag of it: it is taken out. So is 0x1000000,
+# a thing that is made the user's alone, which the mode says here.
 const rt_mkdirat 258
 const rt_fstatat 262
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
@@ -2323,6 +2324,9 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	end
 	if rt_flags&0x800000
 		rt_flags^=0x800000
+	end
+	if rt_flags&0x1000000
+		rt_flags^=0x1000000
 	end
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
