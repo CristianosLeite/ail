@@ -2115,7 +2115,11 @@ end
 # reap begins meanwhile, and not at all if a reap of another thread
 # waits for that number or if the kernel itself takes the children
 # that end (see rt_reaping). The error that kept the descriptor away
-# is the result then, and the child is left as it is.
+# is the result then, and the child is left as it is. What the process
+# does with the signal of its children is asked once, before the
+# signal 9 goes, and nothing here keeps a thread from changing it
+# between the two with a system call of its own, as nothing keeps one
+# from taking the child so: a program must do neither meanwhile.
 fn rt_kill rt_pid
 	local rt_info 128
 	ifsle rt_pid 0

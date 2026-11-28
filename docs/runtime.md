@@ -468,7 +468,12 @@ Where a service cannot be on Windows what it is on Linux:
   them (`SIG_IGN` or `SA_NOCLDWAIT` for `SIGCHLD`), is not ended:
   the result is the error that kept the descriptor away, -24 or -38
   among them, and the child is as it was. A program must not take
-  the child with `sys` during such a `kill`.
+  the child with `sys` during such a `kill`, and must not change
+  what the process does with `SIGCHLD` during it either: that is
+  asked once, before the signal, and a process that began to ignore
+  it between the two would have the kernel take a child that ends
+  then. A program whose threads do either lets none of them do it
+  while another is in `kill`.
 - `openat` asks Windows by the handle of the directory
   (`NtCreateFile` with it as the root of the name), so what is opened
   is in the directory that was opened, whatever its path leads to

@@ -1610,3 +1610,15 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   was opened behind the junction. Such a handle, a reparse point, is
   now refused before Windows is asked, -20. `tests/win/link.aiw`
   asks it of the junction it makes.
+- [x] What `kill` asks of a program where it has no descriptor of the
+  child says `SIGCHLD` too (2026-11-28, the second review of the pull
+  request 42, at `b7cba19`, by reading): the signal goes to the
+  number after the process was asked once what it does with the
+  signal of its children, and a thread that began to ignore it
+  between the two, with `sys`, would have the kernel take a child
+  that ends then and give its number away. `docs/runtime.md` said
+  that the child is not to be taken with `sys` during such a `kill`,
+  and not this, which it says of a `reap` with a time. It says both
+  now, and the comment of `rt_kill` too. Nothing in the runtime
+  changed: the review offered this or no signal by a number at all,
+  and the agent took the first, as `reap` has it.
