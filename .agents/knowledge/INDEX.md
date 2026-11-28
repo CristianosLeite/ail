@@ -24,6 +24,7 @@ The VS Code extension is in the repository ail-extensions (https://github.com/Cr
 - [Packages, the manifest and the ail command](architecture/packages.md) — one mechanism of versions and dependencies; `use "name:path"`, `lib/` as the package of AIL, packages from the compiler's arguments
 - [Numbers from text, JSON and HTTP](architecture/text-and-network.md) — `lib/std/num.aiw`, a decimal as the nearest double for every text; `lib/std/json.aiw`, read in place with no tree, I-JSON strict; `lib/net/http.aiw` and `httpd.aiw`, a client and a server on the async sockets; `lib/std/sha.aiw`, SHA-256, moved from aildb (user, 2026-11-24); libraries of AIL at the user's word, checked against Python, Ollama and curl
 - [Five services for a program that stays inside a directory](architecture/directory-services.md) — `anon`, `kill`, `openat`, `fdpath`, `lockfd` and `sync` of a directory on Windows: what the agent chose for each, what is not known, the runs of 2026-11-28
+- [A target for ail build and ail test](architecture/target-option.md) — `--target windows-x86_64` (2026-11-28, for aildb): the option, `build/<target>/`, `wine` for the tests, the list `tests/<target>.skip`, `AIL_TMP` from the top of the package, the compiler for Windows in an installation; the runs
 
 ## testing
 - [Stage0 test suite](testing/stage0-test-suite.md) — runner deadline, fixtures that must execute what they generate, mutation checks, what goes unchecked

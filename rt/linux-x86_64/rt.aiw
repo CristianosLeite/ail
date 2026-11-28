@@ -2096,6 +2096,95 @@ fn rt_anon
 	ret rt_r
 end
 
+# ---- a file with a name of its own
+# A descriptor of a new file, empty, to read and to write, in the
+# directory for temporary files: TMPDIR of the environment if that is
+# a path from the root of at most 4000 bytes, else /tmp. Its name is
+# "ail", the 16 digits of 8 bytes that nobody can guess and ".tmp"; it
+# is made only if nothing has the name (O_EXCL, a link least of all),
+# for the user alone (0600), and closed in a program the process
+# starts. A name that is taken, -17, is asked again with other bytes,
+# eight times. The file stays until it is removed.
+fn rt_temp
+	local rt_z 4128
+	local rt_x 8
+	load rt_state as rt_p
+	load rt_p as rt_n
+	rt_e=rt_p+16+rt_n*8
+	set "TMPDIR=/" as rt_t
+	set "/tmp" as rt_d
+	rt_m=4
+	label rt_tvar
+	load rt_e as rt_s
+	if rt_s
+		rt_i=0
+		label rt_tsame
+		loadb rt_s+rt_i as rt_a
+		loadb rt_t+rt_i as rt_b
+		if rt_a==rt_b
+			rt_i+=1
+			if rt_i<8
+				jmp rt_tsame
+			end
+		end
+		if rt_i<8
+			rt_e+=8
+			jmp rt_tvar
+		end
+		# its length
+		rt_i=7
+		label rt_tlen
+		loadb rt_s+rt_i as rt_a
+		if rt_a
+			rt_i+=1
+			if rt_i<4008
+				jmp rt_tlen
+			end
+		end
+		if rt_i<4008
+			rt_d=rt_s+7
+			rt_m=rt_i-7
+		end
+	end
+	rt_i=0
+	while rt_i<rt_m
+		loadb rt_d+rt_i as rt_a
+		storeb rt_z+rt_i rt_a
+		rt_i+=1
+	end
+	# "/ail"
+	store4 rt_z+rt_m 0x6c69612f
+	rt_m+=4
+	rt_k=0
+	label rt_tname
+	call rt_random rt_x 8 as rt_r
+	ifslt rt_r 0
+		ret rt_r
+	end
+	load rt_x as rt_v
+	rt_i=0
+	while rt_i<16
+		rt_c=rt_v&15
+		rt_v>>=4
+		if rt_c>9
+			rt_c+=39
+		end
+		storeb rt_z+rt_m+rt_i rt_c+48
+		rt_i+=1
+	end
+	# ".tmp" and a zero
+	store4 rt_z+rt_m+16 0x706d742e
+	storeb rt_z+rt_m+20 0
+	# to read and to write (2), made (64) and only if it is not there
+	# (128), closed in a program that is started (0x80000)
+	sys open rt_z 0x800c2 384 as rt_r
+	rt_k+=1
+	if (rt_r==-17)&(rt_k<8)
+		jmp rt_tname
+	end
+	ret rt_r
+end
+
 # ---- a child ended
 # End the child rt_pid, which start gave and reap has not taken: 0, or
 # an error, -1001 if it is no child of the process. It is asked first
@@ -2219,9 +2308,15 @@ end
 # directory the process is in, so a number that is no descriptor, a
 # negative one or one above 2^31-1, is refused here: -9. 0x800000 of
 # the flags, a file that keeps its name while it is open, is nothing
-# the kernel does and no flag of it: it is taken out.
+# the kernel does and no flag of it: it is taken out. So is 0x1000000,
+# a thing that is made the user's alone, which the mode says here: what
+# is opened with it, made by this call or there before, must be the
+# user's alone to change, or it is the error -1: its owner is the user
+# the process acts as or root, and its mode lets neither its group nor
+# the others write (0022). A file is cut (512) once that is known.
 const rt_mkdirat 258
 const rt_fstatat 262
+const rt_geteuid 107
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	local rt_z 4096
 	local rt_s 144
@@ -2235,6 +2330,12 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	if rt_flags&0x800000
 		rt_flags^=0x800000
 	end
+	rt_own=rt_flags&0x1000000
+	rt_cut=0
+	if rt_own
+		rt_cut=rt_flags&512
+		rt_flags^=0x1000000|rt_cut
+	end
 	call rt_path rt_p rt_n rt_z as rt_r
 	if rt_r
 		ret rt_r
@@ -2247,6 +2348,26 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 		rt_flags^=64
 	end
 	sys openat rt_fd rt_z rt_flags|0x20000 rt_mode as rt_r
+	if rt_own
+		ifsge rt_r 0
+			sys fstat rt_r rt_s as rt_k
+			ifz rt_k
+				load4 rt_s+28 as rt_u
+				load4 rt_s+24 as rt_m
+				sys rt_geteuid as rt_e
+				if ((rt_u!=rt_e)&(rt_u!=0))|(rt_m&18!=0)
+					rt_k=-1
+				end
+			end
+			if (rt_k==0)&(rt_cut!=0)
+				sys rt_ftruncate rt_r 0 as rt_k
+			end
+			if rt_k
+				sys close rt_r
+				ret rt_k
+			end
+		end
+	end
 	if (rt_r==-20)|(rt_r==-40)
 		# a link not followed, 0x100
 		sys rt_fstatat rt_fd rt_z rt_s 0x100 as rt_k
@@ -2343,6 +2464,24 @@ fn rt_lockfd rt_fd
 	label rt_again
 	sys rt_flock rt_fd 6 as rt_r
 	jeq rt_r -4 rt_again
+	ret rt_r
+end
+
+# Whether this process may run (rt_how 1) or read (rt_how 4) what is at
+# the path of rt_n bytes at rt_p, a link followed: 0, or the error of
+# the kernel, -13 if it may not and -2 if nothing is there; -22 for
+# another rt_how. It is the system call access, which asks for the user
+# the process was started by.
+const rt_accessn 21
+fn rt_access rt_p rt_n rt_how
+	local rt_z 4096
+	if (rt_how!=1)&(rt_how!=4)
+		ret -22
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	ifz rt_r
+		sys rt_accessn rt_z rt_how as rt_r
+	end
 	ret rt_r
 end
 

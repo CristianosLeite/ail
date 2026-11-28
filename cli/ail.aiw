@@ -28,6 +28,13 @@ buf gout 24         # the path of an executable
 buf gtmp 24         # the path of the file it is compiled into
 buf gargs 24        # the arguments of a program that is started
 buf gsaid 24        # what a command prints when it is done
+buf gtarget 24      # the platform of --target, or no bytes: that of the command
+buf gcc 24          # the path of the compiler for it, with a NUL byte
+buf gbase 24        # where its executables go, "build/" or "build/<target>/"
+buf gtests 24       # and what its tests leave, that and "tests/"
+buf gskip 24        # tests/<target>.skip, the tests that are not for it
+var gexe            # 1 if the name of an executable of it ends in ".exe"
+var gwine           # 1 if its tests are programs of Windows and the command runs elsewhere
 buf uman 24         # the manifest and the lock as a command found them,
 buf ulock 24        # written back by fail if undo is 1; ulocked is 1 if
 var undo ulocked    # there was a lock
@@ -88,13 +95,13 @@ fn help fd
 	call fdwrite fd "usage: ail COMMAND\n"
 	call fdwrite fd "  new NAME                    make the directory NAME with a new package in it\n"
 	call fdwrite fd "  init [NAME]                 make this directory a package\n"
-	call fdwrite fd "  build [BIN]                 compile the executables of the package into build/\n"
+	call fdwrite fd "  build [--target T] [BIN]    compile the executables of the package into build/\n"
 	call fdwrite fd "  run [BIN] [-- ARGUMENT...]  build an executable and run it\n"
 	call fdwrite fd "  add URL [VERSION]           use the package of a git repository, at its tag v<VERSION>\n"
 	call fdwrite fd "  add --path DIRECTORY        use the package in a directory\n"
 	call fdwrite fd "  remove NAME                 use the package NAME no longer\n"
 	call fdwrite fd "  update [NAME]               move the dependencies to their latest versions\n"
-	call fdwrite fd "  test [NAME...]              build everything and run the tests of tests/\n"
+	call fdwrite fd "  test [--target T] [NAME...] build everything and run the tests of tests/\n"
 	call fdwrite fd "  fmt [--check]               indent the sources, or say which lines are not\n"
 	call fdwrite fd "  clean                       remove build/\n"
 	call fdwrite fd "  version                     print the version of AIL\n"
@@ -103,6 +110,71 @@ end
 fn usage
 	call help 2
 	rt exit stusage
+end
+
+# What is built for: the platform of the command if the argument a is
+# not "--target", and else the one the argument after it names, whose
+# compiler is beside that of AIL with "-" and the name after its own.
+# The number of the first argument after these is returned. The process
+# ends if the name is none or this AIL has no compiler for it.
+fn target a
+	call bycut gtarget 0
+	call bycut gcc 0
+	call bycut gbase 0
+	call bycut gtests 0
+	# on Windows the command builds programs of Windows
+	call tlwin as gexe
+	gwine=0
+	load tlailc as q
+	load tlailc+8 as m
+	call byadd gcc q m-1
+	call byadd gbase "build/"
+	call argv a as p n
+	call mfeq p n "--target" as r
+	if r
+		call argv a+1 as p n
+		ifz n
+			call usage
+		end
+		call mfname p n as r
+		ifz r
+			call fail stusage "the name of a target is small letters, digits, - and _, at most 64: not " p n
+		end
+		call byadd gtarget p n
+		call byaddb gcc 45
+		call byadd gcc p n
+		call byadd gbase p n
+		call byaddb gbase 47
+		# a program of Windows has a name that ends so, and is run by
+		# wine where the command is no program of Windows itself
+		gexe=0
+		if n>8
+			call mfeq p 8 "windows-" as gexe
+		end
+		call tlwin as r
+		gwine=gexe&(r==0)
+		a+=2
+	end
+	load gbase as q
+	load gbase+8 as m
+	call bycut gtests 0
+	call byadd gtests q m
+	call byadd gtests "tests/"
+	call byaddb gcc 0 as r
+	ifz r
+		call fail stio "out of memory" ""
+	end
+	load gtarget+8 as n
+	if n
+		load gcc as q
+		load gcc+8 as m
+		call tlisfile q m-1 as r
+		ifz r
+			load gtarget as p
+			call fail stio "this AIL has no compiler for " p n
+		end
+	end
+	ret a
 end
 
 # Enter the directory of the package, take its lock, which a second
@@ -192,8 +264,8 @@ fn cc sp sn tp tn err ms
 	# the compiler, the library of AIL as the package ail, and every
 	# package that deps found, this one included
 	call bycut gargs 0
-	load tlailc as p
-	load tlailc+8 as n
+	load gcc as p
+	load gcc+8 as n
 	call byadd gargs p n
 	call byadd gargs "ail="
 	load tlhome as p
@@ -248,11 +320,17 @@ fn compile e
 	load e+24 as sp
 	load e+32 as sn
 	call dir "build"
+	load gbase as p
+	load gbase+8 as n
+	call dir p n-1
 	call bycut gout 0
-	call byadd gout "build/"
+	call byadd gout p n
 	call byadd gout np nn
+	if gexe
+		call byadd gout ".exe"
+	end
 	call bycut gtmp 0
-	call byadd gtmp "build/"
+	call byadd gtmp p n
 	call byadd gtmp np nn
 	call byadd gtmp ".tmp."
 	rt pid as pid
@@ -313,10 +391,11 @@ end
 
 fn cmdbuild
 	call argc as c
-	if c>3
+	call target 2 as a
+	if c>a+1
 		call usage
 	end
-	call argv 2 as p n
+	call argv a as p n
 	call project
 	call deps
 	call build mfbin p n as e
@@ -332,6 +411,7 @@ fn cmdrun
 	local w 8
 	call argc as c
 	call argv 2 as p n
+	call target 0
 	# a = the number of the first argument for the program
 	a=2
 	call mfeq p n "--" as r
@@ -381,6 +461,9 @@ fn cmdrun
 	call byadd gout q m
 	call byadd gout "/build/"
 	call byadd gout p n
+	if gexe
+		call byadd gout ".exe"
+	end
 	call byaddb gout 0
 	call bycut gargs 0
 	load gout as q
@@ -530,7 +613,8 @@ fn cmdnew
 	call byadd gargs "git\0init\0-q\0"
 	call byadd gargs p n
 	call byaddb gargs 0
-	call fileopen "/dev/null" 2 0 as fd
+	call tlnull as q m
+	call fileopen q m 2 0 as fd
 	ifsge fd 0
 		call tlrun gargs fd fd fd
 		rt close fd
@@ -560,7 +644,8 @@ fn cmdinit
 		p=q+m
 		while p>q
 			loadb p-1 as x
-			if x==47
+			call tlsep x as r
+			if r
 				jmp cut
 			end
 			p-=1
@@ -608,9 +693,11 @@ buf tenv 24         # "AIL_TMP=" and the directory of a test, "AIL_HOME=" and th
 # say.
 fn testone p n
 	local num 24
+	load gtests as td
+	load gtests+8 as tdn
 	call tpath ta "tests/" p n ".aiw"
-	call tpath tb "build/tests/" p n ".exe"
-	call tpath tc "build/tests/" p n ".err"
+	call tpath tb td tdn p n ".exe"
+	call tpath tc td tdn p n ".err"
 	load ta as sp
 	load ta+8 as sn
 	call tlisfile sp sn as r
@@ -661,46 +748,65 @@ fn testone p n
 		ret 0
 	end
 	# a directory of its own for the files it makes, named in AIL_TMP,
-	# and the directory of AIL in AIL_HOME
-	call tpath ta "build/tests/" p n ".tmp"
+	# and the directory of AIL in AIL_HOME. For a target the first is
+	# named from the top of the package, where the test runs: a path
+	# from the root of this machine is none to a program of another
+	# platform.
+	call tpath ta td tdn p n ".tmp"
 	load ta as q
 	load ta+8 as m
 	call tlremove q m
 	call dir q m
 	call bycut tenv 0
 	call byadd tenv "AIL_TMP="
-	load tlroot as s
-	load tlroot+8 as l
-	call byadd tenv s l
-	call byaddb tenv 47
+	load gtarget+8 as l
+	ifz l
+		load tlroot as s
+		load tlroot+8 as l
+		call byadd tenv s l
+		call byaddb tenv 47
+	end
 	call byadd tenv q m
 	call byadd tenv "\0AIL_HOME="
 	load tlhome as s
 	load tlhome+8 as l
 	call byadd tenv s l
 	call byaddb tenv 0
-	# the program: its path with a slash, so that it is not searched for
+	# the program: its path with a slash, so that it is not searched for;
+	# one of Windows is the argument of wine
 	call bycut gargs 0
-	call byadd gargs "./"
+	if gwine
+		call byadd gargs "wine\0"
+	else
+		call byadd gargs "./"
+	end
 	load tb as tp
 	load tb+8 as tn
 	call byadd gargs tp tn
 	call byaddb gargs 0
-	call tpath tb "build/tests/" p n ".out"
-	call tpath tc "build/tests/" p n ".log"
+	call tpath tb td tdn p n ".out"
+	call tpath tc td tdn p n ".log"
 	load tb as q
 	load tb+8 as m
 	call fileopen q m 0x241 420 as out
 	load tc as q
 	load tc+8 as m
 	call fileopen q m 0x241 420 as err
-	call fileopen "/dev/null" 0 0 as in
+	call tlnull as q m
+	call fileopen q m 0 0 as in
 	ifslt in|out|err 0
 		call fail stio "cannot write the files of the test in build/tests" ""
 	end
 	load tenv as s
 	load tenv+8 as l
-	call tlrunenv gargs in out err s l 10000 as st
+	# a program of another platform has twice the time: what runs it
+	# starts first
+	lim=10000
+	load gtarget+8 as x
+	if x
+		lim=20000
+	end
+	call tlrunenv gargs in out err s l lim as st
 	rt close in
 	rt close out
 	rt close err
@@ -708,7 +814,11 @@ fn testone p n
 	load ta+8 as m
 	call tlremove q m
 	if st==-1000
-		call eprint "ail: it still ran after 10 seconds and was killed\n"
+		if lim==10000
+			call eprint "ail: it still ran after 10 seconds and was killed\n"
+		else
+			call eprint "ail: it still ran after 20 seconds and was killed\n"
+		end
 		ret 0
 	end
 	# the status it is to end with, 0 without a file .code
@@ -780,8 +890,41 @@ fn testone p n
 	ret r
 end
 
-# "ail test [NAME...]": every executable built, then the tests named, or
-# all of tests/ in the order of their names
+# 1 if a line of the list in gskip is the n bytes at p
+fn skipped p n
+	load gskip as q
+	load gskip+8 as m
+	e=q+m
+	while q<e
+		l=0
+		while q+l<e
+			loadb q+l as x
+			if x==10
+				jmp eol
+			end
+			l+=1
+		end
+		label eol
+		# a line of Windows has a byte more at its end
+		k=l
+		if k
+			loadb q+k-1 as x
+			if x==13
+				k-=1
+			end
+		end
+		call mfeq q k p n as r
+		if r
+			ret 1
+		end
+		q+=l+1
+	end
+	ret 0
+end
+
+# "ail test [--target T] [NAME...]": every executable built, then the
+# tests named, or all of tests/ in the order of their names but for those
+# that tests/<target>.skip names
 fn cmdtest
 	local names 24
 	local order 24
@@ -792,17 +935,32 @@ fn cmdtest
 		store order+i 0
 		i+=8
 	end
+	call target 2 as first
 	call project
 	call dir "build"
-	call dir "build/tests"
+	load gbase as p
+	load gbase+8 as n
+	call dir p n-1
+	load gtests as p
+	load gtests+8 as n
+	call dir p n-1
+	if gwine
+		call tlonpath "wine" as r
+		ifz r
+			load gtarget as p
+			load gtarget+8 as n
+			call fail stio "no wine on PATH to run the tests of " p n
+		end
+	end
 	# project took the lock of the package: a second run of its tests
 	# waits there, and does not write the files of build/tests/ too
 	call deps
 	call build mfbin|mftestbin 0 0
 	call argc as c
 	k=0
-	if c>2
-		i=2
+	call bycut gskip 0
+	if c>first
+		i=first
 		while i<c
 			call argv i as p n
 			# a name of a test is a name of a file in tests/, not a path
@@ -816,6 +974,25 @@ fn cmdtest
 			i+=1
 		end
 	else
+		# the tests that are not for the target: a name a line, and a line
+		# that is no name of a test says why
+		load gtarget+8 as n
+		if n
+			call bycut gmsg 0
+			call byadd gmsg "tests/"
+			load gtarget as p
+			call byadd gmsg p n
+			call byadd gmsg ".skip"
+			load gmsg as p
+			load gmsg+8 as n
+			call fileread p n gskip as r
+			ifslt r 0
+				if r!=-2
+					call fail stio "cannot read " p n
+				end
+				call bycut gskip 0
+			end
+		end
 		# the names of tests/ that end in ".aiw", without that
 		store all 0
 		store all+8 0
@@ -850,22 +1027,30 @@ fn cmdtest
 		call fail stio "out of memory" ""
 	end
 	bad=0
+	left=0
 	i=0
 	while i<k
 		load order as p
 		load p+i*8 as p
 		call strlen p as n
-		call testone p n as r
+		call skipped p n as r
 		if r
-			call print "ok   "
+			call print "skip "
+			left+=1
 		else
-			call print "FAIL "
-			bad+=1
+			call testone p n as r
+			if r
+				call print "ok   "
+			else
+				call print "FAIL "
+				bad+=1
+			end
 		end
 		call print p n
 		call print "\n"
 		i+=1
 	end
+	k-=left
 	call bycut gmsg 0
 	call byaddn gmsg k
 	if k==1
@@ -874,7 +1059,13 @@ fn cmdtest
 		call byadd gmsg " tests, "
 	end
 	call byaddn gmsg bad
-	call byadd gmsg " failed\n"
+	call byadd gmsg " failed"
+	if left
+		call byadd gmsg ", "
+		call byaddn gmsg left
+		call byadd gmsg " skipped"
+	end
+	call byaddb gmsg 10
 	load gmsg as p
 	load gmsg+8 as n
 	call print p n
@@ -1022,7 +1213,8 @@ fn cmdadd
 		load tlroot as q
 		load tlroot+8 as m
 		call mfeq p n q m as r
-		if (x!=47)&(r==0)
+		call tlabs vp vn as x
+		if (x==0)&(r==0)
 			call byadd xdir p n
 			call byaddb xdir 47
 		end

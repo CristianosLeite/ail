@@ -117,7 +117,14 @@ The rest is the open section of `docs/TODO.md`.
   where Windows chooses (the pull request 43): a third number again,
   though `sync` of a directory on Windows asks Windows now and may
   give its error, where 0.2.3 gave 0 and did nothing; the notes of
-  the release say it.
+  the release say it. **0.2.5** (user, 2026-11-28, who named the
+  number with the service `access` and asked that its release have
+  the executable of `ail` for Windows, and on the same day for the
+  service `temp` in it) is the first with `access` and `temp`,
+  with `--target` of `ail build` and `ail test`, with the compiler
+  for Windows in the archive for Linux, and with the command on
+  Windows and an archive for it: a third number, nothing that was
+  written before is other than it was.
 - A manifest is changed as text (`mfdrop` and lines added), not written
   again from what was read, so the comments of its author stay.
 

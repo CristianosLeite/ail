@@ -831,6 +831,58 @@ it; `TODO.md` has what is decided and what is left.
   time, one directory under two paths, a package called `ail`, and the
   tests that lost the status of what they ran.
 
+- [x] A target for `ail build` and `ail test` (2026-11-28, asked for by
+  aildb, which is to have an executable for Windows; the option, the
+  directory, the list and what a test is told are the agent's, for the
+  user to review): `--target windows-x86_64` after the command compiles
+  with `ailc-windows-x86_64`, found beside the compiler of AIL, into
+  `build/windows-x86_64/<name>.exe`, and runs the tests there with
+  `wine`, 20 seconds each, their files in `build/windows-x86_64/tests/`.
+  `tests/<target>.skip` names the tests that are not for the target,
+  which are printed as `skip` and counted, and run if they are named.
+  `AIL_TMP` is the path from the top of the package for a target: a
+  path of Linux is none to a program of Windows. The status is 4
+  without the compiler and without a `wine`, which is asked before
+  anything is built. `tests/cli.sh` has what needs no `wine`, and
+  `tests/win.sh` builds a package and runs its tests (`win_package`):
+  a test that makes a file in its directory and starts the executable
+  of the package, and one that the list names. Not done: `ail run`
+  for a target; a test under Wine is tried once, where `tests/win.sh`
+  tries its own twice.
+
+- [x] The compiler for Windows in an installation and in the archive
+  of a release (2026-11-28, with the target of `ail build`): `make`
+  builds `build/ailc-windows-x86_64` with everything else, and
+  `tools/install.sh` puts it beside `ailc` in `lib/ail/`, where the
+  command looks for the compiler of a target, so the archive of
+  `make dist` builds a package for Windows with nothing else.
+  `tests/install.sh` builds the package it makes for Windows from an
+  installation and from the archive and looks at the first bytes of
+  the executable; it runs none.
+
+- [x] The command `ail` on Windows, and an archive for Windows (user,
+  2026-11-28: the release 0.2.5 is to have the executable of `ail`
+  for Windows; how it is done is the agent's). The command found no
+  AIL there: it parted the path of its own program at `/`, took a
+  path from the root for one that starts with `/`, looked for
+  `ailc` and `indent` under those names, opened `/dev/null`, went up
+  from a directory until its path was one byte long, and took the
+  error of Linux for a directory that is removed as a file.
+  `cli/tool.aiw` asks the runtime for the platform (`tlwin`) and has
+  the separator, the path from the root, the empty device and the
+  name of a program for both; a search for the package ends where
+  the directory above is the directory itself; an executable of a
+  build on Windows is `build/<name>.exe`. `make` compiles
+  `build/windows-x86_64/ail.exe`, `ailc.exe` and `indent.exe` with the
+  compiler for Windows, `tools/install.sh BUILD PREFIX windows` puts
+  them where an installation has them, and `make dist` writes
+  `ail-<version>-x86_64-windows.tar.gz` beside the archive for Linux.
+  `tests/win.sh` has the check `win_ail`: version, a package made,
+  built, run, tested, checked for its format and cleaned, with that
+  installation. `tests/install.sh` looks into the archive. Not
+  tried on Windows: `add`, `update` and a build with dependencies,
+  which start git; `init`; the cases of `tests/cli.sh`.
+
 ## Text formats and the network
 
 What a program needs to talk to another one: numbers and JSON read from
@@ -1633,3 +1685,112 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   it compiles and runs as it did, but for `sync` of a directory on
   Windows, which gave 0 without asking and is now what Windows
   answers; the notes of the release say so.
+- [x] Whether the process may run or read a file, the service `access`
+  (user, 2026-11-28, for the file of the allowed commands of aildb,
+  which finds a program in `PATH` as it will be started; the number,
+  the values and the errors are the agent's): the path and 1 to run
+  or 4 to read, 0 or an error, -13 where it may not, -2 where nothing
+  is there, -22 for another number. On Linux it is the system call
+  `access`. On Windows the file is opened for the right that is
+  asked, to read or to read and execute, and a file to run must
+  start with `MZ`, -8 otherwise, since `start` gives Windows the file
+  and Windows runs nothing else by its path. It is the service 64,
+  the 65th, and the compiler had room for 64 in two tables, `rtfn`
+  and `rtfl`: with the row alone the compiler wrote a file that was
+  no program. They have room for 128 now. The test is `rt_access`:
+  the program itself may be run and read, a file of text read and
+  not run, a directory both, what is not there neither. It passes on
+  Linux and on Windows 11 on NTFS, and is in the list `always` of
+  `tests/win.sh`.
+- [x] The version 0.2.5 of AIL (user, 2026-11-28: `access` in AIL
+  0.2.5, and its release with the executable of `ail` for Windows),
+  the first with the service `access`, with a target for `ail build`
+  and `ail test`, with the compiler for Windows in the archive for
+  Linux and with the command `ail` on Windows, in an archive of its
+  own: `Ailfile` says it, and the tag `v0.2.5` is to name the merge
+  of it, so that a package asks for them with `ail 0.2.5`. A third
+  number: what was written before compiles and runs as it did. The
+  release has two archives, each with its `.sha256`.
+- [x] `access` on Windows gave 0 for a junction whose directory is
+  gone (a review of `d3cfd52`, user, 2026-11-28): it asked for the
+  attributes of the path, which are those of the junction, and
+  returned where they said a directory. It opens what the path leads
+  to now, a directory too (`FILE_FLAG_BACKUP_SEMANTICS`), so that a
+  link to nothing is -2, and asks the handle whether it is a
+  directory. `tests/win/access.aiw`, with a junction that `cmd`
+  makes: the directory, the junction and a file through it, and then
+  the same once the directory has another name (`win_access_link` of
+  `tests/win.sh`, skipped where no junction is made).
+- [x] A file with a name of its own, the service `temp` (user,
+  2026-11-28, for the version 0.2.5 and for aildb, whose adapter
+  gives a program its texts by a path; the name, the directory and
+  the mode are the agent's): no values, and a descriptor of a new
+  file, empty, to read and to write, in the directory of the system
+  for temporary files; `fdpath` gives its path, and it stays until
+  the program removes it. On Linux the directory is `TMPDIR` if it
+  is a path from the root, else `/tmp`, and the file is made with
+  `O_EXCL` and the mode 0600; on Windows it is the file of `anon`
+  without the flag that has Windows remove it, with `.tmp` behind
+  its name. It is the service 65 and needs the stack the process
+  starts with, for the environment. The test is `rt_temp`: two
+  files with two paths, each empty and a plain file, what is written
+  read by the path, and both gone when they are removed. It passes
+  on Linux and on Windows 11 on NTFS, and is in the list `always` of
+  `tests/win.sh`. By hand on Linux, with `TMPDIR=/var/tmp` and with
+  one that is no path from the root, the test ended with 63 and left
+  no file.
+- [x] 0x200000 of `open` on Linux is said and tested (a review of
+  aildb at `6a9f207` and of the pull request 44 at `a3255a2`, user,
+  2026-11-28): the runtime of Linux gives the flags of `open` to the
+  kernel, and aildb opens a directory that it may not read with
+  `O_PATH` so, for the lock of a build and for the look at a program
+  of a provider, while `docs/runtime.md` had the flag for `openat`
+  alone. It now says what `open` does with it on Linux, a descriptor
+  for `fstat`, for `fdpath` and to be the directory of an `openat`,
+  with no right to read asked, and that the flag is of Linux alone
+  there: the runtime of Windows does not look at it. The test
+  `rt_open_look` opens a directory of the mode 0300 so and a file
+  below it; it is named in `tests/win.skip`.
+- [x] What `openat` makes is the user's alone with 0x1000000 (a
+  review of aildb at `ac4d0f0`, user, 2026-11-28, who asked for a
+  directory of aildb with restricted rights): on Windows a file that
+  a program made with the mode 0600 had the rights its directory
+  hands down, and in a directory that lets everybody read, everybody
+  read it. With the flag the runtime of Windows gives what the call
+  makes a security descriptor of its own: one entry, everything for
+  the user of the process, protected, and of a directory handed down
+  to what is made in it. The user is asked of ntdll
+  (`NtOpenProcessToken`, `NtQueryInformationToken`), two functions
+  more in the import tables of every executable. On Linux the flag
+  is taken out and the mode says it. `tests/win/private.aiw` and the
+  check `win_private` of `tests/win.sh`, which asks `icacls` and is
+  skipped where there is none.
+- [x] What `openat` opens with 0x1000000 must be the user's alone to
+  change (a review of aildb at `0e91ee8` and of this branch at
+  `969e21f`, user, 2026-11-28): the flag made what the call made the
+  user's alone and opened what was there as it was, so a program
+  that kept its files in a directory it opened so could not tell a
+  directory that somebody else may put files in, or take them out
+  of, from one it made. Now what the call opens, made by it or there
+  before, is asked: on Linux for its owner, the user the process acts
+  as or root, and its mode, with no bit to write for the group or the
+  others; on Windows for its owner and its rights
+  (`NtQuerySecurityObject`, one function more in the import tables),
+  where the user, the system and the administrators may change it
+  and nobody else. Anything else is the error -1, found before a file
+  is cut. That others may read the thing is no error. That the system
+  and the administrators are let be, that an entry that refuses is
+  not counted and that an entry of another kind is a no are the
+  agent's. `tests/rt_openat_mine.aiw` on Linux, with the modes that
+  `chmod` sets, named in `tests/win.skip`; `tests/win/private.aiw`
+  and the check `win_private` on Windows, with a directory and a file
+  that everybody may read, which open, and a directory and a file
+  that `icacls` lets everybody change, which do not.
+- [x] `tests/win/private.aiw` takes no error for a descriptor (a
+  review of this branch at `99c2a6a`, user, 2026-11-28): the checks
+  of the fixture that were there before `99c2a6a` asked `(fd>2)` of
+  a descriptor, which is true of an error, since a comparison knows
+  no sign, and did not ask what a close gave. Every descriptor is
+  now asked to be above 2 and below 4096 and every close to be 0.
+  Other tests have `(fd>2)` as their only word on an open; to look
+  through them is an item of `TODO.md`.

@@ -906,7 +906,7 @@ fn rt_sync rt_fd
 		call rt_handle rt_fd as rt_h
 		store rt_us 0
 		store rt_us+8 0
-		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 as rt_r rt_w
+		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 0 as rt_r rt_w
 		if rt_r
 			ret rt_r
 		end
@@ -3109,6 +3109,21 @@ end
 # which the second handle of pwrite needs. A name that is taken, -17,
 # is asked again with other bytes, eight times.
 fn rt_anon
+	tail rt_tempfile 0x04000100
+end
+
+# ---- a file with a name of its own
+# A descriptor of a new file, empty, to read and to write, in the same
+# directory, which Windows has for each user: the same name with
+# ".tmp" behind it, made only if it is not there, and not removed by
+# Windows (0x80): it stays until it is removed. It is shared as a file
+# of open is.
+fn rt_temp
+	tail rt_tempfile 0x80
+end
+
+# the file of rt_anon or of rt_temp, made with the flags rt_how
+fn rt_tempfile rt_how
 	local rt_z 288
 	local rt_a 56
 	local rt_x 8
@@ -3144,12 +3159,17 @@ fn rt_anon
 		rt_i+=1
 	end
 	storeb rt_z+rt_n+16 0
+	if rt_how==0x80
+		# ".tmp" and a zero
+		store4 rt_z+rt_n+16 0x706d742e
+		storeb rt_z+rt_n+20 0
+	end
 	store rt_a rt_z
 	store rt_a+8 0xc0000000
 	store rt_a+16 7
 	store rt_a+24 0
 	store rt_a+32 1
-	store rt_a+40 0x04000100
+	store rt_a+40 rt_how
 	store rt_a+48 0
 	call rt_api rt_i_createfilea rt_a 7 as rt_h
 	if rt_h==-1
@@ -3249,8 +3269,10 @@ end
 # shared with: those that read and write it (3), or those that remove
 # it or give it another name too (7), as rt_open shares a file.
 # Windows says of a directory where none was asked for 0xc00000ba,
-# the error -21.
-fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
+# the error -21. rt_sd is the security descriptor of what is made
+# (rt_private), or 0 for the one Windows gives it, which has what the
+# directory hands down.
+fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh rt_sd
 	local rt_oa 48
 	local rt_io 16
 	local rt_hh 8
@@ -3260,6 +3282,7 @@ fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
 	store rt_oa+8 rt_dh
 	store rt_oa+16 rt_us
 	store4 rt_oa+24 0x40
+	store rt_oa+32 rt_sd
 	store rt_hh 0
 	store rt_a rt_hh
 	store rt_a+8 rt_acc
@@ -3321,6 +3344,196 @@ fn rt_hpath rt_h rt_q rt_m
 	ret rt_n
 end
 
+# Make at rt_b, 160 bytes, the security descriptor of a thing that is
+# the user's alone: one entry, which lets the user of the process do
+# everything, and nothing taken over from the directory the thing is
+# made in (protected, 0x1000 of its control). For a directory, rt_dir,
+# the entry is handed down to what is made in it (3 of its flags).
+# rt_b, or 0 if Windows does not say who the user is.
+fn rt_private rt_b rt_dir
+	local rt_u 96
+	call rt_tokuser rt_u as rt_s
+	ifz rt_s
+		ret 0
+	end
+	loadb rt_s+1 as rt_k
+	rt_n=8+rt_k*4
+	zero rt_b 160
+	# the descriptor: its revision, a list that is there (4) and
+	# protected (0x1000), and where the list is
+	storeb rt_b 1
+	storeb rt_b+2 4
+	storeb rt_b+3 0x10
+	store rt_b+32 rt_b+40
+	# the list: its revision, its size, one entry
+	storeb rt_b+40 2
+	storeb rt_b+42 16+rt_n
+	storeb rt_b+44 1
+	# the entry: allowed (0), its size, everything (0x1f01ff), the user
+	if rt_dir
+		storeb rt_b+49 3
+	end
+	storeb rt_b+50 8+rt_n
+	store4 rt_b+52 0x1f01ff
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_s+rt_i as rt_c
+		storeb rt_b+56+rt_i rt_c
+		rt_i+=1
+	end
+	ret rt_b
+end
+
+# The user of the token of the process, which ntdll says (TokenUser,
+# 1), into the 96 bytes at rt_u: the address of the identifier there,
+# 8 bytes and 4 for each of its numbers, or 0 if Windows does not say
+# it or it has more than fifteen numbers.
+fn rt_tokuser rt_u
+	local rt_a 40
+	local rt_t 8
+	local rt_l 8
+	store rt_t 0
+	# this process (-1), to be asked (8)
+	store rt_a -1
+	store rt_a+8 8
+	store rt_a+16 rt_t
+	call rt_api rt_i_ntopenprocesstoken rt_a 3 as rt_r
+	if rt_r&0xffffffff
+		ret 0
+	end
+	load rt_t as rt_h
+	store rt_a rt_h
+	store rt_a+8 1
+	store rt_a+16 rt_u
+	store rt_a+24 96
+	store rt_a+32 rt_l
+	call rt_api rt_i_ntqueryinformationtoken rt_a 5 as rt_r
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	if rt_r&0xffffffff
+		ret 0
+	end
+	load rt_u as rt_s
+	loadb rt_s+1 as rt_k
+	if rt_k>15
+		ret 0
+	end
+	ret rt_s
+end
+
+# 1 if the identifier at rt_p is one that may change a thing that is
+# the user's alone: the user, whose identifier is at rt_s, the system
+# (S-1-5-18) or the administrators (S-1-5-32-544), who can take any
+# thing of the machine for theirs whatever its rights say.
+fn rt_sidmine rt_p rt_s
+	load rt_p as rt_a
+	load4 rt_p+8 as rt_b
+	if (rt_a==0x0500000000000101)&(rt_b==18)
+		ret 1
+	end
+	if (rt_a==0x0500000000000201)&(rt_b==32)
+		load4 rt_p+12 as rt_b
+		if rt_b==544
+			ret 1
+		end
+	end
+	loadb rt_s+1 as rt_k
+	loadb rt_p+1 as rt_c
+	if rt_c!=rt_k
+		ret 0
+	end
+	rt_n=8+rt_k*4
+	rt_i=0
+	while rt_i<rt_n
+		loadb rt_s+rt_i as rt_c
+		loadb rt_p+rt_i as rt_b
+		if rt_c!=rt_b
+			ret 0
+		end
+		rt_i+=1
+	end
+	ret 1
+end
+
+# 1 if what the handle rt_h is open on, with the right to read its
+# rights (0x20000), is the user's alone to change: its owner is the
+# user, the system or the administrators (rt_sidmine), and it has a
+# list of rights (4 of the control of its descriptor, and a place) in
+# which every entry that allows one of the rights that change it names
+# one of the three. Those rights are 0x500d0156: to write it and to
+# add to it, which of a directory is to make a file and a directory in
+# it (2, 4), to write what is known of it (0x10, 0x100), to remove
+# what is in it (0x40) and itself (0x10000), to write its rights and
+# its owner (0x40000, 0x80000), and to write or do everything
+# (0x40000000, 0x10000000). An entry that refuses (1) takes nothing
+# from this, one that is only handed down (8 of its flags) is not of
+# the thing itself, and one of another kind than the two is not read:
+# 0. So is 0 what Windows says no rights of, and a volume that keeps
+# none, of which Windows says that everybody may do everything.
+fn rt_mine rt_h
+	local rt_a 40
+	local rt_u 96
+	local rt_l 8
+	local rt_z 4096
+	call rt_tokuser rt_u as rt_s
+	ifz rt_s
+		ret 0
+	end
+	# the owner (1) and the list of rights (4)
+	store rt_a rt_h
+	store rt_a+8 5
+	store rt_a+16 rt_z
+	store rt_a+24 4096
+	store rt_a+32 rt_l
+	call rt_api rt_i_ntquerysecurityobject rt_a 5 as rt_r
+	if rt_r&0xffffffff
+		ret 0
+	end
+	loadb rt_z+2 as rt_c
+	load4 rt_z+4 as rt_o
+	load4 rt_z+16 as rt_d
+	if (rt_c&4==0)|(rt_o==0)|(rt_d==0)
+		ret 0
+	end
+	call rt_sidmine rt_z+rt_o rt_s as rt_r
+	ifz rt_r
+		ret 0
+	end
+	# the list: 8 bytes, the number of its entries in two at 4; an
+	# entry: its kind, its flags, its size in two bytes, the rights in
+	# four, and the identifier
+	rt_d+=rt_z
+	loadb rt_d+4 as rt_k
+	loadb rt_d+5 as rt_c
+	rt_k+=rt_c*256
+	rt_p=rt_d+8
+	while rt_k
+		loadb rt_p as rt_t
+		loadb rt_p+1 as rt_f
+		loadb rt_p+2 as rt_n
+		loadb rt_p+3 as rt_c
+		rt_n+=rt_c*256
+		if rt_t>1
+			ret 0
+		end
+		if (rt_t==0)&(rt_f&8==0)
+			load4 rt_p+4 as rt_m
+			if rt_m&0x500d0156
+				call rt_sidmine rt_p+8 rt_s as rt_r
+				ifz rt_r
+					ret 0
+				end
+			end
+		end
+		ifz rt_n
+			ret 0
+		end
+		rt_p+=rt_n
+		rt_k-=1
+	end
+	ret 1
+end
+
 # Open what has the name of rt_n bytes at rt_p in the directory that
 # rt_fd is open on: a descriptor, or an error. The flags are those of
 # rt_open, and 0x200000 to open it only to be asked what it is. What
@@ -3341,8 +3554,13 @@ end
 # that it keeps its path, and a file with those that remove it or
 # rename it too, unless it is to keep its name (0x800000): Windows
 # then refuses both to every process while the descriptor is open, and
-# refuses this open (-13) while a handle may remove the file.
+# refuses this open (-13) while a handle may remove the file. What is
+# made with 0x1000000 is made the user's alone (rt_private), and what
+# is opened with it, made by this call or there before, is asked for
+# its rights too (0x20000) and must be the user's alone to change
+# (rt_mine), or it is the error -1; that is found before a file is cut.
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
+	local rt_sdb 160
 	local rt_w 1040
 	local rt_z 4096
 	local rt_us 16
@@ -3420,6 +3638,16 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 		end
 		rt_opt=rt_opt&0x200021|0x4000
 	end
+	rt_sd=0
+	if rt_flags&0x1000000
+		rt_acc|=0x20000
+		if rt_how!=1
+			call rt_private rt_sdb rt_dir as rt_sd
+			ifz rt_sd
+				ret -5
+			end
+		end
+	end
 	call rt_newfd as rt_nf
 	ifslt rt_nf 0
 		ret rt_nf
@@ -3428,10 +3656,10 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	if (rt_opt&1)|(rt_flags&0x800000)
 		rt_sh=3
 	end
-	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh as rt_r rt_h
+	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh rt_sd as rt_r rt_h
 	if rt_r
 		if (rt_r==-20)|(rt_r==-21)
-			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 as rt_x rt_h
+			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 0 as rt_x rt_h
 			ifz rt_x
 				call rt_hattr rt_h as rt_t
 				store rt_a rt_h
@@ -3451,6 +3679,12 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	else
 		if (rt_t&0x400!=0)&((rt_look==0)|(rt_dir!=0))
 			rt_r=-40
+		end
+	end
+	if (rt_r==0)&(rt_flags&0x1000000!=0)
+		call rt_mine rt_h as rt_x
+		ifz rt_x
+			rt_r=-1
 		end
 	end
 	if (rt_r==0)&(rt_flags&512!=0)&(rt_dir==0)&(rt_look==0)
@@ -3581,6 +3815,81 @@ fn rt_lockfd rt_fd
 	loadb rt_state+4480+rt_fd as rt_k
 	storeb rt_state+4480+rt_fd rt_k|8
 	ret 0
+end
+
+# Whether this process may run (rt_how 1) or read (rt_how 4) what is at
+# the path of rt_n bytes at rt_p: 0, or an error, -2 if nothing is
+# there; -22 for another rt_how. What the path leads to is opened, a
+# link or a junction followed, for the right that is asked, to read it
+# or to read and execute it, which Windows refuses, -13, where the
+# process has not that right, and -2 where a link leads to nothing. The
+# handle is then asked what it is: a directory may be both, and a file
+# to run must start with the two bytes of a program of Windows, "MZ",
+# or it is -8: start gives Windows the file, which runs nothing else.
+fn rt_access rt_p rt_n rt_how
+	local rt_z 4096
+	local rt_a 56
+	local rt_b 40
+	local rt_got 8
+	if (rt_how!=1)&(rt_how!=4)
+		ret -22
+	end
+	call rt_path rt_p rt_n rt_z as rt_r
+	if rt_r
+		ret rt_r
+	end
+	# GENERIC_READ, and GENERIC_EXECUTE with it for a file to run
+	rt_acc=0x80000000
+	if rt_how==1
+		rt_acc=0xa0000000
+	end
+	# with FILE_FLAG_BACKUP_SEMANTICS, which opens a directory too
+	store rt_a rt_z
+	store rt_a+8 rt_acc
+	store rt_a+16 7
+	store rt_a+24 0
+	store rt_a+32 3
+	store rt_a+40 0x02000080
+	store rt_a+48 0
+	call rt_api rt_i_createfilea rt_a 7 as rt_h
+	if rt_h==-1
+		call rt_error as rt_r
+		tail rt_long rt_z rt_r
+	end
+	# the attributes of what was opened, 0 of the things that are asked
+	# by a handle
+	store rt_a rt_h
+	store rt_a+8 0
+	store rt_a+16 rt_b
+	store rt_a+24 40
+	call rt_api rt_i_getfileinformationbyhandleex rt_a 4 as rt_r
+	ifz rt_r&0xffffffff
+		call rt_error as rt_r
+		store rt_a rt_h
+		call rt_api rt_i_closehandle rt_a 1
+		ret rt_r
+	end
+	load4 rt_b+32 as rt_t
+	rt_r=0
+	if (rt_how==1)&(rt_t&16==0)
+		store rt_b 0
+		store rt_got 0
+		store rt_a rt_h
+		store rt_a+8 rt_b
+		store rt_a+16 2
+		store rt_a+24 rt_got
+		store rt_a+32 0
+		call rt_api rt_i_readfile rt_a 5 as rt_ok
+		load rt_b as rt_c
+		load4 rt_got as rt_k
+		rt_r=-8
+		if (rt_ok&0xffffffff!=0)&(rt_k==2)&(rt_c==0x5a4d)
+			rt_r=0
+		end
+	end
+	store rt_a rt_h
+	call rt_api rt_i_closehandle rt_a 1
+	ret rt_r
 end
 
 label rt_go

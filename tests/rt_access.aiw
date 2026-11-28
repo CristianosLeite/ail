@@ -1,0 +1,37 @@
+# whether the process may run or read what is at a path: its own
+# program may be run and read; a file of text may be read and not run,
+# for its permissions on Linux and for its bytes on Windows; a
+# directory may be both; what is not there is -2 for both; and another
+# thing to ask is -22
+buf exe 4096
+data dir "build/tests/rt_access.d"
+data file "build/tests/rt_access.d/f"
+fn show x
+	rt write 1 x 1
+end
+rt self exe 4096 as n
+rt access exe n 1 as a
+rt access exe n 4 as b
+len dir as dn
+len file as fn
+rt unlink file fn
+rt rmdir dir dn
+rt mkdir dir dn 493
+rt open file fn 65 420 as f
+rt write f "words\n"
+rt close f
+rt access file fn 4 as c
+rt access file fn 1 as d
+rt access dir dn 1 as e
+rt access dir dn 4 as g
+rt access "build/tests/rt_access.d/none" 1 as h
+rt access "build/tests/rt_access.d/none" 4 as i
+rt access file fn 2 as j
+rt access file fn 0 as k
+rt unlink file fn
+rt rmdir dir dn
+r=(a==0)+(b==0)*2+(c==0)*4+((d==-13)|(d==-8))*8+(e==0)*16+(g==0)*32+(h==-2)*64+(i==-2)*128
+ifz (j==-22)&(k==-22)
+	r=0
+end
+rt exit r

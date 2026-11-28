@@ -1,0 +1,64 @@
+# what is opened with 0x1000000 of openat must be the user's alone to
+# change: a file and a directory that the call makes are, one that the
+# others may read still is, and one that the group or the others may
+# write is the error -1, though it opens without the flag. A file that
+# is refused is not cut. The modes are those of Linux, which chmod
+# sets; on Windows it is the rights that say it (tests/win/private.aiw).
+# A descriptor that was given is above 2 and below 4096: an error is a
+# number near 2^64 to a comparison, which knows no sign
+data dir "build/tests/rt_openat_mine.d"
+len dir as n
+buf b 16
+rt unlink "build/tests/rt_openat_mine.d/f"
+rt rmdir "build/tests/rt_openat_mine.d/s"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open dir n 0x10000 0 as d
+# made, to be written, refused if it is there, and the user's alone
+rt openat d "f" 0x10000c1 384 as f
+rt write f "mine\n" as w
+x=(d>2)&(d<4096)&(f>2)&(f<4096)&(w==5)
+# the others may read it: still the user's alone to change
+rt chmod f 420 as c
+rt openat d "f" 0x1000000 0 as g
+rt close g as c2
+x+=((c==0)&(g>2)&(g<4096)&(c2==0))*2
+# the others may write it: refused, and not cut
+rt chmod f 438 as c
+rt openat d "f" 0x1000201 0 as g
+rt openat d "f" 0 0 as h
+rt read h b 16 as k
+rt close h
+x+=((c==0)&(g==-1)&(h>2)&(h<4096)&(k==5))*4
+# the group may: the same
+rt chmod f 432 as c
+rt openat d "f" 0x1000000 0 as g
+x+=((c==0)&(g==-1))*8
+# and cut once it is the user's again
+rt chmod f 384 as c
+rt close f
+rt openat d "f" 0x1000201 0 as g
+rt close g
+rt openat d "f" 0 0 as h
+rt read h b 16 as k
+rt close h
+x+=((c==0)&(g>2)&(g<4096)&(k==0))*16
+# a directory: made, there, read by the others, written by them
+rt openat d "s" 0x1010040 448 as s
+rt openat d "s" 0x1010040 448 as s2
+rt close s2
+rt chmod s 493 as c
+rt openat d "s" 0x1010000 0 as s3
+rt close s3
+rt chmod s 511 as c3
+rt openat d "s" 0x1010040 448 as s4
+rt openat d "s" 0x10000 0 as s5
+rt close s5
+x+=((s>2)&(s<4096)&(s2>2)&(s2<4096)&(c==0)&(s3>2)&(s3<4096)&(c3==0)&(s4==-1)&(s5>2)&(s5<4096))*32
+rt close s
+rt unlink "build/tests/rt_openat_mine.d/f"
+rt rmdir "build/tests/rt_openat_mine.d/s"
+rt close d
+rt rmdir dir n as r
+x+=(r==0)*64
+rt exit x

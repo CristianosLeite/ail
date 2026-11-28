@@ -72,10 +72,12 @@ published; the seed 7, which had the runtime in C, is not.
   passed with 607 tests on 2026-11-27 ([BACKLOG.md](BACKLOG.md)). Left
   there: what the tests of faults are to expect, the six services of
   2026-11-27 and the five of 2026-11-28 under Wine, and the command
-  `ail`, which the
-  compiler for Windows compiles now that it has no `sys`
-  ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
-  `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64
+  `ail`, which builds and tests a package for Windows from Linux
+  since 2026-11-28 (`--target`, [cli.md](cli.md)) and runs on
+  Windows itself since the same day ([BACKLOG.md](BACKLOG.md)); its
+  tests there are one check of `tests/win.sh`, where `tests/cli.sh`
+  has hundreds for Linux, and its dependencies from git were not
+  tried on Windows. Linux on aarch64
   is to do. Its tools need no installation by root: `apt-get download
   qemu-user binutils-aarch64-linux-gnu` and `dpkg -x` into a directory
   give `qemu-aarch64` and `aarch64-linux-gnu-as`, which ran a program
@@ -95,3 +97,8 @@ published; the seed 7, which had the runtime in C, is not.
   through the variables of its function; a division by a constant is a
   division where C multiplies (`allocs` lost 13% to that before its
   sizes were a mask).
+- [ ] The tests that take an error for a descriptor: `(fd>2)` is true
+  of an error, since a comparison knows no sign, and in places it is
+  the only word of a test on an open (a review of `99c2a6a`, user,
+  2026-11-28, which asked for them to be looked through apart from
+  `tests/win/private.aiw`, where every descriptor is bounded now).

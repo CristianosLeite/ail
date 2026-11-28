@@ -29,6 +29,22 @@
 # - tests/win/link.aiw must find that openat follows no junction, which
 #   cmd makes for it, and that a directory it opened keeps its name. It
 #   is skipped where cmd makes no junction.
+# - tests/win/access.aiw must find that access follows a junction: 0
+#   for one that leads to a directory and -2 for one whose directory
+#   is gone. It is skipped where cmd makes no junction.
+# - tests/win/private.aiw must make a file and a directory that are
+#   the user's alone, with 0x1000000 of openat, in a directory that
+#   hands down a right to everybody: icacls of Windows says the rights.
+#   What is there and everybody may change is refused with that flag.
+#   It is skipped where there is no icacls or no whoami.
+# - The command ail must build a package for Windows and run its tests
+#   there (docs/cli.md, --target): the executable with its ending, a
+#   test that finds its directory and starts the executable, and a test
+#   that tests/windows-x86_64.skip names left out.
+# - The command ail as a program of Windows (build/windows-x86_64/ail.exe),
+#   in an installation of tools/install.sh with the compiler and the
+#   formatter of Windows, must make a package, build it, run it, test
+#   it, check its format and clean it.
 # - The row of ccall in the target file must be the bytes the assembler
 #   wrote for its instructions (kept here as hex).
 # - The tests of tests/ that have no sys statement, that the compiler for
@@ -173,6 +189,126 @@ else
     say win_openat_link $r
 fi
 
+# access follows a junction, to a directory or to nothing; the program
+# ends with 77 if cmd made none
+r=0
+$wc < tests/win/access.aiw > $tmp/access.exe || r=1
+timeout 60 wine $tmp/access.exe $tmp/ac > /dev/null 2>&1
+c=$?
+if [ $c -eq 77 ]; then
+    echo "skip win_access_link (no junction made)"
+else
+    [ $c -eq 63 ] || r=1
+    say win_access_link $r
+fi
+
+# what openat makes with 0x1000000 is the user's alone: in a directory
+# that hands down a right to read to everybody (S-1-1-0), which icacls
+# of Windows sets and says; skipped where there is no icacls, as under
+# Wine. A thing made without the flag has the entry of everybody (WD),
+# one made with it has one entry, for one user, and is protected (P),
+# and what is made in such a directory has that entry handed down (ID).
+# What is opened with the flag must be the user's alone to change: a
+# directory and a file that everybody may read are, and a directory and
+# a file that everybody may change (M) are refused. The directory of
+# the check takes nothing over from the one above it, where other
+# accounts may have a right to change: it has the entry of everybody
+# and one for the user, whom whoami of Windows names
+r=0
+# whoami of Windows, beside its icacls: another whoami.exe may be found first
+who=$(dirname "$(command -v icacls.exe 2> /dev/null)" 2> /dev/null)/whoami.exe
+if command -v icacls.exe > /dev/null 2>&1 && [ -x "$who" ]; then
+    $wc < tests/win/private.aiw > $tmp/private.exe || r=1
+    rm -rf $tmp/pv
+    mkdir -p $tmp/pv
+    me=$("$who" /user /fo csv /nh 2> /dev/null | tr -d '\r"' | cut -d, -f2)
+    (cd $tmp && icacls.exe pv /inheritance:r /grant:r "*$me:(OI)(CI)F" '*S-1-1-0:(OI)(CI)R' > /dev/null 2>&1) || r=1
+    mkdir $tmp/pv/seen $tmp/pv/loose
+    printf 'keep
+' > $tmp/pv/read
+    printf 'keep
+' > $tmp/pv/shared
+    (cd $tmp/pv && icacls.exe loose /grant '*S-1-1-0:(OI)(CI)M' > /dev/null 2>&1 && icacls.exe shared /grant '*S-1-1-0:M' > /dev/null 2>&1) || r=1
+    timeout 60 wine $tmp/private.exe $tmp/pv > /dev/null 2>&1
+    [ $? -eq 127 ] || r=1
+    # the rights of the name $2 in the directory $1, as icacls saves them
+    acl() { (cd $1 && icacls.exe $2 /save acl.txt > /dev/null 2>&1 && tr -d '\000\r' < acl.txt | sed -n 2p); }
+    case "$(acl $tmp/pv plain)" in *';WD)'*) ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv file)" in 'D:P(A;;FA;;;S-1-'*')('*) r=1 ;; 'D:P(A;;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv dir)" in 'D:P(A;OICI;FA;;;S-1-'*')('*) r=1 ;; 'D:P(A;OICI;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    case "$(acl $tmp/pv/dir in)" in 'D:(A;ID;FA;;;S-1-'*')('*) r=1 ;; 'D:(A;ID;FA;;;S-1-'*')') ;; *) r=1 ;; esac
+    say win_private $r
+else
+    echo "skip win_private (no icacls or no whoami)"
+fi
+
+# a package built and tested for Windows by the command ail
+r=0
+mkdir -p $tmp/pkg/src $tmp/pkg/tests
+printf 'name pkg\nversion 0.1.0\nbin pkg src/main.aiw\n' > $tmp/pkg/Ailfile
+printf 'use "lib/std/io.aiw"\ncall print "pkg\\n"\n' > $tmp/pkg/src/main.aiw
+cat > $tmp/pkg/tests/starts.aiw << 'EOF'
+use "lib/std/io.aiw"
+use "lib/std/bytes.aiw"
+use "lib/std/file.aiw"
+use "lib/std/proc.aiw"
+buf b 24
+buf av 16
+data exe "build/windows-x86_64/pkg.exe" 0
+# the directory of the test, named from the top of the package
+call procvar "AIL_TMP" as p n
+call print p n
+call print "\n"
+call byadd b p n
+call byadd b "/made"
+load b as q
+load b+8 as m
+call fileopen q m 0x241 420 as fd
+ifslt fd 0
+	rt exit 1
+end
+rt close fd
+# the executable of the package, built for the same target
+store av exe
+store av+8 0
+call procstart av -1 -1 -1 as pid
+call procwait pid 0 as st
+rt exit st
+EOF
+printf 'build/windows-x86_64/tests/starts.tmp\npkg\n' > $tmp/pkg/tests/starts.out
+printf 'sys exit 0\n' > $tmp/pkg/tests/linux.aiw
+printf '# has a sys\nlinux\n' > $tmp/pkg/tests/windows-x86_64.skip
+(cd $tmp/pkg && ../../../ail build --target windows-x86_64) > /dev/null 2>&1 || r=1
+[ "$(head -c 2 $tmp/pkg/build/windows-x86_64/pkg.exe)" = MZ ] || r=1
+got=$(cd $tmp/pkg && timeout 120 ../../../ail test --target windows-x86_64 2> /dev/null) || r=1
+[ "$got" = "skip linux
+ok   starts
+1 test, 0 failed, 1 skipped" ] || r=1
+say win_package $r
+
+# AIL installed for Windows: the command makes a package and works on it
+r=0
+tools/install.sh build $tmp/wp windows > /dev/null 2>&1 || r=1
+wa=$PWD/$tmp/wp/bin/ail.exe
+chmod +x $tmp/wp/bin/ail.exe $tmp/wp/lib/ail/*.exe 2> /dev/null
+(
+    unset AIL_HOME
+    mkdir $tmp/wk && cd $tmp/wk || exit 1
+    v=$(sed -n 's/^version //p' ../../../../Ailfile)
+    [ "$(timeout 60 wine $wa version 2> /dev/null | tr -d '\r')" = "ail $v" ] || exit 1
+    timeout 60 wine $wa new demo > /dev/null 2>&1 || exit 1
+    cd demo || exit 1
+    timeout 60 wine $wa build > /dev/null 2>&1 || exit 1
+    [ -f build/demo.exe ] || exit 1
+    [ "$(timeout 60 wine $wa run 2> /dev/null | tr -d '\r')" = "hello from demo" ] || exit 1
+    [ "$(timeout 60 wine $wa test 2> /dev/null | tr -d '\r')" = "ok   hello
+1 test, 0 failed" ] || exit 1
+    timeout 60 wine $wa fmt --check > /dev/null 2>&1 || exit 1
+    timeout 60 wine $wa clean > /dev/null 2>&1 || exit 1
+    [ ! -e build ] || exit 1
+) || r=1
+say win_ail $r
+
 # tests that are run whatever the count: threads that open at once,
 # pollers that share nothing or a waker, a watch and a close at once,
 # a long time of reap, threads that reap one child, and the number of
@@ -180,7 +316,7 @@ fi
 # executable, the lock, a program in place of the process and a group
 # of processes. One of them that does not compile fails the
 # suite; any other test that does not compile is left out
-always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds rt_seek rt_stat rt_pwrite rt_fstat_dir rt_pwrite_threads rt_time rt_random rt_platform rt_trylock rt_map rt_map_replace rt_lock_device rt_anon rt_kill rt_openat rt_fdpath rt_lockfd rt_sync_dir rt_openat_look rt_openat_kept"
+always="rt_open_threads rt_poll_two rt_poll_shared rt_watch_close rt_reap_long rt_reap_many rt_reap_again rt_cwd rt_self rt_kind rt_chmod rt_pid rt_lock rt_become rt_group rt_group_fds rt_seek rt_stat rt_pwrite rt_fstat_dir rt_pwrite_threads rt_time rt_random rt_platform rt_trylock rt_map rt_map_replace rt_lock_device rt_anon rt_kill rt_openat rt_fdpath rt_lockfd rt_sync_dir rt_openat_look rt_openat_kept rt_access rt_temp"
 # each of them has to be a test the loop below finds and takes
 for t in $always; do
     why=

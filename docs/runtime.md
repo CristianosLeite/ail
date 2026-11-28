@@ -83,9 +83,11 @@ result is a value.
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 | 59 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
 | 60 | `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
-| 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat` and `fdpath`, and a directory to be the one of another `openat`, whether 0x10000 was asked with it or not: nothing of it is read or written and its names are not read (-9), a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for. A directory is made with 64 and 0x10000 then too; a file is not made. With 0x800000 a file keeps its name where the system can hold one: for as long as the descriptor is open no process removes the file or gives it another name on Windows, where the open is refused, -13, while a process has the file open to remove it; on Linux the flag does nothing, and a file that is open may lose its name |
+| 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat` and `fdpath`, and a directory to be the one of another `openat`, whether 0x10000 was asked with it or not: nothing of it is read or written and its names are not read (-9), a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for. A directory is made with 64 and 0x10000 then too; a file is not made. With 0x800000 a file keeps its name where the system can hold one: for as long as the descriptor is open no process removes the file or gives it another name on Windows, where the open is refused, -13, while a process has the file open to remove it; on Linux the flag does nothing, and a file that is open may lose its name. With 0x1000000 what the call makes, a file with 64 or a directory with 64 and 0x10000, is the user's alone: on Linux by its mode, which the caller gives without a bit for others (384 for a file, 448 for a directory), and on Windows by its rights, the user of the process and nobody else, with nothing taken over from the directory it is made in; what the call opens with the flag, made by it or there already, must be the user's alone to change, or it is the error -1 and a file is not cut: on Linux its owner is the user the process acts as or root and its mode has no bit to write for the group or the others (0022), on Windows its owner is the user, the system or the administrators and no entry of its rights lets anybody else write it, add to it, remove it or what is in it, or change its rights. That others may read it is no error |
 | 62 | `fdpath` | descriptor, address, size | the length of the path that the system has for what the descriptor is open on, from the root and with no link in it, written there as `cwd` writes one, or an error: -34 if it does not fit, -22 for what has no path, a pipe or a socket, and -2 for a file that the path does not lead to any more: one that has no name left, or whose name there was removed while it has another |
 | 63 | `lockfd` | descriptor | 0, or an error: the lock that `lock` takes of a file, taken for the file the descriptor is open on, which is held until the descriptor is closed or the process ends. It is not waited for: -11 says that a process has it, by `lock`, `trylock` or `lockfd`, this one too by another descriptor. -22 for what is no plain file. The descriptor is one opened to read or to write, and one that has the lock does not ask again |
+| 64 | `access` | address and length of a path, 1 to run or 4 to read | 0 if the process may do that with what is at the path, a link followed, or an error: -13 if it may not, -2 if nothing is there, -22 for another number. A directory that may be entered may be run. It says what is so when it is asked: a program that goes on to start or to open the file takes the answer of that too |
+| 65 | `temp` | | a descriptor of a new file with a name of its own, to read and to write, empty, or an error. It is in the directory of the system for temporary files, is made by this call and is never a file that was there, and stays until it is removed (`unlink`); `fdpath` gives its path. A program the process starts has it only as one of the three descriptors `start` is given, or opens it by that path |
 
 The descriptors 0, 1 and 2 are the input, the output and the error
 output the process was started with. A path is its bytes, at most 4095,
@@ -95,6 +97,21 @@ mode, the bits of its permissions), 512 to cut it to no bytes, 1024 to
 write at its end, 0x10000 for a directory, whose names `names` gives,
 and 0x80000 to close it in a program the process starts. `read` and `write` may do less than they were asked, and a
 caller that wants all asks again.
+
+On Linux `open` takes 0x200000 too (`O_PATH` of the kernel), and it is
+of Linux alone there: the runtime of Windows does not look at it in
+`open` and opens the thing as without it, so a program for both adds
+the flag where `platform` says Linux, or opens below a directory with
+`openat`, which has the flag on both. What is at the path is opened
+only to be asked what it is: `fstat` and `fdpath` take the descriptor,
+and a directory opened so, with 0x10000 or without, is the directory
+of an `openat`. The process needs no right to read what it opens so,
+only to enter the directories of the path: a directory that may be
+entered and not read is opened. Nothing of it is read or written and
+its names are not read (-9), and 64 makes no file with it. It is not
+`openat` with a path: `open` takes a whole path and follows the links
+in it and at its end, where `openat` takes one name and follows none.
+The test is `rt_open_look`, which Linux alone runs.
 
 The errors that a caller may tell apart, with the numbers Linux gives
 them; a runtime for another platform gives the same numbers:
@@ -497,6 +514,41 @@ Where a service cannot be on Windows what it is on Linux:
   has nothing like it: its handle may only be asked what it is, and
   the runtime gives -9 for a read, a write, a lock and the names of
   it, as the kernel of Linux does.
+- What `openat` makes with 0x1000000 gets a security descriptor of
+  its own from the runtime, where Windows otherwise gives a file the
+  rights that its directory hands down, which may be more than the
+  mode a program asked for: Windows does not look at a mode. The
+  descriptor has one entry, everything for the user of the token of
+  the process (`NtQueryInformationToken`), and is protected, so
+  nothing of the directory is added to it. Of a directory the entry
+  is handed down to what is made in it. Neither the system nor the
+  administrators have an entry; an administrator can still take the
+  thing over, as with every file. `open` and `mkdir` do not take the
+  flag. The check `win_private` of `tests/win.sh` asks `icacls` for
+  the rights, in a directory that hands down a right to read to
+  everybody.
+- What `openat` opens with 0x1000000 is asked for its owner and its
+  rights (`NtQuerySecurityObject`, for which the handle is opened
+  with the right to read them, so a thing whose rights the user may
+  not read is -13). It is the user's alone to change when its owner
+  is the user of the token, the system (S-1-5-18) or the
+  administrators (S-1-5-32-544), and every entry that allows one of
+  the rights 0x500d0156 names one of those three: to write it and to
+  add to it, which of a directory is to make a file or a directory
+  in it, to write its attributes, to remove what is in it or itself,
+  and to write its rights or its owner. The system and the
+  administrators are let be because they can take any thing of the
+  machine whatever its rights say, and because a process that runs
+  with the rights of an administrator makes things that the
+  administrators own. An entry that refuses is not counted, so the
+  answer may be no where Windows would refuse the others; an entry
+  that is only handed down is not of the thing itself; an entry of
+  another kind, and a thing with no list of rights, are a no. A
+  volume that keeps no rights, FAT, says of every file that
+  everybody may do everything: nothing is opened with the flag
+  there. The check is of the thing that the handle is open on, at
+  the time of the call: the directories above it are not asked, and
+  nothing holds the rights as they were found.
 - `fdpath` is what the link of the descriptor in `/proc/self/fd`
   leads to on Linux, so it is an error where `/proc` is not there,
   and a file of `anon` has no path. The kernel keeps the name a file
@@ -511,6 +563,27 @@ Where a service cannot be on Windows what it is on Linux:
   share as `\\server\share`: where `real` keeps a link that is in a
   path, this path has none. Windows still has a path for a file that
   was removed and is open, and for a file of `anon`.
+- `access` opens what the path leads to for the right that is asked,
+  to read it or to read and execute it, which Windows refuses where
+  the process has not that right, -13. A file to run must also start
+  with the two bytes of a program of Windows, `MZ`, or it is -8:
+  `start` gives Windows the file, and Windows runs nothing else by
+  its path, a script least of all. A directory is opened too and is 0
+  for both; a link or a junction whose directory is gone is -2, as
+  every path that leads to nothing. On Linux it is the
+  system call `access`, which asks for the user the process was
+  started by, and a file may be run that the kernel then finds to be
+  no program.
+- `temp` is a file as `anon` makes it, in the directory that Windows
+  has for the temporary files of the user (`GetTempPathA`), with
+  `.tmp` behind its name and without the flag that has Windows remove
+  it: the program removes it. On Linux the directory is `TMPDIR` of
+  the environment if that is a path from the root, else `/tmp`, which
+  every user writes to: the file is made with `O_EXCL`, so nothing
+  that another user put at the name is opened, and with the mode
+  0600. A file of `temp` is on a disk, where one of `anon` on Linux
+  is memory: a program that gives another program bytes by a path
+  uses it where the other program cannot be given a descriptor.
 - `lockfd` asks Windows for the byte that `lock` asks for, with the
   handle of the descriptor, and `become` lets go of it as of a lock
   of `lock`. The lock is of the file and not of its name: `open` and

@@ -1,0 +1,69 @@
+# usage: private.exe DIR
+# What openat makes with 0x1000000 is the user's alone on Windows. In
+# DIR, which is there and hands down a right to read to everybody, it
+# makes a file "plain" without the flag, a file "file" and a directory
+# "dir" with it, and a file "in" without it in that directory; the
+# file made with the flag is opened again and read, so the user still
+# may. tests/win.sh then asks Windows for the rights of each. What is
+# opened with the flag must be the user's alone to change: DIR has a
+# directory "seen" and a file "read" that everybody may read, which
+# open, and a directory "loose" and a file "shared" that everybody may
+# change, which are the error -1, the file not cut, though both open
+# without the flag. A descriptor that was given is above 2 and below
+# 4096: an error is a number near 2^64 to a comparison, which knows no
+# sign. The status is 127.
+buf path 1024
+buf b 16
+args as p
+load p+16 as a
+an=0
+label more
+loadb a+an as ch
+if ch
+	if ch==47
+		ch=92
+	end
+	storeb path+an ch
+	an+=1
+	jmp more
+end
+rt open path an 0x10000 0 as d
+rt openat d "plain" 65 420 as f
+rt close f as c
+x=(d>2)&(d<4096)&(f>2)&(f<4096)&(c==0)
+# to be written, made, refused if it is there, and the user's alone
+rt openat d "file" 0x10000c1 384 as f
+rt write f "mine\n" as w
+rt close f as c
+rt openat d "file" 0 0 as g
+rt read g b 16 as k
+rt close g as c2
+x+=((f>2)&(f<4096)&(w==5)&(c==0)&(g>2)&(g<4096)&(k==5)&(c2==0))*2
+rt openat d "dir" 0x1010040 448 as s
+rt openat s "in" 65 420 as f
+rt close f as c
+x+=((s>2)&(s<4096)&(f>2)&(f<4096)&(c==0))*4
+# what is there is made no second time
+rt openat d "file" 0x10000c1 384 as e1
+rt openat d "file" 0x1000041 384 as f
+rt close f as c
+rt openat d "dir" 0x1010040 448 as g
+rt close g as c2
+x+=((e1==-17)&(f>2)&(f<4096)&(g>2)&(g<4096)&(c==0)&(c2==0))*8
+rt close s as c3
+# what everybody may read, and what everybody may change
+rt openat d "seen" 0x1010040 448 as s
+rt close s as c4
+rt openat d "read" 0x1000000 0 as f
+rt close f as c5
+rt openat d "loose" 0x1010040 448 as e1
+rt openat d "loose" 0x10000 0 as g
+rt close g as c6
+rt openat d "shared" 0x1000201 0 as e2
+rt openat d "shared" 0 0 as h
+rt read h b 16 as k
+rt close h as c7
+x+=((s>2)&(s<4096)&(f>2)&(f<4096)&(e1==-1)&(g>2)&(g<4096)&(e2==-1)&(h>2)&(h<4096)&(k==5)&(c4==0)&(c5==0)&(c6==0)&(c7==0))*32
+rt close d as c
+x+=((c==0)&(c3==0))*16
+rt exit x+64
