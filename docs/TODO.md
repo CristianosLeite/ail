@@ -72,7 +72,8 @@ published; the seed 7, which had the runtime in C, is not.
   passed with 607 tests on 2026-11-27 ([BACKLOG.md](BACKLOG.md)). Left
   there: what the tests of faults are to expect, the six services of
   2026-11-27 and the five of 2026-11-28 under Wine, and the command
-  `ail`, which the
+  `ail`, which builds and tests a package for Windows from Linux
+  since 2026-11-28 (`--target`, [cli.md](cli.md)) and which the
   compiler for Windows compiles now that it has no `sys`
   ([BACKLOG.md](BACKLOG.md)) but which still names paths with `/`,
   `/dev/null`, `sh` and flags of `open` that only Linux has. Linux on aarch64
