@@ -10,6 +10,10 @@
 #   source with its message and the status 1, and compile its own source
 #   to the file it is itself: the fixed point of the port. Its image must
 #   be one that Windows loads, which is not for Wine to say.
+# - The header of a program must let Windows choose the address of its
+#   image, among all 64 bits, and tests/win/moved.aiw must find itself
+#   loaded elsewhere than the header names; it is skipped where the
+#   loader chooses no address, as Wine does.
 # - A program whose image is the largest Windows loads must compile, and
 #   one a page larger must be refused.
 # - tests/win/start.aiw must start programs of Windows, with their output
@@ -75,6 +79,24 @@ echo "buf a $n" | $wc > $tmp/top.exe || r=1
 echo "buf a $((n + 4096))" | $wc > $tmp/over.exe 2> $tmp/err
 [ $? -eq 1 ] && [ "$(cat $tmp/err)" = "ailc: buffers too big" ] && [ ! -s $tmp/over.exe ] || r=1
 say win_image_limit $r
+
+# the header lets Windows choose where the image is: the characteristics
+# at 86 do not say that relocations were taken out (1), and those of
+# the loader at 158 say any address (0x40) of 64 bits (0x20)
+r=0
+[ $(($(od -An -tu2 -j86 -N2 $tmp/hello.exe | tr -d ' ') & 1)) -eq 0 ] || r=1
+[ $(($(od -An -tu2 -j158 -N2 $tmp/hello.exe | tr -d ' ') & 96)) -eq 96 ] || r=1
+say win_image_moves $r
+r=0
+$wc < tests/win/moved.aiw > $tmp/moved.exe || r=1
+timeout $limit wine $tmp/moved.exe > /dev/null 2>&1
+c=$?
+if [ $c -eq 77 ]; then
+    echo "skip win_image_moved (loaded where the header names)"
+else
+    [ $c -eq 1 ] || r=1
+    say win_image_moved $r
+fi
 
 echo frob | timeout $limit wine $tmp/ailc.exe > /dev/null 2> $tmp/err
 [ $? -eq 1 ] && [ "$(tr -d '\r' < $tmp/err)" = "ailc: 1: unknown statement" ]

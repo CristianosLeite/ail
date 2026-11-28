@@ -1,0 +1,9 @@
+# The image of a program for Windows may be loaded anywhere: this one
+# ends with 1 if it is not at the address its header names,
+# 0x140000000, and with 77 if it is, which a loader that chooses no
+# address does.
+base as b
+if b==0x140000000
+	rt exit 77
+end
+rt exit 1

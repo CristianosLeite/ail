@@ -1450,6 +1450,22 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   compiles and runs as it did, but for a `lock` of a named pipe or of
   a device, which 0.2.2 took and which is the error -22 now; the
   notes of the release say so.
+- [x] An executable of Windows is loaded where Windows chooses (user,
+  2026-11-28, in a pull request of its own, after Microsoft Defender
+  took a program of the tests for malware again): the header said
+  that relocations were taken out and named one address,
+  0x140000000, so Windows loaded every program there. No instruction
+  has an address, so the header only stops saying so and says what a
+  linker of Microsoft says (`DYNAMICBASE`, `HIGHENTROPYVA`); there is
+  no table of relocations, and none is needed. Windows 11 (build
+  26300) loaded a program at 0x7ff6a1140000 and a copy of its file
+  at 0x7ff768bd0000. `tests/win.sh` reads the two bits in the header
+  (`win_image_moves`) and has a program find itself elsewhere than
+  the header names (`win_image_moved`, skipped where the loader
+  chooses no address). What it does to the verdicts of Defender is
+  not known: the program that was taken at the head of the branch
+  `dir-services` was accepted when compiled with this header, as it
+  was with any other bytes changed.
 - [x] A file with no name, the service `anon` (2026-11-28, for step
   19 of aildb, which gives a child its input and takes its outputs in
   such files and asked Linux for them with `sys`): a descriptor to
