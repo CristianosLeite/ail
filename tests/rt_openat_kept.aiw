@@ -1,0 +1,35 @@
+# a file that keeps its name while it is open (0x800000 of openat): it
+# is made, opened and locked by its descriptor, and a second
+# descriptor of it is refused the lock. On Windows nothing renames or
+# removes it then, and a second file can not be made and locked under
+# its name; on Linux the flag does nothing, which is not asked. Once
+# it is closed it is renamed and removed on both
+data dir "build/tests/rt_openat_kept.d"
+len dir as n
+rt unlink "build/tests/rt_openat_kept.d/lock"
+rt unlink "build/tests/rt_openat_kept.d/moved"
+rt rmdir dir n
+rt mkdir dir n 493
+rt open dir n 0x10000 0 as d
+rt openat d "lock" 0x800042 420 as f
+rt lockfd f as l
+rt openat d "lock" 0x800002 0 as g
+rt lockfd g as l2
+rt close g as c
+x=(d>2)&(f>2)&(l==0)&(g>2)&(l2==-11)&(c==0)
+rt platform as p
+kept=1
+if p==2
+	rt rename "build/tests/rt_openat_kept.d/lock" "build/tests/rt_openat_kept.d/moved" as r1
+	rt unlink "build/tests/rt_openat_kept.d/lock" as r2
+	rt kind "build/tests/rt_openat_kept.d/lock" as k
+	kept=(r1==-13)&(r2==-13)&(k==1)
+end
+x+=kept*2
+rt close f as c
+rt rename "build/tests/rt_openat_kept.d/lock" "build/tests/rt_openat_kept.d/moved" as r1
+rt unlink "build/tests/rt_openat_kept.d/moved" as r2
+rt close d
+rt rmdir dir n as r3
+x+=((c==0)&(r1==0)&(r2==0)&(r3==0))*4
+rt exit x

@@ -906,7 +906,7 @@ fn rt_sync rt_fd
 		call rt_handle rt_fd as rt_h
 		store rt_us 0
 		store rt_us+8 0
-		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 as rt_r rt_w
+		call rt_ntopen rt_h rt_us 0x100002 1 0x4021 3 as rt_r rt_w
 		if rt_r
 			ret rt_r
 		end
@@ -3245,11 +3245,12 @@ end
 # there, 2 to make it, 3 to open or make it; rt_opt the options: 1 a
 # directory, 0x40 none, 0x20 to read and write in turn, 0x4000 a
 # directory too, 0x200000 a reparse point as itself. Capitals do not
-# count (0x40 of the attributes of the name). A directory is shared
-# with those that read and write it (3) and a file with those that
-# remove it too (7), as rt_open shares one. Windows says of a
-# directory where none was asked for 0xc00000ba, the error -21.
-fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt
+# count (0x40 of the attributes of the name). rt_sh is whom it is
+# shared with: those that read and write it (3), or those that remove
+# it or give it another name too (7), as rt_open shares a file.
+# Windows says of a directory where none was asked for 0xc00000ba,
+# the error -21.
+fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh
 	local rt_oa 48
 	local rt_io 16
 	local rt_hh 8
@@ -3260,10 +3261,6 @@ fn rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt
 	store rt_oa+16 rt_us
 	store4 rt_oa+24 0x40
 	store rt_hh 0
-	rt_sh=7
-	if rt_opt&1
-		rt_sh=3
-	end
 	store rt_a rt_hh
 	store rt_a+8 rt_acc
 	store rt_a+16 rt_oa
@@ -3339,7 +3336,11 @@ end
 # directory of another rt_openat if Windows says of its handle that it
 # is one (16 of the attributes). A directory that is to be made is
 # made though it is opened only to be asked; a file is not, as on
-# Linux.
+# Linux. A directory is shared with those that read and write it, so
+# that it keeps its path, and a file with those that remove it or
+# rename it too, unless it is to keep its name (0x800000): Windows
+# then refuses both to every process while the descriptor is open, and
+# refuses this open (-13) while a handle may remove the file.
 fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	local rt_w 1040
 	local rt_z 4096
@@ -3422,10 +3423,14 @@ fn rt_openat rt_fd rt_p rt_n rt_flags rt_mode
 	ifslt rt_nf 0
 		ret rt_nf
 	end
-	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt as rt_r rt_h
+	rt_sh=7
+	if (rt_opt&1)|(rt_flags&0x800000)
+		rt_sh=3
+	end
+	call rt_ntopen rt_dh rt_us rt_acc rt_how rt_opt rt_sh as rt_r rt_h
 	if rt_r
 		if (rt_r==-20)|(rt_r==-21)
-			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 as rt_x rt_h
+			call rt_ntopen rt_dh rt_us 0x100080 1 0x204020 7 as rt_x rt_h
 			ifz rt_x
 				call rt_hattr rt_h as rt_t
 				store rt_a rt_h

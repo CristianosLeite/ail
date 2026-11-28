@@ -1590,3 +1590,14 @@ From [RUNTIME.md](RUNTIME.md); what was decided with it is in
   says that its handle is one; a directory to be made is made. What
   else such a descriptor does is the same on both now: -9 for a
   read, a write, a lock and its names. The test `rt_openat_look`.
+- [x] A file that keeps its name while it is open, 0x800000 of
+  `openat` (2026-11-28, the review of `c5ed7fb`, for the lock of an
+  index of aildb, whose file no process is to remove while the lock
+  is held): `openat` of Windows shares a file with those that remove
+  or rename it, so a file locked with `lockfd` was renamed while the
+  lock was held and a second file made and locked under its name,
+  both locks given. With the flag the file is not shared so, and
+  Windows refuses to remove and to rename it while the descriptor is
+  open; without it a file is shared as before. On Linux the flag
+  does nothing: no file keeps its name there. The test
+  `rt_openat_kept`.

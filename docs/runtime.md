@@ -83,7 +83,7 @@ result is a value.
 | 58 | `unmap` | address, size | 0, or an error: the memory that `map` gave for that size is given back |
 | 59 | `anon` | | a descriptor of a file that has no name, to read and to write, empty and at its start, or an error. It is there until it is closed by every process that has it, and a program the process starts has it only as one of the three descriptors `start` is given |
 | 60 | `kill` | child | 0, or an error, -1001 if there is no such child: the child, one that `start` gave and `reap` has not taken, is ended at once, whatever it does. It is still to be taken, and `reap` then gives -9 for it, or what it ended with if it had ended before. The programs it started go on, unless it leads a group (the flag 2 of `start`), which ends when `reap` has taken it |
-| 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat` and `fdpath`, and a directory to be the one of another `openat`, whether 0x10000 was asked with it or not: nothing of it is read or written and its names are not read (-9), a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for. A directory is made with 64 and 0x10000 then too; a file is not made |
+| 61 | `openat` | descriptor of a directory, address and length of a name, flags, mode | a descriptor of what has the name in that directory, or an error. The name is one name: -22 for none, for `.` and `..` and for one with a `/` in it. A link at the name is not followed, and is the error -40. The flags are those of `open`; 64 with 0x10000 makes the directory if it is not there, with the mode, and opens it. With 0x200000 the thing is opened only to be asked what it is, by `fstat` and `fdpath`, and a directory to be the one of another `openat`, whether 0x10000 was asked with it or not: nothing of it is read or written and its names are not read (-9), a pipe or a device is not opened, and a link is then no error and is opened as itself, of the kind 3, unless a directory was asked for. A directory is made with 64 and 0x10000 then too; a file is not made. With 0x800000 a file keeps its name where the system can hold one: for as long as the descriptor is open no process removes the file or gives it another name on Windows, where the open is refused, -13, while a process has the file open to remove it; on Linux the flag does nothing, and a file that is open may lose its name |
 | 62 | `fdpath` | descriptor, address, size | the length of the path that the system has for what the descriptor is open on, from the root and with no link in it, written there as `cwd` writes one, or an error: -34 if it does not fit, -22 for what has no path, a pipe or a socket, and -2 for a file that the path does not lead to any more: one that has no name left, or whose name there was removed while it has another |
 | 63 | `lockfd` | descriptor | 0, or an error: the lock that `lock` takes of a file, taken for the file the descriptor is open on, which is held until the descriptor is closed or the process ends. It is not waited for: -11 says that a process has it, by `lock`, `trylock` or `lockfd`, this one too by another descriptor. -22 for what is no plain file. The descriptor is one opened to read or to write, and one that has the lock does not ask again |
 
@@ -478,7 +478,10 @@ Where a service cannot be on Windows what it is on Linux:
   where it is a reparse point, a link or a junction
   (`FILE_OPEN_REPARSE_POINT`), and asked for its attributes: such a
   thing is the error -40, and with 0x200000 of the kind 3. A file is
-  cut (512) only after that, by its handle. A directory opened so
+  cut (512) only after that, by its handle. A file is shared with
+  those that read, write, remove and rename it, and with 0x800000
+  not with those that remove or rename it (no `FILE_SHARE_DELETE`).
+  A directory opened so
   gets its path from Windows by its handle
   (`GetFinalPathNameByHandleA`), for `names`, which searches a path,
   and is opened so that Windows refuses to remove it and to give it
@@ -503,7 +506,14 @@ Where a service cannot be on Windows what it is on Linux:
   was removed and is open, and for a file of `anon`.
 - `lockfd` asks Windows for the byte that `lock` asks for, with the
   handle of the descriptor, and `become` lets go of it as of a lock
-  of `lock`. A descriptor that has the lock and asks again gets -11
+  of `lock`. The lock is of the file and not of its name: `open` and
+  `openat` share a file with those that remove it or rename it, so
+  a file that is locked may be given another name and a second file
+  made and locked under the first name, as on Linux, where a
+  program looks after its lock whether the name still leads to the
+  file. A file opened with 0x800000 of `openat` keeps its name on
+  Windows while it is open, as the file of `lock` does, and the
+  name is then the lock's. A descriptor that has the lock and asks again gets -11
   there and 0 on Linux, where the lock is of the open file and a
   program that `start` gave the descriptor has it too; neither is to
   be counted on.
